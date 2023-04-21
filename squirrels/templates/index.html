@@ -1,0 +1,32 @@
+<!DOCTYPE html>
+<html>
+    <head>
+        <title>Squirrels UI</title>
+        <link id="favicon" rel="icon" type="image/x-icon" href="static/favicon.ico">
+        <link href="{{ url_for('static', path='/style.css') }}" rel="stylesheet">
+        <script src="{{ url_for('static', path='/script.js') }}" defer></script>
+    </head>
+    <body onload="callJsonAPI('{{ base_path }}', renderDatasetsSelection)">
+    <div id="main-container">
+        <div id="parameter-container">
+            <label for="dataset-select">Select a Dataset:</label>
+            <select id="dataset-select" onchange="changeDatasetSelection()"></select>
+            <div id="generated-parameters"></div>
+            <input type="submit" value="Apply" onclick="getDatasetResults()">
+        </div>
+        <div id="table-container">
+            <button onclick="copyTable()">Copy Table</button>
+            <table id="result-table">
+                <thead id="table-header"></thead>
+                <tbody id="table-body"></tbody>
+            </table>
+        </div>
+    </div>
+    <div id="loading-indicator">
+        <div>
+            <div class="spinner"></div>
+            <div>Loading...</div>
+        </div>
+    </div>      
+    </body>
+</html>

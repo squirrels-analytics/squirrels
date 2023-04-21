@@ -1,0 +1,29 @@
+project_variables:
+  product: myproduct
+  major_version: '0'
+  minor_version: '1'
+
+modules: []
+
+db_profile: product_profile
+
+base_path: "/{{product}}/v{{major_version}}"
+
+datasets:
+  stock_price_history:
+    label: Stock Price History
+    database_views:
+    - name: ticker_history
+      file: ticker_history.sql.j2
+    final_view: final_view.sql.j2
+
+  dataset2:
+    label: Test Dataset
+    database_views: []
+    final_view: final_view.sql.j2
+
+settings:
+  parameters.cache.size: 1024
+  parameters.cache.ttl: 86400
+  results.cache.size: 128
+  results.cache.ttl: 86400

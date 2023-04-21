@@ -1,0 +1,20 @@
+project_variables:
+  product: myproduct
+  major_version: '0'
+  minor_version: '1'
+
+modules: []
+
+db_profile: myprofile
+
+base_path: "/{{product}}/v{{major_version}}"
+
+datasets:
+  sample_dataset:
+    label: Sample Dataset
+    database_views:
+    - name: database_view1
+      file: database_view1.sql.j2
+    final_view: final_view.sql.j2
+
+settings: {}
