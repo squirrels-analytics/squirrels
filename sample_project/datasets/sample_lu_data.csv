@@ -1,4 +1,0 @@
-parameter,id,options,ordering,is_default,parent_id,is_cond_default
-ticker,0,AAPL,0,,,
-ticker,1,GOOG,1,,,
-ticker,2,MSFT,2,,,

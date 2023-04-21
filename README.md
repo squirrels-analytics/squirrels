@@ -28,10 +28,3 @@ squirrels -h
 ```
 python setup.py pytest
 ```
-
-## Features Roadmap
-
-- Provide a `squirrels init` CLI to create a squirrels project from scratch including sample files for squirrels.yaml, parameters.py, functions.py, database_view.sql.j2, selections.cfg, sample_lu_data.csv, and .gitignore
-- Allow for database views as python files
-- Introduce single-select and multi-select widgets for group bys
-- Provide a `squirrels unit-test` CLI to perform unit tests from a `tests` folder

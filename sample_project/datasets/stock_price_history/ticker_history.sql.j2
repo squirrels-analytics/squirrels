@@ -1,8 +1,0 @@
-{% set date_bucket = ctx('date_bucket') -%}
-{% set start_date = ctx('start_date') -%}
-
-SELECT ticker, {{ date_bucket }}, strftime('%m', {{ date_bucket }}) as reference_month, avg(daily_return)*10000 as avg_daily_return_bps
-FROM stock_data
-WHERE trading_date >= '{{ start_date }}' AND ticker IN ({{ prms('ticker').get_selected_labels_quoted() }})
-GROUP BY ticker, {{ date_bucket }}
-ORDER BY ticker ASC, {{ date_bucket }} DESC

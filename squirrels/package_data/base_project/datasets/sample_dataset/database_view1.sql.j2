@@ -1,0 +1,4 @@
+SELECT dim1, avg(metric1) as metric1, avg(metric2) as metric2
+FROM fact_table
+WHERE metric1 <= {{ prms['number_example'].get_selected_value() }} -- or do {{ ctx['limit'] }} instead if context.py is defined
+GROUP BY dim1

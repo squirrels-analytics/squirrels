@@ -1,0 +1,15 @@
+modules: []
+
+db_connection: my_db
+
+base_path: "/{{product}}/v{{major_version}}"
+
+datasets:
+  sample_dataset:
+    label: Sample Dataset
+    database_views:
+    - name: database_view1
+      file: database_view1.sql.j2
+    final_view: final_view.sql.j2
+
+settings: {}

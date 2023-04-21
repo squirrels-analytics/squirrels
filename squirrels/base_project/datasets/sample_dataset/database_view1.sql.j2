@@ -1,4 +1,0 @@
-SELECT dim1, avg(metric1) as metric1, avg(metric2) as metric2
-FROM fact_table
-WHERE metric1 <= {{ prms('limit').get_selected_value() }}
-GROUP BY dim1

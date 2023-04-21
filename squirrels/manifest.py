@@ -1,39 +1,106 @@
-import time, yaml
-from typing import Dict, Any
+from typing import List, Dict, Any, Optional
 from squirrels import constants as c
-from squirrels.utils import timer
-
-start = time.time()
-import jinja2 as j2
-timer.add_activity_time(c.IMPORT_JINJA, start)
-
-parms = None
+from squirrels.utils import ConfigurationError, InvalidInputError
+from squirrels.timed_imports import jinja2 as j2
+import yaml
 
 
-def list_to_dict(key, the_list):
-    return {x[key]: x for x in the_list}
+class Manifest:
+    def __init__(self, parms: Dict, proj_vars: Dict[str, str] = {}) -> None:
+        self._parms = parms
+        self._proj_vars = proj_vars
     
-
-def initialize(manifest_path):
-    global parms
-    if parms is None:
-        with open(manifest_path, 'r') as f:
-            content = f.read()
-        proj_vars = yaml.safe_load(content).get(c.PROJ_VARS_KEY, dict())
-        template = j2.Environment().from_string(content)
-        rendered = template.render(**proj_vars)
+    @classmethod
+    def from_yaml_str(cls, parms_str: str, proj_vars_str: str = ''):
+        proj_vars_str = proj_vars_str.rstrip()
+        if proj_vars_str != '':
+            proj_vars = yaml.safe_load(proj_vars_str)
+            template = j2.Environment().from_string(parms_str)
+            rendered = template.render(**proj_vars)
+        else:
+            proj_vars = {}
+            rendered = parms_str
         parms = yaml.safe_load(rendered)
+        return cls(parms, proj_vars)
+
+    @classmethod
+    def from_file(cls, manifest_path: str, project_vars_path: str):
+        try:
+            with open(project_vars_path, 'r') as f:
+                proj_vars_str = f.read()
+        except FileNotFoundError:
+            proj_vars_str = ''
+            
+        with open(manifest_path, 'r') as f:
+            parms_str = f.read()
         
-
-def get_dataset_parms(dataset: str) -> Dict[str, Any]:
-    return parms[c.DATASETS_KEY][dataset]
+        return Manifest.from_yaml_str(parms_str, proj_vars_str)
     
+    def get_parms(self):
+        return self._parms
+    
+    def get_proj_vars(self):
+        return self._proj_vars
+    
+    def get_modules(self):
+        return self._parms.get(c.MODULES_KEY, list())
+    
+    def _get_required_field(self, key: str):
+        try:
+            return self._parms[key]
+        except KeyError as e:
+            raise ConfigurationError(f'Field "{key}" not found in squirrels.yaml') from e
+    
+    def get_base_path(self) -> str:
+        return self._get_required_field(c.BASE_PATH_KEY)
+    
+    def get_default_db_connection(self) -> Optional[str]:
+        return self._parms.get(c.DB_CONNECTION_KEY, None)
 
-def get_db_profile_name(dataset: str) -> str:
-    dataset_parms = get_dataset_parms(dataset)
-    return dataset_parms.get(c.DB_PROFILE_KEY, parms[c.DB_PROFILE_KEY])
+    def _get_dataset_parms(self, dataset: str) -> Dict[str, Any]:
+        try:
+            return self._get_required_field(c.DATASETS_KEY)[dataset]
+        except KeyError as e:
+            raise InvalidInputError(f'No such dataset named "{dataset}" exists') from e
+        
+    def _get_required_field_from_dataset_parms(self, dataset: str, key: str):
+        try:
+            return self._get_dataset_parms(dataset)[key]
+        except KeyError as e:
+            raise ConfigurationError(f'The "{key}" field is not defined for dataset "{dataset}"')
+    
+    def _get_all_database_view_parms(self, dataset: str) -> Dict[str, Dict[str, str]]:
+        return self._get_required_field_from_dataset_parms(dataset, c.DATABASE_VIEWS_KEY)
+    
+    def get_all_database_view_names(self, dataset: str) -> List[str]:
+        all_database_views = self._get_all_database_view_parms(dataset)
+        return list(all_database_views.keys())
+    
+    def get_database_view_file(self, dataset: str, database_view: str) -> str:
+        database_view_parms = self._get_all_database_view_parms(dataset)[database_view]
+        try:
+            return database_view_parms[c.DB_VIEW_FILE_KEY]
+        except KeyError as e:
+            raise ConfigurationError(f'The "{c.DB_VIEW_FILE_KEY}" field is not defined for "{database_view}" in dataset "{dataset}"') from e
+
+    def get_database_view_db_connection(self, dataset: str, database_view: str) -> str:
+        database_view_parms = self._get_all_database_view_parms(dataset)[database_view]
+        try:
+            db_connection = database_view_parms.get(c.DB_CONNECTION_KEY, None)
+            return db_connection if db_connection is not None else self._parms[c.DB_CONNECTION_KEY]
+        except KeyError as e:
+            raise ConfigurationError(f'Undefined database profile for "{database_view}" in dataset "{dataset}"') from e
+    
+    def get_dataset_label(self, dataset: str) -> str:
+        return self._get_required_field_from_dataset_parms(dataset, c.DATASET_LABEL_KEY)
+    
+    def get_dataset_final_view(self, dataset: str) -> str:
+        return self._get_required_field_from_dataset_parms(dataset, c.FINAL_VIEW_KEY)
+
+    def get_setting(self, key: str, default: Any) -> Any:
+        settings: Dict[str, Any] = self._parms.get(c.SETTINGS_KEY, dict())
+        return settings.get(key, default)
 
 
-def get_setting(key: str, default: Any):
-    settings: Dict[str, str] = parms.get(c.SETTINGS_KEY, {})
-    return settings.get(key, default)
+def from_file():
+    return Manifest.from_file(c.MANIFEST_FILE, c.PROJ_VARS_FILE)

@@ -1,6 +1,6 @@
+pytest
 mkdocs
 pyyaml
-sqlalchemy<2
 pandas
 pandasql
 GitPython
@@ -10,3 +10,4 @@ fastapi
 cachetools
 pwinput
 inquirer
+openpyxl

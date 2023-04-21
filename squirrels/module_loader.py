@@ -1,9 +1,9 @@
-from typing import List
+from typing import List, Tuple, Dict
 from squirrels import constants as c, manifest as mf
 import git, shutil, os, stat
 
 
-def parse_module_repo_strings(repo_strings):
+def parse_module_repo_strings(repo_strings: List[str]) -> List[Tuple[str]]:
     output = []
     for repo in repo_strings:
         try:
@@ -21,11 +21,8 @@ def parse_module_repo_strings(repo_strings):
     return output
 
 
-
-def load_modules():
-    mf.initialize(c.MANIFEST_FILE)
-    
-    repo_strings: List[str] = mf.parms[c.MODULES_KEY]
+def load_modules(manifest: mf.Manifest) -> None:
+    repo_strings: List[str] = manifest.get_modules()
 
     # Recreate the modules directory if it exists
     if os.path.exists(c.MODULES_FOLDER):

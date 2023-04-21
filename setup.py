@@ -22,8 +22,8 @@ setup(
     author_email='tim.yuting@hotmail.com',
     license='MIT',
     install_requires=[
-        'inquirer', 'pwinput', 'cachetools', 'fastapi', 'uvicorn', 'Jinja2', 
-        'GitPython', 'pandasql', 'pandas', 'sqlalchemy<2', 'pyyaml'
+        'openpyxl', 'inquirer', 'pwinput', 'cachetools', 'fastapi', 'uvicorn', 
+        'Jinja2', 'GitPython', 'pandasql', 'pandas', 'pyyaml'
     ],
     setup_requires=['pytest-runner==6.0.0'],
     tests_require=['pytest==7.2.0'],
@@ -33,6 +33,6 @@ setup(
                       'base_project/.gitignore', 'base_project/*']
     },
     entry_points= {
-        'console_scripts': ['squirrels=squirrels.command_line:main']
+        'console_scripts': ['squirrels=squirrels._command_line:main']
     }
 )

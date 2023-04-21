@@ -1,10 +1,10 @@
-from squirrels.parameter_configs import ParameterOption, WidgetType, Parameter, ParameterSet
-from squirrels.parameter_configs import SingleSelectParameter, MultiSelectParameter, DateParameter, NumberParameter, RangeParameter, DataSourceParameter
-from squirrels.parameter_configs import OptionsDataSource, NumberDataSource, RangeDataSource, DateDataSource
-import os
+from squirrels.configs.parameter_options import SelectParameterOption, DateParameterOption, NumberParameterOption, RangeParameterOption
+from squirrels.configs.parameters import WidgetType, Parameter, SingleSelectParameter, MultiSelectParameter, DateParameter, NumberParameter, RangeParameter
+from squirrels.configs.data_sources import SelectionDataSource, DateDataSource, NumberDataSource, RangeDataSource, DataSourceParameter
+from squirrels.configs.parameter_set import ParameterSet
+from squirrels._version import __version__, major_version, minor_version, patch_version
+from squirrels.credentials_manager import Credential
 
-version_file = os.path.join(os.path.dirname(__file__), 'version.txt')
-with open(version_file, 'r') as f:
-    __version__ = f.read()
-
-major_version, minor_version, patch_version = __version__.split('.')
+def get_credential(key: str) -> Credential:
+    from squirrels.credentials_manager import squirrels_config_io
+    return squirrels_config_io.get_credential(key)
