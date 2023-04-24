@@ -3,8 +3,8 @@
     <head>
         <title>Squirrels UI</title>
         <link id="favicon" rel="icon" type="image/x-icon" href="static/favicon.ico">
-        <link href="{{ url_for('static', path='/style.css') }}" rel="stylesheet">
-        <script src="{{ url_for('static', path='/script.js') }}" defer></script>
+        <link href="{{ url_for('static', path='/style.css?version=0') }}" rel="stylesheet">
+        <script src="{{ url_for('static', path='/script.js?version=0') }}" defer></script>
     </head>
     <body onload="callJsonAPI('{{ base_path }}', renderDatasetsSelection)">
     <div id="main-container">

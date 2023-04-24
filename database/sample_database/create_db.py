@@ -7,7 +7,7 @@ df = pd.DataFrame({
 })
 
 # Connect to SQLite database
-conn = sqlite3.connect('../sample_database.db')
+conn = sqlite3.connect('sample_database.db')
 try:
     df.to_sql('fact_table', conn, index=False, if_exists='replace')
 finally:
