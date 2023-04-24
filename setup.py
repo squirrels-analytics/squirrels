@@ -1,20 +1,27 @@
-from setuptools import setup
-from os import path
-
-with open('squirrels/version.txt') as f:
-    __version__ = f.read()
+from setuptools import setup, find_packages
+import os
 
 # The directory containing this file
-HERE = path.abspath(path.dirname(__file__))
+HERE = os.path.abspath(os.path.dirname(__file__))
 
 # Get the long description from the README file
-with open(path.join(HERE, 'README.md'), encoding='utf-8') as f:
+with open(os.path.join(HERE, 'README.md'), encoding='utf-8') as f:
     long_description = f.read()
+
+# Recursively get package data
+def package_files(directory):
+    paths = []
+    for (path, directories, filenames) in os.walk(directory):
+        for filename in filenames:
+            paths.append(os.path.join('..', path, filename))
+    return paths
+
+extra_files = package_files(os.path.join('squirrels', 'package_data'))
 
 setup(
     name='squirrels',
-    version=__version__,
-    packages=['squirrels'],
+    version='0.1.0rc2',
+    packages=find_packages(),
     description='Python Package for Configuring SQL Generating APIs',
     long_description=long_description,
     long_description_content_type="text/markdown",
@@ -28,10 +35,7 @@ setup(
     setup_requires=['pytest-runner==6.0.0'],
     tests_require=['pytest==7.2.0'],
     test_suite='tests',
-    package_data= {
-        'squirrels': ['static/*', 'templates/*', 'base_project/database/*', 'base_project/datasets/sample_dataset/*', 
-                      'base_project/.gitignore', 'base_project/*']
-    },
+    package_data= {'squirrels': extra_files},
     entry_points= {
         'console_scripts': ['squirrels=squirrels._command_line:main']
     }

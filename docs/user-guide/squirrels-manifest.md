@@ -1,1 +1,0 @@
-# Squirrels Manifest File
