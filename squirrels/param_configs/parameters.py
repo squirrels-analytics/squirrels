@@ -7,7 +7,7 @@ from enum import Enum
 from decimal import Decimal
 import copy
 
-from squirrels.configs import parameter_options as po
+from squirrels.param_configs import parameter_options as po
 from squirrels.utils import InvalidInputError, ConfigurationError
 
 
@@ -42,6 +42,11 @@ class Parameter:
 
     def with_selection(self, _: str) -> Parameter:
         raise NotImplementedError(f'Must override "with_selection" method')
+    
+    def get_all_dependent_params(self) -> ParameterSetBase:
+        dependent_params = ParameterSetBase()
+        self._accum_all_dependent_params(dependent_params)
+        return dependent_params
     
     def _set_default_as_selection_mutate(self) -> None:
         raise NotImplementedError(f'Must override "_set_default_as_selection_mutate" method')
@@ -100,11 +105,6 @@ class _SelectionParameter(Parameter):
         if self.parent is not None:
             self.parent._add_child_mutate(self)
         self._refresh_mutate()
-    
-    def get_all_dependent_params(self) -> ParameterSetBase:
-        dependent_params = ParameterSetBase()
-        self._accum_all_dependent_params(dependent_params)
-        return dependent_params
     
     def _add_child_mutate(self, child: Parameter) -> None:
         self.children.append(child)
@@ -404,7 +404,16 @@ class ParameterSetBase:
         if param_name in self._parameters_dict:
             return self._parameters_dict[param_name]
         else:
-            raise KeyError(f'No such parameter exists called "{param_name}" (yet)')
+            raise KeyError(f'No such parameter exists called "{param_name}"')
+    
+    def get_parameters_ordered_dict(self) -> OrderedDict:
+        return OrderedDict(self._parameters_dict)
+    
+    def merge(self, other: ParameterSetBase) -> ParameterSetBase:
+        new_param_set = ParameterSetBase()
+        new_param_set._parameters_dict = OrderedDict(self._parameters_dict)
+        new_param_set._parameters_dict.update(other._parameters_dict)
+        return new_param_set
 
     def __getitem__(self, param_name: str) -> Parameter:
         return self.get_parameter(param_name)

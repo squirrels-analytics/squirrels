@@ -1,8 +1,10 @@
-from typing import List, Dict, Any, Optional
-from squirrels import constants as c
+from typing import List, Dict, Any, Optional, Union
+from pathlib import Path
+import yaml
+
+from squirrels import constants as c, utils
 from squirrels.utils import ConfigurationError, InvalidInputError
 from squirrels.timed_imports import jinja2 as j2
-import yaml
 
 
 class Manifest:
@@ -15,7 +17,7 @@ class Manifest:
         proj_vars_str = proj_vars_str.rstrip()
         if proj_vars_str != '':
             proj_vars = yaml.safe_load(proj_vars_str)
-            template = j2.Environment().from_string(parms_str)
+            template = utils.j2_env.from_string(parms_str)
             rendered = template.render(**proj_vars)
         else:
             proj_vars = {}
@@ -72,16 +74,25 @@ class Manifest:
     def _get_all_database_view_parms(self, dataset: str) -> Dict[str, Dict[str, str]]:
         return self._get_required_field_from_dataset_parms(dataset, c.DATABASE_VIEWS_KEY)
     
+    def get_all_dataset_names(self) -> str:
+        datasets: Dict[str, Any] = self._get_required_field(c.DATASETS_KEY)
+        return list(datasets.keys())
+    
+    def get_dataset_folder(self, dataset: str) -> Path:
+        return utils.join_paths(c.DATASETS_FOLDER, dataset)
+    
     def get_all_database_view_names(self, dataset: str) -> List[str]:
         all_database_views = self._get_all_database_view_parms(dataset)
         return list(all_database_views.keys())
     
-    def get_database_view_file(self, dataset: str, database_view: str) -> str:
+    def get_database_view_file(self, dataset: str, database_view: str) -> Path:
         database_view_parms = self._get_all_database_view_parms(dataset)[database_view]
         try:
-            return database_view_parms[c.DB_VIEW_FILE_KEY]
+            db_view_file = database_view_parms[c.DB_VIEW_FILE_KEY]
         except KeyError as e:
             raise ConfigurationError(f'The "{c.DB_VIEW_FILE_KEY}" field is not defined for "{database_view}" in dataset "{dataset}"') from e
+        dataset_folder = self.get_dataset_folder(dataset)
+        return utils.join_paths(dataset_folder, db_view_file)
 
     def get_database_view_db_connection(self, dataset: str, database_view: str) -> str:
         database_view_parms = self._get_all_database_view_parms(dataset)[database_view]
@@ -94,8 +105,14 @@ class Manifest:
     def get_dataset_label(self, dataset: str) -> str:
         return self._get_required_field_from_dataset_parms(dataset, c.DATASET_LABEL_KEY)
     
-    def get_dataset_final_view(self, dataset: str) -> str:
-        return self._get_required_field_from_dataset_parms(dataset, c.FINAL_VIEW_KEY)
+    def get_dataset_final_view(self, dataset: str) -> Union[str, Path]:
+        final_view = self._get_required_field_from_dataset_parms(dataset, c.FINAL_VIEW_KEY)
+        database_views = self.get_all_database_view_names(dataset)
+        if final_view in database_views:
+            return final_view
+        else:
+            dataset_path = self.get_dataset_folder(dataset)
+            return utils.join_paths(dataset_path, final_view)
 
     def get_setting(self, key: str, default: Any) -> Any:
         settings: Dict[str, Any] = self._parms.get(c.SETTINGS_KEY, dict())

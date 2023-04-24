@@ -4,9 +4,9 @@ from configparser import ConfigParser
 import os, json
 
 from squirrels.utils import ConfigurationError
-from squirrels import constants as c
+from squirrels import constants as c, utils
 
-_SQUIRRELS_CFG_PATH = os.path.join(os.path.expanduser('~'), '.squirrelscfg')
+_SQUIRRELS_CFG_PATH = utils.join_paths(os.path.expanduser('~'), '.squirrelscfg')
 
 
 @dataclass

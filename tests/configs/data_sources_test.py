@@ -1,7 +1,7 @@
 from typing import Optional
 import pytest, pandas as pd
 
-from squirrels.configs import data_sources as d
+from squirrels.param_configs import data_sources as d
 from tests.configs.parent_parameters import TestParentParameters
 import squirrels as sq
 

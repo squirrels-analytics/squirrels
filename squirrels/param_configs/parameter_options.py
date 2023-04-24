@@ -31,7 +31,7 @@ class SelectParameterOption(ParameterOption):
     label: str
     is_default: bool = False
     parent_option_id: Optional[str] = field(default=None, repr=False)
-    parent_option_ids: Set[str] = frozenset()
+    parent_option_ids: Iterable[str] = frozenset()
 
     def to_dict(self):
         return {'id': self.identifier, 'label': self.label}
@@ -42,7 +42,7 @@ class DateParameterOption(ParameterOption):
     default_date: Union[str, datetime]
     format: str = '%Y-%m-%d'
     parent_option_id: Optional[str] = field(default=None, repr=False)
-    parent_option_ids: Set[str] = frozenset()
+    parent_option_ids: Iterable[str] = frozenset()
 
     def __post_init__(self) -> None:
         super().__post_init__()

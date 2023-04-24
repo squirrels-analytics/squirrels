@@ -23,7 +23,7 @@ setup(
     license='MIT',
     install_requires=[
         'openpyxl', 'inquirer', 'pwinput', 'cachetools', 'fastapi', 'uvicorn', 
-        'Jinja2', 'GitPython', 'pandasql', 'pandas', 'pyyaml'
+        'Jinja2', 'GitPython', 'sqlalchemy', 'pandas', 'pyyaml'
     ],
     setup_requires=['pytest-runner==6.0.0'],
     tests_require=['pytest==7.2.0'],

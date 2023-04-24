@@ -1,7 +1,7 @@
 from typing import Dict
 import pytest, pandas as pd
 
-from squirrels.configs.parameter_set import ParameterSet
+from squirrels.param_configs.parameter_set import ParameterSet
 from tests.configs.parent_parameters import TestParentParameters
 import squirrels as sq
 

@@ -1,4 +1,5 @@
 from typing import List, Any
+from pathlib import Path
 import pytest, textwrap
 
 from squirrels.manifest import Manifest
@@ -154,13 +155,13 @@ def test_get_all_database_view_names(manifest_name: str, dataset: str, expected:
 
 
 @pytest.mark.parametrize('manifest_name,dataset,database_view,expected', [
-    ('minimal_manifest', 'dataset1', 'db_view_1', 'db_view1.py'),
-    ('basic_manifest', 'dataset1', 'db_view_2', 'db_view2.sql.j2')
+    ('minimal_manifest', 'dataset1', 'db_view_1', 'datasets/dataset1/db_view1.py'),
+    ('basic_manifest', 'dataset1', 'db_view_2', 'datasets/dataset1/db_view2.sql.j2')
 ])
 def test_get_database_view_file(manifest_name: str, dataset: str, database_view: str, expected: str, 
                                 request: pytest.FixtureRequest):
     manifest: Manifest = request.getfixturevalue(manifest_name)
-    assert manifest.get_database_view_file(dataset, database_view) == expected
+    assert manifest.get_database_view_file(dataset, database_view) == Path(expected)
 
 
 @pytest.mark.parametrize('manifest_name,dataset,database_view,expected', [
@@ -174,13 +175,15 @@ def test_get_database_view_db_connection(manifest_name: str, dataset: str, datab
     assert manifest.get_database_view_db_connection(dataset, database_view) == expected
 
 
-@pytest.mark.parametrize('manifest_name,dataset,expected', [
-    ('minimal_manifest', 'dataset1', 'db_view_1'),
-    ('basic_manifest', 'dataset1', 'final_view.sql.j2')
+@pytest.mark.parametrize('manifest_name,dataset,expected,type', [
+    ('minimal_manifest', 'dataset1', 'db_view_1', 'str'),
+    ('basic_manifest', 'dataset1', 'datasets/dataset1/final_view.sql.j2', 'path')
 ])
 def test_get_dataset_final_view(manifest_name: str, dataset: str, expected: str, 
-                                request: pytest.FixtureRequest):
+                                type: str, request: pytest.FixtureRequest):
     manifest: Manifest = request.getfixturevalue(manifest_name)
+    if type == 'path':
+        expected = Path(expected)
     assert manifest.get_dataset_final_view(dataset) == expected
 
 

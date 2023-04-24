@@ -1,14 +1,15 @@
-from typing import Dict, Callable
+from typing import Dict
 from functools import partial
-from sqlite3.dbapi2 import Connection
 import sqlite3
-import squirrels as sq
 
+from squirrels import ConnectionSet, QueuePool
 
-def main(proj: Dict[str, str]) -> Dict[str, Callable[[], Connection]]:
-    cred = sq.get_credential('my_key')
-    user, pw = cred.username, cred.password
+# All connections must be shareable across multiple thread. No writes will occur on them
+def main(proj: Dict[str, str], *args, **kwargs) -> ConnectionSet:
+    # cred = sq.get_credential('my_key')
+    # user, pw = cred.username, cred.password
     
-    return {
-        'my_db': partial(sqlite3.connect, './database/seattle_weather.db')
-    }
+    sample_db_connector = partial(sqlite3.connect, './database/sample_database.db', check_same_thread=False)
+    return ConnectionSet({
+        'my_db': QueuePool(sample_db_connector)
+    })

@@ -19,7 +19,7 @@ function callJsonAPI(path, func) {
             func(data);
         })
         .catch(error => {
-            alert('Server error')
+            alert('Server error...')
             console.log(error)
         })
         .then(_ => {
@@ -44,15 +44,19 @@ function renderDatasetsSelection(data) {
     changeDatasetSelection();
 }
 
-function refreshParameters() {
+function refreshParameters(provoker = null) {
     const selectedDatasetValue = datasetSelect.value;
     const parametersPath = datasetsMap.get(selectedDatasetValue).parameters_path;
-    const parametersRequest = parametersPath + '?' + getQueryParams()
+    const queryParameters = getQueryParams(provoker)
+    const parametersRequest = parametersPath + '?' + queryParameters
     console.log('Parameters request:', parametersRequest)
 
     callJsonAPI(parametersRequest, (jsonResponse) => {
-        generatedParamsDiv.innerHTML = "";
         jsonResponse.parameters.forEach(function(param) {
+            parametersMap.set(param.name, param);
+        })
+        generatedParamsDiv.innerHTML = "";
+        for (const param of parametersMap.values()) {
             const newDiv = document.createElement('div')
 
             const addLabel = function() {
@@ -126,8 +130,7 @@ function refreshParameters() {
                 newDiv.appendChild(multiSelect);
             }
             generatedParamsDiv.appendChild(newDiv);
-            parametersMap.set(param.name, param);
-        })
+        }
     });
 }
 
@@ -146,13 +149,13 @@ function updateParameter() {
     }
     
     if (param.trigger_refresh) {
-        refreshParameters()
+        refreshParameters(param)
     }
 }
 
-function getQueryParams() {
+function getQueryParams(provoker = null) {
     const queryParams = {}
-    for (const [key, value] of parametersMap.entries()) {
+    function addToQueryParams(key, value) {
         if (value.widget_type === "DateField") {
             queryParams[key] = value.selected_date
         } else if (value.widget_type === "NumberField") {
@@ -164,6 +167,14 @@ function getQueryParams() {
         } else if (value.widget_type === "MultiSelect") {
             result = value.selected_ids.join()
             if (result !== '') queryParams[key] = result
+        }
+    }
+    if (provoker !== null) {
+        addToQueryParams(provoker.name, provoker)
+    }
+    else {
+        for (const [key, value] of parametersMap.entries()) {
+            addToQueryParams(key, value)
         }
     }
     console.log(queryParams)

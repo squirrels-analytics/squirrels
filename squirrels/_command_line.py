@@ -84,12 +84,13 @@ def main():
     elif args.command in [c.RUN_CMD, c.TEST_CMD]:
         manifest = mf.from_file()
         conn_set = cs.from_file(manifest)
-        # if args.command == c.RUN_CMD:
-        #     server = ApiServer(manifest, conn_set, args.no_cache, args.debug)
-        #     server.run(args)
-        # elif args.command == c.TEST_CMD:
-        #     rendererIO = RendererIOWrapper(manifest, conn_set, args.dataset, args.cfg, args.data)
-        #     rendererIO.write_outputs(args.runquery)
+        if args.command == c.RUN_CMD:
+            server = ApiServer(manifest, conn_set, args.no_cache, args.debug)
+            server.run(args)
+        elif args.command == c.TEST_CMD:
+            rendererIO = RendererIOWrapper(args.dataset, manifest, conn_set, args.data)
+            rendererIO.write_outputs(args.cfg, args.runquery)
+        conn_set.close()
     elif args.command is None:
         print(f'Command is missing. Enter "squirrels -h" for help.')
     else:

@@ -1,7 +1,7 @@
 from typing import Iterable
 import pytest
 
-from squirrels.configs import parameters as p
+from squirrels.param_configs import parameters as p
 from squirrels.utils import InvalidInputError, ConfigurationError
 from tests.configs.parent_parameters import TestParentParameters
 import squirrels as sq

@@ -2,7 +2,7 @@ from __future__ import annotations
 from typing import Tuple, Dict, Optional
 from dataclasses import dataclass
 
-from squirrels.configs import parameters as p, parameter_options as po
+from squirrels.param_configs import parameters as p, parameter_options as po
 from squirrels.timed_imports import pandas as pd
 
 

@@ -1,8 +1,8 @@
 import inquirer, os, shutil
-from squirrels import major_version, constants as c
+from squirrels import major_version, constants as c, utils
 
-base_proj_dir = os.path.join(os.path.dirname(__file__), 'package_data', 'base_project')
-dataset_dir = os.path.join('datasets', 'sample_dataset')
+base_proj_dir = utils.join_paths(os.path.dirname(__file__), 'package_data', 'base_project')
+dataset_dir = utils.join_paths('datasets', 'sample_dataset')
 
 
 class Initializer:
@@ -20,14 +20,14 @@ class Initializer:
             dest_dir = os.path.dirname(filepath)
             if dest_dir != '':
                 os.makedirs(dest_dir, exist_ok=True)
-            src_path = os.path.join(base_proj_dir, filepath)
+            src_path = utils.join_paths(base_proj_dir, filepath)
             shutil.copy(src_path, filepath)
 
     def _copy_dataset_file(self, filepath: str):
-        self._copy_file(os.path.join(dataset_dir, filepath))
+        self._copy_file(utils.join_paths(dataset_dir, filepath))
 
     def _copy_database_file(self, filepath: str):
-        self._copy_file(os.path.join('database', filepath))
+        self._copy_file(utils.join_paths('database', filepath))
 
     def _create_requirements_txt(self):
         filename = 'requirements.txt'
@@ -59,7 +59,7 @@ class Initializer:
                             choices=['none', 'sql', 'py']),
                 inquirer.List('sample_db', 
                             message="What sample sqlite database do you wish to use (if any)?",
-                            choices=['none', 'seattle-weather'])
+                            choices=['none', 'sample_database', 'seattle_weather'])
             ]
             answers = inquirer.prompt(questions)
 
@@ -88,6 +88,8 @@ class Initializer:
             self._copy_dataset_file(c.FINAL_VIEW_SQL_NAME)
 
         sample_db = answers.get('sample_db')
-        if sample_db == 'seattle-weather':
+        if sample_db == 'sample_database':
+            self._copy_database_file('sample_database.db')
+        elif sample_db == 'seattle_weather':
             self._copy_database_file('seattle_weather.db')
     

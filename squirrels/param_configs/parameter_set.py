@@ -1,7 +1,8 @@
+from __future__ import annotations
 from typing import Iterable, Dict
 from collections import OrderedDict
 
-from squirrels.configs import data_sources as d, parameters as p
+from squirrels.param_configs import data_sources as d, parameters as p
 from squirrels.timed_imports import pandas as pd
 
 
@@ -13,6 +14,13 @@ class ParameterSet(p.ParameterSetBase):
             self._parameters_dict[param.name] = param
             if isinstance(param, d.DataSourceParameter):
                 self._data_source_params[param.name] = param
+    
+    def merge(self, other: p.ParameterSetBase) -> ParameterSet:
+        new_param_set_base = super().merge(other)
+        new_param_set = ParameterSet(())
+        new_param_set._parameters_dict = new_param_set_base._parameters_dict
+        new_param_set._data_source_params = self._data_source_params
+        return new_param_set
 
     def get_datasources(self) -> Dict[str, d.DataSource]:
         new_dict = {}

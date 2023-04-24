@@ -38,6 +38,7 @@ DATABASE_VIEW_SQL_FILE = 'database_view1.sql.j2'
 DATABASE_VIEW_PY_FILE = 'database_view1.py'
 FINAL_VIEW_SQL_NAME = 'final_view.sql.j2'
 FINAL_VIEW_PY_NAME = 'final_view.py'
+FINAL_VIEW_OUT_STEM = 'final_view'
 CONTEXT_FILE = 'context.py'
 SELECTIONS_CFG_FILE = 'selections.cfg'
 

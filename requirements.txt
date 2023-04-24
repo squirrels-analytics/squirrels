@@ -2,7 +2,7 @@ pytest
 mkdocs
 pyyaml
 pandas
-pandasql
+sqlalchemy
 GitPython
 Jinja2
 uvicorn
