@@ -1,26 +1,35 @@
-from typing import Dict
+from typing import Dict, Union
 from importlib.machinery import SourceFileLoader
-from sqlalchemy.pool import QueuePool, PoolProxiedConnection as DBAPIConnection
+from sqlalchemy import Engine, Pool
 import sqlite3
 
 from squirrels import manifest as mf, constants as c
 from squirrels.timed_imports import pandas as pd
 from squirrels.utils import ConfigurationError
 
+ConnectionPool = Union[Engine, Pool]
+
 
 class ConnectionSet:
-    def __init__(self, conn_pools: Dict[str, QueuePool]) -> None:
-        self.conn_pools = conn_pools
+    def __init__(self, conn_pools: Dict[str, ConnectionPool]) -> None:
+        self._conn_pools = conn_pools
     
-    def get_connection_pool(self, conn_name: str) -> QueuePool:
+    def get_connection_pool(self, conn_name: str) -> ConnectionPool:
         try:
-            connection_pool = self.conn_pools[conn_name]
+            connection_pool = self._conn_pools[conn_name]
         except KeyError as e:
             raise ConfigurationError(f'Connection name "{conn_name}" was not configured') from e
         return connection_pool
     
     def get_dataframe_from_query(self, conn_name: str, query: str) -> pd.DataFrame:
-        conn = self.get_connection_pool(conn_name).connect()
+        connector = self.get_connection_pool(conn_name)
+        if isinstance(connector, Pool):
+            conn = connector.connect()
+        elif isinstance(connector, Engine):
+            conn = connector.raw_connection()
+        else:
+            raise TypeError(f'Type for connection name "{conn_name}" not supported')
+        
         try:
             cur = conn.cursor()
             cur.execute(query)
@@ -32,8 +41,8 @@ class ConnectionSet:
 
         return df
 
-    def close(self):
-        for pool in self.conn_pools.values():
+    def dispose(self):
+        for pool in self._conn_pools.values():
             pool.dispose()
 
 

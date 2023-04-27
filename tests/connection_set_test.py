@@ -36,7 +36,7 @@ def connection_set() -> cs.ConnectionSet:
     })
 
     yield connection_set
-    connection_set.close()
+    connection_set.dispose()
 
 
 def test_get_dataframe_from_query(connection_set: cs.ConnectionSet):

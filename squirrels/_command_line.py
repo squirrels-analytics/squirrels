@@ -8,7 +8,7 @@ from squirrels import module_loader as ml, manifest as mf, credentials_manager a
 from squirrels.api_server import ApiServer
 from squirrels.renderer import RendererIOWrapper
 from squirrels.initializer import Initializer
-from squirrels.utils import timer
+from squirrels.timed_imports import timer
 
 
 def prompt_user_pw(args_values: Optional[List[str]]) -> Tuple[str, str]:
@@ -52,13 +52,13 @@ def main():
 
     test_parser = subparsers.add_parser(c.TEST_CMD, help='For a given dataset, create outputs for parameter API response and rendered sql queries')
     test_parser.add_argument('dataset', type=str, help='Name of dataset (provided in squirrels.yaml) to test. Results are written in an "outputs" folder')
-    test_parser.add_argument('-c', '--cfg', type=str, help='Configuration file for parameter selections. Path is relative to a specific dataset folder')
-    test_parser.add_argument('-d', '--data', type=str, help='Sample lookup data to avoid making a database connection. Path is relative to a specific dataset folder')
+    test_parser.add_argument('-c', '--cfg', type=str, help="Configuration file for parameter selections. Path is relative to the dataset's folder")
+    test_parser.add_argument('-d', '--data', type=str, help="Excel file with lookup data to avoid making a database connection. Path is relative to the dataset's folder")
     test_parser.add_argument('-r', '--runquery', action='store_true', help='Runs all database queries and final view, and produce the results as csv files')
 
     run_parser = subparsers.add_parser(c.RUN_CMD, help='Run the builtin API server')
     run_parser.add_argument('--no-cache', action='store_true', help='Do not cache any api results')
-    run_parser.add_argument('--debug', action='store_true', help='In debug mode, all "hidden parameters" show in parameters response')
+    run_parser.add_argument('--debug', action='store_true', help='In debug mode, all "hidden parameters" show in the parameters response')
     run_parser.add_argument('--host', type=str, default='127.0.0.1')
     run_parser.add_argument('--port', type=int, default=8000)
     timer.add_activity_time('parsing arguments', start)
@@ -90,7 +90,7 @@ def main():
         elif args.command == c.TEST_CMD:
             rendererIO = RendererIOWrapper(args.dataset, manifest, conn_set, args.data)
             rendererIO.write_outputs(args.cfg, args.runquery)
-        conn_set.close()
+        conn_set.dispose()
     elif args.command is None:
         print(f'Command is missing. Enter "squirrels -h" for help.')
     else:
