@@ -3,7 +3,7 @@ from squirrels.param_configs.parameters import WidgetType, Parameter, SingleSele
 from squirrels.param_configs.data_sources import SelectionDataSource, DateDataSource, NumberDataSource, RangeDataSource, DataSourceParameter
 from squirrels.param_configs.parameter_set import ParameterSet
 from squirrels.credentials_manager import Credential
-from squirrels.connection_set import DBAPIConnection, QueuePool, ConnectionSet
+from squirrels.connection_set import ConnectionSet
 from squirrels.version import __version__, major_version, minor_version, patch_version
 
 def get_credential(key: str) -> Credential:

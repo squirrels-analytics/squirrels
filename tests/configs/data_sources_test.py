@@ -2,6 +2,7 @@ from typing import Optional
 import pytest, pandas as pd
 
 from squirrels.param_configs import data_sources as d
+from squirrels.utils import ConfigurationError
 from tests.configs.parent_parameters import TestParentParameters
 import squirrels as sq
 
@@ -22,7 +23,7 @@ class TestDataSource:
 class TestSelectionDataSource(TestParentParameters):
     def create_data_source(self, parent_id_col: Optional[str]):
         return d.SelectionDataSource('conn', 'table', 'test_id', 'test_options',
-                                   is_default_col='test_is_default', parent_id_col=parent_id_col)
+                                     is_default_col='test_is_default', parent_id_col=parent_id_col)
     
     @pytest.fixture
     def select_data_source(self) -> d.SelectionDataSource:
@@ -66,6 +67,24 @@ class TestSelectionDataSource(TestParentParameters):
         new_expected = dict(expected)
         new_expected.update({'options': [], 'selected_id': None})
         assert new_child.to_dict() == new_expected
+    
+    def test_invalid_column(self, select_data_source: d.SelectionDataSource):
+        ds_param = d.DataSourceParameter(sq.WidgetType.SingleSelect, 'test_param', 'Test Parameter', select_data_source)
+        df = pd.DataFrame({
+            'invalid_name': ['0', '1', '2'],
+            'test_options': ['zero', 'one', 'two'],
+            'test_is_default': [0, 1, 1]
+        })
+        with pytest.raises(ConfigurationError):
+            select_data_source.convert(ds_param, df)
+        
+        df = pd.DataFrame({
+            'test_id': ['0', '1', '2'],
+            'invalid_name': ['zero', 'one', 'two'],
+            'test_is_default': [0, 1, 1]
+        })
+        with pytest.raises(ConfigurationError):
+            select_data_source.convert(ds_param, df)
 
 
 class TestDateDataSource(TestParentParameters):

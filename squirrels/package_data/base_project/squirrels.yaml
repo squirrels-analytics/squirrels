@@ -2,7 +2,7 @@ modules: []
 
 db_connection: my_db
 
-base_path: "/{{product}}/v{{major_version}}"
+base_path: "/v{{major_version}}"
 
 datasets:
   sample_dataset:

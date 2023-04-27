@@ -41,7 +41,8 @@ class Renderer:
 
             def get_dataframe_from_query(item: Tuple[str, DataSource]) -> pd.DataFrame:
                 key, datasource = item
-                return key, self.conn_set.get_dataframe_from_query(default_db_conn, datasource.get_query())
+                df = self.conn_set.get_dataframe_from_query(default_db_conn, datasource.get_query())
+                return key, df
             
             with concurrent.futures.ThreadPoolExecutor() as executor:
                 df_dict = dict(executor.map(get_dataframe_from_query, datasources.items()))
@@ -96,7 +97,7 @@ class Renderer:
         else:
             conn_name = self.manifest.get_database_view_db_connection(self.dataset, db_view_name)
             connection_pool = self.conn_set.get_connection_pool(conn_name)
-            return py_func(connection_pool=connection_pool)
+            return py_func(connection_pool=connection_pool, connection_set=self.conn_set)
     
     def _render_db_view_dataframes(self, query_by_db_view: Dict[str, Query]) -> Dict[str, pd.DataFrame]:
         def run_single_query(item: Tuple[str, Query]) -> Tuple[str, pd.DataFrame]:
@@ -134,9 +135,7 @@ class Renderer:
             query_by_db_view[db_view] = self._render_query_from_raw(raw_query, args)
         
         # render final view query
-        final_view_query = None
-        if self.raw_final_view_query is not None:
-            final_view_query = self._render_query_from_raw(self.raw_final_view_query, args)
+        final_view_query = self._render_query_from_raw(self.raw_final_view_query, args)
 
         # render all dataframes if "run_query" is enabled
         df_by_db_views = {}
@@ -149,7 +148,7 @@ class Renderer:
 
 
 class RendererIOWrapper:
-    def __init__(self, dataset: str, manifest: mf.Manifest, conn_set: ConnectionSet, excel_file_path: Optional[str] = None):
+    def __init__(self, dataset: str, manifest: mf.Manifest, conn_set: ConnectionSet, excel_file_name: Optional[str] = None):
         dataset_folder = manifest.get_dataset_folder(dataset)
         parameters_path = utils.join_paths(dataset_folder, c.PARAMETERS_FILE)
         parameters_module = utils.import_file_as_module(parameters_path)
@@ -158,7 +157,10 @@ class RendererIOWrapper:
         context_path = utils.join_paths(dataset_folder, c.CONTEXT_FILE)
         context_func = utils.import_file_as_module(context_path).main
         
-        excel_file = pd.ExcelFile(excel_file_path) if excel_file_path is not None else None
+        excel_file = None
+        if excel_file_name is not None:
+            excel_file_path = utils.join_paths(dataset_folder, excel_file_name)
+            excel_file = pd.ExcelFile(excel_file_path)
         
         db_views = manifest.get_all_database_view_names(dataset)
         raw_query_by_db_view = {}
@@ -228,7 +230,8 @@ class RendererIOWrapper:
             self._write_sql_file(db_view, query)
 
         # write the rendered sql query for final view
-        self._write_sql_file(c.FINAL_VIEW_OUT_STEM, final_view_query)
+        if final_view_query not in query_by_db_view:
+            self._write_sql_file(c.FINAL_VIEW_OUT_STEM, final_view_query)
         
         # Run the sql queries and write output
         if run_query:
