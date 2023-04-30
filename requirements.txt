@@ -1,5 +1,4 @@
 pytest
-mkdocs
 pyyaml
 pandas
 sqlalchemy

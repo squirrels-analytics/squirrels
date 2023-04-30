@@ -41,14 +41,18 @@ class ConnectionSet:
 
         return df
 
-    def dispose(self):
+    def dispose(self) -> None:
         for pool in self._conn_pools.values():
             pool.dispose()
 
 
 def from_file(manifest: mf.Manifest) -> ConnectionSet:
     module = SourceFileLoader(c.CONNECTIONS_FILE, c.CONNECTIONS_FILE).load_module()
-    return module.main(manifest.get_proj_vars())
+    proj_vars = manifest.get_proj_vars()
+    try:
+        return module.main(proj_vars)
+    except Exception as e:
+        raise ConfigurationError(f'Error in the {c.CONNECTIONS_FILE} file') from e
 
 
 def sqldf(query: str, df_by_db_views: Dict[str, pd.DataFrame]) -> pd.DataFrame:

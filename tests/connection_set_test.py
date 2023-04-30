@@ -1,9 +1,9 @@
-from sqlalchemy.pool import StaticPool
+from sqlalchemy import StaticPool, create_engine
 from functools import partial
 import sqlite3, pandas as pd
 import pytest
 
-from squirrels import connection_set as cs
+from squirrels import connection_set as cs, utils
 
 
 @pytest.fixture
@@ -20,8 +20,8 @@ def connection_set() -> cs.ConnectionSet:
     finally:
         conn1.close()
     
-    pool2 = StaticPool(connection_creator)
-    conn2 = pool2.connect()
+    pool2 = create_engine("sqlite://")
+    conn2 = pool2.raw_connection()
     try:
         cur2 = conn2.cursor()
         cur2.execute("CREATE TABLE test (id INTEGER PRIMARY KEY, name TEXT, number NUMERIC)")
@@ -37,6 +37,11 @@ def connection_set() -> cs.ConnectionSet:
 
     yield connection_set
     connection_set.dispose()
+
+
+def test_get_connection_pool(connection_set: cs.ConnectionSet):
+    with pytest.raises(utils.ConfigurationError):
+        connection_set.get_connection_pool('does_not_exist')
 
 
 def test_get_dataframe_from_query(connection_set: cs.ConnectionSet):

@@ -2,7 +2,7 @@ from typing import Dict
 import pytest, pandas as pd
 
 from squirrels.param_configs.parameter_set import ParameterSet
-from tests.configs.parent_parameters import TestParentParameters
+from tests.param_configs.parent_parameters import TestParentParameters
 import squirrels as sq
 
 
@@ -14,9 +14,9 @@ class TestParameterSet(TestParentParameters):
     @pytest.fixture
     def parameter_set(self, multi_select_parent: sq.MultiSelectParameter, ds_param_parent: sq.DataSourceParameter) -> ParameterSet:
         child_param1 = sq.DataSourceParameter(sq.WidgetType.SingleSelect, 'child1', 'Test1 Parameter', self.select_data_source,
-                                           parent=multi_select_parent)
+                                              parent=multi_select_parent)
         child_param2 = sq.DataSourceParameter(sq.WidgetType.DateField, 'child2', 'Test2 Parameter', self.date_data_source,
-                                           parent=ds_param_parent)
+                                              parent=ds_param_parent)
         return ParameterSet((multi_select_parent, child_param1, ds_param_parent, child_param2))
     
     @pytest.fixture
@@ -43,8 +43,8 @@ class TestParameterSet(TestParentParameters):
             'child2': self.date_data_source
         }
     
-    def test_convert_datasource_params(self, parameter_set: ParameterSet, df_dict: Dict[str, pd.DataFrame],
-                                       expected_ds_json: Dict):
+    def test_convert_datasource_params_and_merge(self, parameter_set: ParameterSet, df_dict: Dict[str, pd.DataFrame],
+                                                 expected_ds_json: Dict):
         parameter_set.convert_datasource_params(df_dict)
         child1_expected = {
             'widget_type': 'SingleSelect',
@@ -81,3 +81,15 @@ class TestParameterSet(TestParentParameters):
 
         assert parameter_set['child1'].parent is parameter_set['ms_parent']
         assert parameter_set['child2'].parent is parameter_set['ds_parent']
+
+        new_param = parameter_set['ms_parent'].with_selection('p0')
+        new_param_set = parameter_set.merge(new_param.get_all_dependent_params())
+
+        expected_parent1['selected_ids'] = ['p0']
+        child1_expected['options'] = []
+        child1_expected['selected_id'] = None
+
+        actual = new_param_set.to_dict()['parameters']
+        assert actual[0] == expected_parent1
+        assert actual[1] == child1_expected
+    
