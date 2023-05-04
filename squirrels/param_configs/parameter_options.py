@@ -14,9 +14,11 @@ class ParameterOption:
         if not hasattr(self, "parent_option_ids"):
             self.parent_option_ids = frozenset()
         
-        self.parent_option_ids = frozenset({self.parent_option_id}) \
+        self.parent_option_ids = frozenset(
+            {self.parent_option_id} \
             if hasattr(self, "parent_option_id") and self.parent_option_id is not None \
             else self.parent_option_ids
+        )
 
     def is_valid(self, selected_parent_option_ids: Optional[Iterable[str]] = None):
         if selected_parent_option_ids is not None:
@@ -105,7 +107,7 @@ class _NumericParameterOption(ParameterOption):
 class NumberParameterOption(_NumericParameterOption):
     default_value: Decimal
     parent_option_id: Optional[str] = field(default=None, repr=False)
-    parent_option_ids: Set[str] = frozenset()
+    parent_option_ids: Iterable[str] = frozenset()
 
     def __post_init__(self) -> None:
         super().__post_init__()
@@ -113,11 +115,11 @@ class NumberParameterOption(_NumericParameterOption):
 
 
 @dataclass
-class RangeParameterOption(_NumericParameterOption):
+class NumRangeParameterOption(_NumericParameterOption):
     default_lower_value: Decimal
     default_upper_value: Decimal
     parent_option_id: Optional[str] = field(default=None, repr=False)
-    parent_option_ids: Set[str] = frozenset()
+    parent_option_ids: Iterable[str] = frozenset()
 
     def __post_init__(self) -> None:
         super().__post_init__()
@@ -126,4 +128,4 @@ class RangeParameterOption(_NumericParameterOption):
 
 
 # Types:
-NumericParameterOption = Union[NumberParameterOption, RangeParameterOption]
+NumericParameterOption = Union[NumberParameterOption, NumRangeParameterOption]

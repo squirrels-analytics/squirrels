@@ -3,7 +3,7 @@ import pytest, pandas as pd
 
 from squirrels.param_configs import data_sources as d
 from squirrels.utils import ConfigurationError
-from tests.configs.parent_parameters import TestParentParameters
+from tests.param_configs.parent_parameters import TestParentParameters
 import squirrels as sq
 
 

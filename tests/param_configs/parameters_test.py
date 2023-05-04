@@ -3,7 +3,7 @@ import pytest
 
 from squirrels.param_configs import parameters as p
 from squirrels.utils import InvalidInputError, ConfigurationError
-from tests.configs.parent_parameters import TestParentParameters
+from tests.param_configs.parent_parameters import TestParentParameters
 import squirrels as sq
 
 
@@ -370,8 +370,8 @@ class TestNumberParameter(TestParentParameters):
         assert self.number_parameter.get_selected_value() == '6'
 
 
-class TestRangeParameter(TestParentParameters):
-    range_parameter = p.RangeParameter('range', 'Range Value', min_value=0, max_value=10, increment=2, default_lower_value=4, default_upper_value=6)
+class TestNumRangeParameter(TestParentParameters):
+    range_parameter = p.NumRangeParameter('range', 'Range Value', min_value=0, max_value=10, increment=2, default_lower_value=4, default_upper_value=6)
 
     def test_with_selection(self):
         new_num_param = self.range_parameter.with_selection('2,8')
@@ -394,10 +394,10 @@ class TestRangeParameter(TestParentParameters):
 
     def test_cascadable(self, single_select_parent: p.SingleSelectParameter):
         child_options = (
-            sq.RangeParameterOption(0, 3, 1, 1, 2, parent_option_ids={'p0', 'p1'}),
-            sq.RangeParameterOption(0, 4, 2, 0, 4, parent_option_ids={'p2', 'p3'})
+            sq.NumRangeParameterOption(0, 3, 1, 1, 2, parent_option_ids={'p0', 'p1'}),
+            sq.NumRangeParameterOption(0, 4, 2, 0, 4, parent_option_ids={'p2', 'p3'})
         )
-        child_param = p.RangeParameter.WithParent('child', 'Child Param', child_options, single_select_parent)
+        child_param = p.NumRangeParameter.WithParent('child', 'Child Param', child_options, single_select_parent)
 
         new_parent = single_select_parent.with_selection('p2')
 
@@ -439,12 +439,11 @@ class TestRangeParameter(TestParentParameters):
     def test_invalid_configuration(self, single_select_parent: p.SingleSelectParameter):
         with pytest.raises(ConfigurationError):
             child_options = (
-                sq.RangeParameterOption(0, 3, 1, 1, 2, parent_option_ids={'p0', 'p1'}),
-                sq.RangeParameterOption(0, 4, 2, 0, 4, parent_option_ids={'p2'})
+                sq.NumRangeParameterOption(0, 3, 1, 1, 2, parent_option_ids={'p0', 'p1'}),
+                sq.NumRangeParameterOption(0, 4, 2, 0, 4, parent_option_ids={'p2'})
             )
-            p.RangeParameter.WithParent('child', 'Child Param', child_options, single_select_parent)
+            p.NumRangeParameter.WithParent('child', 'Child Param', child_options, single_select_parent)
 
     def test_get_selected(self):
         assert self.range_parameter.get_selected_lower_value() == '4'
         assert self.range_parameter.get_selected_upper_value() == '6'
-

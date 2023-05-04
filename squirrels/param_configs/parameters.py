@@ -254,9 +254,9 @@ class DateParameter(Parameter):
     curr_option: po.DateParameterOption
     selected_date: datetime
 
-    def __init__(self, name: str, label: str, selected_date: Union[str, datetime], format: str = '%Y-%m-%d', *, 
+    def __init__(self, name: str, label: str, default_date: Union[str, datetime], format: str = '%Y-%m-%d', *, 
                  is_hidden: bool = False) -> None:
-        self.curr_option = po.DateParameterOption(selected_date, format)
+        self.curr_option = po.DateParameterOption(default_date, format)
         all_options = (self.curr_option,)
         super().__init__(WidgetType.DateField, name, label, all_options, is_hidden, None)
         self._set_default_as_selection_mutate()
@@ -342,7 +342,7 @@ class NumberParameter(_NumericParameter):
 
 
 @dataclass
-class RangeParameter(_NumericParameter):
+class NumRangeParameter(_NumericParameter):
     selected_lower_value: Decimal
     selected_upper_value: Decimal
 
@@ -350,15 +350,15 @@ class RangeParameter(_NumericParameter):
                  default_lower_value: po.Number = None, default_upper_value: po.Number = None, *, is_hidden: bool = False) -> None:
         default_lower_value = default_lower_value if default_lower_value is not None else min_value
         default_upper_value = default_upper_value if default_upper_value is not None else max_value
-        curr_option = po.RangeParameterOption(min_value, max_value, increment, default_lower_value, default_upper_value)
+        curr_option = po.NumRangeParameterOption(min_value, max_value, increment, default_lower_value, default_upper_value)
         all_options = (curr_option,)
         super().__init__(WidgetType.RangeField, name, label, all_options, is_hidden, None, curr_option)
         self._set_default_as_selection_mutate()
     
     @staticmethod
-    def WithParent(name: str, label: str, all_options: Iterable[po.RangeParameterOption], parent: SingleSelectParameter, *, 
+    def WithParent(name: str, label: str, all_options: Iterable[po.NumRangeParameterOption], parent: SingleSelectParameter, *, 
                    is_hidden: bool = False) -> DateParameter:
-        new_param = RangeParameter(name, label, 0, 1, is_hidden=is_hidden) # dummy values
+        new_param = NumRangeParameter(name, label, 0, 1, is_hidden=is_hidden) # dummy values
         return Parameter.WithParent(all_options, parent, new_param)
     
     def with_selection(self, selection: str):
@@ -382,7 +382,7 @@ class RangeParameter(_NumericParameter):
         return str(self.selected_upper_value)
     
     def _set_default_as_selection_mutate(self) -> None:
-        self.curr_option: po.RangeParameterOption
+        self.curr_option: po.NumRangeParameterOption
         self.selected_lower_value = self.curr_option.default_lower_value
         self.selected_upper_value = self.curr_option.default_upper_value
 
@@ -406,7 +406,7 @@ class ParameterSetBase:
         else:
             raise KeyError(f'No such parameter exists called "{param_name}"')
     
-    def get_parameters_ordered_dict(self) -> OrderedDict:
+    def get_parameters_as_ordered_dict(self) -> OrderedDict:
         return OrderedDict(self._parameters_dict)
     
     def merge(self, other: ParameterSetBase) -> ParameterSetBase:
@@ -426,4 +426,4 @@ class ParameterSetBase:
 
 # Types:
 SelectionParameter = Union[SingleSelectParameter, MultiSelectParameter]
-NumericParameter = Union[NumberParameter, RangeParameter]
+NumericParameter = Union[NumberParameter, NumRangeParameter]
