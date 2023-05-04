@@ -134,7 +134,7 @@ class RangeDataSource(_NumericDataSource):
     default_upper_value_col: Optional[str] = None
     parent_id_col: Optional[str] = None
 
-    def convert(self, ds_param: DataSourceParameter, df: pd.DataFrame) -> p.RangeParameter:
+    def convert(self, ds_param: DataSourceParameter, df: pd.DataFrame) -> p.NumRangeParameter:
         def _get_default_lower_upper_values(row: pd.Series) -> Tuple[str]:
             lower_value = str(utils.get_row_value(row, self.default_lower_value_col)) if self.default_lower_value_col is not None \
                 else str(utils.get_row_value(row, self.min_value_col))
@@ -142,21 +142,21 @@ class RangeDataSource(_NumericDataSource):
                 else str(utils.get_row_value(row, self.max_value_col))
             return lower_value, upper_value
         
-        def _create_range_param_option(row: pd.Series) -> po.RangeParameterOption:
+        def _create_range_param_option(row: pd.Series) -> po.NumRangeParameterOption:
             min_value, max_value, increment = self._convert_helper(row)
             lower_value, upper_value = _get_default_lower_upper_values(row)
-            return po.RangeParameterOption(min_value, max_value, increment, lower_value, upper_value, 
+            return po.NumRangeParameterOption(min_value, max_value, increment, lower_value, upper_value, 
                                            self._get_parent(row)) 
 
         if ds_param.parent is None:
             row = df.iloc[0]
             min_value, max_value, increment = self._convert_helper(row)
             lower_value, upper_value = _get_default_lower_upper_values(row)
-            return p.RangeParameter(ds_param.name, ds_param.label, min_value, max_value, increment, 
+            return p.NumRangeParameter(ds_param.name, ds_param.label, min_value, max_value, increment, 
                                     lower_value, upper_value, is_hidden=ds_param.is_hidden)
         else:
             all_options = tuple(_create_range_param_option(row) for _, row in df.iterrows())
-            return p.RangeParameter.WithParent(ds_param.name, ds_param.label, all_options, ds_param.parent,
+            return p.NumRangeParameter.WithParent(ds_param.name, ds_param.label, all_options, ds_param.parent,
                                                is_hidden=ds_param.is_hidden)
 
 

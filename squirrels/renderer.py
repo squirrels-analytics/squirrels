@@ -8,17 +8,17 @@ from squirrels.connection_set import ConnectionSet, sqldf
 from squirrels.param_configs.data_sources import DataSource
 from squirrels.param_configs.parameter_set import ParameterSet
 from squirrels.utils import ConfigurationError
-from squirrels.timed_imports import pandas as pd, jinja2 as j2
+from squirrels.timed_imports import pandas as pd
 
-ContextFunc = Optional[Callable[[ParameterSet], Dict]]
+ContextFunc = Optional[Callable[..., Dict[str, Any]]]
 DatabaseViews = Optional[Dict[str, pd.DataFrame]]
-Query = Union[Callable, str]
+Query = Union[Callable[..., pd.DataFrame], str]
 
 
 class Renderer:
     def __init__(self, dataset: str, manifest: mf.Manifest, conn_set: ConnectionSet, raw_param_set: ParameterSet, 
-                 context_func: Callable, raw_query_by_db_view: Dict[str, Query], raw_final_view_query: Query, 
-                 excel_file: Optional[pd.ExcelFile] = None):
+                 context_func: Callable[..., Dict[str, Any]], raw_query_by_db_view: Dict[str, Query], 
+                 raw_final_view_query: Query, excel_file: Optional[pd.ExcelFile] = None):
         self.dataset = dataset
         self.manifest = manifest
         self.conn_set = conn_set
@@ -35,13 +35,9 @@ class Renderer:
                 if key not in df_dict:
                     raise ConfigurationError('No sheet found for parameter "{key}" in the Excel workbook')
         else:
-            default_db_conn = self.manifest.get_default_db_connection()
-            if default_db_conn is None and len(datasources) > 0:
-                raise ConfigurationError("A default db_connection must be provided when using datasource parameters")
-
             def get_dataframe_from_query(item: Tuple[str, DataSource]) -> pd.DataFrame:
                 key, datasource = item
-                df = self.conn_set.get_dataframe_from_query(default_db_conn, datasource.get_query())
+                df = self.conn_set.get_dataframe_from_query(datasource.connection_name, datasource.get_query())
                 return key, df
             
             with concurrent.futures.ThreadPoolExecutor() as executor:
@@ -52,7 +48,7 @@ class Renderer:
     
     def apply_selections(self, selections: Dict[str, str], updates_only: bool = False) -> ParameterSet:
         parameter_set = self.param_set
-        parameters_dict = parameter_set.get_parameters_ordered_dict()
+        parameters_dict = parameter_set.get_parameters_as_ordered_dict()
         
         # iterating through parameters dict instead of query_params since order matters for cascading parameters
         for param_name, parameter in parameters_dict.items():
@@ -66,7 +62,10 @@ class Renderer:
         return parameter_set
 
     def _render_context(self, context_func: ContextFunc, param_set: ParameterSet) -> Dict[str, Any]:
-        return context_func(param_set, self.manifest.get_proj_vars()) if context_func is not None else {}
+        try:
+            return context_func(param_set, self.manifest.get_proj_vars()) if context_func is not None else {}
+        except Exception as e:
+            raise ConfigurationError(f'Error in the {c.CONTEXT_FILE} function for dataset "{self.dataset}"') from e
     
     def _get_args(self, param_set: ParameterSet, context: Dict[str, Any]) -> Dict:
         return {
@@ -93,11 +92,17 @@ class Renderer:
     def _render_dataframe_from_py_func(self, db_view_name: str, py_func: Callable[[Any], pd.DataFrame], 
                                        database_views: DatabaseViews = None) -> pd.DataFrame:
         if database_views is not None:
-            return py_func(database_views=database_views)
+            try:
+                return py_func(database_views=database_views)
+            except Exception as e:
+                raise ConfigurationError(f'Error in the final view python function for dataset "{self.dataset}"') from e
         else:
             conn_name = self.manifest.get_database_view_db_connection(self.dataset, db_view_name)
             connection_pool = self.conn_set.get_connection_pool(conn_name)
-            return py_func(connection_pool=connection_pool, connection_set=self.conn_set)
+            try:
+                return py_func(connection_pool=connection_pool, connection_set=self.conn_set)
+            except Exception as e:
+                raise ConfigurationError(f'Error in the python function for database view "{db_view_name}" in dataset "{self.dataset}"') from e
     
     def _render_db_view_dataframes(self, query_by_db_view: Dict[str, Query]) -> Dict[str, pd.DataFrame]:
         def run_single_query(item: Tuple[str, Query]) -> Tuple[str, pd.DataFrame]:
@@ -152,7 +157,10 @@ class RendererIOWrapper:
         dataset_folder = manifest.get_dataset_folder(dataset)
         parameters_path = utils.join_paths(dataset_folder, c.PARAMETERS_FILE)
         parameters_module = utils.import_file_as_module(parameters_path)
-        parameter_set = parameters_module.main()
+        try:
+            parameter_set = parameters_module.main()
+        except Exception as e:
+            raise ConfigurationError(f'Error in the {c.PARAMETERS_FILE} function for dataset "{dataset}"') from e
 
         context_path = utils.join_paths(dataset_folder, c.CONTEXT_FILE)
         context_func = utils.import_file_as_module(context_path).main

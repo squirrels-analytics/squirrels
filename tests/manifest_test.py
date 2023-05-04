@@ -108,6 +108,8 @@ def test_invalid_configurations(empty_manifest: Manifest, empty_db_view_manifest
     with pytest.raises(ConfigurationError):
         empty_manifest.get_base_path()
     with pytest.raises(ConfigurationError):
+        empty_manifest.get_all_dataset_names()
+    with pytest.raises(ConfigurationError):
         empty_manifest.get_dataset_label('dataset_test')
     with pytest.raises(InvalidInputError):
         minimal_manifest.get_dataset_label('wrong_name')
@@ -142,6 +144,12 @@ def test_get_base_path(manifest_name: str, expected: str, request: pytest.Fixtur
 def test_get_default_db_connection(manifest_name: str, expected: str, request: pytest.FixtureRequest):
     manifest: Manifest = request.getfixturevalue(manifest_name)
     assert manifest.get_default_db_connection() == expected
+
+
+def test_get_all_dataset_names():
+    parms = {'datasets': {'dataset1': {}, 'dataset2': {}}}
+    manifest = Manifest(parms)
+    assert manifest.get_all_dataset_names() == ['dataset1', 'dataset2']
 
 
 @pytest.mark.parametrize('manifest_name,dataset,expected',[
