@@ -8,7 +8,7 @@ import squirrels as sq
 
 class TestParameterSet(TestParentParameters):
     select_data_source = sq.SelectionDataSource('conn', 'table', 'id_val', 'option', is_default_col='is_default',
-                                             parent_id_col='parent_id')
+                                                parent_id_col='parent_id')
     date_data_source = sq.DateDataSource('conn', 'table', 'date', parent_id_col='parent_id')
 
     @pytest.fixture

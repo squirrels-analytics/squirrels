@@ -210,10 +210,12 @@ class TestMultiSelectParameter(TestParentParameters):
         parameter = p.MultiSelectParameter('parent', 'Parent Param', options)
 
         assert parameter.get_selected_ids_as_list() == ('p0', 'p2')
+        assert parameter.get_selected_ids_joined() == "p0, p2"
         assert parameter.get_selected_ids_quoted_as_list() == ("'p0'", "'p2'")
         assert parameter.get_selected_ids_quoted_joined() == "'p0', 'p2'"
 
         assert parameter.get_selected_labels_as_list() == ('Option 1', 'Option 3')
+        assert parameter.get_selected_labels_joined() == "Option 1, Option 3"
         assert parameter.get_selected_labels_quoted_as_list() == ("'Option 1'", "'Option 3'")
         assert parameter.get_selected_labels_quoted_joined() == "'Option 1', 'Option 3'"
 

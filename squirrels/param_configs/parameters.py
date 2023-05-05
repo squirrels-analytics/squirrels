@@ -217,6 +217,9 @@ class MultiSelectParameter(_SelectionParameter):
     def get_selected_ids_as_list(self) -> Tuple[str]:
         return tuple(x.identifier for x in self.get_selected_list())
     
+    def get_selected_ids_joined(self) -> str:
+        return ', '.join(self.get_selected_ids_as_list())
+    
     def get_selected_ids_quoted_as_list(self) -> Tuple[str]:
         return tuple(self._enquote(x) for x in self.get_selected_ids_as_list())
     
@@ -225,6 +228,9 @@ class MultiSelectParameter(_SelectionParameter):
     
     def get_selected_labels_as_list(self) -> Tuple[str]:
         return tuple(x.label for x in self.get_selected_list())
+    
+    def get_selected_labels_joined(self) -> str:
+        return ', '.join(self.get_selected_labels_as_list())
     
     def get_selected_labels_quoted_as_list(self) -> Tuple[str]:
         return tuple(self._enquote(x) for x in self.get_selected_labels_as_list())
@@ -254,9 +260,9 @@ class DateParameter(Parameter):
     curr_option: po.DateParameterOption
     selected_date: datetime
 
-    def __init__(self, name: str, label: str, default_date: Union[str, datetime], format: str = '%Y-%m-%d', *, 
-                 is_hidden: bool = False) -> None:
-        self.curr_option = po.DateParameterOption(default_date, format)
+    def __init__(self, name: str, label: str, default_date: Union[str, datetime], date_format: str = '%Y-%m-%d', 
+                 *, is_hidden: bool = False) -> None:
+        self.curr_option = po.DateParameterOption(default_date, date_format)
         all_options = (self.curr_option,)
         super().__init__(WidgetType.DateField, name, label, all_options, is_hidden, None)
         self._set_default_as_selection_mutate()
@@ -276,7 +282,7 @@ class DateParameter(Parameter):
         return param_copy
 
     def get_selected_date(self) -> str:
-        return self.selected_date.strftime(self.curr_option.format)
+        return self.selected_date.strftime(self.curr_option.date_format)
 
     def get_selected_date_quoted(self) -> str:
         return self._enquote(self.get_selected_date())

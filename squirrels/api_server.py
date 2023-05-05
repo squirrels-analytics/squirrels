@@ -15,6 +15,15 @@ from squirrels.renderer import RendererIOWrapper, Renderer
 
 class ApiServer:
     def __init__(self, manifest: Manifest, conn_set: ConnectionSet, no_cache: bool, debug: bool) -> None:
+        """
+        Constructor for ApiServer
+
+        Parameters:
+            manifest (Manifest): Manifest object produced from squirrels.yaml
+            conn_set (ConnectionSet): Set of all connection pools defined in connections.py
+            no_cache (bool): Whether to disable caching
+            debug (bool): Set to True to show "hidden" parameters in the /parameters endpoint response
+        """
         self.manifest = manifest
         self.conn_set = conn_set
         self.no_cache = no_cache
@@ -47,6 +56,12 @@ class ApiServer:
         return api_function(dataset, query_params)
     
     def run(self, uvicorn_args: List[str]) -> None:
+        """
+        Runs the API server with uvicorn for CLI "squirrels run"
+
+        Parameters:
+            uvicorn_args (List[str]): List of arguments to pass to uvicorn.run. Currently only supports "host" and "port"
+        """
         app = FastAPI()
 
         squirrels_version_path = f'/squirrels{major_version}'
