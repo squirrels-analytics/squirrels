@@ -173,21 +173,21 @@ class TestNumberDataSource(TestParentParameters):
         assert new_child.to_dict() == expected
     
 
-class TestRangeDataSource(TestParentParameters):
+class TestNumRangeDataSource(TestParentParameters):
     def create_data_source(self, parent_id_col: Optional[str]):
-        return d.RangeDataSource('conn', 'table', 'min_val', 'max_val', 'increment', 'default_lower', 
+        return d.NumRangeDataSource('conn', 'table', 'min_val', 'max_val', 'increment', 'default_lower', 
                                'default_upper', parent_id_col=parent_id_col)
     
     @pytest.fixture
-    def range_data_source(self) -> d.RangeDataSource:
+    def range_data_source(self) -> d.NumRangeDataSource:
         return self.create_data_source(None)
     
     @pytest.fixture
-    def range_data_source_with_parent(self) -> d.RangeDataSource:
+    def range_data_source_with_parent(self) -> d.NumRangeDataSource:
         return self.create_data_source('parent_id')
 
-    def test_convert(self, single_select_parent: sq.SingleSelectParameter, range_data_source: d.RangeDataSource, 
-                     range_data_source_with_parent: d.RangeDataSource):
+    def test_convert(self, single_select_parent: sq.SingleSelectParameter, range_data_source: d.NumRangeDataSource, 
+                     range_data_source_with_parent: d.NumRangeDataSource):
         ds_param = d.DataSourceParameter(sq.WidgetType.RangeField, 'test_param', 'Test Parameter', range_data_source)
         df = pd.DataFrame([{ 'min_val': 0, 'max_val': 10, 'increment': 2, 'default_lower': 4, 'default_upper': 8 }])
         param_to_dict = range_data_source.convert(ds_param, df).to_dict()
@@ -203,7 +203,7 @@ class TestRangeDataSource(TestParentParameters):
         }
         assert param_to_dict == expected
 
-        ds_param = d.DataSourceParameter(sq.WidgetType.NumberField, 'test_param', 'Test Parameter', range_data_source_with_parent,
+        ds_param = d.DataSourceParameter(sq.WidgetType.RangeField, 'test_param', 'Test Parameter', range_data_source_with_parent,
                                        parent=single_select_parent)
         df = pd.DataFrame({
             'min_val': [0, 0, 3, 0],

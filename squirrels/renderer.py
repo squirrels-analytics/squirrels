@@ -1,14 +1,14 @@
 from typing import Dict, Tuple, Optional, Union, Callable, Any
 from functools import partial
 from configparser import ConfigParser
-import concurrent.futures, os, json
+import concurrent.futures, os, json, time
 
 from squirrels import manifest as mf, utils, constants as c
 from squirrels.connection_set import ConnectionSet, sqldf
 from squirrels.param_configs.data_sources import DataSource
 from squirrels.param_configs.parameter_set import ParameterSet
 from squirrels.utils import ConfigurationError
-from squirrels.timed_imports import pandas as pd
+from squirrels.timed_imports import pandas as pd, timer
 
 ContextFunc = Optional[Callable[..., Dict[str, Any]]]
 DatabaseViews = Optional[Dict[str, pd.DataFrame]]
@@ -22,10 +22,13 @@ class Renderer:
         self.dataset = dataset
         self.manifest = manifest
         self.conn_set = conn_set
-        self.param_set: ParameterSet = self._convert_param_set_datasources(raw_param_set, excel_file)
         self.context_func = context_func
         self.raw_query_by_db_view = raw_query_by_db_view
         self.raw_final_view_query = raw_final_view_query
+
+        start = time.time()
+        self.param_set: ParameterSet = self._convert_param_set_datasources(raw_param_set, excel_file)
+        timer.add_activity_time(f"convert datasources - dataset {dataset}", start)
     
     def _convert_param_set_datasources(self, param_set: ParameterSet, excel_file: Optional[pd.ExcelFile] = None) -> ParameterSet:
         datasources = param_set.get_datasources()
@@ -47,6 +50,7 @@ class Renderer:
         return param_set
     
     def apply_selections(self, selections: Dict[str, str], updates_only: bool = False) -> ParameterSet:
+        start = time.time()
         parameter_set = self.param_set
         parameters_dict = parameter_set.get_parameters_as_ordered_dict()
         
@@ -57,8 +61,11 @@ class Renderer:
                 parameter = parameter_set[param_name].with_selection(value)
                 updates = parameter.get_all_dependent_params()
                 if updates_only:
-                    return updates
+                    parameter_set = updates
+                    break
                 parameter_set = parameter_set.merge(updates)
+        timer.add_activity_time(f"apply selections - dataset {self.dataset}", start)
+        
         return parameter_set
 
     def _render_context(self, context_func: ContextFunc, param_set: ParameterSet) -> Dict[str, Any]:
@@ -131,25 +138,40 @@ class Renderer:
         
         # apply selections and render context
         param_set = self.apply_selections(selections)
+        start = time.time()
         context = self._render_context(self.context_func, param_set)
+        timer.add_activity_time(f"render context - dataset {self.dataset}", start)
 
         # render database view queries
+        start = time.time()
         query_by_db_view = {}
         args = self._get_args(param_set, context)
         for db_view, raw_query in self.raw_query_by_db_view.items():
             query_by_db_view[db_view] = self._render_query_from_raw(raw_query, args)
-        
+        timer.add_activity_time(f"render database view queries - dataset {self.dataset}", start)
+
         # render final view query
+        start = time.time()
         final_view_query = self._render_query_from_raw(self.raw_final_view_query, args)
+        timer.add_activity_time(f"render final view query - dataset {self.dataset}", start)
 
         # render all dataframes if "run_query" is enabled
         df_by_db_views = {}
         final_view_df = None
         if run_query:
+            start = time.time()
             df_by_db_views = self._render_db_view_dataframes(query_by_db_view)
+            timer.add_activity_time(f"execute dataview view queries - dataset {self.dataset}", start)
+
+            start = time.time()
             final_view_df = self._render_final_view_dataframe(df_by_db_views, final_view_query)
+            timer.add_activity_time(f"execute final view query - dataset {self.dataset}", start)
         
         return param_set, query_by_db_view, final_view_query, df_by_db_views, final_view_df
+
+
+def default_context_func(*args, **kwargs):
+    return {}
 
 
 class RendererIOWrapper:
@@ -163,7 +185,10 @@ class RendererIOWrapper:
             raise ConfigurationError(f'Error in the {c.PARAMETERS_FILE} function for dataset "{dataset}"') from e
 
         context_path = utils.join_paths(dataset_folder, c.CONTEXT_FILE)
-        context_func = utils.import_file_as_module(context_path).main
+        try:
+            context_func = utils.import_file_as_module(context_path).main
+        except FileNotFoundError:
+            context_func = default_context_func
         
         excel_file = None
         if excel_file_name is not None:
