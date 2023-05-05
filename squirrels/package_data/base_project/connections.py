@@ -9,7 +9,7 @@ def main(proj: Dict[str, str], *args, **kwargs) -> ConnectionSet:
 
     # ## Example of getting the username and password set with "$ squirrels set-credential [key]"
     # cred = get_credential('my_key')
-    # user, pw = cred.username, cred.password
+    # # Use cred.username and cred.password to access the username and password
 
     # Create a connection pool / engine
     pool = create_engine('sqlite:///./database/sample_database.db')

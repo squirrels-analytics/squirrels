@@ -10,6 +10,9 @@ Number = Union[Decimal, int, str]
 
 @dataclass
 class ParameterOption:
+    """
+    Abstract class (or type) for parameter options
+    """
     def __post_init__(self) -> None:
         if not hasattr(self, "parent_option_ids"):
             self.parent_option_ids = frozenset()
@@ -21,6 +24,15 @@ class ParameterOption:
         )
 
     def is_valid(self, selected_parent_option_ids: Optional[Iterable[str]] = None):
+        """
+        Checks if this option is valid given the selected parent options.
+        
+        Parameters:
+            selected_parent_option_ids: List of selected option ids from the parent parameter
+        
+        Returns:
+            True if valid, False otherwise
+        """
         if selected_parent_option_ids is not None:
             return not self.parent_option_ids.isdisjoint(selected_parent_option_ids)
         else:
@@ -29,6 +41,16 @@ class ParameterOption:
 
 @dataclass
 class SelectParameterOption(ParameterOption):
+    """
+    Parameter option for a select parameter
+
+    Attributes:
+        identifier: Unique identifier for this option that never changes over time
+        label: Human readable label that gets shown as a dropdown option
+        is_default: True if this is a default option, False otherwise
+        parent_option_id: Identifier of the parent option, or None if this is a top-level option
+        parent_option_ids: Set of parent option ids (only used if parent_option_id is None), or an empty set if this is a top-level option
+    """
     identifier: str
     label: str
     is_default: bool = False
@@ -41,8 +63,17 @@ class SelectParameterOption(ParameterOption):
 
 @dataclass
 class DateParameterOption(ParameterOption):
+    """
+    Parameter option for default dates if it varies based on selection of another parameter
+
+    Attributes:
+        default_date: Default date for this option
+        date_format: Format of the default date, default is '%Y-%m-%d'
+        parent_option_id: Identifier of the parent option, or None if this is a top-level option
+        parent_option_ids: Set of parent option ids (only used if parent_option_id is None), or an empty set if this is a top-level option
+    """
     default_date: Union[str, datetime]
-    format: str = '%Y-%m-%d'
+    date_format: str = '%Y-%m-%d'
     parent_option_id: Optional[str] = field(default=None, repr=False)
     parent_option_ids: Iterable[str] = frozenset()
 
@@ -53,13 +84,16 @@ class DateParameterOption(ParameterOption):
     
     def _validate_date(self, date_str: str) -> datetime:
         try:
-            return datetime.strptime(date_str, self.format)
+            return datetime.strptime(date_str, self.date_format)
         except ValueError as e:
             raise ConfigurationError(f'Invalid format for date "{date_str}".') from e
 
 
 @dataclass
 class _NumericParameterOption(ParameterOption):
+    """
+    Abstract class (or type) for numeric parameter options
+    """
     min_value: Decimal
     max_value: Decimal
     increment: Decimal
@@ -105,6 +139,17 @@ class _NumericParameterOption(ParameterOption):
 
 @dataclass
 class NumberParameterOption(_NumericParameterOption):
+    """
+    Parameter option for default numbers if it varies based on selection of another parameter
+
+    Attributes:
+        min_value: Minimum selectable value
+        max_value: Maximum selectable value
+        increment: Increment of selectable values, and must fit evenly between min_value and max_value
+        default_value: Default value for this option, and must be selectable based on min_value, max_value, and increment
+        parent_option_id: Identifier of the parent option, or None if this is a top-level option
+        parent_option_ids: Set of parent option ids (only used if parent_option_id is None), or an empty set if this is a top-level option
+    """
     default_value: Decimal
     parent_option_id: Optional[str] = field(default=None, repr=False)
     parent_option_ids: Iterable[str] = frozenset()
@@ -116,6 +161,19 @@ class NumberParameterOption(_NumericParameterOption):
 
 @dataclass
 class NumRangeParameterOption(_NumericParameterOption):
+    """
+    Parameter option for default numeric ranges if it varies based on selection of another parameter
+    
+    Attributes:
+        min_value: Minimum selectable value
+        max_value: Maximum selectable value
+        increment: Increment of selectable values, and must fit evenly between min_value and max_value
+        default_lower_value: Default lower value for this option, and must be selectable based on min_value, max_value, and increment
+        default_upper_value: Default upper value for this option, and must be selectable based on min_value, max_value, and increment. 
+                Must also be greater than default_lower_value
+        parent_option_id: Identifier of the parent option, or None if this is a top-level option
+        parent_option_ids: Set of parent option ids (only used if parent_option_id is None), or an empty set if this is a top-level option
+    """
     default_lower_value: Decimal
     default_upper_value: Decimal
     parent_option_id: Optional[str] = field(default=None, repr=False)

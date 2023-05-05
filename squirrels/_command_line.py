@@ -11,7 +11,7 @@ from squirrels.initializer import Initializer
 from squirrels.timed_imports import timer
 
 
-def prompt_user_pw(args_values: Optional[List[str]]) -> Tuple[str, str]:
+def _prompt_user_pw(args_values: Optional[List[str]]) -> Tuple[str, str]:
     if args_values is not None:
         user, pw = args_values
     else:
@@ -21,6 +21,9 @@ def prompt_user_pw(args_values: Optional[List[str]]) -> Tuple[str, str]:
 
 
 def main():
+    """
+    Main entry point for the squirrels command line utilities.
+    """
     start = time.time()
     parser = ArgumentParser(description="Command line utilities from the squirrels python package")
     parser.add_argument('-v', '--version', action='store_true', help='Show the version and exit')
@@ -61,11 +64,10 @@ def main():
     run_parser.add_argument('--debug', action='store_true', help='In debug mode, all "hidden parameters" show in the parameters response')
     run_parser.add_argument('--host', type=str, default='127.0.0.1')
     run_parser.add_argument('--port', type=int, default=8000)
-    timer.add_activity_time('parsing arguments', start)
 
-    start = time.time()
     args, _ = parser.parse_known_args()
     timer.verbose = args.verbose
+    timer.add_activity_time('parsing arguments', start)
 
     if args.version:
         print(__version__)
@@ -77,7 +79,7 @@ def main():
     elif args.command == c.GET_CREDS_CMD: 
         cm.squirrels_config_io.print_all_credentials()
     elif args.command == c.SET_CRED_CMD:
-        user, pw = prompt_user_pw(args.values)
+        user, pw = _prompt_user_pw(args.values)
         cm.squirrels_config_io.set_credential(args.key, user, pw)
     elif args.command == c.DELETE_CRED_CMD:
         cm.squirrels_config_io.delete_credential(args.key)

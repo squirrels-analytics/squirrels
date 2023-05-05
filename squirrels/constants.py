@@ -48,10 +48,6 @@ PARAMETERS_CACHE_TTL_SETTING = 'parameters.cache.ttl'
 RESULTS_CACHE_SIZE_SETTING = 'results.cache.size'
 RESULTS_CACHE_TTL_SETTING = 'results.cache.ttl'
 
-# Activities to time
-IMPORT_JINJA = 'import jinja'
-IMPORT_PANDAS = 'import pandas'
-
 # Selection cfg sections
 PARAMETERS_SECTION = 'parameters'
 HEADERS_SECTION = 'headers'

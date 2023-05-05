@@ -1,42 +1,36 @@
-from typing import Dict, List
+from typing import Dict, Tuple
 import time
-
-from squirrels import constants as c
 
 
 class Timer:
-    def __init__(self, verbose = True, limit = 1e7):
+    def __init__(self, verbose: bool = False):
+        self.times: Dict[str, Tuple[str, str]] = dict()
         self.verbose = verbose
-        self.limit = limit
-        self.times: Dict[str, List[float]] = dict()
-        self.count = 0
     
-    def add_activity_time(self, activity, my_start):
-        if not self.verbose or self.count >= self.limit:
-            return
-        if activity not in self.times:
-            self.times[activity] = list()
-        self.times[activity].append((time.time()-my_start) * 10**3)
-        self.count += 1
+    def add_activity_time(self, activity: str, start: float):
+        time_taken = (time.time()-start) * 10**3
+        total_time, count = self.times.get(activity, (0, 0))
+        self.times[activity] = (total_time+time_taken, count+1)
+        if self.verbose:
+            print(f'Time taken for "{activity}": {time_taken}ms')
     
     def report_times(self):
         if self.verbose:
-            for activity, time_list in self.times.items():
-                total_time = sum(time_list)
-                avg_time = total_time / len(time_list)
+            for activity, time_stats in self.times.items():
+                total_time, count = time_stats
+                avg_time = total_time / count
                 print()
                 print(f'Time statistics for "{activity}":')
                 print(f'  Total time: {total_time}ms')
                 print(f'  Average time: {avg_time}ms')
-                print(f'  All times: {time_list}')
 
 timer = Timer()
 
 
 start = time.time()
 import pandas
-timer.add_activity_time(c.IMPORT_PANDAS, start)
+timer.add_activity_time("import pandas", start)
 
 start = time.time()
 import jinja2
-timer.add_activity_time(c.IMPORT_JINJA, start)
+timer.add_activity_time("import jinja", start)
