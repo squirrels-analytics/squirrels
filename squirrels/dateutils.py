@@ -1,4 +1,4 @@
-from typing import List
+from typing import Sequence
 from dataclasses import dataclass
 from datetime import datetime
 from dateutil.relativedelta import relativedelta
@@ -39,7 +39,7 @@ class DateModifier:
 
     def modify(self, date: datetime) -> datetime:
         """
-        Method to be overwritten
+        Method to be overwritten, modifies the input date
 
         Parameters:
             date: The input date to modify.
@@ -47,7 +47,7 @@ class DateModifier:
         Returns:
             The modified date.
         """
-        return date
+        raise utils.AbstractMethodCallError(self.__class__, "modify")
 
 
 @dataclass
@@ -223,7 +223,10 @@ class DateModPipeline(DateModifier):
     Attributes:
         modifiers: The list of DateModifier's to apply in sequence.
     """
-    modifiers: List[DateModifier]
+    modifiers: Sequence[DateModifier]
+
+    def __post_init__(self):
+        self.modifiers = tuple(self.modifiers)
     
     def modify(self, date: datetime) -> datetime:
         for modifier in self.modifiers:
@@ -233,8 +236,18 @@ class DateModPipeline(DateModifier):
 
 @dataclass
 class _DateRepresentationModifier:
-    def __init__(self, date_modifiers: List[DateModifier]):
+    """
+    Abstract class for modifying other representations of dates (such as string or unix timestemp)
+    """
+    def __init__(self, date_modifiers: Sequence[DateModifier]):
         self.date_modifier = DateModPipeline(date_modifiers)
+    
+    def _get_joined_modifiers(self, date_modifiers: Sequence[DateModifier]) -> Sequence[DateModifier]:
+        joined_modifiers = self.date_modifier.modifiers + tuple(date_modifiers)
+        return joined_modifiers
+
+    def with_more_modifiers(self, date_modifiers: Sequence[DateModifier]):
+        raise utils.AbstractMethodCallError(self.__class__, "with_more_modifiers")
 
 
 @dataclass
@@ -246,9 +259,13 @@ class DateStringModifier(_DateRepresentationModifier):
         date_modifier: The DateModifier to apply on datetime objects
         date_format: Format of the date string. Default is '%Y-%m-%d'
     """
-    def __init__(self, date_modifiers: List[DateModifier], date_format: str = '%Y-%m-%d'):
+    def __init__(self, date_modifiers: Sequence[DateModifier], date_format: str = '%Y-%m-%d'):
         super().__init__(date_modifiers)
         self.date_format = date_format
+
+    def with_more_modifiers(self, date_modifiers: Sequence[DateModifier]):
+        joined_modifiers = self._get_joined_modifiers(date_modifiers)
+        return DateStringModifier(joined_modifiers, self.date_format)
 
     def modify(self, date_str: str) -> str:
         date_obj = datetime.strptime(date_str, self.date_format)
@@ -264,8 +281,12 @@ class TimestampModifier(_DateRepresentationModifier):
         date_modifier: The DateModifier to apply on datetime objects
         date_format: Format of the date string. Default is '%Y-%m-%d'
     """
-    def __init__(self, date_modifiers: List[DateModifier]):
+    def __init__(self, date_modifiers: Sequence[DateModifier]):
         super().__init__(date_modifiers)
+
+    def with_more_modifiers(self, date_modifiers: Sequence[DateModifier]):
+        joined_modifiers = self._get_joined_modifiers(date_modifiers)
+        return TimestampModifier(joined_modifiers)
 
     def modify(self, timestamp: float) -> float:
         date_obj = datetime.fromtimestamp(timestamp)

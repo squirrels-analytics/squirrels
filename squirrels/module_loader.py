@@ -1,4 +1,4 @@
-from typing import List, Tuple, Dict
+from typing import List, Tuple
 from squirrels import constants as c, manifest as mf
 import git, shutil, os, stat
 

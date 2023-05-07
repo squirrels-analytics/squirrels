@@ -1,5 +1,5 @@
 from __future__ import annotations
-from typing import List, Dict
+from typing import Sequence, Dict
 from collections import OrderedDict
 
 from squirrels.param_configs import data_sources as d, parameters as p
@@ -7,7 +7,7 @@ from squirrels.timed_imports import pandas as pd
 
 
 class ParameterSet(p.ParameterSetBase):
-    def __init__(self, parameters: List[p.Parameter]):
+    def __init__(self, parameters: Sequence[p.Parameter]):
         super().__init__()
         self._data_source_params: OrderedDict[str, d.DataSourceParameter] = OrderedDict()
         for param in parameters:

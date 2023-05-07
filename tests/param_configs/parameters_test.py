@@ -1,4 +1,4 @@
-from typing import Iterable
+from typing import Sequence
 import pytest
 
 from squirrels.param_configs import parameters as p
@@ -270,7 +270,7 @@ class TestDateParameter(TestParentParameters):
         with pytest.raises(InvalidInputError):
             self.date_parameter.with_selection('01/01/2020') # wrong format
         
-    def test_invalid_configuration(self, parent_options: Iterable[sq.SelectParameterOption], single_select_parent: p.SingleSelectParameter):
+    def test_invalid_configuration(self, parent_options: Sequence[sq.SelectParameterOption], single_select_parent: p.SingleSelectParameter):
         with pytest.raises(ConfigurationError):
             multi_select_param = p.MultiSelectParameter('', '', parent_options)
             child_options = (
