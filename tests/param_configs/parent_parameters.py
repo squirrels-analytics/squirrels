@@ -1,4 +1,4 @@
-from typing import Iterable, Dict
+from typing import Sequence, Dict
 import pytest, pandas as pd
 
 import squirrels as sq
@@ -31,18 +31,18 @@ class TestParentParameters:
         return expected
 
     @pytest.fixture
-    def parent_options(self) -> Iterable[sq.SelectParameterOption]:
+    def parent_options(self) -> Sequence[sq.SelectParameterOption]:
         return (
             sq.SelectParameterOption('p0', 'Option 1'), sq.SelectParameterOption('p1', 'Option 2'),
             sq.SelectParameterOption('p2', 'Option 3'), sq.SelectParameterOption('p3', 'Option 4')
         )
 
     @pytest.fixture
-    def single_select_parent(self, parent_options: Iterable[sq.SelectParameterOption]) -> sq.SingleSelectParameter:
+    def single_select_parent(self, parent_options: Sequence[sq.SelectParameterOption]) -> sq.SingleSelectParameter:
         return sq.SingleSelectParameter('ss_parent', 'Parent Param', parent_options)
 
     @pytest.fixture
-    def multi_select_parent(self, parent_options: Iterable[sq.SelectParameterOption]) -> sq.MultiSelectParameter:
+    def multi_select_parent(self, parent_options: Sequence[sq.SelectParameterOption]) -> sq.MultiSelectParameter:
         return sq.MultiSelectParameter('ms_parent', 'Parent Param', parent_options)
 
     parent_data_source = sq.SelectionDataSource('conn', 'table', 'id_val', 'options', order_by_col='order_by',

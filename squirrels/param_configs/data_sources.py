@@ -43,7 +43,7 @@ class DataSource:
         Returns:
             The converted parameter
         """
-        raise NotImplementedError(f'Must override the "convert" method')
+        raise utils.AbstractMethodCallError(self.__class__, "convert")
     
     def _get_parent(self, row):
         return str(utils.get_row_value(row, self.parent_id_col)) if self.parent_id_col is not None else None
@@ -166,7 +166,7 @@ class _NumericDataSource(DataSource):
     max_value_col: str
     increment_col: Optional[str] = None
 
-    def _convert_helper(self, row: pd.Series) -> Tuple[str]:
+    def _convert_helper(self, row: pd.Series) -> Tuple[str, str, str]:
         min_val = str(utils.get_row_value(row, self.min_value_col))
         max_val = str(utils.get_row_value(row, self.max_value_col))
         incr_val = str(utils.get_row_value(row, self.increment_col)) if self.increment_col is not None else '1'
@@ -254,7 +254,7 @@ class NumRangeDataSource(_NumericDataSource):
         """
         self._validate_widget_type(ds_param, [p.WidgetType.RangeField])
 
-        def _get_default_lower_upper_values(row: pd.Series) -> Tuple[str]:
+        def _get_default_lower_upper_values(row: pd.Series) -> Tuple[str, str]:
             lower_value_col = self.default_lower_value_col if self.default_lower_value_col is not None \
                 else self.min_value_col
             upper_value_col = self.default_upper_value_col if self.default_upper_value_col is not None \
@@ -278,7 +278,7 @@ class NumRangeDataSource(_NumericDataSource):
         else:
             all_options = tuple(_create_range_param_option(row) for _, row in df.iterrows())
             return p.NumRangeParameter.WithParent(ds_param.name, ds_param.label, all_options, ds_param.parent,
-                                               is_hidden=ds_param.is_hidden)
+                                                  is_hidden=ds_param.is_hidden)
 
 
 @dataclass

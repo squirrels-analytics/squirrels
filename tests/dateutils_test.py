@@ -89,6 +89,16 @@ class TestDateStringModifier:
     ])
     def test_modify(self, modifiers: List[d.DateModifier], input_date: str, expected_date: str):
         assert d.DateStringModifier(modifiers).modify(input_date) == expected_date
+    
+    @pytest.mark.parametrize('modifiers,more_modifiers,input_date,expected_date1,expected_date2', [
+        ([d.DayIdxOfQuarter(1)], (d.DayIdxOfWeek(-1), d.OffsetMonths(-2)), "2023-05-15", "2023-04-01", "2023-02-02"),
+    ])
+    def test_with_more_modifiers(self, modifiers: List[d.DateModifier], more_modifiers: List[d.DateModifier], 
+                                 input_date: str, expected_date1: str, expected_date2: str):
+        date_str_modifier = d.DateStringModifier(modifiers)
+        new_date_str_modifier = date_str_modifier.with_more_modifiers(more_modifiers)
+        assert date_str_modifier.modify(input_date) == expected_date1
+        assert new_date_str_modifier.modify(input_date) == expected_date2
 
 
 class TestTimestampModifier:
@@ -97,3 +107,13 @@ class TestTimestampModifier:
     ])
     def test_modify(self, modifiers: List[d.DateModifier], input_date: str, expected_date: str):
         assert d.TimestampModifier(modifiers).modify(input_date) == expected_date
+    
+    @pytest.mark.parametrize('modifiers,more_modifiers,input_date,expected_date1,expected_date2', [
+        ([d.DayIdxOfQuarter(1)], (d.DayIdxOfWeek(-1), d.OffsetMonths(-2)), 1684123200, 1680321600, 1675314000),
+    ])
+    def test_with_more_modifiers(self, modifiers: List[d.DateModifier], more_modifiers: List[d.DateModifier], 
+                                 input_date: str, expected_date1: str, expected_date2: str):
+        date_str_modifier = d.TimestampModifier(modifiers)
+        new_date_str_modifier = date_str_modifier.with_more_modifiers(more_modifiers)
+        assert date_str_modifier.modify(input_date) == expected_date1
+        assert new_date_str_modifier.modify(input_date) == expected_date2

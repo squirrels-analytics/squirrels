@@ -1,5 +1,5 @@
 from __future__ import annotations
-from typing import Iterable, Dict, List, Tuple, Iterator, Optional, Union
+from typing import Sequence, Dict, List, Iterator, Optional, Union
 from collections import OrderedDict
 from dataclasses import dataclass
 from datetime import datetime
@@ -8,7 +8,7 @@ from decimal import Decimal
 import copy
 
 from squirrels.param_configs import parameter_options as po
-from squirrels.utils import InvalidInputError, ConfigurationError
+from squirrels.utils import InvalidInputError, ConfigurationError, AbstractMethodCallError
 
 
 class WidgetType(Enum):
@@ -24,11 +24,11 @@ class Parameter:
     widget_type: WidgetType
     name: str
     label: str
-    all_options: Iterable[po.ParameterOption]
+    all_options: Sequence[po.ParameterOption]
     is_hidden: bool
     parent: Optional[_SelectionParameter]
 
-    def WithParent(all_options: Iterable[po.ParameterOption], parent: SingleSelectParameter, new_param: Parameter):
+    def WithParent(all_options: Sequence[po.ParameterOption], parent: SingleSelectParameter, new_param: Parameter):
         new_param._set_parent_and_options(parent, all_options)
         new_param.parent._add_child_mutate(new_param)
         return new_param.refresh(parent)
@@ -41,7 +41,7 @@ class Parameter:
         return param_copy
 
     def with_selection(self, _: str) -> Parameter:
-        raise NotImplementedError(f'Must override "with_selection" method')
+        raise AbstractMethodCallError(self.__class__, "with_selection")
     
     def get_all_dependent_params(self) -> ParameterSetBase:
         dependent_params = ParameterSetBase()
@@ -49,7 +49,7 @@ class Parameter:
         return dependent_params
     
     def _set_default_as_selection_mutate(self) -> None:
-        raise NotImplementedError(f'Must override "_set_default_as_selection_mutate" method')
+        raise AbstractMethodCallError(self.__class__, "_set_default_as_selection_mutate")
     
     def _refresh_mutate(self) -> None:
         if self.parent is not None and hasattr(self, 'curr_option'):
@@ -76,7 +76,7 @@ class Parameter:
         if len(accum_set) != len(self.parent.options):
             raise ConfigurationError(f'For "{self.name}", all parent option ids must exist across all options')
     
-    def _set_parent_and_options(self, parent: SingleSelectParameter, all_options: Iterable[po.ParameterOption]) -> None:
+    def _set_parent_and_options(self, parent: SingleSelectParameter, all_options: Sequence[po.ParameterOption]) -> None:
         self.parent = parent
         self.all_options = all_options
         self._verify_parent_is_single_select()
@@ -100,7 +100,7 @@ class Parameter:
 class _SelectionParameter(Parameter):
     def __post_init__(self) -> None:
         self.trigger_refresh: bool = False
-        self.options: Tuple[po.SelectParameterOption] = tuple(self.all_options)
+        self.options: Sequence[po.SelectParameterOption] = tuple(self.all_options)
         self.children: List[_SelectionParameter] = list()
         if self.parent is not None:
             self.parent._add_child_mutate(self)
@@ -116,8 +116,8 @@ class _SelectionParameter(Parameter):
         self._set_default_as_selection_mutate()
         self.children = [child.refresh(self) for child in self.children]
 
-    def _get_selected_ids_as_list(self) -> Tuple[str]:
-        raise NotImplementedError('Must override "_get_selected_ids_as_list"')
+    def _get_selected_ids_as_list(self) -> Sequence[str]:
+        raise AbstractMethodCallError(self.__class__, "_get_selected_ids_as_list")
 
     def _get_default_iterator(self) -> Iterator[po.ParameterOption]:
         return (x.identifier for x in self.options if x.is_default)
@@ -144,7 +144,7 @@ class _SelectionParameter(Parameter):
 class SingleSelectParameter(_SelectionParameter):
     selected_id: Optional[str]
 
-    def __init__(self, name: str, label: str, all_options: Iterable[po.SelectParameterOption], *, 
+    def __init__(self, name: str, label: str, all_options: Sequence[po.SelectParameterOption], *, 
                  is_hidden: bool = False, parent: Optional[_SelectionParameter] = None) -> None:
         super().__init__(WidgetType.SingleSelect, name, label, all_options, is_hidden, parent)
     
@@ -170,7 +170,7 @@ class SingleSelectParameter(_SelectionParameter):
         return self._enquote(self.get_selected_label())
     
     # Overriding for refresh method
-    def _get_selected_ids_as_list(self) -> Tuple[str]:
+    def _get_selected_ids_as_list(self) -> Sequence[str]:
         return (self.get_selected_id(),)
     
     def _get_default(self) -> str:
@@ -190,11 +190,11 @@ class SingleSelectParameter(_SelectionParameter):
 
 @dataclass
 class MultiSelectParameter(_SelectionParameter):
-    selected_ids: Iterable[str]
+    selected_ids: Sequence[str]
     include_all: bool
     order_matters: bool
 
-    def __init__(self, name: str, label: str, all_options: Iterable[po.SelectParameterOption], *, is_hidden = False,
+    def __init__(self, name: str, label: str, all_options: Sequence[po.SelectParameterOption], *, is_hidden = False,
                  parent: Optional[_SelectionParameter] = None, include_all: bool = True, order_matters: bool = False) -> None:
         super().__init__(WidgetType.MultiSelect, name, label, all_options, is_hidden, parent)
         self.include_all = include_all
@@ -207,41 +207,41 @@ class MultiSelectParameter(_SelectionParameter):
         param_copy.children = [child.refresh(param_copy) for child in self.children]
         return param_copy
 
-    def get_selected_list(self) -> Tuple[po.SelectParameterOption]:
+    def get_selected_list(self) -> Sequence[po.SelectParameterOption]:
         if len(self.selected_ids) == 0 and self.include_all:
             result = tuple(self.options)
         else:
             result = tuple(x for x in self.options if x.identifier in self.selected_ids)
         return result
     
-    def get_selected_ids_as_list(self) -> Tuple[str]:
+    def get_selected_ids_as_list(self) -> Sequence[str]:
         return tuple(x.identifier for x in self.get_selected_list())
     
     def get_selected_ids_joined(self) -> str:
         return ', '.join(self.get_selected_ids_as_list())
     
-    def get_selected_ids_quoted_as_list(self) -> Tuple[str]:
+    def get_selected_ids_quoted_as_list(self) -> Sequence[str]:
         return tuple(self._enquote(x) for x in self.get_selected_ids_as_list())
     
     def get_selected_ids_quoted_joined(self) -> str:
         return ', '.join(self.get_selected_ids_quoted_as_list())
     
-    def get_selected_labels_as_list(self) -> Tuple[str]:
+    def get_selected_labels_as_list(self) -> Sequence[str]:
         return tuple(x.label for x in self.get_selected_list())
     
     def get_selected_labels_joined(self) -> str:
         return ', '.join(self.get_selected_labels_as_list())
     
-    def get_selected_labels_quoted_as_list(self) -> Tuple[str]:
+    def get_selected_labels_quoted_as_list(self) -> Sequence[str]:
         return tuple(self._enquote(x) for x in self.get_selected_labels_as_list())
     
     def get_selected_labels_quoted_joined(self) -> str:
         return ', '.join(self.get_selected_labels_quoted_as_list())
     
-    def _get_selected_ids_as_list(self) -> Tuple[str]:
+    def _get_selected_ids_as_list(self) -> Sequence[str]:
         return self.get_selected_ids_as_list()
     
-    def _get_default(self) -> Tuple[str]:
+    def _get_default(self) -> Sequence[str]:
         return tuple(self._get_default_iterator())
     
     def _set_default_as_selection_mutate(self):
@@ -268,7 +268,7 @@ class DateParameter(Parameter):
         self._set_default_as_selection_mutate()
     
     @staticmethod
-    def WithParent(name: str, label: str, all_options: Iterable[po.DateParameterOption], parent: SingleSelectParameter, *, 
+    def WithParent(name: str, label: str, all_options: Sequence[po.DateParameterOption], parent: SingleSelectParameter, *, 
                    is_hidden: bool = False) -> DateParameter:
         new_param = DateParameter(name, label, '2020-01-01', is_hidden=is_hidden) # dummy date
         return Parameter.WithParent(all_options, parent, new_param)
@@ -321,7 +321,7 @@ class NumberParameter(_NumericParameter):
         self._set_default_as_selection_mutate()
     
     @staticmethod
-    def WithParent(name: str, label: str, all_options: Iterable[po.NumberParameterOption], parent: SingleSelectParameter, *, 
+    def WithParent(name: str, label: str, all_options: Sequence[po.NumberParameterOption], parent: SingleSelectParameter, *, 
                    is_hidden: bool = False) -> DateParameter:
         new_param = NumberParameter(name, label, 0, 1, is_hidden=is_hidden) # dummy values
         return Parameter.WithParent(all_options, parent, new_param)
@@ -362,7 +362,7 @@ class NumRangeParameter(_NumericParameter):
         self._set_default_as_selection_mutate()
     
     @staticmethod
-    def WithParent(name: str, label: str, all_options: Iterable[po.NumRangeParameterOption], parent: SingleSelectParameter, *, 
+    def WithParent(name: str, label: str, all_options: Sequence[po.NumRangeParameterOption], parent: SingleSelectParameter, *, 
                    is_hidden: bool = False) -> DateParameter:
         new_param = NumRangeParameter(name, label, 0, 1, is_hidden=is_hidden) # dummy values
         return Parameter.WithParent(all_options, parent, new_param)
