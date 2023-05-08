@@ -1,15 +1,26 @@
 modules: []
 
-db_connection: my_db
+project_variables:
+  # product, major_version, and minor_version are required project variables
+  product: sample
+  major_version: 1
+  minor_version: 0
+  # additional project variables can be added here
 
-base_path: "/v{{major_version}}"
+db_connections: # optional if connections.py exists
+  default: 
+    credential_key: null # optional if null
+    url: 'sqlite://${username}:${password}@/./database/sample_database.db'
 
 datasets:
   sample_dataset:
     label: Sample Dataset
     database_views:
-      database_view1:
+      database_view1: 
         file: database_view1.sql.j2
-    final_view: final_view.sql.j2
+        db_connection: default # optional if default
+        args: {} # optional if empty
+    final_view: database_view1
+    args: {} # optional if empty
 
 settings: {}

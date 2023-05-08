@@ -4,7 +4,7 @@ from dataclasses import dataclass
 
 from squirrels.param_configs import parameters as p, parameter_options as po
 from squirrels.timed_imports import pandas as pd
-from squirrels import utils
+from squirrels import utils, constants as c
 
 
 @dataclass
@@ -12,12 +12,13 @@ class DataSource:
     """
     Abstract class for lookup tables coming from a database
     """
-    connection_name: str
     table_or_query: str
     
     def __post_init__(self) -> None:
         if not hasattr(self, 'parent_id_col'):
             self.parent_id_col = None
+        if not hasattr(self, 'connection_name'):
+            self.connection_name = c.DEFAULT_DB_CONN
 
     def get_query(self) -> str:
         """
@@ -73,6 +74,7 @@ class SelectionDataSource(DataSource):
     order_by_col: Optional[str] = None
     is_default_col: Optional[str] = None
     parent_id_col: Optional[str] = None
+    connection_name: str = c.DEFAULT_DB_CONN
 
     def __post_init__(self):
         self.order_by_col = self.order_by_col if self.order_by_col is not None else self.id_col
@@ -127,6 +129,7 @@ class DateDataSource(DataSource):
     default_date_col: str
     parent_id_col: Optional[str] = None
     date_format: Optional[str] = '%Y-%m-%d'
+    connection_name: str = c.DEFAULT_DB_CONN
 
     def convert(self, ds_param: DataSourceParameter, df: pd.DataFrame) -> p.DateParameter:
         """
@@ -188,6 +191,7 @@ class NumberDataSource(_NumericDataSource):
     """
     default_value_col: Optional[str] = None
     parent_id_col: Optional[str] = None
+    connection_name: str = c.DEFAULT_DB_CONN
 
     def convert(self, ds_param: DataSourceParameter, df: pd.DataFrame) -> p.NumberParameter:
         """
@@ -240,6 +244,7 @@ class NumRangeDataSource(_NumericDataSource):
     default_lower_value_col: Optional[str] = None
     default_upper_value_col: Optional[str] = None
     parent_id_col: Optional[str] = None
+    connection_name: str = c.DEFAULT_DB_CONN
 
     def convert(self, ds_param: DataSourceParameter, df: pd.DataFrame) -> p.NumRangeParameter:
         """
