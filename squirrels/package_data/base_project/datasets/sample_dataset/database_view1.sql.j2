@@ -1,3 +1,5 @@
+-- %USE some_db -- TBA: this line is optional when connecting to the "default" db_connection
+
 -- note: if context.py is defined, you can use "ctx['limit']" instead of "prms['number_example'].get_selected_value()"
 SELECT dim1, avg(metric1) as metric1, avg(metric2) as metric2
 FROM fact_table

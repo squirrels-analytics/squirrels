@@ -1,13 +1,15 @@
-from typing import Dict, Union, Any
-import sqlalchemy as sa
+from typing import Dict, Any
 import pandas as pd
 
 import squirrels as sq
 
 
-def main(connection_pool: Union[sa.Engine, sa.Pool], connection_set: sq.ConnectionSet,
-         prms: sq.ParameterSet, ctx: Dict[str, Any], proj: Dict[str, str], *args, **kwargs) -> pd.DataFrame:
-    # conn = connection_pool.connect() # use this to create the corresponding DBAPI2 connection
+def main(connection_set: sq.ConnectionSet, 
+         prms: sq.ParameterSet, ctx: Dict[str, Any], args: Dict[str, Any], 
+         *p_args, **kwargs) -> pd.DataFrame:
+    # pool = connection_set.get_connection_pool("default")
+    # conn = pool.connect() # use this to get a DBAPI connection from a Pool or sqlalchemy connection from an Engine
+    # conn = pool.raw_connection() # use this to get a DBAPI connection from an Engine
     
     df = pd.DataFrame({
         'dim1': ['a', 'b', 'c', 'd', 'e', 'f'], 

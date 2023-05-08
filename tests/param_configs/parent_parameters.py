@@ -45,8 +45,8 @@ class TestParentParameters:
     def multi_select_parent(self, parent_options: Sequence[sq.SelectParameterOption]) -> sq.MultiSelectParameter:
         return sq.MultiSelectParameter('ms_parent', 'Parent Param', parent_options)
 
-    parent_data_source = sq.SelectionDataSource('conn', 'table', 'id_val', 'options', order_by_col='order_by',
-                                      is_default_col='is_default')
+    parent_data_source = sq.SelectionDataSource('table', 'id_val', 'options', order_by_col='order_by',
+                                                is_default_col='is_default')
     @pytest.fixture
     def ds_param_parent(self) -> sq.DataSourceParameter:
         return sq.DataSourceParameter(sq.WidgetType.SingleSelect, 'ds_parent', 'Parent Param', self.parent_data_source)

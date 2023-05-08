@@ -74,11 +74,15 @@ class Renderer:
         except Exception as e:
             raise ConfigurationError(f'Error in the {c.CONTEXT_FILE} function for dataset "{self.dataset}"') from e
     
-    def _get_args(self, param_set: ParameterSet, context: Dict[str, Any]) -> Dict:
+    def _get_args(self, param_set: ParameterSet, context: Dict[str, Any], db_view: str = None) -> Dict:
+        if db_view is not None:
+            args = self.manifest.get_view_args(self.dataset, db_view)
+        else:
+            args = self.manifest.get_view_args(self.dataset)
         return {
             'prms': param_set,
             'ctx':  context,
-            'proj': self.manifest.get_proj_vars()
+            'args': args
         }
     
     def _render_query_from_raw(self, raw_query: Query, args: Dict) -> Query:
@@ -145,13 +149,14 @@ class Renderer:
         # render database view queries
         start = time.time()
         query_by_db_view = {}
-        args = self._get_args(param_set, context)
         for db_view, raw_query in self.raw_query_by_db_view.items():
+            args = self._get_args(param_set, context, db_view)
             query_by_db_view[db_view] = self._render_query_from_raw(raw_query, args)
         timer.add_activity_time(f"render database view queries - dataset {self.dataset}", start)
 
         # render final view query
         start = time.time()
+        args = self._get_args(param_set, context)
         final_view_query = self._render_query_from_raw(self.raw_final_view_query, args)
         timer.add_activity_time(f"render final view query - dataset {self.dataset}", start)
 
@@ -201,7 +206,7 @@ class RendererIOWrapper:
             db_view_template_path = str(manifest.get_database_view_file(dataset, db_view))
             raw_query_by_db_view[db_view] = self._get_raw_query(db_view_template_path)
         
-        final_view_path = str(manifest.get_dataset_final_view(dataset))
+        final_view_path = str(manifest.get_dataset_final_view_file(dataset))
         if final_view_path in db_views:
             raw_final_view_query = final_view_path
         else:

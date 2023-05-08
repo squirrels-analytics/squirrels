@@ -33,11 +33,12 @@ def main():
     init_parser = subparsers.add_parser(c.INIT_CMD, help='Initialize a squirrels project')
     init_parser.add_argument('--no-overwrite', action='store_true', help="Don't overwrite files if they already exist")
     init_parser.add_argument('--core', action='store_true', help='Include all core files')
+    init_parser.add_argument('--db-view', type=str, choices=c.FILE_TYPE_CHOICES, help='Create database view as sql (default) or python file if "--core" is specified')
+    init_parser.add_argument('--connections', action='store_true', help=f'Include the {c.CONNECTIONS_FILE} file')
     init_parser.add_argument('--context', action='store_true', help=f'Include the {c.CONTEXT_FILE} file')
     init_parser.add_argument('--selections-cfg', action='store_true', help=f'Include the {c.SELECTIONS_CFG_FILE} file')
-    init_parser.add_argument('--db-view', type=str, choices=['sql', 'py'], help='Create database view as sql (default) or python file')
-    init_parser.add_argument('--final-view', type=str, choices=['sql', 'py'], help='Include final view as sql or python file')
-    init_parser.add_argument('--sample-db', type=str, choices=['seattle-weather'], help='Sample sqlite database to include')
+    init_parser.add_argument('--final-view', type=str, choices=c.FILE_TYPE_CHOICES, help='Include final view as sql or python file')
+    init_parser.add_argument('--sample-db', type=str, choices=c.DATABASE_CHOICES, help='Sample sqlite database to include')
 
     subparsers.add_parser(c.LOAD_MODULES_CMD, help='Load all the modules specified in squirrels.yaml from git')
 

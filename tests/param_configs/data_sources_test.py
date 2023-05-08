@@ -8,10 +8,10 @@ import squirrels as sq
 
 
 class TestDataSource:
-    data_source1 = d.DataSource('conn', 'table_name')
-    data_source2 = d.DataSource('conn', 'select')
-    data_source3 = d.DataSource('conn', "SELECT * FROM table_name WHERE col = 'value'")
-    data_source4 = d.DataSource('conn', "select * from table_name where col = 'value'")
+    data_source1 = d.DataSource('table_name')
+    data_source2 = d.DataSource('select')
+    data_source3 = d.DataSource("SELECT * FROM table_name WHERE col = 'value'")
+    data_source4 = d.DataSource("select * from table_name where col = 'value'")
     
     def test_get_query(self):
         assert self.data_source1.get_query() == 'SELECT * FROM table_name'
@@ -22,7 +22,7 @@ class TestDataSource:
 
 class TestSelectionDataSource(TestParentParameters):
     def create_data_source(self, parent_id_col: Optional[str]):
-        return d.SelectionDataSource('conn', 'table', 'test_id', 'test_options',
+        return d.SelectionDataSource('table', 'test_id', 'test_options',
                                      is_default_col='test_is_default', parent_id_col=parent_id_col)
     
     @pytest.fixture
@@ -89,7 +89,7 @@ class TestSelectionDataSource(TestParentParameters):
 
 class TestDateDataSource(TestParentParameters):
     def create_data_source(self, parent_id_col: Optional[str]):
-        return d.DateDataSource('conn', 'table', 'date', parent_id_col=parent_id_col)
+        return d.DateDataSource('table', 'date', parent_id_col=parent_id_col)
     
     @pytest.fixture
     def date_data_source(self) -> d.DateDataSource:
@@ -127,7 +127,7 @@ class TestDateDataSource(TestParentParameters):
 
 class TestNumberDataSource(TestParentParameters):
     def create_data_source(self, parent_id_col: Optional[str]):
-        return d.NumberDataSource('conn', 'table', 'min_val', 'max_val', default_value_col='default_val', 
+        return d.NumberDataSource('table', 'min_val', 'max_val', default_value_col='default_val', 
                                 parent_id_col=parent_id_col) 
     
     @pytest.fixture
@@ -175,8 +175,8 @@ class TestNumberDataSource(TestParentParameters):
 
 class TestNumRangeDataSource(TestParentParameters):
     def create_data_source(self, parent_id_col: Optional[str]):
-        return d.NumRangeDataSource('conn', 'table', 'min_val', 'max_val', 'increment', 'default_lower', 
-                               'default_upper', parent_id_col=parent_id_col)
+        return d.NumRangeDataSource('table', 'min_val', 'max_val', 'increment', 'default_lower', 
+                                    'default_upper', parent_id_col=parent_id_col)
     
     @pytest.fixture
     def range_data_source(self) -> d.NumRangeDataSource:
