@@ -2,7 +2,7 @@ from typing import Dict, Any
 import squirrels as sq
 
 
-def main(*p_args, **kwargs) -> sq.ParameterSet:
+def main(args: Dict[str, Any], *p_args, **kwargs) -> sq.ParameterSet:
     single_select_options = (
         sq.SelectParameterOption('a0', 'Primary Colors'),
         sq.SelectParameterOption('a1', 'Secondary Colors')

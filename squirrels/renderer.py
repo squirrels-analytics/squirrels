@@ -70,7 +70,7 @@ class Renderer:
 
     def _render_context(self, context_func: ContextFunc, param_set: ParameterSet) -> Dict[str, Any]:
         try:
-            return context_func(param_set, self.manifest.get_proj_vars()) if context_func is not None else {}
+            return context_func(prms=param_set) if context_func is not None else {}
         except Exception as e:
             raise ConfigurationError(f'Error in the {c.CONTEXT_FILE} function for dataset "{self.dataset}"') from e
     
@@ -183,15 +183,17 @@ class RendererIOWrapper:
     def __init__(self, dataset: str, manifest: mf.Manifest, conn_set: ConnectionSet, excel_file_name: Optional[str] = None):
         dataset_folder = manifest.get_dataset_folder(dataset)
         parameters_path = utils.join_paths(dataset_folder, c.PARAMETERS_FILE)
+        args = manifest.get_dataset_args(dataset)
         parameters_module = utils.import_file_as_module(parameters_path)
         try:
-            parameter_set = parameters_module.main()
+            parameter_set = parameters_module.main(args=args)
         except Exception as e:
             raise ConfigurationError(f'Error in the {c.PARAMETERS_FILE} function for dataset "{dataset}"') from e
 
         context_path = utils.join_paths(dataset_folder, c.CONTEXT_FILE)
         try:
-            context_func = utils.import_file_as_module(context_path).main
+            context_module = utils.import_file_as_module(context_path)
+            context_func = partial(context_module.main, args=args)
         except FileNotFoundError:
             context_func = default_context_func
         
