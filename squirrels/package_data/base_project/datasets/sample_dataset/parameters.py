@@ -9,10 +9,10 @@ def main(args: Dict[str, Any], *p_args, **kwargs) -> sq.ParameterSet:
     )
     
     multi_select_options = (
-        sq.SelectParameterOption('x0', 'Red', parent_option_id='a0'),
+        sq.SelectParameterOption('x0', 'Red',    parent_option_id='a0'),
         sq.SelectParameterOption('x1', 'Yellow', parent_option_id='a0'),
-        sq.SelectParameterOption('x2', 'Blue', parent_option_id='a0'),
-        sq.SelectParameterOption('x3', 'Green', parent_option_id='a1'),
+        sq.SelectParameterOption('x2', 'Blue',   parent_option_id='a0'),
+        sq.SelectParameterOption('x3', 'Green',  parent_option_id='a1'),
         sq.SelectParameterOption('x4', 'Orange', parent_option_id='a1'),
         sq.SelectParameterOption('x5', 'Purple', parent_option_id='a1')
     )

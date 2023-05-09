@@ -59,7 +59,7 @@ class TestRenderer:
     @pytest.fixture
     def raw_param_set(self) -> sq.ParameterSet:
         city_ds = sq.SelectionDataSource("lu_cities", "city_id", "city")
-        city_param = sq.DataSourceParameter(sq.WidgetType.MultiSelect, "city", "City", city_ds)
+        city_param = sq.DataSourceParameter(sq.MultiSelectParameter, "city", "City", city_ds)
         price_limit = sq.NumberParameter('limit', 'Limit', 0, 100)
         return sq.ParameterSet([city_param, price_limit])
 
