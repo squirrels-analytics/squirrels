@@ -8,14 +8,19 @@ TEST_CMD = 'test'
 RUN_CMD = 'run'
 
 # Manifest file keys
+PROJ_VARS_KEY = 'project_variables'
+PRODUCT_KEY = 'product'
+MAJOR_VERSION_KEY = 'major_version'
+DB_CONNECTIONS_KEY = 'db_connections'
+DB_CREDENTIALS_KEY = 'credential_key'
+URL_KEY = 'url'
 DB_CONNECTION_KEY = 'db_connection'
 MODULES_KEY = 'modules'
 DATASET_LABEL_KEY = 'label'
 DATASETS_KEY = 'datasets'
 HEADERS_KEY = 'headers'
 DATABASE_VIEWS_KEY = 'database_views'
-DB_VIEW_NAME_KEY = 'name'
-DB_VIEW_FILE_KEY = 'file'
+FILE_KEY = 'file'
 FINAL_VIEW_KEY = 'final_view'
 BASE_PATH_KEY = 'base_path'
 SETTINGS_KEY = 'settings'
@@ -24,10 +29,10 @@ SETTINGS_KEY = 'settings'
 CREDENTIALS_KEY = 'credentials'
 USERNAME_KEY = 'username'
 PASSWORD_KEY = 'password'
+DEFAULT_DB_CONN = 'default'
 
 # Folder/File names
 MANIFEST_FILE = 'squirrels.yaml'
-PROJ_VARS_FILE = 'project_vars.yaml'
 CONNECTIONS_FILE = 'connections.py'
 OUTPUTS_FOLDER = 'outputs'
 MODULES_FOLDER = 'modules'
@@ -50,4 +55,7 @@ RESULTS_CACHE_TTL_SETTING = 'results.cache.ttl'
 
 # Selection cfg sections
 PARAMETERS_SECTION = 'parameters'
-HEADERS_SECTION = 'headers'
+
+# Init Command Choices
+FILE_TYPE_CHOICES = ['sql', 'py']
+DATABASE_CHOICES = ['sample_database', 'seattle_weather']

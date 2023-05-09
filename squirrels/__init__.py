@@ -1,5 +1,5 @@
 from .param_configs.parameter_options import SelectParameterOption, DateParameterOption, NumberParameterOption, NumRangeParameterOption
-from .param_configs.parameters import WidgetType, Parameter, SingleSelectParameter, MultiSelectParameter, DateParameter, NumberParameter, NumRangeParameter
+from .param_configs.parameters import Parameter, SingleSelectParameter, MultiSelectParameter, DateParameter, NumberParameter, NumRangeParameter
 from .param_configs.data_sources import SelectionDataSource, DateDataSource, NumberDataSource, NumRangeDataSource, DataSourceParameter
 from .param_configs.parameter_set import ParameterSet
 from .connection_set import ConnectionSet

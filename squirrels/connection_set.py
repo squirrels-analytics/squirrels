@@ -12,6 +12,8 @@ ConnectionPool = Union[Engine, Pool]
 
 class ConnectionSet:
     def __init__(self, conn_pools: Dict[str, ConnectionPool]) -> None:
+        if c.DEFAULT_DB_CONN not in conn_pools:
+            raise ConfigurationError(f'Connection name "{c.DEFAULT_DB_CONN}" was not set')
         self._conn_pools = conn_pools
     
     def get_connection_pool(self, conn_name: str) -> ConnectionPool:
@@ -33,9 +35,7 @@ class ConnectionSet:
         try:
             cur = conn.cursor()
             cur.execute(query)
-            data = cur.fetchall()
-            columns = [x[0] for x in cur.description]
-            df = pd.DataFrame(data, columns=columns)
+            df = pd.DataFrame(data=cur.fetchall(), columns=[x[0] for x in cur.description])
         finally:
             conn.close()
 
@@ -47,12 +47,21 @@ class ConnectionSet:
 
 
 def from_file(manifest: mf.Manifest) -> ConnectionSet:
-    module = SourceFileLoader(c.CONNECTIONS_FILE, c.CONNECTIONS_FILE).load_module()
-    proj_vars = manifest.get_proj_vars()
+    connections = manifest.get_db_connections()
     try:
-        return module.main(proj_vars)
-    except Exception as e:
-        raise ConfigurationError(f'Error in the {c.CONNECTIONS_FILE} file') from e
+        module = SourceFileLoader(c.CONNECTIONS_FILE, c.CONNECTIONS_FILE).load_module()
+    except FileNotFoundError:
+        module = None
+    
+    if module is not None:
+        proj_vars = manifest.get_proj_vars()
+        try:
+            conn_from_py_file = module.main(proj_vars)
+        except Exception as e:
+            raise ConfigurationError(f'Error in the {c.CONNECTIONS_FILE} file') from e
+    else:
+        conn_from_py_file = {}
+    return ConnectionSet({**connections, **conn_from_py_file})
 
 
 def sqldf(query: str, df_by_db_views: Dict[str, pd.DataFrame]) -> pd.DataFrame:

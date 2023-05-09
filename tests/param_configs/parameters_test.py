@@ -31,7 +31,7 @@ class TestSingleSelectParameter(TestParentParameters):
             self.expected_parent_json = expected_parent_json
 
             self.partial_child_dict = {
-                'widget_type': 'SingleSelect',
+                'widget_type': 'SingleSelectParameter',
                 'name': 'child_param',
                 'label': 'Child Param',
                 'options': [],
@@ -39,7 +39,7 @@ class TestSingleSelectParameter(TestParentParameters):
             }
 
             self.partial_grandchild_dict = {
-                'widget_type': 'SingleSelect',
+                'widget_type': 'SingleSelectParameter',
                 'name': 'grandchild_param',
                 'label': 'Grandchild Param',
                 'options': [],
@@ -48,7 +48,7 @@ class TestSingleSelectParameter(TestParentParameters):
 
     @pytest.fixture
     def data(self, single_select_parent: p.SingleSelectParameter) -> ParameterData:
-        expected_parent_json = self.get_expected_parent_json(p.WidgetType.SingleSelect)
+        expected_parent_json = self.get_expected_parent_json(p.SingleSelectParameter)
         return self.ParameterData(single_select_parent, expected_parent_json)
     
     def test_refresh_with_selection(self, data: ParameterData):
@@ -130,7 +130,7 @@ class TestMultiSelectParameter(TestParentParameters):
             self.expected_parent_json = expected_parent_json
 
             self.partial_child_dict = {
-                'widget_type': 'SingleSelect',
+                'widget_type': 'SingleSelectParameter',
                 'name': 'child_param',
                 'label': 'Child Param',
                 'options': [],
@@ -138,7 +138,7 @@ class TestMultiSelectParameter(TestParentParameters):
             }
 
             self.partial_grandchild_dict = {
-                'widget_type': 'MultiSelect',
+                'widget_type': 'MultiSelectParameter',
                 'name': 'grandchild_param',
                 'label': 'Grandchild Param',
                 'options': [],
@@ -149,7 +149,7 @@ class TestMultiSelectParameter(TestParentParameters):
 
     @pytest.fixture
     def data(self, multi_select_parent: p.MultiSelectParameter) -> ParameterData:
-        expected_parent_json = self.get_expected_parent_json(p.WidgetType.MultiSelect)
+        expected_parent_json = self.get_expected_parent_json(p.MultiSelectParameter)
         return self.ParameterData(multi_select_parent, expected_parent_json)
     
     def test_refresh_with_selection(self, data: ParameterData):
@@ -230,7 +230,7 @@ class TestDateParameter(TestParentParameters):
         new_date_param = self.date_parameter.with_selection('2023-01-01')
 
         expected = {
-            'widget_type': 'DateField',
+            'widget_type': 'DateParameter',
             'name': 'date',
             'label': 'Date Value',
             'selected_date': '2020-01-01'
@@ -251,7 +251,7 @@ class TestDateParameter(TestParentParameters):
         new_parent = single_select_parent.with_selection('p2')
 
         expected = {
-            'widget_type': 'DateField',
+            'widget_type': 'DateParameter',
             'name': 'child',
             'label': 'Child Param',
             'selected_date': '2020-01-01'
@@ -303,7 +303,7 @@ class TestNumberParameter(TestParentParameters):
         new_num_param = self.number_parameter.with_selection('4')
 
         expected = {
-            'widget_type': 'NumberField',
+            'widget_type': 'NumberParameter',
             'name': 'number',
             'label': 'Number Value',
             'min_value': '0',
@@ -326,7 +326,7 @@ class TestNumberParameter(TestParentParameters):
         new_parent = single_select_parent.with_selection('p2')
 
         expected = {
-            'widget_type': 'NumberField',
+            'widget_type': 'NumberParameter',
             'name': 'child',
             'label': 'Child Param',
             'min_value': '0',
@@ -379,7 +379,7 @@ class TestNumRangeParameter(TestParentParameters):
         new_num_param = self.range_parameter.with_selection('2,8')
 
         expected = {
-            'widget_type': 'RangeField',
+            'widget_type': 'NumRangeParameter',
             'name': 'range',
             'label': 'Range Value',
             'min_value': '0',
@@ -404,7 +404,7 @@ class TestNumRangeParameter(TestParentParameters):
         new_parent = single_select_parent.with_selection('p2')
 
         expected = {
-            'widget_type': 'RangeField',
+            'widget_type': 'NumRangeParameter',
             'name': 'child',
             'label': 'Child Param',
             'min_value': '0',

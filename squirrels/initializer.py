@@ -38,42 +38,55 @@ class Initializer:
                 f.write(content)
 
     def init_project(self, args):
-        options = ['core', 'context', 'selections_cfg', 'db_view', 'final_view', 'sample_db']
+        options = ['core', 'db_view', 'connections', 'context', 'selections_cfg', 'final_view', 'sample_db']
         answers = { x: getattr(args, x) for x in options }
         if not any(answers.values()):
-            questions = [
-                inquirer.Confirm('core',
+            core_questions = [
+                inquirer.Confirm('core', 
                                 message="Include all core project files?",
-                                default=True),
+                                default=True)
+            ]
+            answers = inquirer.prompt(core_questions)
+            
+            if answers.get('core', False):
+                conditional_questions = [
+                    inquirer.List('db_view', 
+                                  message="What's the file format for the database view?",
+                                  choices=c.FILE_TYPE_CHOICES),
+                ]
+                answers.update(inquirer.prompt(conditional_questions))
+
+            remaining_questions = [
+                inquirer.Confirm('connections',
+                                message=f"Do you want to add a '{c.CONNECTIONS_FILE}' file?" ,
+                                default=False),
                 inquirer.Confirm('context',
-                                message="Do you want to include a 'context.py' file?" ,
+                                message=f"Do you want to add a '{c.CONTEXT_FILE}' file?" ,
                                 default=False),
                 inquirer.Confirm('selections_cfg',
-                                message="Do you want to include a 'selections.cfg' file?" ,
+                                message=f"Do you want to add a '{c.SELECTIONS_CFG_FILE}' file?" ,
                                 default=False),
-                inquirer.List('db_view', 
-                            message="What's the file format for the database view? (ignore if core project files are not included)",
-                            choices=['sql', 'py']),
                 inquirer.List('final_view', 
                             message="What's the file format for the final view (if any)?",
-                            choices=['none', 'sql', 'py']),
+                            choices=['none'] + c.FILE_TYPE_CHOICES),
                 inquirer.List('sample_db', 
                             message="What sample sqlite database do you wish to use (if any)?",
-                            choices=['none', 'sample_database', 'seattle_weather'])
+                            choices=['none'] + c.DATABASE_CHOICES)
             ]
-            answers = inquirer.prompt(questions)
+            answers.update(inquirer.prompt(remaining_questions))
 
         if answers.get('core', False):
             self._copy_file('.gitignore')
             self._copy_file(c.MANIFEST_FILE)
-            self._copy_file(c.PROJ_VARS_FILE)
-            self._copy_file(c.CONNECTIONS_FILE)
             self._create_requirements_txt()
             self._copy_dataset_file(c.PARAMETERS_FILE)
             if answers.get('db_view') == 'py':
                 self._copy_dataset_file(c.DATABASE_VIEW_PY_FILE)
             else:
                 self._copy_dataset_file(c.DATABASE_VIEW_SQL_FILE)
+        
+        if answers.get('connections', False):
+            self._copy_file(c.CONNECTIONS_FILE)
         
         if answers.get('context', False):
             self._copy_dataset_file(c.CONTEXT_FILE)
