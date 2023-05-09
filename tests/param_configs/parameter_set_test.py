@@ -13,9 +13,9 @@ class TestParameterSet(TestParentParameters):
 
     @pytest.fixture
     def parameter_set(self, multi_select_parent: sq.MultiSelectParameter, ds_param_parent: sq.DataSourceParameter) -> ParameterSet:
-        child_param1 = sq.DataSourceParameter(sq.WidgetType.SingleSelect, 'child1', 'Test1 Parameter', self.select_data_source,
+        child_param1 = sq.DataSourceParameter(sq.SingleSelectParameter, 'child1', 'Test1 Parameter', self.select_data_source,
                                               parent=multi_select_parent)
-        child_param2 = sq.DataSourceParameter(sq.WidgetType.DateField, 'child2', 'Test2 Parameter', self.date_data_source,
+        child_param2 = sq.DataSourceParameter(sq.DateParameter, 'child2', 'Test2 Parameter', self.date_data_source,
                                               parent=ds_param_parent)
         return ParameterSet((multi_select_parent, child_param1, ds_param_parent, child_param2))
     
@@ -47,7 +47,7 @@ class TestParameterSet(TestParentParameters):
                                                  expected_ds_json: Dict):
         parameter_set.convert_datasource_params(df_dict)
         child1_expected = {
-            'widget_type': 'SingleSelect',
+            'widget_type': 'SingleSelectParameter',
             'name': 'child1',
             'label': 'Test1 Parameter',
             'options': [
@@ -61,12 +61,12 @@ class TestParameterSet(TestParentParameters):
             'selected_id': 'c1'
         }
         child2_expected = {
-            'widget_type': 'DateField',
+            'widget_type': 'DateParameter',
             'name': 'child2',
             'label': 'Test2 Parameter',
             'selected_date': '2021-06-14'
         }
-        expected_parent1 = self.get_expected_parent_json(sq.WidgetType.MultiSelect)
+        expected_parent1 = self.get_expected_parent_json(sq.MultiSelectParameter)
         expected_parent1['selected_ids'] = []
 
         actual = parameter_set.to_dict()['parameters']

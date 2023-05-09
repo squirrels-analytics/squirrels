@@ -1,5 +1,5 @@
 from __future__ import annotations
-from typing import Tuple, List, Dict, Optional
+from typing import Type, Tuple, List, Dict, Optional
 from dataclasses import dataclass
 
 from squirrels.param_configs import parameters as p, parameter_options as po
@@ -49,10 +49,11 @@ class DataSource:
     def _get_parent(self, row):
         return str(utils.get_row_value(row, self.parent_id_col)) if self.parent_id_col is not None else None
     
-    def _validate_widget_type(self, ds_param: DataSourceParameter, widget_types: List[p.WidgetType]) -> None:
-        if ds_param.widget_type not in widget_types:
-            class_name = self.__class__.__name__
-            raise utils.ConfigurationError(f'Invalid widget type "{ds_param.widget_type}" for {class_name}')
+    def _validate_parameter_class(self, ds_param: DataSourceParameter, parameter_classes: List[Type[p.Parameter]]) -> None:
+        if ds_param.parameter_class not in parameter_classes:
+            parameter_class_name = ds_param.parameter_class.__name__
+            datasource_class_name = self.__class__.__name__
+            raise utils.ConfigurationError(f'Invalid widget type "{parameter_class_name}" for {datasource_class_name}')
 
 
 @dataclass
@@ -90,7 +91,7 @@ class SelectionDataSource(DataSource):
         Returns:
             The converted parameter
         """
-        self._validate_widget_type(ds_param, [p.WidgetType.SingleSelect, p.WidgetType.MultiSelect])
+        self._validate_parameter_class(ds_param, [p.SingleSelectParameter, p.MultiSelectParameter])
 
         def is_default(row):
             return int(utils.get_row_value(row, self.is_default_col)) == 1 if self.is_default_col is not None else False
@@ -106,12 +107,7 @@ class SelectionDataSource(DataSource):
             for _, row in df.iterrows()
         )
         
-        if ds_param.widget_type == p.WidgetType.SingleSelect:
-            return p.SingleSelectParameter(ds_param.name, ds_param.label, options, 
-                                           is_hidden=ds_param.is_hidden, parent=ds_param.parent)
-        elif ds_param.widget_type == p.WidgetType.MultiSelect:
-            return p.MultiSelectParameter(ds_param.name, ds_param.label, options, 
-                                          is_hidden=ds_param.is_hidden, parent=ds_param.parent)
+        return ds_param.parameter_class(ds_param.name, ds_param.label, options, is_hidden=ds_param.is_hidden, parent=ds_param.parent)
 
 
 @dataclass
@@ -142,7 +138,7 @@ class DateDataSource(DataSource):
         Returns:
             The converted parameter
         """
-        self._validate_widget_type(ds_param, [p.WidgetType.DateField])
+        self._validate_parameter_class(ds_param, [p.DateParameter])
         
         def get_date(row: pd.Series) -> str:
             return str(utils.get_row_value(row, self.default_date_col))
@@ -204,7 +200,7 @@ class NumberDataSource(_NumericDataSource):
         Returns:
             The converted parameter
         """
-        self._validate_widget_type(ds_param, [p.WidgetType.NumberField])
+        self._validate_parameter_class(ds_param, [p.NumberParameter])
 
         def _get_default_value(row: pd.Series) -> str:
             return str(utils.get_row_value(row, self.default_value_col)) if self.default_value_col is not None \
@@ -257,7 +253,7 @@ class NumRangeDataSource(_NumericDataSource):
         Returns:
             The converted parameter
         """
-        self._validate_widget_type(ds_param, [p.WidgetType.RangeField])
+        self._validate_parameter_class(ds_param, [p.NumRangeParameter])
 
         def _get_default_lower_upper_values(row: pd.Series) -> Tuple[str, str]:
             lower_value_col = self.default_lower_value_col if self.default_lower_value_col is not None \
@@ -288,23 +284,25 @@ class NumRangeDataSource(_NumericDataSource):
 
 @dataclass
 class DataSourceParameter(p.Parameter):
+    parameter_class: Type[p.Parameter]
     data_source: DataSource
     parent: Optional[p.Parameter] 
 
-    def __init__(self, widget_type: p.WidgetType, name: str, label: str, data_source: DataSource, *, 
+    def __init__(self, parameter_class: Type[p.Parameter], name: str, label: str, data_source: DataSource, *, 
                  is_hidden: bool = False, parent: Optional[p.Parameter] = None) -> None:
         """
         Constructor for DataSourceParameter, a Parameter that uses a DataSource to convert itself to another Parameter
 
         Parameters:
-            widget_type: The type of widget to use for this parameter
+            parameter_class: The class of widget parameter to convert to
             name: The name of the parameter
             label: The label of the parameter
             data_source: The lookup table to use for this parameter
             is_hidden: Whether or not this parameter should be hidden from parameters response
             parent: The parent parameter
         """
-        super().__init__(widget_type, name, label, None, is_hidden, None)
+        super().__init__(name, label, None, is_hidden, None)
+        self.parameter_class = parameter_class
         self.data_source = data_source
         self.parent = parent
 
@@ -330,5 +328,6 @@ class DataSourceParameter(p.Parameter):
             Dict: The dictionary representation of this DataSourceParameter
         """
         output = super().to_dict()
+        output['widget_type'] = self.parameter_class.__name__
         output['data_source'] = self.data_source.__dict__
         return output
