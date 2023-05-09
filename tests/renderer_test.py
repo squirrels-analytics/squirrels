@@ -14,9 +14,10 @@ class TestRenderer:
             "datasets": {
                 "avg_shop_price_by_city": {
                     "database_views": {
-                        "shop_city_view": {"db_connection": "test_db1"},
+                        "shop_city_view": {},
                         "avg_prices_view": {"db_connection": "test_db2"}
-                    }
+                    },
+                    "final_view": ""
                 }
             }
         }
@@ -48,7 +49,7 @@ class TestRenderer:
             conn2.close()
         
         connection_set = cs.ConnectionSet({
-            "test_db1": pool1, 
+            "default": pool1, 
             "test_db2": pool2
         })
 
@@ -57,8 +58,8 @@ class TestRenderer:
     
     @pytest.fixture
     def raw_param_set(self) -> sq.ParameterSet:
-        city_ds = sq.SelectionDataSource("test_db1", "lu_cities", "city_id", "city")
-        city_param = sq.DataSourceParameter(sq.WidgetType.MultiSelect, "city", "City", city_ds)
+        city_ds = sq.SelectionDataSource("lu_cities", "city_id", "city")
+        city_param = sq.DataSourceParameter(sq.MultiSelectParameter, "city", "City", city_ds)
         price_limit = sq.NumberParameter('limit', 'Limit', 0, 100)
         return sq.ParameterSet([city_param, price_limit])
 

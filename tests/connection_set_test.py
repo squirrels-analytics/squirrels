@@ -31,7 +31,7 @@ def connection_set() -> cs.ConnectionSet:
         conn2.close()
     
     connection_set = cs.ConnectionSet({
-        "db1": pool1, 
+        "default": pool1, 
         "db2": pool2
     })
 

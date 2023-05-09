@@ -1,17 +1,18 @@
+from typing import Dict, Any
 import squirrels as sq
 
 
-def main(*args, **kwargs) -> sq.ParameterSet:
+def main(args: Dict[str, Any], *p_args, **kwargs) -> sq.ParameterSet:
     single_select_options = (
         sq.SelectParameterOption('a0', 'Primary Colors'),
         sq.SelectParameterOption('a1', 'Secondary Colors')
     )
     
     multi_select_options = (
-        sq.SelectParameterOption('x0', 'Red', parent_option_id='a0'),
+        sq.SelectParameterOption('x0', 'Red',    parent_option_id='a0'),
         sq.SelectParameterOption('x1', 'Yellow', parent_option_id='a0'),
-        sq.SelectParameterOption('x2', 'Blue', parent_option_id='a0'),
-        sq.SelectParameterOption('x3', 'Green', parent_option_id='a1'),
+        sq.SelectParameterOption('x2', 'Blue',   parent_option_id='a0'),
+        sq.SelectParameterOption('x3', 'Green',  parent_option_id='a1'),
         sq.SelectParameterOption('x4', 'Orange', parent_option_id='a1'),
         sq.SelectParameterOption('x5', 'Purple', parent_option_id='a1')
     )

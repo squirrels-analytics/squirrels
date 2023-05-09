@@ -33,22 +33,23 @@ def main():
     init_parser = subparsers.add_parser(c.INIT_CMD, help='Initialize a squirrels project')
     init_parser.add_argument('--no-overwrite', action='store_true', help="Don't overwrite files if they already exist")
     init_parser.add_argument('--core', action='store_true', help='Include all core files')
+    init_parser.add_argument('--db-view', type=str, choices=c.FILE_TYPE_CHOICES, help='Create database view as sql (default) or python file if "--core" is specified')
+    init_parser.add_argument('--connections', action='store_true', help=f'Include the {c.CONNECTIONS_FILE} file')
     init_parser.add_argument('--context', action='store_true', help=f'Include the {c.CONTEXT_FILE} file')
     init_parser.add_argument('--selections-cfg', action='store_true', help=f'Include the {c.SELECTIONS_CFG_FILE} file')
-    init_parser.add_argument('--db-view', type=str, choices=['sql', 'py'], help='Create database view as sql (default) or python file')
-    init_parser.add_argument('--final-view', type=str, choices=['sql', 'py'], help='Include final view as sql or python file')
-    init_parser.add_argument('--sample-db', type=str, choices=['seattle-weather'], help='Sample sqlite database to include')
+    init_parser.add_argument('--final-view', type=str, choices=c.FILE_TYPE_CHOICES, help='Include final view as sql or python file')
+    init_parser.add_argument('--sample-db', type=str, choices=c.DATABASE_CHOICES, help='Sample sqlite database to include')
 
     subparsers.add_parser(c.LOAD_MODULES_CMD, help='Load all the modules specified in squirrels.yaml from git')
 
     def _add_profile_argument(parser: ArgumentParser):
         parser.add_argument('key', type=str, help='Key to the database connection credential')
 
-    subparsers.add_parser(c.GET_CREDS_CMD, help='Get all database connection credential keys')
-
     set_cred_parser = subparsers.add_parser(c.SET_CRED_CMD, help='Set a database connection credential key')
     _add_profile_argument(set_cred_parser)
     set_cred_parser.add_argument('--values', type=str, nargs=2, help='The username and password')
+
+    subparsers.add_parser(c.GET_CREDS_CMD, help='Get all database connection credential keys')
 
     delete_cred_parser = subparsers.add_parser(c.DELETE_CRED_CMD, help='Delete a database connection credential key')
     _add_profile_argument(delete_cred_parser)
@@ -76,11 +77,11 @@ def main():
     elif args.command == c.LOAD_MODULES_CMD:
         manifest = mf.from_file()
         ml.load_modules(manifest)
-    elif args.command == c.GET_CREDS_CMD: 
-        cm.squirrels_config_io.print_all_credentials()
     elif args.command == c.SET_CRED_CMD:
         user, pw = _prompt_user_pw(args.values)
         cm.squirrels_config_io.set_credential(args.key, user, pw)
+    elif args.command == c.GET_CREDS_CMD: 
+        cm.squirrels_config_io.print_all_credentials()
     elif args.command == c.DELETE_CRED_CMD:
         cm.squirrels_config_io.delete_credential(args.key)
     elif args.command in [c.RUN_CMD, c.TEST_CMD]:

@@ -1,11 +1,11 @@
-from typing import Dict
-from sqlalchemy import create_engine, QueuePool
+from typing import Dict, Union, Any
+from sqlalchemy import create_engine, QueuePool, Engine, Pool
 
-from squirrels import ConnectionSet, get_credential
+from squirrels import get_credential
 
 
 # Note: all connections must be shareable across multiple thread. No writes will occur on them
-def main(proj: Dict[str, str], *args, **kwargs) -> ConnectionSet:
+def main(proj: Dict[str, Any], *p_args, **kwargs) -> Dict[str, Union[Engine, Pool]]:
 
     # ## Example of getting the username and password set with "$ squirrels set-credential [key]"
     # cred = get_credential('my_key')
@@ -14,8 +14,8 @@ def main(proj: Dict[str, str], *args, **kwargs) -> ConnectionSet:
     # Create a connection pool / engine
     pool = create_engine('sqlite:///./database/sample_database.db')
 
-    # ## Example of using QueuePool instead with a custom db connector:
+    # ## Example of using QueuePool instead for a custom db connector:
     # connection_creator = lambda: sqlite3.connect('./database/sample_database.db', check_same_thread=False)
     # pool = QueuePool(connection_creator)
     
-    return ConnectionSet({'my_db': pool})
+    return {'default': pool}
