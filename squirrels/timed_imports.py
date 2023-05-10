@@ -29,6 +29,7 @@ timer = Timer()
 
 start = time.time()
 import pandas
+from pandas.api import types as pd_types
 timer.add_activity_time("import pandas", start)
 
 start = time.time()
