@@ -1,4 +1,4 @@
-from typing import Dict, List, Tuple, Set
+from typing import Dict, List, Tuple, Set, Any
 from fastapi import FastAPI, Request
 from fastapi.datastructures import QueryParams
 from fastapi.responses import HTMLResponse, JSONResponse
@@ -11,6 +11,34 @@ from squirrels import major_version, constants as c, utils
 from squirrels.manifest import Manifest
 from squirrels.connection_set import ConnectionSet
 from squirrels.renderer import RendererIOWrapper, Renderer
+from squirrels.timed_imports import pandas as pd, pd_types
+
+
+def df_to_json(df: pd.DataFrame, dimensions: List[str] = None) -> Dict[str, Any]:
+    """
+    Convert a pandas DataFrame to the same JSON format that the dataset result API of Squirrels outputs.
+
+    Parameters:
+        df: The dataframe to convert into JSON
+        dimensions: The list of declared dimensions. If None, all non-numeric columns are assumed as dimensions
+
+    Returns:
+        The JSON response of a Squirrels dataset result API
+    """
+    in_df_json = json.loads(df.to_json(orient='table', index=False))
+    out_fields = []
+    non_numeric_fields = []
+    for in_column in in_df_json["schema"]["fields"]:
+        col_name: str = in_column["name"]
+        out_column = {"name": col_name, "type": in_column["type"]}
+        out_fields.append(out_column)
+        
+        if not pd_types.is_numeric_dtype(df[col_name].dtype):
+            non_numeric_fields.append(col_name)
+    
+    out_dimensions = non_numeric_fields if dimensions is None else dimensions
+    out_schema = {"fields": out_fields, "dimensions": out_dimensions}
+    return {"schema": out_schema, "data": in_df_json["data"]}
 
 
 class ApiServer:
@@ -45,7 +73,7 @@ class ApiServer:
     def _get_results_helper(self, dataset: str, query_params: Set[Tuple[str, str]]) -> Dict:
         renderer = self.renderers[dataset]
         _, _, _, _, df = renderer.load_results(dict(query_params))
-        return json.loads(df.to_json(orient='table', index=False))
+        return df_to_json(df)
     
     def _apply_dataset_api_function(self, api_function, dataset: str, raw_query_params: QueryParams):
         dataset = utils.normalize_name(dataset)
