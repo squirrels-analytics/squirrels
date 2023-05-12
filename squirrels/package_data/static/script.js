@@ -34,12 +34,13 @@ function changeDatasetSelection() {
 }
 
 function renderDatasetsSelection(data) {
-    data.resource_paths.forEach(resource => {
+    const datasets = data.products[0].versions[0].datasets
+    datasets.forEach(resource => {
         const option = document.createElement('option');
-        option.value = resource.dataset;
+        option.value = resource.name;
         option.textContent = resource.label;
         datasetSelect.appendChild(option);
-        datasetsMap.set(resource.dataset, resource);
+        datasetsMap.set(option.value, resource);
     });
     changeDatasetSelection();
 }

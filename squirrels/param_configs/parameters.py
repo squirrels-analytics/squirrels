@@ -415,9 +415,15 @@ class ParameterSetBase:
         return self.get_parameter(param_name)
 
     def to_dict(self, debug: bool = False):
-        output = {'parameters': [
-            x.to_dict() for key, x in self._parameters_dict.items() if not x.is_hidden or debug
-        ]}
+        parameters = []
+        for x in self._parameters_dict.values():
+            if not x.is_hidden or debug:
+                parameters.append(x.to_dict())
+        
+        output = {
+            "response_version": 0, 
+            "parameters": parameters
+        }
         return output
 
 # Types:

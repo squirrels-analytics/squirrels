@@ -69,11 +69,12 @@ class TestParameterSet(TestParentParameters):
         expected_parent1 = self.get_expected_parent_json(sq.MultiSelectParameter)
         expected_parent1['selected_ids'] = []
 
-        actual = parameter_set.to_dict()['parameters']
-        assert actual[0] == expected_parent1
-        assert actual[1] == child1_expected
-        assert actual[2] == expected_ds_json
-        assert actual[3] == child2_expected
+        actual = parameter_set.to_dict()
+        expected_dict = {
+            "response_version": 0,
+            "parameters": [expected_parent1, child1_expected, expected_ds_json, child2_expected]
+        }
+        assert actual == expected_dict
         
         assert isinstance(parameter_set['child1'], sq.SingleSelectParameter)
         assert isinstance(parameter_set['child2'], sq.DateParameter)
@@ -89,7 +90,10 @@ class TestParameterSet(TestParentParameters):
         child1_expected['options'] = []
         child1_expected['selected_id'] = None
 
-        actual = new_param_set.to_dict()['parameters']
-        assert actual[0] == expected_parent1
-        assert actual[1] == child1_expected
+        actual = new_param_set.to_dict()
+        expected_dict = {
+            "response_version": 0,
+            "parameters": [expected_parent1, child1_expected, expected_ds_json, child2_expected]
+        }
+        assert actual == expected_dict
     
