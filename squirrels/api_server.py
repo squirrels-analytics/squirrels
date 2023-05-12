@@ -38,7 +38,7 @@ def df_to_json(df: pd.DataFrame, dimensions: List[str] = None) -> Dict[str, Any]
     
     out_dimensions = non_numeric_fields if dimensions is None else dimensions
     out_schema = {"fields": out_fields, "dimensions": out_dimensions}
-    return {"schema": out_schema, "data": in_df_json["data"]}
+    return {"response_version": 0, "schema": out_schema, "data": in_df_json["data"]}
 
 
 class ApiServer:
@@ -135,16 +135,7 @@ class ApiServer:
         # Catalog API
         @app.get(base_path, response_class=JSONResponse)
         async def get_catalog():
-            datasets_info = []
-            for dataset in self.datasets:
-                dataset_normalized = utils.normalize_name_for_api(dataset)
-                datasets_info.append({
-                    'dataset': dataset,
-                    'label': self.manifest.get_dataset_label(dataset),
-                    'parameters_path': parameters_path.format(dataset=dataset_normalized),
-                    'result_path': results_path.format(dataset=dataset_normalized)
-                })
-            return {'project_variables': self.manifest.get_proj_vars(), 'resource_paths': datasets_info}
+            return self.manifest.get_catalog(parameters_path, results_path)
         
         # Squirrels UI
         @app.get('/', response_class=HTMLResponse)

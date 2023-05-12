@@ -9,8 +9,6 @@ RUN_CMD = 'run'
 
 # Manifest file keys
 PROJ_VARS_KEY = 'project_variables'
-PRODUCT_KEY = 'product'
-MAJOR_VERSION_KEY = 'major_version'
 DB_CONNECTIONS_KEY = 'db_connections'
 DB_CREDENTIALS_KEY = 'credential_key'
 URL_KEY = 'url'
@@ -24,6 +22,10 @@ FILE_KEY = 'file'
 FINAL_VIEW_KEY = 'final_view'
 BASE_PATH_KEY = 'base_path'
 SETTINGS_KEY = 'settings'
+
+# Project variable keys
+PRODUCT_KEY = 'product'
+MAJOR_VERSION_KEY = 'major_version'
 
 # Database credentials keys
 CREDENTIALS_KEY = 'credentials'
