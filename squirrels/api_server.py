@@ -135,28 +135,7 @@ class ApiServer:
         # Catalog API
         @app.get(base_path, response_class=JSONResponse)
         async def get_catalog():
-            datasets_info = []
-            for dataset in self.datasets:
-                dataset_normalized = utils.normalize_name_for_api(dataset)
-                datasets_info.append({
-                    'name': dataset,
-                    'label': self.manifest.get_dataset_label(dataset),
-                    'parameters_path': parameters_path.format(dataset=dataset_normalized),
-                    'result_path': results_path.format(dataset=dataset_normalized),
-                    'minor_version_ranges': [0, None]
-                })
-            
-            project_vars = self.manifest.get_proj_vars()
-            return {
-                'response_version': 0,
-                'products': [{
-                    'name': project_vars["product"], 
-                    'versions': [{
-                        'major_version': project_vars["major_version"],
-                        'datasets': datasets_info
-                    }]
-                }]
-            }
+            return self.manifest.get_catalog(parameters_path, results_path)
         
         # Squirrels UI
         @app.get('/', response_class=HTMLResponse)

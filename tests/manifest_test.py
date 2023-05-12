@@ -204,3 +204,18 @@ def test_get_dataset_final_view_file(manifest_name: str, dataset: str, expected:
 def test_get_setting(manifest_name: str, key: str, expected: str, request: pytest.FixtureRequest):
     manifest: Manifest = request.getfixturevalue(manifest_name)
     assert manifest.get_setting(key, 1000) == expected
+
+
+def test_get_catalog(basic_manifest: Manifest):
+    expected = {"response_version": 0, "products": [
+        {"name": "my_product", "versions":[
+            {"major_version": 1, "datasets": [{
+                "name": "dataset1", 
+                "label": "Dataset", 
+                "parameters_path": "/parameters", 
+                "result_path": "/results",
+                "minor_version_ranges": [0, None]
+            }]}
+        ]}
+    ]}
+    assert basic_manifest.get_catalog("/parameters", "/results") == expected
