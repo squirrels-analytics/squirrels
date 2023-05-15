@@ -23,9 +23,9 @@ squirrels -h
 python setup.py pytest
 ```
 
-## Documentation
+## Usage Documentation
 
-Check the documentation website [here](https://squirrels-nest.github.io/squirrels-docs/) or get started [here](https://squirrels-nest.github.io/squirrels-docs/getting-started/) to learn how to use the squirrels library to make an API project.
+To learn about using the squirrels framework, check out the documentation website [here](https://squirrels-nest.github.io/squirrels-docs/).
 
 ## Developer Guide
 

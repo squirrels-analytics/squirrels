@@ -12,8 +12,6 @@ ConnectionPool = Union[Engine, Pool]
 
 class ConnectionSet:
     def __init__(self, conn_pools: Dict[str, ConnectionPool]) -> None:
-        if c.DEFAULT_DB_CONN not in conn_pools:
-            raise ConfigurationError(f'Connection name "{c.DEFAULT_DB_CONN}" was not set')
         self._conn_pools = conn_pools
     
     def get_connection_pool(self, conn_name: str) -> ConnectionPool:
