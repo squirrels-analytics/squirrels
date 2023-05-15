@@ -31,9 +31,9 @@ def main():
     subparsers = parser.add_subparsers(title='commands', dest='command')
 
     init_parser = subparsers.add_parser(c.INIT_CMD, help='Initialize a squirrels project')
-    init_parser.add_argument('--no-overwrite', action='store_true', help="Don't overwrite files if they already exist")
-    init_parser.add_argument('--core', action='store_true', help='Include all core files')
-    init_parser.add_argument('--db-view', type=str, choices=c.FILE_TYPE_CHOICES, help='Create database view as sql (default) or python file if "--core" is specified')
+    init_parser.add_argument('--overwrite', action='store_true', help="Overwrite files that already exist")
+    init_parser.add_argument('--core', action='store_true', help='Include all core files (squirrels.yaml, parameters.py, database view, etc.)')
+    init_parser.add_argument('--db-view', type=str, choices=c.FILE_TYPE_CHOICES, help='Create database view as sql (default) or python file. Ignored if "--core" is not specified')
     init_parser.add_argument('--connections', action='store_true', help=f'Include the {c.CONNECTIONS_FILE} file')
     init_parser.add_argument('--context', action='store_true', help=f'Include the {c.CONTEXT_FILE} file')
     init_parser.add_argument('--selections-cfg', action='store_true', help=f'Include the {c.SELECTIONS_CFG_FILE} file')
@@ -73,7 +73,7 @@ def main():
     if args.version:
         print(__version__)
     elif args.command == c.INIT_CMD:
-        Initializer(not args.no_overwrite).init_project(args)
+        Initializer(args.overwrite).init_project(args)
     elif args.command == c.LOAD_MODULES_CMD:
         manifest = mf.from_file()
         ml.load_modules(manifest)
