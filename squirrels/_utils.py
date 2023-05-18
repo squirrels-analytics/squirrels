@@ -1,7 +1,8 @@
-from typing import Optional, Union, Any
+from typing import List, Optional, Union, Any
 from types import ModuleType
 from pathlib import Path
 from importlib.machinery import SourceFileLoader
+import json
 
 from squirrels._timed_imports import jinja2 as j2, pandas as pd
 
@@ -97,3 +98,25 @@ def get_row_value(row: pd.Series, value: str) -> Any:
     except KeyError as e:
         raise ConfigurationError(f'Column name "{value}" does not exist') from e
     return result
+
+
+def load_json_or_comma_delimited_str(input_str: str) -> List[str]:
+    """
+    Given a string, load it as a list either by json string or comma delimited value
+
+    Parameters:
+        input_str: The input string
+    
+    Returns:
+        The list representation of the input string
+    """
+    output = None
+    try:
+        output = json.loads(input_str)
+    except json.decoder.JSONDecodeError:
+        pass
+    
+    if isinstance(output, list):
+        return output
+    else:
+        return [] if input_str == "" else input_str.split(",")

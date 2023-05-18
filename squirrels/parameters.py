@@ -5,10 +5,9 @@ from datetime import datetime
 from decimal import Decimal
 import copy
 
-from squirrels import parameter_options as po
+from squirrels import parameter_options as po, _utils as u
 from squirrels.data_sources import DataSource
 from squirrels.parameter_set import _ParameterSetBase
-from squirrels._utils import InvalidInputError, ConfigurationError, AbstractMethodCallError
 from squirrels._timed_imports import pandas as pd
 
 
@@ -33,7 +32,7 @@ class Parameter:
         return param_copy
 
     def with_selection(self, _: str) -> Parameter:
-        raise AbstractMethodCallError(self.__class__, "with_selection")
+        raise u.AbstractMethodCallError(self.__class__, "with_selection")
     
     def get_all_dependent_params(self) -> _ParameterSetBase:
         dependent_params = _ParameterSetBase()
@@ -41,7 +40,7 @@ class Parameter:
         return dependent_params
     
     def _set_default_as_selection_mutate(self) -> None:
-        raise AbstractMethodCallError(self.__class__, "_set_default_as_selection_mutate")
+        raise u.AbstractMethodCallError(self.__class__, "_set_default_as_selection_mutate")
     
     def _refresh_mutate(self) -> None:
         if self.parent is not None and hasattr(self, 'curr_option'):
@@ -53,20 +52,20 @@ class Parameter:
         return (x for x in self.all_options if x.is_valid(selected_parent_option_ids))
     
     def _raise_invalid_input_error(self, selection: str, more_details: str = '', e: Exception = None) -> None:
-        raise InvalidInputError(f'Selected value "{selection}" is not valid for parameter "{self.name}". ' + more_details) from e
+        raise u.InvalidInputError(f'Selected value "{selection}" is not valid for parameter "{self.name}". ' + more_details) from e
     
     def _verify_parent_is_single_select(self) -> None:
         if not isinstance(self.parent, SingleSelectParameter):
-            raise ConfigurationError(f'For "{self.name}", it''s not a selection parameter, so its parent must be a SingleSelectParameter')
+            raise u.ConfigurationError(f'For "{self.name}", it''s not a selection parameter, so its parent must be a SingleSelectParameter')
         
     def _verify_parent_options_have_one_child_each(self) -> None:
         accum_set = set()
         for option in self.all_options:
             if not accum_set.isdisjoint(option.parent_option_ids):
-                raise ConfigurationError(f'For "{self.name}", it''s not a selection parameter, so no two options can share the same parent option')
+                raise u.ConfigurationError(f'For "{self.name}", it''s not a selection parameter, so no two options can share the same parent option')
             accum_set = accum_set.union(option.parent_option_ids)
         if len(accum_set) != len(self.parent.options):
-            raise ConfigurationError(f'For "{self.name}", all parent option ids must exist across all options')
+            raise u.ConfigurationError(f'For "{self.name}", all parent option ids must exist across all options')
     
     def _set_parent_and_options(self, parent: SingleSelectParameter, all_options: Sequence[po.ParameterOption]) -> None:
         self.parent = parent
@@ -109,7 +108,7 @@ class _SelectionParameter(Parameter):
         self.children = [child.refresh(self) for child in self.children]
 
     def _get_selected_ids_as_list(self) -> Sequence[str]:
-        raise AbstractMethodCallError(self.__class__, "_get_selected_ids_as_list")
+        raise u.AbstractMethodCallError(self.__class__, "_get_selected_ids_as_list")
 
     def _get_default_iterator(self) -> Iterator[po.ParameterOption]:
         return (x.identifier for x in self.options if x.is_default)
@@ -194,7 +193,7 @@ class MultiSelectParameter(_SelectionParameter):
 
     def with_selection(self, selection: str) -> MultiSelectParameter:
         param_copy = copy.copy(self)
-        selection_split = [] if (selection == '') else selection.split(',')
+        selection_split = u.load_json_or_comma_delimited_str(selection)
         param_copy.selected_ids = tuple(self._validate_selected_id_in_options(x) for x in selection_split)
         param_copy.children = [child.refresh(param_copy) for child in self.children]
         return param_copy
@@ -269,7 +268,7 @@ class DateParameter(Parameter):
         param_copy = copy.copy(self)
         try:
             param_copy.selected_date = param_copy.curr_option._validate_date(selection)
-        except ConfigurationError as e:
+        except u.ConfigurationError as e:
             self._raise_invalid_input_error(selection, 'Invalid selection for date.', e)
         return param_copy
 
@@ -322,7 +321,7 @@ class NumberParameter(_NumericParameter):
         param_copy = copy.copy(self)
         try:
             param_copy.selected_value = param_copy.curr_option._validate_value(selection)
-        except ConfigurationError as e:
+        except u.ConfigurationError as e:
             self._raise_invalid_input_error(selection, 'Invalid selection for number parameter.', e)
         return param_copy
 
@@ -369,7 +368,7 @@ class NumRangeParameter(_NumericParameter):
         try:
             param_copy.selected_lower_value = param_copy.curr_option._validate_value(lower)
             param_copy.selected_upper_value = param_copy.curr_option._validate_value(upper, param_copy.selected_lower_value)
-        except ConfigurationError as e:
+        except u.ConfigurationError as e:
             self._raise_invalid_input_error(selection, 'Invalid selection for range parameter.', e)
         return param_copy
 

@@ -166,7 +166,7 @@ function getQueryParams(provoker = null) {
         } else if (value.widget_type === "SingleSelectParameter") {
             queryParams[key] = value.selected_id
         } else if (value.widget_type === "MultiSelectParameter") {
-            result = value.selected_ids.join()
+            result = JSON.stringify(value.selected_ids)
             if (result !== '') queryParams[key] = result
         }
     }

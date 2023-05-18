@@ -157,7 +157,7 @@ class TestMultiSelectParameter(TestParentParameters):
         expected2 = data.partial_child_dict
         expected3 = data.partial_grandchild_dict
 
-        new_parent_param = data.parent_param.with_selection('p0,p2')
+        new_parent_param = data.parent_param.with_selection('["p0","p2"]')
 
         expected1['selected_ids'] = []
         assert data.parent_param.to_dict() == expected1
