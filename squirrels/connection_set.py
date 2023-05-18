@@ -3,9 +3,9 @@ from importlib.machinery import SourceFileLoader
 from sqlalchemy import Engine, Pool
 import sqlite3
 
-from squirrels import manifest as mf, constants as c
-from squirrels.timed_imports import pandas as pd
-from squirrels.utils import ConfigurationError
+from squirrels import _constants as c, _manifest as mf
+from squirrels._timed_imports import pandas as pd
+from squirrels._utils import ConfigurationError
 
 ConnectionPool = Union[Engine, Pool]
 
@@ -44,7 +44,7 @@ class ConnectionSet:
             pool.dispose()
 
 
-def from_file(manifest: mf.Manifest) -> ConnectionSet:
+def _from_file(manifest: mf.Manifest) -> ConnectionSet:
     connections = manifest.get_db_connections()
     try:
         module = SourceFileLoader(c.CONNECTIONS_FILE, c.CONNECTIONS_FILE).load_module()

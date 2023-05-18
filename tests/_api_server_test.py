@@ -1,7 +1,7 @@
 from typing import List, Optional
 import pytest, pandas as pd
 
-from squirrels import api_server as asv
+from squirrels import _api_server as asv
 
 
 @pytest.mark.parametrize('in_dimensions,out_dimensions', [

@@ -4,7 +4,7 @@ from datetime import datetime
 from dateutil.relativedelta import relativedelta
 from enum import Enum
 
-from squirrels import utils
+from squirrels import _utils
 
 
 class DayOfWeek(Enum):
@@ -47,7 +47,7 @@ class DateModifier:
         Returns:
             The modified date.
         """
-        raise utils.AbstractMethodCallError(self.__class__, "modify")
+        raise _utils.AbstractMethodCallError(self.__class__, "modify")
 
 
 @dataclass
@@ -59,7 +59,7 @@ class _DayIdxOfCalendarUnit(DateModifier):
 
     def __post_init__(self):
         if self.idx == 0:
-            raise utils.ConfigurationError("The idx attribute of any DateModifier object cannot be zero")
+            raise _utils.ConfigurationError("The idx attribute of any DateModifier object cannot be zero")
         self.incr = self.idx - 1 if self.idx > 0 else self.idx
 
 
@@ -79,7 +79,7 @@ class DayIdxOfMonthsCycle(_DayIdxOfCalendarUnit):
     def __post_init__(self):
         super().__post_init__()
         if 12 % self.num_months_in_cycle != 0:
-            raise utils.ConfigurationError("Value X must fit evenly in 12")
+            raise _utils.ConfigurationError("Value X must fit evenly in 12")
         self.first_month_of_first_cycle = (self.first_month_of_cycle.value - 1) % self.num_months_in_cycle + 1
 
     def modify(self, date: datetime) -> datetime:
@@ -247,7 +247,7 @@ class _DateRepresentationModifier:
         return joined_modifiers
 
     def with_more_modifiers(self, date_modifiers: Sequence[DateModifier]):
-        raise utils.AbstractMethodCallError(self.__class__, "with_more_modifiers")
+        raise _utils.AbstractMethodCallError(self.__class__, "with_more_modifiers")
 
 
 @dataclass

@@ -3,7 +3,7 @@ from types import ModuleType
 from pathlib import Path
 from importlib.machinery import SourceFileLoader
 
-from squirrels.timed_imports import jinja2 as j2, pandas as pd
+from squirrels._timed_imports import jinja2 as j2, pandas as pd
 
 FilePath = Union[str, Path]
 

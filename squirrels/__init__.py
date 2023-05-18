@@ -1,9 +1,9 @@
-from .param_configs.parameter_options import SelectParameterOption, DateParameterOption, NumberParameterOption, NumRangeParameterOption
-from .param_configs.parameters import Parameter, SingleSelectParameter, MultiSelectParameter, DateParameter, NumberParameter, NumRangeParameter
-from .param_configs.data_sources import SelectionDataSource, DateDataSource, NumberDataSource, NumRangeDataSource, DataSourceParameter
-from .param_configs.parameter_set import ParameterSet
+from .parameter_options import SelectParameterOption, DateParameterOption, NumberParameterOption, NumRangeParameterOption
+from .parameters import Parameter, SingleSelectParameter, MultiSelectParameter, DateParameter, NumberParameter, NumRangeParameter, DataSourceParameter
+from .data_sources import SelectionDataSource, DateDataSource, NumberDataSource, NumRangeDataSource
+from .parameter_set import ParameterSet
 from .connection_set import ConnectionSet
-from .version import __version__, major_version, minor_version, patch_version
+
 
 def get_credential(key: str):
     """
@@ -15,5 +15,5 @@ def get_credential(key: str):
     Returns:
         Credential: Object with attributes "username" and "password"
     """
-    from .credentials_manager import squirrels_config_io
+    from ._credentials_manager import squirrels_config_io
     return squirrels_config_io.get_credential(key)

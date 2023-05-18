@@ -1,5 +1,5 @@
 from typing import Dict, Union, Any
-from sqlalchemy import create_engine, QueuePool, Engine, Pool
+from sqlalchemy import create_engine, Engine, Pool, QueuePool
 
 from squirrels import get_credential
 

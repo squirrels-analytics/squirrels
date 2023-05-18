@@ -3,8 +3,8 @@ from functools import partial
 from textwrap import dedent
 import pytest, sqlite3, sqlalchemy as sa, pandas as pd
 
-from squirrels import manifest as mf, connection_set as cs, renderer as rd
-import squirrels as sq
+from squirrels import _manifest as mf, _renderer as rd, connection_set as cs
+import squirrels as sr
 
 
 class TestRenderer:
@@ -57,14 +57,14 @@ class TestRenderer:
         connection_set.dispose()
     
     @pytest.fixture
-    def raw_param_set(self) -> sq.ParameterSet:
-        city_ds = sq.SelectionDataSource("lu_cities", "city_id", "city")
-        city_param = sq.DataSourceParameter(sq.MultiSelectParameter, "city", "City", city_ds)
-        price_limit = sq.NumberParameter('limit', 'Limit', 0, 100)
-        return sq.ParameterSet([city_param, price_limit])
+    def raw_param_set(self) -> sr.ParameterSet:
+        city_ds = sr.SelectionDataSource("lu_cities", "city_id", "city")
+        city_param = sr.DataSourceParameter(sr.MultiSelectParameter, "city", "City", city_ds)
+        price_limit = sr.NumberParameter('limit', 'Limit', 0, 100)
+        return sr.ParameterSet([city_param, price_limit])
 
-    def context_main(self, prms: sq.ParameterSet, *args, **kwargs) -> Dict[str, Any]:
-        city_param: sq.MultiSelectParameter = prms["city"]
+    def context_main(self, prms: sr.ParameterSet, *args, **kwargs) -> Dict[str, Any]:
+        city_param: sr.MultiSelectParameter = prms["city"]
         return {"cities": city_param.get_selected_labels_quoted_joined()}
     
     @pytest.fixture
@@ -118,23 +118,23 @@ class TestRenderer:
         """)
 
     @pytest.fixture
-    def renderer1(self, manifest: mf.Manifest, connection_set: cs.ConnectionSet, raw_param_set: sq.ParameterSet, 
+    def renderer1(self, manifest: mf.Manifest, connection_set: cs.ConnectionSet, raw_param_set: sr.ParameterSet, 
                   raw_db_view_queries1: Dict[str, rd.Query], raw_final_view_py_query: rd.Query):
         return rd.Renderer("avg_shop_price_by_city", manifest, connection_set, raw_param_set, self.context_main, 
                            raw_db_view_queries1, raw_final_view_py_query)
 
     @pytest.fixture
-    def renderer2(self, manifest: mf.Manifest, connection_set: cs.ConnectionSet, raw_param_set: sq.ParameterSet, 
+    def renderer2(self, manifest: mf.Manifest, connection_set: cs.ConnectionSet, raw_param_set: sr.ParameterSet, 
                   raw_db_view_queries2: Dict[str, rd.Query], raw_final_view_sql_query: rd.Query):
         return rd.Renderer("avg_shop_price_by_city", manifest, connection_set, raw_param_set, self.context_main, 
                            raw_db_view_queries2, raw_final_view_sql_query)
     
     def test_apply_selections(self, renderer1: rd.Renderer):
         expected_params = {
-            "city": sq.MultiSelectParameter('city', 'City', (
-                sq.SelectParameterOption('c0', 'Toronto'), sq.SelectParameterOption('c1', 'Boston')
+            "city": sr.MultiSelectParameter('city', 'City', (
+                sr.SelectParameterOption('c0', 'Toronto'), sr.SelectParameterOption('c1', 'Boston')
             )),
-            "limit": sq.NumberParameter('limit', 'Limit', 0, 100)
+            "limit": sr.NumberParameter('limit', 'Limit', 0, 100)
         }
         
         param_set = renderer1.apply_selections({})

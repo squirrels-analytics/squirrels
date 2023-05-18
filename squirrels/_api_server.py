@@ -7,11 +7,12 @@ from fastapi.staticfiles import StaticFiles
 from cachetools.func import ttl_cache
 import os, json
 
-from squirrels import major_version, constants as c, utils
-from squirrels.manifest import Manifest
+from squirrels import _constants as c, _utils
+from squirrels._version import major_version
+from squirrels._manifest import Manifest
 from squirrels.connection_set import ConnectionSet
-from squirrels.renderer import RendererIOWrapper, Renderer
-from squirrels.timed_imports import pandas as pd, pd_types
+from squirrels._renderer import RendererIOWrapper, Renderer
+from squirrels._timed_imports import pandas as pd, pd_types
 
 
 def df_to_json(df: pd.DataFrame, dimensions: List[str] = None) -> Dict[str, Any]:
@@ -65,7 +66,7 @@ class ApiServer:
         
     def _get_parameters_helper(self, dataset: str, query_params: Set[Tuple[str, str]]) -> Dict:
         if len(query_params) > 1:
-            raise utils.InvalidInputError("The /parameters endpoint takes at most 1 query parameter")
+            raise _utils.InvalidInputError("The /parameters endpoint takes at most 1 query parameter")
         renderer = self.renderers[dataset]
         parameters = renderer.apply_selections(dict(query_params), updates_only = True)
         return parameters.to_dict(self.debug)
@@ -76,10 +77,10 @@ class ApiServer:
         return df_to_json(df)
     
     def _apply_dataset_api_function(self, api_function, dataset: str, raw_query_params: QueryParams):
-        dataset = utils.normalize_name(dataset)
+        dataset = _utils.normalize_name(dataset)
         query_params = set()
         for key, val in raw_query_params.items():
-            query_params.add((utils.normalize_name(key), val))
+            query_params.add((_utils.normalize_name(key), val))
         query_params = frozenset(query_params)
         return api_function(dataset, query_params)
     
@@ -93,13 +94,13 @@ class ApiServer:
         app = FastAPI()
 
         squirrels_version_path = f'/squirrels{major_version}'
-        config_base_path = utils.normalize_name_for_api(self.manifest.get_base_path())
+        config_base_path = _utils.normalize_name_for_api(self.manifest.get_base_path())
         base_path = squirrels_version_path + config_base_path
 
-        static_dir = utils.join_paths(os.path.dirname(__file__), 'package_data', 'static')
+        static_dir = _utils.join_paths(os.path.dirname(__file__), 'package_data', 'static')
         app.mount('/static', StaticFiles(directory=static_dir), name='static')
 
-        templates_dir = utils.join_paths(os.path.dirname(__file__), 'package_data', 'templates')
+        templates_dir = _utils.join_paths(os.path.dirname(__file__), 'package_data', 'templates')
         templates = Jinja2Templates(directory=templates_dir)
 
         # Parameters API

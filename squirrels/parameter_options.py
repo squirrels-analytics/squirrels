@@ -1,9 +1,9 @@
-from typing import Iterable, Set, Optional, Union
+from typing import Iterable, Optional, Union
 from dataclasses import dataclass, field
 from decimal import Decimal, InvalidOperation as InvalidDecimalConversion
 from datetime import datetime
 
-from squirrels.utils import ConfigurationError
+from squirrels._utils import ConfigurationError
 
 Number = Union[Decimal, int, str]
 

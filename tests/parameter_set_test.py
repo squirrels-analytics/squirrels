@@ -1,21 +1,21 @@
 from typing import Dict
 import pytest, pandas as pd
 
-from squirrels.param_configs.parameter_set import ParameterSet
-from tests.param_configs.parent_parameters import TestParentParameters
-import squirrels as sq
+from squirrels.parameter_set import ParameterSet
+from tests.parent_parameters import TestParentParameters
+import squirrels as sr
 
 
 class TestParameterSet(TestParentParameters):
-    select_data_source = sq.SelectionDataSource('table', 'id_val', 'option', is_default_col='is_default',
+    select_data_source = sr.SelectionDataSource('table', 'id_val', 'option', is_default_col='is_default',
                                                 parent_id_col='parent_id')
-    date_data_source = sq.DateDataSource('table', 'date', parent_id_col='parent_id')
+    date_data_source = sr.DateDataSource('table', 'date', parent_id_col='parent_id')
 
     @pytest.fixture
-    def parameter_set(self, multi_select_parent: sq.MultiSelectParameter, ds_param_parent: sq.DataSourceParameter) -> ParameterSet:
-        child_param1 = sq.DataSourceParameter(sq.SingleSelectParameter, 'child1', 'Test1 Parameter', self.select_data_source,
+    def parameter_set(self, multi_select_parent: sr.MultiSelectParameter, ds_param_parent: sr.DataSourceParameter) -> ParameterSet:
+        child_param1 = sr.DataSourceParameter(sr.SingleSelectParameter, 'child1', 'Test1 Parameter', self.select_data_source,
                                               parent=multi_select_parent)
-        child_param2 = sq.DataSourceParameter(sq.DateParameter, 'child2', 'Test2 Parameter', self.date_data_source,
+        child_param2 = sr.DataSourceParameter(sr.DateParameter, 'child2', 'Test2 Parameter', self.date_data_source,
                                               parent=ds_param_parent)
         return ParameterSet((multi_select_parent, child_param1, ds_param_parent, child_param2))
     
@@ -66,7 +66,7 @@ class TestParameterSet(TestParentParameters):
             'label': 'Test2 Parameter',
             'selected_date': '2021-06-14'
         }
-        expected_parent1 = self.get_expected_parent_json(sq.MultiSelectParameter)
+        expected_parent1 = self.get_expected_parent_json(sr.MultiSelectParameter)
         expected_parent1['selected_ids'] = []
 
         actual = parameter_set.to_dict()
@@ -76,9 +76,9 @@ class TestParameterSet(TestParentParameters):
         }
         assert actual == expected_dict
         
-        assert isinstance(parameter_set['child1'], sq.SingleSelectParameter)
-        assert isinstance(parameter_set['child2'], sq.DateParameter)
-        assert isinstance(parameter_set['ds_parent'], sq.SingleSelectParameter)
+        assert isinstance(parameter_set['child1'], sr.SingleSelectParameter)
+        assert isinstance(parameter_set['child2'], sr.DateParameter)
+        assert isinstance(parameter_set['ds_parent'], sr.SingleSelectParameter)
 
         assert parameter_set['child1'].parent is parameter_set['ms_parent']
         assert parameter_set['child2'].parent is parameter_set['ds_parent']
