@@ -1,13 +1,14 @@
 from __future__ import annotations
-from typing import Sequence, Dict, List, Iterator, Optional, Union
-from collections import OrderedDict
+from typing import Type, Sequence, Dict, List, Iterator, Optional, Union
 from dataclasses import dataclass
 from datetime import datetime
 from decimal import Decimal
 import copy
 
-from squirrels.param_configs import parameter_options as po
-from squirrels.utils import InvalidInputError, ConfigurationError, AbstractMethodCallError
+from squirrels import parameter_options as po, _utils as u
+from squirrels.data_sources import DataSource
+from squirrels.parameter_set import _ParameterSetBase
+from squirrels._timed_imports import pandas as pd
 
 
 @dataclass
@@ -31,15 +32,15 @@ class Parameter:
         return param_copy
 
     def with_selection(self, _: str) -> Parameter:
-        raise AbstractMethodCallError(self.__class__, "with_selection")
+        raise u.AbstractMethodCallError(self.__class__, "with_selection")
     
-    def get_all_dependent_params(self) -> ParameterSetBase:
-        dependent_params = ParameterSetBase()
+    def get_all_dependent_params(self) -> _ParameterSetBase:
+        dependent_params = _ParameterSetBase()
         self._accum_all_dependent_params(dependent_params)
         return dependent_params
     
     def _set_default_as_selection_mutate(self) -> None:
-        raise AbstractMethodCallError(self.__class__, "_set_default_as_selection_mutate")
+        raise u.AbstractMethodCallError(self.__class__, "_set_default_as_selection_mutate")
     
     def _refresh_mutate(self) -> None:
         if self.parent is not None and hasattr(self, 'curr_option'):
@@ -51,20 +52,20 @@ class Parameter:
         return (x for x in self.all_options if x.is_valid(selected_parent_option_ids))
     
     def _raise_invalid_input_error(self, selection: str, more_details: str = '', e: Exception = None) -> None:
-        raise InvalidInputError(f'Selected value "{selection}" is not valid for parameter "{self.name}". ' + more_details) from e
+        raise u.InvalidInputError(f'Selected value "{selection}" is not valid for parameter "{self.name}". ' + more_details) from e
     
     def _verify_parent_is_single_select(self) -> None:
         if not isinstance(self.parent, SingleSelectParameter):
-            raise ConfigurationError(f'For "{self.name}", it''s not a selection parameter, so its parent must be a SingleSelectParameter')
+            raise u.ConfigurationError(f'For "{self.name}", it''s not a selection parameter, so its parent must be a SingleSelectParameter')
         
     def _verify_parent_options_have_one_child_each(self) -> None:
         accum_set = set()
         for option in self.all_options:
             if not accum_set.isdisjoint(option.parent_option_ids):
-                raise ConfigurationError(f'For "{self.name}", it''s not a selection parameter, so no two options can share the same parent option')
+                raise u.ConfigurationError(f'For "{self.name}", it''s not a selection parameter, so no two options can share the same parent option')
             accum_set = accum_set.union(option.parent_option_ids)
         if len(accum_set) != len(self.parent.options):
-            raise ConfigurationError(f'For "{self.name}", all parent option ids must exist across all options')
+            raise u.ConfigurationError(f'For "{self.name}", all parent option ids must exist across all options')
     
     def _set_parent_and_options(self, parent: SingleSelectParameter, all_options: Sequence[po.ParameterOption]) -> None:
         self.parent = parent
@@ -72,7 +73,7 @@ class Parameter:
         self._verify_parent_is_single_select()
         self._verify_parent_options_have_one_child_each()
     
-    def _accum_all_dependent_params(self, param_set: ParameterSetBase) -> None:
+    def _accum_all_dependent_params(self, param_set: _ParameterSetBase) -> None:
         param_set.add_parameter(self)
         
     def _enquote(self, value: str) -> str:
@@ -107,7 +108,7 @@ class _SelectionParameter(Parameter):
         self.children = [child.refresh(self) for child in self.children]
 
     def _get_selected_ids_as_list(self) -> Sequence[str]:
-        raise AbstractMethodCallError(self.__class__, "_get_selected_ids_as_list")
+        raise u.AbstractMethodCallError(self.__class__, "_get_selected_ids_as_list")
 
     def _get_default_iterator(self) -> Iterator[po.ParameterOption]:
         return (x.identifier for x in self.options if x.is_default)
@@ -118,7 +119,7 @@ class _SelectionParameter(Parameter):
         else:
             self._raise_invalid_input_error(selected_id)
     
-    def _accum_all_dependent_params(self, param_set: ParameterSetBase) -> None:
+    def _accum_all_dependent_params(self, param_set: _ParameterSetBase) -> None:
         super()._accum_all_dependent_params(param_set)
         for child in self.children:
             child._accum_all_dependent_params(param_set)
@@ -192,7 +193,7 @@ class MultiSelectParameter(_SelectionParameter):
 
     def with_selection(self, selection: str) -> MultiSelectParameter:
         param_copy = copy.copy(self)
-        selection_split = [] if (selection == '') else selection.split(',')
+        selection_split = u.load_json_or_comma_delimited_str_as_list(selection)
         param_copy.selected_ids = tuple(self._validate_selected_id_in_options(x) for x in selection_split)
         param_copy.children = [child.refresh(param_copy) for child in self.children]
         return param_copy
@@ -267,7 +268,7 @@ class DateParameter(Parameter):
         param_copy = copy.copy(self)
         try:
             param_copy.selected_date = param_copy.curr_option._validate_date(selection)
-        except ConfigurationError as e:
+        except u.ConfigurationError as e:
             self._raise_invalid_input_error(selection, 'Invalid selection for date.', e)
         return param_copy
 
@@ -320,7 +321,7 @@ class NumberParameter(_NumericParameter):
         param_copy = copy.copy(self)
         try:
             param_copy.selected_value = param_copy.curr_option._validate_value(selection)
-        except ConfigurationError as e:
+        except u.ConfigurationError as e:
             self._raise_invalid_input_error(selection, 'Invalid selection for number parameter.', e)
         return param_copy
 
@@ -367,7 +368,7 @@ class NumRangeParameter(_NumericParameter):
         try:
             param_copy.selected_lower_value = param_copy.curr_option._validate_value(lower)
             param_copy.selected_upper_value = param_copy.curr_option._validate_value(upper, param_copy.selected_lower_value)
-        except ConfigurationError as e:
+        except u.ConfigurationError as e:
             self._raise_invalid_input_error(selection, 'Invalid selection for range parameter.', e)
         return param_copy
 
@@ -389,42 +390,56 @@ class NumRangeParameter(_NumericParameter):
         return output
 
 
-class ParameterSetBase:
-    def __init__(self) -> None:
-        self._parameters_dict: OrderedDict[str, Parameter] = OrderedDict()
-    
-    def add_parameter(self, parameter: Parameter) -> None:
-        self._parameters_dict[parameter.name] = parameter
+@dataclass
+class DataSourceParameter(Parameter):
+    parameter_class: Type[Parameter]
+    data_source: DataSource
+    parent: Optional[Parameter] 
 
-    def get_parameter(self, param_name: str) -> Parameter:
-        if param_name in self._parameters_dict:
-            return self._parameters_dict[param_name]
-        else:
-            raise KeyError(f'No such parameter exists called "{param_name}"')
-    
-    def get_parameters_as_ordered_dict(self) -> OrderedDict:
-        return OrderedDict(self._parameters_dict)
-    
-    def merge(self, other: ParameterSetBase) -> ParameterSetBase:
-        new_param_set = ParameterSetBase()
-        new_param_set._parameters_dict = OrderedDict(self._parameters_dict)
-        new_param_set._parameters_dict.update(other._parameters_dict)
-        return new_param_set
+    def __init__(self, parameter_class: Type[Parameter], name: str, label: str, data_source: DataSource, *, 
+                 is_hidden: bool = False, parent: Optional[Parameter] = None) -> None:
+        """
+        Constructor for DataSourceParameter, a Parameter that uses a DataSource to convert itself to another Parameter
 
-    def __getitem__(self, param_name: str) -> Parameter:
-        return self.get_parameter(param_name)
+        Parameters:
+            parameter_class: The class of widget parameter to convert to
+            name: The name of the parameter
+            label: The label of the parameter
+            data_source: The lookup table to use for this parameter
+            is_hidden: Whether or not this parameter should be hidden from parameters response
+            parent: The parent parameter
+        """
+        super().__init__(name, label, None, is_hidden, None)
+        self.parameter_class = parameter_class
+        self.data_source = data_source
+        self.parent = parent
 
-    def to_dict(self, debug: bool = False):
-        parameters = []
-        for x in self._parameters_dict.values():
-            if not x.is_hidden or debug:
-                parameters.append(x.to_dict())
-        
-        output = {
-            "response_version": 0, 
-            "parameters": parameters
-        }
+    def convert(self, df: pd.DataFrame) -> Parameter:
+        """
+        Method to convert this DataSourceParameter into another parameter
+
+        Parameters:
+            df: The dataframe containing the parameter options data
+
+        Returns:
+            The converted parameter
+        """
+        return self.data_source.convert(self, df)
+    
+    def to_dict(self) -> Dict:
+        """
+        Method to convert this DataSourceParameter into a dictionary
+
+        The field specific to this dictionary representation is "data_source".
+
+        Returns:
+            Dict: The dictionary representation of this DataSourceParameter
+        """
+        output = super().to_dict()
+        output['widget_type'] = self.parameter_class.__name__
+        output['data_source'] = self.data_source.__dict__
         return output
+
 
 # Types:
 SelectionParameter = Union[SingleSelectParameter, MultiSelectParameter]

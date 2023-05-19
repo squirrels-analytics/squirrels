@@ -1,8 +1,8 @@
 from typing import Dict
 import json, copy, pytest
 
-from squirrels import constants as c, credentials_manager as cm
-from squirrels.utils import ConfigurationError
+from squirrels import _constants as c, _credentials_manager as cm
+from squirrels._utils import ConfigurationError
 
 
 @pytest.fixture

@@ -4,10 +4,10 @@ Squirrels is an API framework for creating REST APIs that generate sql queries &
 
 ## Setup
 
-First, install the library and all dependencies **in an independent virtual environment**.
+First, install the library and all dependencies **in a new virtual environment**.
 
 ```bash
-# activate virtual environment...
+# create and activate virtual environment...
 pip install -e .
 ```
 
@@ -33,7 +33,7 @@ From the root of the git repo, the source code can be found in the `squirrels` f
 
 To understand what a specific squirrels command line utility is doing, start from the `_command_line.py` file as your entry point.
 
-The library version is maintained in both the `setup.py` file (for the next release or release-candidate version) and the `squirrels/version.py` file (for the next release version only).
+The library version is maintained in both the `setup.py` file (for the next release or release-candidate version) and the `squirrels/_version.py` file (for the next release version only).
 
 When a user initializes a squirrels project using `squirrels init`, the files are copied from the `squirrels/package_data/base_project` folder. The contents in the `database` subfolder were constructed from the scripts in the `database_elt` folder at the top level.
 

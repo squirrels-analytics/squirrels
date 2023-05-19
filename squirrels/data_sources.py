@@ -1,10 +1,10 @@
 from __future__ import annotations
-from typing import Type, Tuple, List, Dict, Optional
+from typing import Type, Tuple, List, Optional
 from dataclasses import dataclass
 
-from squirrels.param_configs import parameters as p, parameter_options as po
-from squirrels.timed_imports import pandas as pd
-from squirrels import utils, constants as c
+from squirrels import parameters as p, parameter_options as po
+from squirrels._timed_imports import pandas as pd
+from squirrels import _constants as c, _utils
 
 
 @dataclass
@@ -33,7 +33,7 @@ class DataSource:
             query = f'SELECT * FROM {self.table_or_query}'
         return query
     
-    def convert(self, ds_param: DataSourceParameter, df: pd.DataFrame) -> p.Parameter:
+    def convert(self, ds_param: p.DataSourceParameter, df: pd.DataFrame) -> p.Parameter:
         """
         An abstract method for converting itself into a parameter
 
@@ -44,16 +44,16 @@ class DataSource:
         Returns:
             The converted parameter
         """
-        raise utils.AbstractMethodCallError(self.__class__, "convert")
+        raise _utils.AbstractMethodCallError(self.__class__, "convert")
     
     def _get_parent(self, row):
-        return str(utils.get_row_value(row, self.parent_id_col)) if self.parent_id_col is not None else None
+        return str(_utils.get_row_value(row, self.parent_id_col)) if self.parent_id_col is not None else None
     
-    def _validate_parameter_class(self, ds_param: DataSourceParameter, parameter_classes: List[Type[p.Parameter]]) -> None:
+    def _validate_parameter_class(self, ds_param: p.DataSourceParameter, parameter_classes: List[Type[p.Parameter]]) -> None:
         if ds_param.parameter_class not in parameter_classes:
             parameter_class_name = ds_param.parameter_class.__name__
             datasource_class_name = self.__class__.__name__
-            raise utils.ConfigurationError(f'Invalid widget type "{parameter_class_name}" for {datasource_class_name}')
+            raise _utils.ConfigurationError(f'Invalid widget type "{parameter_class_name}" for {datasource_class_name}')
 
 
 @dataclass
@@ -80,7 +80,7 @@ class SelectionDataSource(DataSource):
     def __post_init__(self):
         self.order_by_col = self.order_by_col if self.order_by_col is not None else self.id_col
 
-    def convert(self, ds_param: DataSourceParameter, df: pd.DataFrame) -> p.Parameter:
+    def convert(self, ds_param: p.DataSourceParameter, df: pd.DataFrame) -> p.Parameter:
         """
         Method to convert the associated DataSourceParameter into a SingleSelect or MultiSelect Parameter
 
@@ -94,15 +94,15 @@ class SelectionDataSource(DataSource):
         self._validate_parameter_class(ds_param, [p.SingleSelectParameter, p.MultiSelectParameter])
 
         def is_default(row):
-            return int(utils.get_row_value(row, self.is_default_col)) == 1 if self.is_default_col is not None else False
+            return int(_utils.get_row_value(row, self.is_default_col)) == 1 if self.is_default_col is not None else False
         
         try:
             df.sort_values(self.order_by_col, inplace=True)
         except KeyError as e:
-            raise utils.ConfigurationError(f'Could not sort on column name "{self.order_by_col}" as it does not exist')
+            raise _utils.ConfigurationError(f'Could not sort on column name "{self.order_by_col}" as it does not exist')
         
         options = tuple(
-            po.SelectParameterOption(str(utils.get_row_value(row, self.id_col)), str(utils.get_row_value(row, self.options_col)), is_default(row), 
+            po.SelectParameterOption(str(_utils.get_row_value(row, self.id_col)), str(_utils.get_row_value(row, self.options_col)), is_default(row), 
                                      parent_option_id=self._get_parent(row))
             for _, row in df.iterrows()
         )
@@ -127,7 +127,7 @@ class DateDataSource(DataSource):
     date_format: Optional[str] = '%Y-%m-%d'
     connection_name: str = c.DEFAULT_DB_CONN
 
-    def convert(self, ds_param: DataSourceParameter, df: pd.DataFrame) -> p.DateParameter:
+    def convert(self, ds_param: p.DataSourceParameter, df: pd.DataFrame) -> p.DateParameter:
         """
         Method to convert the associated DataSourceParameter into a DateParameter
 
@@ -141,7 +141,7 @@ class DateDataSource(DataSource):
         self._validate_parameter_class(ds_param, [p.DateParameter])
         
         def get_date(row: pd.Series) -> str:
-            return str(utils.get_row_value(row, self.default_date_col))
+            return str(_utils.get_row_value(row, self.default_date_col))
         
         def create_date_param_option(row: pd.Series) -> po.DateParameterOption:
             return po.DateParameterOption(get_date(row), self.date_format, self._get_parent(row))
@@ -166,9 +166,9 @@ class _NumericDataSource(DataSource):
     increment_col: Optional[str] = None
 
     def _convert_helper(self, row: pd.Series) -> Tuple[str, str, str]:
-        min_val = str(utils.get_row_value(row, self.min_value_col))
-        max_val = str(utils.get_row_value(row, self.max_value_col))
-        incr_val = str(utils.get_row_value(row, self.increment_col)) if self.increment_col is not None else '1'
+        min_val = str(_utils.get_row_value(row, self.min_value_col))
+        max_val = str(_utils.get_row_value(row, self.max_value_col))
+        incr_val = str(_utils.get_row_value(row, self.increment_col)) if self.increment_col is not None else '1'
         return min_val, max_val, incr_val
 
 @dataclass
@@ -189,7 +189,7 @@ class NumberDataSource(_NumericDataSource):
     parent_id_col: Optional[str] = None
     connection_name: str = c.DEFAULT_DB_CONN
 
-    def convert(self, ds_param: DataSourceParameter, df: pd.DataFrame) -> p.NumberParameter:
+    def convert(self, ds_param: p.DataSourceParameter, df: pd.DataFrame) -> p.NumberParameter:
         """
         Method to convert the associated DataSourceParameter into a NumberParameter
 
@@ -203,8 +203,8 @@ class NumberDataSource(_NumericDataSource):
         self._validate_parameter_class(ds_param, [p.NumberParameter])
 
         def _get_default_value(row: pd.Series) -> str:
-            return str(utils.get_row_value(row, self.default_value_col)) if self.default_value_col is not None \
-                else str(utils.get_row_value(row, self.min_value_col))
+            return str(_utils.get_row_value(row, self.default_value_col)) if self.default_value_col is not None \
+                else str(_utils.get_row_value(row, self.min_value_col))
         
         def _create_num_param_option(row: pd.Series) -> po.NumberParameterOption:
             min_value, max_value, increment = self._convert_helper(row)
@@ -242,7 +242,7 @@ class NumRangeDataSource(_NumericDataSource):
     parent_id_col: Optional[str] = None
     connection_name: str = c.DEFAULT_DB_CONN
 
-    def convert(self, ds_param: DataSourceParameter, df: pd.DataFrame) -> p.NumRangeParameter:
+    def convert(self, ds_param: p.DataSourceParameter, df: pd.DataFrame) -> p.NumRangeParameter:
         """
         Method to convert the associated DataSourceParameter into a NumRangeParameter
 
@@ -260,8 +260,8 @@ class NumRangeDataSource(_NumericDataSource):
                 else self.min_value_col
             upper_value_col = self.default_upper_value_col if self.default_upper_value_col is not None \
                 else self.max_value_col
-            lower_value = str(utils.get_row_value(row, lower_value_col))
-            upper_value = str(utils.get_row_value(row, upper_value_col))
+            lower_value = str(_utils.get_row_value(row, lower_value_col))
+            upper_value = str(_utils.get_row_value(row, upper_value_col))
             return lower_value, upper_value
         
         def _create_range_param_option(row: pd.Series) -> po.NumRangeParameterOption:
@@ -280,54 +280,3 @@ class NumRangeDataSource(_NumericDataSource):
             all_options = tuple(_create_range_param_option(row) for _, row in df.iterrows())
             return p.NumRangeParameter.WithParent(ds_param.name, ds_param.label, all_options, ds_param.parent,
                                                   is_hidden=ds_param.is_hidden)
-
-
-@dataclass
-class DataSourceParameter(p.Parameter):
-    parameter_class: Type[p.Parameter]
-    data_source: DataSource
-    parent: Optional[p.Parameter] 
-
-    def __init__(self, parameter_class: Type[p.Parameter], name: str, label: str, data_source: DataSource, *, 
-                 is_hidden: bool = False, parent: Optional[p.Parameter] = None) -> None:
-        """
-        Constructor for DataSourceParameter, a Parameter that uses a DataSource to convert itself to another Parameter
-
-        Parameters:
-            parameter_class: The class of widget parameter to convert to
-            name: The name of the parameter
-            label: The label of the parameter
-            data_source: The lookup table to use for this parameter
-            is_hidden: Whether or not this parameter should be hidden from parameters response
-            parent: The parent parameter
-        """
-        super().__init__(name, label, None, is_hidden, None)
-        self.parameter_class = parameter_class
-        self.data_source = data_source
-        self.parent = parent
-
-    def convert(self, df: pd.DataFrame) -> p.Parameter:
-        """
-        Method to convert this DataSourceParameter into another parameter
-
-        Parameters:
-            df: The dataframe containing the parameter options data
-
-        Returns:
-            The converted parameter
-        """
-        return self.data_source.convert(self, df)
-    
-    def to_dict(self) -> Dict:
-        """
-        Method to convert this DataSourceParameter into a dictionary
-
-        The field specific to this dictionary representation is "data_source".
-
-        Returns:
-            Dict: The dictionary representation of this DataSourceParameter
-        """
-        output = super().to_dict()
-        output['widget_type'] = self.parameter_class.__name__
-        output['data_source'] = self.data_source.__dict__
-        return output

@@ -1,10 +1,10 @@
 from typing import Sequence
 import pytest
 
-from squirrels.param_configs import parameters as p
-from squirrels.utils import InvalidInputError, ConfigurationError
-from tests.param_configs.parent_parameters import TestParentParameters
-import squirrels as sq
+from squirrels import parameters as p
+from squirrels._utils import InvalidInputError, ConfigurationError
+from tests.parent_parameters import TestParentParameters
+import squirrels as sr
 
 
 class TestSingleSelectParameter(TestParentParameters):
@@ -14,17 +14,17 @@ class TestSingleSelectParameter(TestParentParameters):
             self.parent_param = single_select_parent
 
             child_options = (
-                sq.SelectParameterOption('c0', 'Child option 1', parent_option_id='p0'),
+                sr.SelectParameterOption('c0', 'Child option 1', parent_option_id='p0'),
                 # Note: 'parent_option_id' takes precedence over 'parent_option_ids'
-                sq.SelectParameterOption('c1', 'Child option 2', parent_option_id='p0', parent_option_ids={'p0','p1'}),
-                sq.SelectParameterOption('c2', 'Child option 3', parent_option_ids={'p0','p1'}),
-                sq.SelectParameterOption('c3', 'Child option 4', parent_option_id='p1', is_default=True),
+                sr.SelectParameterOption('c1', 'Child option 2', parent_option_id='p0', parent_option_ids={'p0','p1'}),
+                sr.SelectParameterOption('c2', 'Child option 3', parent_option_ids={'p0','p1'}),
+                sr.SelectParameterOption('c3', 'Child option 4', parent_option_id='p1', is_default=True),
             )
             self.child_param = p.SingleSelectParameter('child_param', 'Child Param', child_options, parent=self.parent_param)
 
             grandchild_options = (
-                sq.SelectParameterOption('g0', 'Grandchild option 1', parent_option_id='c3'),
-                sq.SelectParameterOption('g1', 'Grandchild option 2', parent_option_id='c3')
+                sr.SelectParameterOption('g0', 'Grandchild option 1', parent_option_id='c3'),
+                sr.SelectParameterOption('g1', 'Grandchild option 2', parent_option_id='c3')
             )
             self.grandchild_param = p.SingleSelectParameter('grandchild_param', 'Grandchild Param', grandchild_options, parent=self.child_param)
         
@@ -111,19 +111,19 @@ class TestMultiSelectParameter(TestParentParameters):
             self.parent_param = multi_select_parent
 
             child_options = (
-                sq.SelectParameterOption('c0', 'Child option 1', parent_option_id='p0'),
-                sq.SelectParameterOption('c1', 'Child option 2', parent_option_id='p0'),
-                sq.SelectParameterOption('c2', 'Child option 3', parent_option_id='p1'),
-                sq.SelectParameterOption('c3', 'Child option 4', parent_option_id='p1', is_default=True),
-                sq.SelectParameterOption('c4', 'Child option 5', parent_option_id='p2'),
+                sr.SelectParameterOption('c0', 'Child option 1', parent_option_id='p0'),
+                sr.SelectParameterOption('c1', 'Child option 2', parent_option_id='p0'),
+                sr.SelectParameterOption('c2', 'Child option 3', parent_option_id='p1'),
+                sr.SelectParameterOption('c3', 'Child option 4', parent_option_id='p1', is_default=True),
+                sr.SelectParameterOption('c4', 'Child option 5', parent_option_id='p2'),
             )
             self.child_param = p.SingleSelectParameter('child_param', 'Child Param', child_options, parent=self.parent_param)
 
             grandchild_options = (
-                sq.SelectParameterOption('g0', 'Grandchild option 1', parent_option_id='c0'),
-                sq.SelectParameterOption('g1', 'Grandchild option 2', parent_option_id='c0', is_default=True),
-                sq.SelectParameterOption('g2', 'Grandchild option 3', parent_option_id='c0', is_default=True),
-                sq.SelectParameterOption('g3', 'Grandchild option 4', parent_option_id='c3')
+                sr.SelectParameterOption('g0', 'Grandchild option 1', parent_option_id='c0'),
+                sr.SelectParameterOption('g1', 'Grandchild option 2', parent_option_id='c0', is_default=True),
+                sr.SelectParameterOption('g2', 'Grandchild option 3', parent_option_id='c0', is_default=True),
+                sr.SelectParameterOption('g3', 'Grandchild option 4', parent_option_id='c3')
             )
             self.grandchild_param = p.MultiSelectParameter('grandchild_param', 'Grandchild Param', grandchild_options, parent=self.child_param)
         
@@ -157,7 +157,7 @@ class TestMultiSelectParameter(TestParentParameters):
         expected2 = data.partial_child_dict
         expected3 = data.partial_grandchild_dict
 
-        new_parent_param = data.parent_param.with_selection('p0,p2')
+        new_parent_param = data.parent_param.with_selection('["p0","p2"]')
 
         expected1['selected_ids'] = []
         assert data.parent_param.to_dict() == expected1
@@ -203,9 +203,9 @@ class TestMultiSelectParameter(TestParentParameters):
 
     def test_get_selected(self):
         options = (
-            sq.SelectParameterOption('p0', 'Option 1', is_default=True), 
-            sq.SelectParameterOption('p1', 'Option 2'), 
-            sq.SelectParameterOption('p2', 'Option 3', is_default=True)
+            sr.SelectParameterOption('p0', 'Option 1', is_default=True), 
+            sr.SelectParameterOption('p1', 'Option 2'), 
+            sr.SelectParameterOption('p2', 'Option 3', is_default=True)
         )
         parameter = p.MultiSelectParameter('parent', 'Parent Param', options)
 
@@ -242,9 +242,9 @@ class TestDateParameter(TestParentParameters):
 
     def test_cascadable(self, single_select_parent: p.SingleSelectParameter):
         child_options = (
-            sq.DateParameterOption('2020-01-01', parent_option_ids={'p0', 'p1'}),
-            sq.DateParameterOption('2022-01-01', parent_option_id='p2'),
-            sq.DateParameterOption('2023-01-01', parent_option_id='p3')
+            sr.DateParameterOption('2020-01-01', parent_option_ids={'p0', 'p1'}),
+            sr.DateParameterOption('2022-01-01', parent_option_id='p2'),
+            sr.DateParameterOption('2023-01-01', parent_option_id='p3')
         )
         child_param = p.DateParameter.WithParent('child', 'Child Param', child_options, single_select_parent)
 
@@ -270,24 +270,24 @@ class TestDateParameter(TestParentParameters):
         with pytest.raises(InvalidInputError):
             self.date_parameter.with_selection('01/01/2020') # wrong format
         
-    def test_invalid_configuration(self, parent_options: Sequence[sq.SelectParameterOption], single_select_parent: p.SingleSelectParameter):
+    def test_invalid_configuration(self, parent_options: Sequence[sr.SelectParameterOption], single_select_parent: p.SingleSelectParameter):
         with pytest.raises(ConfigurationError):
             multi_select_param = p.MultiSelectParameter('', '', parent_options)
             child_options = (
-                sq.DateParameterOption('2020-01-01', parent_option_ids={'p0', 'p1'}),
-                sq.DateParameterOption('2022-01-01', parent_option_ids={'p2', 'p3'})
+                sr.DateParameterOption('2020-01-01', parent_option_ids={'p0', 'p1'}),
+                sr.DateParameterOption('2022-01-01', parent_option_ids={'p2', 'p3'})
             )
             p.DateParameter.WithParent('child', 'Child Param', child_options, multi_select_param)
         with pytest.raises(ConfigurationError):
             child_options = (
-                sq.DateParameterOption('2020-01-01', parent_option_ids={'p0', 'p1'}),
-                sq.DateParameterOption('2022-01-01', parent_option_id='p2')
+                sr.DateParameterOption('2020-01-01', parent_option_ids={'p0', 'p1'}),
+                sr.DateParameterOption('2022-01-01', parent_option_id='p2')
             )
             p.DateParameter.WithParent('child', 'Child Param', child_options, single_select_parent)
         with pytest.raises(ConfigurationError):
             child_options = (
-                sq.DateParameterOption('2020-01-01', parent_option_ids={'p0', 'p1'}),
-                sq.DateParameterOption('2022-01-01', parent_option_ids={'p1', 'p2'})
+                sr.DateParameterOption('2020-01-01', parent_option_ids={'p0', 'p1'}),
+                sr.DateParameterOption('2022-01-01', parent_option_ids={'p1', 'p2'})
             )
             p.DateParameter.WithParent('child', 'Child Param', child_options, single_select_parent)
         
@@ -318,8 +318,8 @@ class TestNumberParameter(TestParentParameters):
 
     def test_cascadable(self, single_select_parent: p.SingleSelectParameter):
         child_options = (
-            sq.NumberParameterOption(0, 3, 1, 1, parent_option_ids={'p0', 'p1'}),
-            sq.NumberParameterOption(0, 4, 2, 2, parent_option_ids={'p2', 'p3'})
+            sr.NumberParameterOption(0, 3, 1, 1, parent_option_ids={'p0', 'p1'}),
+            sr.NumberParameterOption(0, 4, 2, 2, parent_option_ids={'p2', 'p3'})
         )
         child_param = p.NumberParameter.WithParent('child', 'Child Param', child_options, single_select_parent)
 
@@ -363,8 +363,8 @@ class TestNumberParameter(TestParentParameters):
             p.NumberParameter('', '', min_value=1, max_value=4, increment=2, default_value=1)
         with pytest.raises(ConfigurationError):
             child_options = (
-                sq.NumberParameterOption(0, 3, 1, 1, parent_option_ids={'p0', 'p1'}),
-                sq.NumberParameterOption(0, 4, 2, 2, parent_option_ids={'p1', 'p2'})
+                sr.NumberParameterOption(0, 3, 1, 1, parent_option_ids={'p0', 'p1'}),
+                sr.NumberParameterOption(0, 4, 2, 2, parent_option_ids={'p1', 'p2'})
             )
             p.NumberParameter.WithParent('child', 'Child Param', child_options, single_select_parent)
     
@@ -396,8 +396,8 @@ class TestNumRangeParameter(TestParentParameters):
 
     def test_cascadable(self, single_select_parent: p.SingleSelectParameter):
         child_options = (
-            sq.NumRangeParameterOption(0, 3, 1, 1, 2, parent_option_ids={'p0', 'p1'}),
-            sq.NumRangeParameterOption(0, 4, 2, 0, 4, parent_option_ids={'p2', 'p3'})
+            sr.NumRangeParameterOption(0, 3, 1, 1, 2, parent_option_ids={'p0', 'p1'}),
+            sr.NumRangeParameterOption(0, 4, 2, 0, 4, parent_option_ids={'p2', 'p3'})
         )
         child_param = p.NumRangeParameter.WithParent('child', 'Child Param', child_options, single_select_parent)
 
@@ -441,8 +441,8 @@ class TestNumRangeParameter(TestParentParameters):
     def test_invalid_configuration(self, single_select_parent: p.SingleSelectParameter):
         with pytest.raises(ConfigurationError):
             child_options = (
-                sq.NumRangeParameterOption(0, 3, 1, 1, 2, parent_option_ids={'p0', 'p1'}),
-                sq.NumRangeParameterOption(0, 4, 2, 0, 4, parent_option_ids={'p2'})
+                sr.NumRangeParameterOption(0, 3, 1, 1, 2, parent_option_ids={'p0', 'p1'}),
+                sr.NumRangeParameterOption(0, 4, 2, 0, 4, parent_option_ids={'p2'})
             )
             p.NumRangeParameter.WithParent('child', 'Child Param', child_options, single_select_parent)
 

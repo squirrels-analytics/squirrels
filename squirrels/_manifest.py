@@ -3,9 +3,9 @@ from pathlib import Path
 from sqlalchemy import Engine, create_engine
 import yaml
 
-from squirrels import constants as c, utils
-from squirrels.credentials_manager import Credential, squirrels_config_io
-from squirrels.utils import ConfigurationError, InvalidInputError
+from squirrels import _constants as c, _utils
+from squirrels._credentials_manager import Credential, squirrels_config_io
+from squirrels._utils import ConfigurationError, InvalidInputError
 
 
 class Manifest:
@@ -42,8 +42,8 @@ class Manifest:
             product = project_vars[c.PRODUCT_KEY]
             major_version = project_vars[c.MAJOR_VERSION_KEY]
         except KeyError as e:
-            raise ConfigurationError("Could not construct API endpoint as 'product' and 'major_version' \
-                                     were not specified in project variables") from e
+            raise ConfigurationError("Could not construct API endpoint as 'product' and 'major_version'" + 
+                "were not specified in project variables") from e
         base_path = f"/{product}/v{major_version}"
         return base_path
     
@@ -82,7 +82,7 @@ class Manifest:
         return list(datasets.keys())
     
     def get_dataset_folder(self, dataset: str) -> Path:
-        return utils.join_paths(c.DATASETS_FOLDER, dataset)
+        return _utils.join_paths(c.DATASETS_FOLDER, dataset)
         
     def get_dataset_args(self, dataset: str) -> Dict[str, Any]:
         dataset_args = self._get_dataset_parms(dataset).get("args", {})
@@ -103,7 +103,7 @@ class Manifest:
             except KeyError as e:
                 raise ConfigurationError(f'The "{c.FILE_KEY}" field is not defined for "{database_view}" in dataset "{dataset}"') from e
         dataset_folder = self.get_dataset_folder(dataset)
-        return utils.join_paths(dataset_folder, db_view_file)
+        return _utils.join_paths(dataset_folder, db_view_file)
     
     def get_view_args(self, dataset: str, database_view: str = None) -> Dict[str, Any]:
         dataset_args = self.get_dataset_args(dataset)
@@ -141,7 +141,7 @@ class Manifest:
             return final_view_file
         else:
             dataset_path = self.get_dataset_folder(dataset)
-            return utils.join_paths(dataset_path, final_view_file)
+            return _utils.join_paths(dataset_path, final_view_file)
 
     def get_setting(self, key: str, default: Any) -> Any:
         settings: Dict[str, Any] = self._parms.get(c.SETTINGS_KEY, dict())
@@ -160,7 +160,7 @@ class Manifest:
         """
         datasets_info = []
         for dataset in self.get_all_dataset_names():
-            dataset_normalized = utils.normalize_name_for_api(dataset)
+            dataset_normalized = _utils.normalize_name_for_api(dataset)
             datasets_info.append({
                 'name': dataset,
                 'label': self.get_dataset_label(dataset),
@@ -182,5 +182,5 @@ class Manifest:
         }
 
 
-def from_file():
+def _from_file():
     return Manifest.from_file(c.MANIFEST_FILE)

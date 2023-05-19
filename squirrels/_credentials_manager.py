@@ -3,10 +3,10 @@ from dataclasses import dataclass
 from configparser import ConfigParser
 import os, json
 
-from squirrels.utils import ConfigurationError
-from squirrels import constants as c, utils
+from squirrels._utils import ConfigurationError
+from squirrels import _constants as c, _utils
 
-_SQUIRRELS_CFG_PATH = utils.join_paths(os.path.expanduser('~'), '.squirrelscfg')
+_SQUIRRELS_CFG_PATH = _utils.join_paths(os.path.expanduser('~'), '.squirrelscfg')
 
 
 @dataclass
