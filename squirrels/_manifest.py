@@ -42,8 +42,8 @@ class Manifest:
             product = project_vars[c.PRODUCT_KEY]
             major_version = project_vars[c.MAJOR_VERSION_KEY]
         except KeyError as e:
-            raise ConfigurationError("Could not construct API endpoint as 'product' and 'major_version' \
-                                     were not specified in project variables") from e
+            raise ConfigurationError("Could not construct API endpoint as 'product' and 'major_version'" + 
+                "were not specified in project variables") from e
         base_path = f"/{product}/v{major_version}"
         return base_path
     

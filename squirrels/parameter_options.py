@@ -108,11 +108,11 @@ class _NumericParameterOption(ParameterOption):
             raise ConfigurationError(f'Could not convert either min, max, or increment to number') from e
         
         if self.min_value > self.max_value:
-            raise ConfigurationError(f'The min_value "{self.min_value}" must be less than or equal to \
-                                     the max_value "{self.max_value}"')
+            raise ConfigurationError(f'The min_value "{self.min_value}" must be less than or equal to ' + 
+                'the max_value "{self.max_value}"')
         if (self.max_value - self.min_value) % self.increment != 0:
-            raise ConfigurationError(f'The increment "{self.increment}" must fit evenly between \
-                                     the min_value "{self.min_value}" and max_value "{self.max_value}"')
+            raise ConfigurationError(f'The increment "{self.increment}" must fit evenly between ' + 
+                'the min_value "{self.min_value}" and max_value "{self.max_value}"')
 
     def _value_in_range(self, value: Decimal, min_value: Decimal) -> bool:
         return min_value <= value <= self.max_value
@@ -129,11 +129,11 @@ class _NumericParameterOption(ParameterOption):
             raise ConfigurationError(f'Could not convert "{value}" to number', e)
         
         if not self._value_in_range(value, min_value):
-            raise ConfigurationError(f'The selected value "{value}" is outside of bounds \
-                                     "{min_value}" and "{self.max_value}"')
+            raise ConfigurationError(f'The selected value "{value}" is outside of bounds ' +
+                '"{min_value}" and "{self.max_value}"')
         if not self._value_on_increment(value, min_value):
-            raise ConfigurationError(f'The difference between selected value "{value}" and lower value \
-                                     "{min_value}" must be a multiple of increment "{self.increment}"')
+            raise ConfigurationError(f'The difference between selected value "{value}" and lower value ' +
+                '"{min_value}" must be a multiple of increment "{self.increment}"')
         return value
 
 

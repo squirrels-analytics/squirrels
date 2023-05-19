@@ -45,6 +45,16 @@ class ConnectionSet:
 
 
 def _from_file(manifest: mf.Manifest) -> ConnectionSet:
+    """
+    Takes the DB Connections from both the squirrels.yaml and connections.py files and merges them
+    into a single ConnectionSet
+
+    Parameters:
+        manifest: The object of Manifest class, the interface for the squirrels.yaml file
+    
+    Returns:
+        A ConnectionSet with the DB connections from both squirrels.yaml and connections.py
+    """
     connections = manifest.get_db_connections()
     try:
         module = SourceFileLoader(c.CONNECTIONS_FILE, c.CONNECTIONS_FILE).load_module()
@@ -63,6 +73,16 @@ def _from_file(manifest: mf.Manifest) -> ConnectionSet:
 
 
 def sqldf(query: str, df_by_db_views: Dict[str, pd.DataFrame]) -> pd.DataFrame:
+    """
+    Uses a dictionary of dataframes to execute a SQL query in an in-memory sqlite database
+
+    Parameters:
+        query: The SQL query to run using sqlite
+        df_by_db_views: A dictionary of table names to their pandas Dataframe
+    
+    Returns:
+        The result as a pandas Dataframe from running the query
+    """
     conn = sqlite3.connect(":memory:")
     try:
         for db_view, df in df_by_db_views.items():

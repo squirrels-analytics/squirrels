@@ -193,7 +193,7 @@ class MultiSelectParameter(_SelectionParameter):
 
     def with_selection(self, selection: str) -> MultiSelectParameter:
         param_copy = copy.copy(self)
-        selection_split = u.load_json_or_comma_delimited_str(selection)
+        selection_split = u.load_json_or_comma_delimited_str_as_list(selection)
         param_copy.selected_ids = tuple(self._validate_selected_id_in_options(x) for x in selection_split)
         param_copy.children = [child.refresh(param_copy) for child in self.children]
         return param_copy
