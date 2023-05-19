@@ -1,5 +1,5 @@
 from typing import List, Tuple
-from squirrels import constants as c, manifest as mf
+from squirrels import _constants as c, _manifest as mf
 import git, shutil, os, stat
 
 

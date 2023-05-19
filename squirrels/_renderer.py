@@ -3,12 +3,12 @@ from functools import partial
 from configparser import ConfigParser
 import concurrent.futures, os, json, time
 
-from squirrels import manifest as mf, utils, constants as c
+from squirrels import _constants as c, _manifest as mf, _utils
 from squirrels.connection_set import ConnectionSet, sqldf
-from squirrels.param_configs.data_sources import DataSource
-from squirrels.param_configs.parameter_set import ParameterSet
-from squirrels.utils import ConfigurationError
-from squirrels.timed_imports import pandas as pd, timer
+from squirrels.data_sources import DataSource
+from squirrels.parameter_set import ParameterSet
+from squirrels._utils import ConfigurationError
+from squirrels._timed_imports import pandas as pd, timer
 
 ContextFunc = Optional[Callable[..., Dict[str, Any]]]
 DatabaseViews = Optional[Dict[str, pd.DataFrame]]
@@ -87,7 +87,7 @@ class Renderer:
     
     def _render_query_from_raw(self, raw_query: Query, args: Dict) -> Query:
         if isinstance(raw_query, str):
-            template = utils.j2_env.from_string(raw_query)
+            template = _utils.j2_env.from_string(raw_query)
             return template.render(args)
         else:
             return partial(raw_query, **args)
@@ -182,24 +182,24 @@ def default_context_func(*args, **kwargs):
 class RendererIOWrapper:
     def __init__(self, dataset: str, manifest: mf.Manifest, conn_set: ConnectionSet, excel_file_name: Optional[str] = None):
         dataset_folder = manifest.get_dataset_folder(dataset)
-        parameters_path = utils.join_paths(dataset_folder, c.PARAMETERS_FILE)
+        parameters_path = _utils.join_paths(dataset_folder, c.PARAMETERS_FILE)
         args = manifest.get_dataset_args(dataset)
-        parameters_module = utils.import_file_as_module(parameters_path)
+        parameters_module = _utils.import_file_as_module(parameters_path)
         try:
             parameter_set = parameters_module.main(args=args)
         except Exception as e:
             raise ConfigurationError(f'Error in the {c.PARAMETERS_FILE} function for dataset "{dataset}"') from e
 
-        context_path = utils.join_paths(dataset_folder, c.CONTEXT_FILE)
+        context_path = _utils.join_paths(dataset_folder, c.CONTEXT_FILE)
         try:
-            context_module = utils.import_file_as_module(context_path)
+            context_module = _utils.import_file_as_module(context_path)
             context_func = partial(context_module.main, args=args)
         except FileNotFoundError:
             context_func = default_context_func
         
         excel_file = None
         if excel_file_name is not None:
-            excel_file_path = utils.join_paths(dataset_folder, excel_file_name)
+            excel_file_path = _utils.join_paths(dataset_folder, excel_file_name)
             excel_file = pd.ExcelFile(excel_file_path)
         
         db_views = manifest.get_all_database_view_names(dataset)
@@ -215,13 +215,13 @@ class RendererIOWrapper:
             raw_final_view_query = self._get_raw_query(final_view_path)
         
         self.dataset_folder = dataset_folder
-        self.output_folder = utils.join_paths(c.OUTPUTS_FOLDER, dataset)
+        self.output_folder = _utils.join_paths(c.OUTPUTS_FOLDER, dataset)
         self.renderer = Renderer(dataset, manifest, conn_set, parameter_set, context_func,
                                  raw_query_by_db_view, raw_final_view_query, excel_file)
     
     def _get_raw_query(self, template_path: str) -> Dict[str, Query]:
         if template_path.endswith(".py"):
-            return utils.import_file_as_module(template_path).main
+            return _utils.import_file_as_module(template_path).main
         else:
             with open(template_path, 'r') as f:
                 sql_template = f.read()
@@ -229,7 +229,7 @@ class RendererIOWrapper:
 
     def _get_selections(self, selection_cfg_file: Optional[str]) -> Dict[str, str]:
         if selection_cfg_file is not None:
-            selection_cfg_path = utils.join_paths(self.dataset_folder, selection_cfg_file)
+            selection_cfg_path = _utils.join_paths(self.dataset_folder, selection_cfg_file)
             config = ConfigParser()
             config.read(selection_cfg_path)
             if config.has_section(c.PARAMETERS_SECTION):
@@ -239,7 +239,7 @@ class RendererIOWrapper:
 
     def _write_sql_file(self, view_name: str, query: Any):
         if isinstance(query, str):
-            db_view_sql_output_path = utils.join_paths(self.output_folder, view_name+'.sql')
+            db_view_sql_output_path = _utils.join_paths(self.output_folder, view_name+'.sql')
             with open(db_view_sql_output_path, 'w') as f:
                 f.write(query)
     
@@ -251,7 +251,7 @@ class RendererIOWrapper:
         # clear everything in output folder
         files = os.listdir(self.output_folder)
         for file in files:
-            file_path = utils.join_paths(self.output_folder, file)
+            file_path = _utils.join_paths(self.output_folder, file)
             os.remove(file_path)
         
         # apply selections and render outputs
@@ -261,7 +261,7 @@ class RendererIOWrapper:
         
         # write the parameters response
         param_set_dict = param_set.to_dict()
-        parameter_json_output_path = utils.join_paths(self.output_folder, c.PARAMETERS_OUTPUT)
+        parameter_json_output_path = _utils.join_paths(self.output_folder, c.PARAMETERS_OUTPUT)
         with open(parameter_json_output_path, 'w') as f:
             json.dump(param_set_dict, f, indent=4)
         
@@ -276,11 +276,11 @@ class RendererIOWrapper:
         # Run the sql queries and write output
         if run_query:
             for db_view, df in df_by_db_views.items():
-                csv_file = utils.join_paths(self.output_folder, db_view+'.csv')
+                csv_file = _utils.join_paths(self.output_folder, db_view+'.csv')
                 df.to_csv(csv_file, index=False)
             
-            final_csv_path = utils.join_paths(self.output_folder, c.FINAL_VIEW_OUT_STEM+'.csv')
+            final_csv_path = _utils.join_paths(self.output_folder, c.FINAL_VIEW_OUT_STEM+'.csv')
             final_view_df.to_csv(final_csv_path, index=False)
 
-            final_json_path = utils.join_paths(self.output_folder, c.FINAL_VIEW_OUT_STEM+'.json')
+            final_json_path = _utils.join_paths(self.output_folder, c.FINAL_VIEW_OUT_STEM+'.json')
             final_view_df.to_json(final_json_path, orient='table', index=False, indent=4)

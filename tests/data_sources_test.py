@@ -1,10 +1,11 @@
 from typing import Optional
 import pytest, pandas as pd
 
-from squirrels.param_configs import data_sources as d
-from squirrels.utils import ConfigurationError
-from tests.param_configs.parent_parameters import TestParentParameters
-import squirrels as sq
+from squirrels import data_sources as d
+from squirrels.parameters import DataSourceParameter
+from squirrels._utils import ConfigurationError
+from tests.parent_parameters import TestParentParameters
+import squirrels as sr
 
 
 class TestDataSource:
@@ -33,9 +34,9 @@ class TestSelectionDataSource(TestParentParameters):
     def select_data_source_with_parent(self) -> d.SelectionDataSource:
         return self.create_data_source('parent_id')
 
-    def test_convert(self, multi_select_parent: sq.MultiSelectParameter, select_data_source: d.SelectionDataSource, 
+    def test_convert(self, multi_select_parent: sr.MultiSelectParameter, select_data_source: d.SelectionDataSource, 
                      select_data_source_with_parent: d.SelectionDataSource):
-        ds_param = d.DataSourceParameter(sq.SingleSelectParameter, 'test_param', 'Test Parameter', select_data_source)
+        ds_param = DataSourceParameter(sr.SingleSelectParameter, 'test_param', 'Test Parameter', select_data_source)
         df = pd.DataFrame({
             'test_id': ['0', '1', '2'],
             'test_options': ['zero', 'one', 'two'],
@@ -56,7 +57,7 @@ class TestSelectionDataSource(TestParentParameters):
         }
         assert param_to_dict == expected
 
-        ds_param = d.DataSourceParameter(sq.SingleSelectParameter, 'test_param', 'Test Parameter', select_data_source_with_parent,
+        ds_param = DataSourceParameter(sr.SingleSelectParameter, 'test_param', 'Test Parameter', select_data_source_with_parent,
                                        parent=multi_select_parent)
         df['parent_id'] = ['p1', 'p1', 'p2']
         converted_param = select_data_source_with_parent.convert(ds_param, df)
@@ -69,7 +70,7 @@ class TestSelectionDataSource(TestParentParameters):
         assert new_child.to_dict() == new_expected
     
     def test_invalid_column(self, select_data_source: d.SelectionDataSource):
-        ds_param = d.DataSourceParameter(sq.SingleSelectParameter, 'test_param', 'Test Parameter', select_data_source)
+        ds_param = DataSourceParameter(sr.SingleSelectParameter, 'test_param', 'Test Parameter', select_data_source)
         df = pd.DataFrame({
             'invalid_name': ['0', '1', '2'],
             'test_options': ['zero', 'one', 'two'],
@@ -99,9 +100,9 @@ class TestDateDataSource(TestParentParameters):
     def date_data_source_with_parent(self) -> d.DateDataSource:
         return self.create_data_source('parent_id')
 
-    def test_convert(self, single_select_parent: sq.SingleSelectParameter, date_data_source: d.DateDataSource, 
+    def test_convert(self, single_select_parent: sr.SingleSelectParameter, date_data_source: d.DateDataSource, 
                      date_data_source_with_parent: d.DateDataSource):
-        ds_param = d.DataSourceParameter(sq.DateParameter, 'test_param', 'Test Parameter', date_data_source)
+        ds_param = DataSourceParameter(sr.DateParameter, 'test_param', 'Test Parameter', date_data_source)
         df = pd.DataFrame({'date': ['2022-01-01']})
         param_to_dict = date_data_source.convert(ds_param, df).to_dict()
         expected = {
@@ -112,7 +113,7 @@ class TestDateDataSource(TestParentParameters):
         }
         assert param_to_dict == expected
 
-        ds_param = d.DataSourceParameter(sq.DateParameter, 'test_param', 'Test Parameter', date_data_source_with_parent,
+        ds_param = DataSourceParameter(sr.DateParameter, 'test_param', 'Test Parameter', date_data_source_with_parent,
                                        parent=single_select_parent)
         df = pd.DataFrame({
             'date': ['2020-01-01', '2021-01-01', '2022-01-01', '2023-01-01'],
@@ -138,9 +139,9 @@ class TestNumberDataSource(TestParentParameters):
     def num_data_source_with_parent(self) -> d.NumberDataSource:
         return self.create_data_source('parent_id')
 
-    def test_convert(self, single_select_parent: sq.SingleSelectParameter, num_data_source: d.NumberDataSource, 
+    def test_convert(self, single_select_parent: sr.SingleSelectParameter, num_data_source: d.NumberDataSource, 
                      num_data_source_with_parent: d.NumberDataSource):
-        ds_param = d.DataSourceParameter(sq.NumberParameter, 'test_param', 'Test Parameter', num_data_source)
+        ds_param = DataSourceParameter(sr.NumberParameter, 'test_param', 'Test Parameter', num_data_source)
         df = pd.DataFrame([{ 'min_val': 0, 'max_val': 10, 'default_val': 2 }])
         param_to_dict = num_data_source.convert(ds_param, df).to_dict()
         expected = {
@@ -154,7 +155,7 @@ class TestNumberDataSource(TestParentParameters):
         }
         assert param_to_dict == expected
 
-        ds_param = d.DataSourceParameter(sq.NumberParameter, 'test_param', 'Test Parameter', num_data_source_with_parent,
+        ds_param = DataSourceParameter(sr.NumberParameter, 'test_param', 'Test Parameter', num_data_source_with_parent,
                                        parent=single_select_parent)
         df = pd.DataFrame({
             'min_val': [0, 0, 4, 0],
@@ -186,9 +187,9 @@ class TestNumRangeDataSource(TestParentParameters):
     def range_data_source_with_parent(self) -> d.NumRangeDataSource:
         return self.create_data_source('parent_id')
 
-    def test_convert(self, single_select_parent: sq.SingleSelectParameter, range_data_source: d.NumRangeDataSource, 
+    def test_convert(self, single_select_parent: sr.SingleSelectParameter, range_data_source: d.NumRangeDataSource, 
                      range_data_source_with_parent: d.NumRangeDataSource):
-        ds_param = d.DataSourceParameter(sq.NumRangeParameter, 'test_param', 'Test Parameter', range_data_source)
+        ds_param = DataSourceParameter(sr.NumRangeParameter, 'test_param', 'Test Parameter', range_data_source)
         df = pd.DataFrame([{ 'min_val': 0, 'max_val': 10, 'increment': 2, 'default_lower': 4, 'default_upper': 8 }])
         param_to_dict = range_data_source.convert(ds_param, df).to_dict()
         expected = {
@@ -203,7 +204,7 @@ class TestNumRangeDataSource(TestParentParameters):
         }
         assert param_to_dict == expected
 
-        ds_param = d.DataSourceParameter(sq.NumRangeParameter, 'test_param', 'Test Parameter', range_data_source_with_parent,
+        ds_param = DataSourceParameter(sr.NumRangeParameter, 'test_param', 'Test Parameter', range_data_source_with_parent,
                                        parent=single_select_parent)
         df = pd.DataFrame({
             'min_val': [0, 0, 3, 0],

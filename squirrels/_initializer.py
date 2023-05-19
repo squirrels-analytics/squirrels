@@ -1,8 +1,10 @@
 import inquirer, os, shutil
-from squirrels import major_version, constants as c, utils
 
-base_proj_dir = utils.join_paths(os.path.dirname(__file__), 'package_data', 'base_project')
-dataset_dir = utils.join_paths('datasets', 'sample_dataset')
+from squirrels import _constants as c, _utils
+from squirrels._version import major_version
+
+base_proj_dir = _utils.join_paths(os.path.dirname(__file__), 'package_data', 'base_project')
+dataset_dir = _utils.join_paths('datasets', 'sample_dataset')
 
 
 class Initializer:
@@ -20,14 +22,14 @@ class Initializer:
             dest_dir = os.path.dirname(filepath)
             if dest_dir != '':
                 os.makedirs(dest_dir, exist_ok=True)
-            src_path = utils.join_paths(base_proj_dir, filepath)
+            src_path = _utils.join_paths(base_proj_dir, filepath)
             shutil.copy(src_path, filepath)
 
     def _copy_dataset_file(self, filepath: str):
-        self._copy_file(utils.join_paths(dataset_dir, filepath))
+        self._copy_file(_utils.join_paths(dataset_dir, filepath))
 
     def _copy_database_file(self, filepath: str):
-        self._copy_file(utils.join_paths('database', filepath))
+        self._copy_file(_utils.join_paths('database', filepath))
 
     def _create_requirements_txt(self):
         filename = 'requirements.txt'

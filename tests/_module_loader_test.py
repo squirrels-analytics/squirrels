@@ -1,4 +1,4 @@
-from squirrels import module_loader
+from squirrels import _module_loader
 
 def test_parse_module_repo_strings():
     repo_strings = [
@@ -7,7 +7,7 @@ def test_parse_module_repo_strings():
         'https://github.com/user/repo3@v3.0'
     ]
     
-    repos = module_loader.parse_module_repo_strings(repo_strings)
+    repos = _module_loader.parse_module_repo_strings(repo_strings)
     expected = [
         ('first_repo', 'https://github.com/user/repo1.git', 'v1.0'), 
         ('repo2', 'https://github.com/user/repo2.git', 'v2.0'),

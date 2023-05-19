@@ -3,7 +3,7 @@ from functools import partial
 import sqlite3, pandas as pd
 import pytest
 
-from squirrels import connection_set as cs, utils
+from squirrels import _utils, connection_set as cs
 
 
 @pytest.fixture
@@ -40,7 +40,7 @@ def connection_set() -> cs.ConnectionSet:
 
 
 def test_get_connection_pool(connection_set: cs.ConnectionSet):
-    with pytest.raises(utils.ConfigurationError):
+    with pytest.raises(_utils.ConfigurationError):
         connection_set.get_connection_pool('does_not_exist')
 
 

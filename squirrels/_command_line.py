@@ -3,12 +3,13 @@ from argparse import ArgumentParser
 import sys, time, pwinput
 sys.path.append('.')
 
-from squirrels import constants as c, __version__
-from squirrels import module_loader as ml, manifest as mf, credentials_manager as cm, connection_set as cs
-from squirrels.api_server import ApiServer
-from squirrels.renderer import RendererIOWrapper
-from squirrels.initializer import Initializer
-from squirrels.timed_imports import timer
+from squirrels import _constants as c, _credentials_manager as cm, _manifest as mf, _module_loader as ml
+from squirrels import connection_set as cs
+from squirrels._version import __version__
+from squirrels._api_server import ApiServer
+from squirrels._renderer import RendererIOWrapper
+from squirrels._initializer import Initializer
+from squirrels._timed_imports import timer
 
 
 def _prompt_user_pw(args_values: Optional[List[str]]) -> Tuple[str, str]:
@@ -75,7 +76,7 @@ def main():
     elif args.command == c.INIT_CMD:
         Initializer(args.overwrite).init_project(args)
     elif args.command == c.LOAD_MODULES_CMD:
-        manifest = mf.from_file()
+        manifest = mf._from_file()
         ml.load_modules(manifest)
     elif args.command == c.SET_CRED_CMD:
         user, pw = _prompt_user_pw(args.values)
@@ -85,8 +86,8 @@ def main():
     elif args.command == c.DELETE_CRED_CMD:
         cm.squirrels_config_io.delete_credential(args.key)
     elif args.command in [c.RUN_CMD, c.TEST_CMD]:
-        manifest = mf.from_file()
-        conn_set = cs.from_file(manifest)
+        manifest = mf._from_file()
+        conn_set = cs._from_file(manifest)
         if args.command == c.RUN_CMD:
             server = ApiServer(manifest, conn_set, args.no_cache, args.debug)
             server.run(args)

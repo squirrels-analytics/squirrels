@@ -2,9 +2,9 @@ from typing import List, Dict, Any
 from pathlib import Path
 import pytest
 
-from squirrels.credentials_manager import Credential
-from squirrels.manifest import Manifest
-from squirrels.utils import ConfigurationError, InvalidInputError
+from squirrels._credentials_manager import Credential
+from squirrels._manifest import Manifest
+from squirrels._utils import ConfigurationError, InvalidInputError
 
 
 @pytest.fixture

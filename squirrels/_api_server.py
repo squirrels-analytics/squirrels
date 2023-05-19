@@ -1,44 +1,17 @@
-from typing import Dict, List, Tuple, Set, Any
-from fastapi import FastAPI, Request
+from typing import Dict, List, Tuple, Set
+from fastapi import FastAPI, Request, HTTPException
 from fastapi.datastructures import QueryParams
 from fastapi.responses import HTMLResponse, JSONResponse
 from fastapi.templating import Jinja2Templates
 from fastapi.staticfiles import StaticFiles
 from cachetools.func import ttl_cache
-import os, json
+import os
 
-from squirrels import major_version, constants as c, utils
-from squirrels.manifest import Manifest
+from squirrels import _constants as c, _utils
+from squirrels._version import major_version
+from squirrels._manifest import Manifest
 from squirrels.connection_set import ConnectionSet
-from squirrels.renderer import RendererIOWrapper, Renderer
-from squirrels.timed_imports import pandas as pd, pd_types
-
-
-def df_to_json(df: pd.DataFrame, dimensions: List[str] = None) -> Dict[str, Any]:
-    """
-    Convert a pandas DataFrame to the same JSON format that the dataset result API of Squirrels outputs.
-
-    Parameters:
-        df: The dataframe to convert into JSON
-        dimensions: The list of declared dimensions. If None, all non-numeric columns are assumed as dimensions
-
-    Returns:
-        The JSON response of a Squirrels dataset result API
-    """
-    in_df_json = json.loads(df.to_json(orient='table', index=False))
-    out_fields = []
-    non_numeric_fields = []
-    for in_column in in_df_json["schema"]["fields"]:
-        col_name: str = in_column["name"]
-        out_column = {"name": col_name, "type": in_column["type"]}
-        out_fields.append(out_column)
-        
-        if not pd_types.is_numeric_dtype(df[col_name].dtype):
-            non_numeric_fields.append(col_name)
-    
-    out_dimensions = non_numeric_fields if dimensions is None else dimensions
-    out_schema = {"fields": out_fields, "dimensions": out_dimensions}
-    return {"response_version": 0, "schema": out_schema, "data": in_df_json["data"]}
+from squirrels._renderer import RendererIOWrapper, Renderer
 
 
 class ApiServer:
@@ -65,7 +38,7 @@ class ApiServer:
         
     def _get_parameters_helper(self, dataset: str, query_params: Set[Tuple[str, str]]) -> Dict:
         if len(query_params) > 1:
-            raise utils.InvalidInputError("The /parameters endpoint takes at most 1 query parameter")
+            raise _utils.InvalidInputError("The /parameters endpoint takes at most 1 query parameter")
         renderer = self.renderers[dataset]
         parameters = renderer.apply_selections(dict(query_params), updates_only = True)
         return parameters.to_dict(self.debug)
@@ -73,15 +46,25 @@ class ApiServer:
     def _get_results_helper(self, dataset: str, query_params: Set[Tuple[str, str]]) -> Dict:
         renderer = self.renderers[dataset]
         _, _, _, _, df = renderer.load_results(dict(query_params))
-        return df_to_json(df)
+        return _utils.df_to_json(df)
+
+    def _apply_api_function(self, api_function):
+        try:
+            return api_function()
+        except _utils.InvalidInputError as e:
+            raise HTTPException(status_code=400, detail="Invalid User Input: "+str(e)) from e
+        except _utils.ConfigurationError as e:
+            raise HTTPException(status_code=500, detail="Squirrels Configuration Error: "+str(e)) from e
+        except Exception as e:
+            raise HTTPException(status_code=500, detail="Squirrels Framework Error: "+str(e)) from e
     
     def _apply_dataset_api_function(self, api_function, dataset: str, raw_query_params: QueryParams):
-        dataset = utils.normalize_name(dataset)
+        dataset = _utils.normalize_name(dataset)
         query_params = set()
         for key, val in raw_query_params.items():
-            query_params.add((utils.normalize_name(key), val))
+            query_params.add((_utils.normalize_name(key), val))
         query_params = frozenset(query_params)
-        return api_function(dataset, query_params)
+        return self._apply_api_function(lambda: api_function(dataset, query_params))
     
     def run(self, uvicorn_args: List[str]) -> None:
         """
@@ -93,13 +76,13 @@ class ApiServer:
         app = FastAPI()
 
         squirrels_version_path = f'/squirrels{major_version}'
-        config_base_path = utils.normalize_name_for_api(self.manifest.get_base_path())
+        config_base_path = _utils.normalize_name_for_api(self.manifest.get_base_path())
         base_path = squirrels_version_path + config_base_path
 
-        static_dir = utils.join_paths(os.path.dirname(__file__), 'package_data', 'static')
+        static_dir = _utils.join_paths(os.path.dirname(__file__), 'package_data', 'static')
         app.mount('/static', StaticFiles(directory=static_dir), name='static')
 
-        templates_dir = utils.join_paths(os.path.dirname(__file__), 'package_data', 'templates')
+        templates_dir = _utils.join_paths(os.path.dirname(__file__), 'package_data', 'templates')
         templates = Jinja2Templates(directory=templates_dir)
 
         # Parameters API
@@ -135,7 +118,8 @@ class ApiServer:
         # Catalog API
         @app.get(base_path, response_class=JSONResponse)
         async def get_catalog():
-            return self.manifest.get_catalog(parameters_path, results_path)
+            api_function = lambda: self.manifest.get_catalog(parameters_path, results_path)
+            return self._apply_api_function(api_function)
         
         # Squirrels UI
         @app.get('/', response_class=HTMLResponse)
