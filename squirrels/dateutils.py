@@ -248,6 +248,20 @@ class _DateRepresentationModifier:
 
     def with_more_modifiers(self, date_modifiers: Sequence[DateModifier]):
         raise _utils.AbstractMethodCallError(self.__class__, "with_more_modifiers")
+    
+    def get_date_list(self, curr_date: datetime, interval: DateModifier) -> Sequence[datetime]:
+        end_date = self.date_modifier.modify(curr_date)
+        distance = None
+        output = []
+        while curr_date <= end_date:
+            if distance is not None:
+                if (end_date - curr_date) < distance:
+                    distance = end_date - curr_date
+                else:
+                    raise _utils.ConfigurationError("The interval must make each new date closer to end date")
+            output.append(curr_date)
+            curr_date = interval.modify(curr_date)
+        return output
 
 
 @dataclass
@@ -257,19 +271,59 @@ class DateStringModifier(_DateRepresentationModifier):
 
     Attributes:
         date_modifier: The DateModifier to apply on datetime objects
-        date_format: Format of the date string. Default is '%Y-%m-%d'
+        date_format: Format of the output date string. Default is '%Y-%m-%d'
     """
     def __init__(self, date_modifiers: Sequence[DateModifier], date_format: str = '%Y-%m-%d'):
         super().__init__(date_modifiers)
         self.date_format = date_format
 
     def with_more_modifiers(self, date_modifiers: Sequence[DateModifier]):
+        """
+        Create a new DateStringModifier with more date modifiers
+
+        Parameters:
+            date_modifiers: The additional date modifiers to add
+
+        Returns:
+            A new DateStringModifier
+        """
         joined_modifiers = self._get_joined_modifiers(date_modifiers)
         return DateStringModifier(joined_modifiers, self.date_format)
+    
+    def _get_input_date_obj(self, date_str: str, input_format: str = None) -> datetime:
+        input_format = self.date_format if input_format is None else input_format
+        return datetime.strptime(date_str, input_format)
 
-    def modify(self, date_str: str) -> str:
-        date_obj = datetime.strptime(date_str, self.date_format)
+    def modify(self, date_str: str, input_format: str = None) -> str:
+        """
+        Modifies the input date string with the date modifiers
+
+        Parameters:
+            date_str: The input date string
+            input_format: The input date format. Defaults to the same as output date format
+        
+        Returns:
+            The resulting date string
+        """
+        date_obj = self._get_input_date_obj(date_str, input_format)
         return self.date_modifier.modify(date_obj).strftime(self.date_format)
+    
+    def get_date_list(self, date_str: str, step: DateModifier, input_format: str = None) -> Sequence[str]:
+        """
+        Provide a list of dates from given input date string, incremented at a DateModifier step, until the last
+        date is less than or equal to the input date string with date modifiers applied.
+
+        Parameters:
+            date_str: The input date string, usually the first date in the output list
+            step: The increment to take (specified as a DateModifier)
+            input_format: The input date format. Defaults to the same as output date format
+
+        Returns:
+            A list of date strings
+        """
+        curr_date = self._get_input_date_obj(date_str, input_format)
+        output = super().get_date_list(curr_date, step)
+        return [x.strftime(self.date_format) for x in output]
 
 
 @dataclass
@@ -285,9 +339,43 @@ class TimestampModifier(_DateRepresentationModifier):
         super().__init__(date_modifiers)
 
     def with_more_modifiers(self, date_modifiers: Sequence[DateModifier]):
+        """
+        Create a new TimestampModifier with more date modifiers
+
+        Parameters:
+            date_modifiers: The additional date modifiers to add
+
+        Returns:
+            A new TimestampModifier
+        """
         joined_modifiers = self._get_joined_modifiers(date_modifiers)
         return TimestampModifier(joined_modifiers)
 
     def modify(self, timestamp: float) -> float:
+        """
+        Modifies the input timestamp with the date modifiers
+
+        Parameters:
+            timestamp: The input timestamp as float
+        
+        Returns:
+            The resulting timestamp
+        """
         date_obj = datetime.fromtimestamp(timestamp)
         return self.date_modifier.modify(date_obj).timestamp()
+    
+    def get_date_list(self, timestamp: float, step: DateModifier) -> Sequence[float]:
+        """
+        Provide a list of dates from given timestamp, incremented at a DateModifier step, until the last
+        date is less than or equal to the input timestamp with date modifiers applied.
+
+        Parameters:
+            timestamp: The input timestamp as float, usually the first date in the output list
+            step: The increment to take (specified as a DateModifier)
+
+        Returns:
+            A list of timestamp as floats
+        """
+        curr_date = datetime.fromtimestamp(timestamp)
+        output = super().get_date_list(curr_date, step)
+        return [x.timestamp() for x in output]

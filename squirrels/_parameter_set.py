@@ -1,41 +1,84 @@
 from __future__ import annotations
-from typing import Sequence, Dict
+from typing import Sequence, Dict, Any
 from collections import OrderedDict
 
 from squirrels import data_sources as d, parameters as p
 from squirrels._timed_imports import pandas as pd
 
 
-class _ParameterSetBase:
+class ParameterSetBase:
     def __init__(self) -> None:
+        """
+        Constructor for ParameterSetBase, the base class for ParameterSet. Similar to ParameterSet but without 
+        a separate collection for DataSourceParameter's, and does not pre-set the parameters in constructor.
+        """
         self._parameters_dict: OrderedDict[str, p.Parameter] = OrderedDict()
     
     def add_parameter(self, parameter: p.Parameter) -> None:
+        """
+        Adds a parameter to the "parameter collection"
+
+        Parameters:
+            parameter: The parameter to add
+        """
         self._parameters_dict[parameter.name] = parameter
 
     def get_parameter(self, param_name: str) -> p.Parameter:
+        """
+        Gets the Parameter object given the parameter name
+
+        Parameters:
+            param_name: The parameter name
+        
+        Returns:
+            The Parameter object corresponding to the parameter name
+        """
         if param_name in self._parameters_dict:
             return self._parameters_dict[param_name]
         else:
             raise KeyError(f'No such parameter exists called "{param_name}"')
     
-    def get_parameters_as_ordered_dict(self) -> OrderedDict:
+    def __getitem__(self, param_name: str) -> p.Parameter:
+        return self.get_parameter(param_name)
+    
+    def get_parameters_as_ordered_dict(self) -> OrderedDict[str, p.Parameter]:
+        """
+        Returns the inner dictionary of the "parameter collection"
+
+        Returns:
+            A dictionary where key are the assigned names and values are the Parameter objects
+        """
         return OrderedDict(self._parameters_dict)
     
-    def merge(self, other: _ParameterSetBase) -> _ParameterSetBase:
-        new_param_set = _ParameterSetBase()
+    def merge(self, other: ParameterSetBase) -> ParameterSetBase:
+        """
+        Merges the "parameter collection" of this and another ParameterSetBase
+
+        Parameters:
+            other: The other ParameterSetBase
+        
+        Returns:
+            A new copy of the ParameterSetBase as a result of the merge
+        """
+        new_param_set = ParameterSetBase()
         new_param_set._parameters_dict = OrderedDict(self._parameters_dict)
         new_param_set._parameters_dict.update(other._parameters_dict)
         return new_param_set
 
-    def __getitem__(self, param_name: str) -> p.Parameter:
-        return self.get_parameter(param_name)
+    def to_json_dict(self, debug: bool = False) -> Dict[str, Any]:
+        """
+        Converts this object, and all parameters contained, into a JSON dictionary
 
-    def to_dict(self, debug: bool = False):
+        Parameters:
+            debug: Set to True to make the "hidden" parameters show as part of the result
+
+        Returns:
+            A collection of parameters as a JSON dictionary used for the "parameters" endpoint
+        """
         parameters = []
         for x in self._parameters_dict.values():
             if not x.is_hidden or debug:
-                parameters.append(x.to_dict())
+                parameters.append(x.to_json_dict())
         
         output = {
             "response_version": 0, 
@@ -44,10 +87,11 @@ class _ParameterSetBase:
         return output
 
 
-class ParameterSet(_ParameterSetBase):
+class ParameterSet(ParameterSetBase):
     def __init__(self, parameters: Sequence[p.Parameter]):
         """
-        Constructor for ParameterSet, a wrapper class for a sequence of parameters.
+        Constructor for ParameterSet, a wrapper class for a sequence of parameters, 
+        and stores the DataSourceParameters as a separate field as well
 
         Parameters:
             parameters: A sequence of parameters
@@ -59,7 +103,7 @@ class ParameterSet(_ParameterSetBase):
             if isinstance(param, p.DataSourceParameter):
                 self._data_source_params[param.name] = param
     
-    def merge(self, other: _ParameterSetBase) -> ParameterSet:
+    def merge(self, other: ParameterSetBase) -> ParameterSet:
         """
         Merges this object with another ParameterSet (by combining the parameters) to create a new ParameterSet.
 

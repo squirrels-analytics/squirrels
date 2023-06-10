@@ -166,7 +166,7 @@ class Manifest:
                 'label': self.get_dataset_label(dataset),
                 'parameters_path': parameters_path.format(dataset=dataset_normalized),
                 'result_path': results_path.format(dataset=dataset_normalized),
-                'minor_version_ranges': [0, None]
+                'first_minor_version': 0
             })
         
         project_vars = self.get_proj_vars()
@@ -176,6 +176,7 @@ class Manifest:
                 'name': project_vars[c.PRODUCT_KEY],
                 'versions': [{
                     'major_version': project_vars[c.MAJOR_VERSION_KEY],
+                    'latest_minor_version': project_vars[c.MINOR_VERSION_KEY],
                     'datasets': datasets_info
                 }]
             }]

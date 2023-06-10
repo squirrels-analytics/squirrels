@@ -84,11 +84,12 @@ class TestDateModPipeline:
 
 
 class TestDateStringModifier:
-    @pytest.mark.parametrize('modifiers,input_date,expected_date', [
-        ([d.DayIdxOfQuarter(1), d.DayIdxOfWeek(-1), d.OffsetMonths(-2)], "2023-05-15", "2023-02-02"),
+    @pytest.mark.parametrize('modifiers,input_format,output_format,input_date,expected_date', [
+        ([d.DayIdxOfQuarter(1), d.DayIdxOfWeek(-1), d.OffsetMonths(-2)], "%m-%d-%Y", "%Y%m%d", "05-15-2023", "20230202"),
+        ([d.DayIdxOfQuarter(1), d.DayIdxOfWeek(-1), d.OffsetMonths(-2)], None, "%Y%m%d", "20230515", "20230202"),
     ])
-    def test_modify(self, modifiers: List[d.DateModifier], input_date: str, expected_date: str):
-        assert d.DateStringModifier(modifiers).modify(input_date) == expected_date
+    def test_modify(self, modifiers: List[d.DateModifier], input_format: str, output_format: str, input_date: str, expected_date: str):
+        assert d.DateStringModifier(modifiers, output_format).modify(input_date, input_format) == expected_date
     
     @pytest.mark.parametrize('modifiers,more_modifiers,input_date,expected_date1,expected_date2', [
         ([d.DayIdxOfQuarter(1)], (d.DayIdxOfWeek(-1), d.OffsetMonths(-2)), "2023-05-15", "2023-04-01", "2023-02-02"),
@@ -99,6 +100,17 @@ class TestDateStringModifier:
         new_date_str_modifier = date_str_modifier.with_more_modifiers(more_modifiers)
         assert date_str_modifier.modify(input_date) == expected_date1
         assert new_date_str_modifier.modify(input_date) == expected_date2
+    
+    @pytest.mark.parametrize('modifiers,step,input_date,expected_dates', [
+        ([d.DayIdxOfWeek(-1), d.OffsetMonths(1)], d.OffsetWeeks(1), "2023-05-17", 
+         ["2023-05-17", "2023-05-24", "2023-05-31", "2023-06-07", "2023-06-14", "2023-06-21"]),
+        ([d.DayIdxOfWeek(-1), d.OffsetMonths(1)], d.OffsetWeeks(1), "2023-05-18", 
+         ["2023-05-18", "2023-05-25", "2023-06-01", "2023-06-08", "2023-06-15"]),
+    ])
+    def test_with_more_modifiers(self, modifiers: List[d.DateModifier], step: d.DateModifier, 
+                                 input_date: str, expected_dates: List[str]):
+        date_str_modifier = d.DateStringModifier(modifiers)
+        assert date_str_modifier.get_date_list(input_date, step) == expected_dates
 
 
 class TestTimestampModifier:
