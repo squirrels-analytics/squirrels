@@ -249,18 +249,17 @@ class _DateRepresentationModifier:
     def with_more_modifiers(self, date_modifiers: Sequence[DateModifier]):
         raise _utils.AbstractMethodCallError(self.__class__, "with_more_modifiers")
     
-    def get_date_list(self, curr_date: datetime, interval: DateModifier) -> Sequence[datetime]:
-        end_date = self.date_modifier.modify(curr_date)
+    def get_date_list(self, curr_date: datetime, step: DateModifier) -> Sequence[datetime]:
+        modified_date = self.date_modifier.modify(curr_date)
+        curr_date, end_date = min(curr_date, modified_date), max(curr_date, modified_date)
         distance = None
         output = []
         while curr_date <= end_date:
-            if distance is not None:
-                if (end_date - curr_date) < distance:
-                    distance = end_date - curr_date
-                else:
-                    raise _utils.ConfigurationError("The interval must make each new date closer to end date")
+            if distance is not None and (end_date - curr_date) >= distance:
+                raise _utils.ConfigurationError("The step must increment forward in time")
+            distance = end_date - curr_date
             output.append(curr_date)
-            curr_date = interval.modify(curr_date)
+            curr_date = step.modify(curr_date)
         return output
 
 
@@ -310,12 +309,12 @@ class DateStringModifier(_DateRepresentationModifier):
     
     def get_date_list(self, date_str: str, step: DateModifier, input_format: str = None) -> Sequence[str]:
         """
-        Provide a list of dates from given input date string, incremented at a DateModifier step, until the last
-        date is less than or equal to the input date string with date modifiers applied.
+        This method modifies the input date string, and returns all dates from the earlier to later date, 
+        incremented by a DateModifier step, until the last date is less than or equal to the later date.
 
         Parameters:
             date_str: The input date string, usually the first date in the output list
-            step: The increment to take (specified as a DateModifier)
+            step: The increment to take (specified as a DateModifier). It must increment forward in time
             input_format: The input date format. Defaults to the same as output date format
 
         Returns:
@@ -366,12 +365,12 @@ class TimestampModifier(_DateRepresentationModifier):
     
     def get_date_list(self, timestamp: float, step: DateModifier) -> Sequence[float]:
         """
-        Provide a list of dates from given timestamp, incremented at a DateModifier step, until the last
-        date is less than or equal to the input timestamp with date modifiers applied.
+        This method modifies the input date string, and returns all dates from the earlier to later date, 
+        incremented by a DateModifier step, until the last date is less than or equal to the later date.
 
         Parameters:
             timestamp: The input timestamp as float, usually the first date in the output list
-            step: The increment to take (specified as a DateModifier)
+            step: The increment to take (specified as a DateModifier). It must increment forward in time
 
         Returns:
             A list of timestamp as floats

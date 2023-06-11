@@ -222,8 +222,12 @@ class TestMultiSelectParameter(TestParentParameters):
         assert parameter.get_selected_labels_quoted_as_list() == ("'Option 1'", "'Option 3'")
         assert parameter.get_selected_labels_quoted_joined() == "'Option 1', 'Option 3'"
 
+        assert parameter.has_non_empty_selection() == True
+
         new_param = parameter.with_selection('')
         assert new_param.get_selected_ids_as_list() == ('p0', 'p1', 'p2')
+
+        assert new_param.has_non_empty_selection() == False
 
 
 class TestDateParameter(TestParentParameters):
