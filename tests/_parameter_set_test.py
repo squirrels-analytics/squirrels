@@ -1,7 +1,7 @@
 from typing import Dict
 import pytest, pandas as pd
 
-from squirrels.parameter_set import ParameterSet
+from squirrels._parameter_set import ParameterSet
 from tests.parent_parameters import TestParentParameters
 import squirrels as sr
 
@@ -69,7 +69,7 @@ class TestParameterSet(TestParentParameters):
         expected_parent1 = self.get_expected_parent_json(sr.MultiSelectParameter)
         expected_parent1['selected_ids'] = []
 
-        actual = parameter_set.to_dict()
+        actual = parameter_set.to_json_dict()
         expected_dict = {
             "response_version": 0,
             "parameters": [expected_parent1, child1_expected, expected_ds_json, child2_expected]
@@ -90,7 +90,7 @@ class TestParameterSet(TestParentParameters):
         child1_expected['options'] = []
         child1_expected['selected_id'] = None
 
-        actual = new_param_set.to_dict()
+        actual = new_param_set.to_json_dict()
         expected_dict = {
             "response_version": 0,
             "parameters": [expected_parent1, child1_expected, expected_ds_json, child2_expected]

@@ -5,7 +5,7 @@ import squirrels as sr
 
 
 def main(connection_set: sr.ConnectionSet, 
-         prms: sr.ParameterSet, ctx: Dict[str, Any], args: Dict[str, Any], 
+         prms: Dict[str, sr.Parameter], ctx: Dict[str, Any], args: Dict[str, Any], 
          *p_args, **kwargs) -> pd.DataFrame:
     # pool = connection_set.get_connection_pool("default")
     # conn = pool.connect() # use this to get a DBAPI connection from a Pool or sqlalchemy connection from an Engine

@@ -1,8 +1,8 @@
-from typing import Dict, Any
+from typing import Dict, Sequence, Any
 import squirrels as sr
 
 
-def main(args: Dict[str, Any], *p_args, **kwargs) -> sr.ParameterSet:
+def main(args: Dict[str, Any], *p_args, **kwargs) -> Sequence[sr.Parameter]:
     single_select_options = (
         sr.SelectParameterOption('a0', 'Primary Colors'),
         sr.SelectParameterOption('a1', 'Secondary Colors')
@@ -27,6 +27,4 @@ def main(args: Dict[str, Any], *p_args, **kwargs) -> sr.ParameterSet:
     number_example = sr.NumberParameter('upper_bound', 'Upper Bound', min_value=1, max_value=10, 
                                         increment=1, default_value=5)
     
-    return sr.ParameterSet(
-        [single_select_example, multi_select_example, date_example, number_example]
-    )
+    return [single_select_example, multi_select_example, date_example, number_example]

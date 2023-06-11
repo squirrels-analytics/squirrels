@@ -12,16 +12,47 @@ ConnectionPool = Union[Engine, Pool]
 
 class ConnectionSet:
     def __init__(self, conn_pools: Dict[str, ConnectionPool]) -> None:
+        """
+        Constructor for ConnectionSet, a wrapper class around a collection of Connection Pools or Sqlalchemy Engines
+
+        Parameters:
+            conn_pools: A dictionary of connection pool name to the corresponding Pool or Engine from sqlalchemy
+        """
         self._conn_pools = conn_pools
     
-    def get_connection_pool(self, conn_name: str) -> ConnectionPool:
+    def get_connection_pool(self, conn_name: str = "default") -> ConnectionPool:
+        """
+        Gets to sqlalchemy Pool or Engine from the database connection name
+
+        Parameters:
+            conn_name: Name of Pool or Engine. If not provided, defaults to "default"
+        
+        Returns:
+            A sqlalchemy Pool or Engine
+        """
         try:
             connection_pool = self._conn_pools[conn_name]
         except KeyError as e:
             raise ConfigurationError(f'Connection name "{conn_name}" was not configured') from e
         return connection_pool
     
+    def __getitem__(self, conn_name: str) -> ConnectionPool:
+        """
+        Same as get_connection_pool
+        """
+        return self.get_connection_pool(conn_name)
+    
     def get_dataframe_from_query(self, conn_name: str, query: str) -> pd.DataFrame:
+        """
+        Runs a SQL query on a database connection name, and returns the results as pandas DataFrame
+
+        Parameters:
+            conn_name: Name of Pool or Engine
+            query: The SQL query to run
+        
+        Returns:
+            A pandas DataFrame
+        """
         connector = self.get_connection_pool(conn_name)
         if isinstance(connector, Pool):
             conn = connector.connect()
@@ -39,7 +70,10 @@ class ConnectionSet:
 
         return df
 
-    def dispose(self) -> None:
+    def _dispose(self) -> None:
+        """
+        Disposes of all the connection pools in this ConnectionSet
+        """
         for pool in self._conn_pools.values():
             pool.dispose()
 

@@ -22,11 +22,14 @@ class TestSingleSelectParameter(TestParentParameters):
             )
             self.child_param = p.SingleSelectParameter('child_param', 'Child Param', child_options, parent=self.parent_param)
 
+            class SingleSelectParam2(p.SingleSelectParameter):
+                pass
+
             grandchild_options = (
                 sr.SelectParameterOption('g0', 'Grandchild option 1', parent_option_id='c3'),
                 sr.SelectParameterOption('g1', 'Grandchild option 2', parent_option_id='c3')
             )
-            self.grandchild_param = p.SingleSelectParameter('grandchild_param', 'Grandchild Param', grandchild_options, parent=self.child_param)
+            self.grandchild_param = SingleSelectParam2('grandchild_param', 'Grandchild Param', grandchild_options, parent=self.child_param)
         
             self.expected_parent_json = expected_parent_json
 
@@ -59,10 +62,10 @@ class TestSingleSelectParameter(TestParentParameters):
         new_parent_param = data.parent_param.with_selection('p1')
 
         expected1['selected_id'] = 'p0'
-        assert data.parent_param.to_dict() == expected1
+        assert data.parent_param.to_json_dict() == expected1
 
         expected1['selected_id'] = 'p1'
-        assert new_parent_param.to_dict() == expected1
+        assert new_parent_param.to_json_dict() == expected1
 
         expected2['options'] = [
             {'id': 'c0', 'label': 'Child option 1'},
@@ -70,7 +73,7 @@ class TestSingleSelectParameter(TestParentParameters):
             {'id': 'c2', 'label': 'Child option 3'}
         ]
         expected2['selected_id'] = 'c0'
-        assert data.child_param.to_dict() == expected2
+        assert data.child_param.to_json_dict() == expected2
         
         new_child_param = new_parent_param.children[0]
         expected2['options'] = [
@@ -78,10 +81,10 @@ class TestSingleSelectParameter(TestParentParameters):
             {'id': 'c3', 'label': 'Child option 4'}
         ]
         expected2['selected_id'] = 'c3'
-        assert new_child_param.to_dict() == expected2
+        assert new_child_param.to_json_dict() == expected2
 
         expected3['selected_id'] = None
-        assert data.grandchild_param.to_dict() == expected3
+        assert data.grandchild_param.to_json_dict() == expected3
 
         new_grandchild_param = new_child_param.children[0]
         expected3['options'] = [
@@ -89,7 +92,7 @@ class TestSingleSelectParameter(TestParentParameters):
             {'id': 'g1', 'label': 'Grandchild option 2'}
         ]
         expected3['selected_id'] = 'g0'
-        assert new_grandchild_param.to_dict() == expected3
+        assert new_grandchild_param.to_json_dict() == expected3
     
     def test_invalid_selection(self, data: ParameterData):
         with pytest.raises(InvalidInputError):
@@ -160,10 +163,10 @@ class TestMultiSelectParameter(TestParentParameters):
         new_parent_param = data.parent_param.with_selection('["p0","p2"]')
 
         expected1['selected_ids'] = []
-        assert data.parent_param.to_dict() == expected1
+        assert data.parent_param.to_json_dict() == expected1
 
         expected1['selected_ids'] = ['p0','p2']
-        assert new_parent_param.to_dict() == expected1
+        assert new_parent_param.to_json_dict() == expected1
 
         expected2['options'] = [
             {'id': 'c0', 'label': 'Child option 1'},
@@ -173,18 +176,18 @@ class TestMultiSelectParameter(TestParentParameters):
             {'id': 'c4', 'label': 'Child option 5'}
         ]
         expected2['selected_id'] = 'c3'
-        assert data.child_param.to_dict() == expected2
+        assert data.child_param.to_json_dict() == expected2
         
         new_child_param = new_parent_param.children[0]
         expected2['options'] = [x for x in expected2['options'] if x['id'] in ['c0', 'c1', 'c4']]
         expected2['selected_id'] = 'c0'
-        assert new_child_param.to_dict() == expected2
+        assert new_child_param.to_json_dict() == expected2
 
         expected3['options'] = [
             {'id': 'g3', 'label': 'Grandchild option 4'}
         ]
         expected3['selected_ids'] = []
-        assert data.grandchild_param.to_dict() == expected3
+        assert data.grandchild_param.to_json_dict() == expected3
 
         new_grandchild_param = new_child_param.children[0]
         expected3['options'] = [
@@ -193,7 +196,7 @@ class TestMultiSelectParameter(TestParentParameters):
             {'id': 'g2', 'label': 'Grandchild option 3'}
         ]
         expected3['selected_ids'] = ['g1','g2']
-        assert new_grandchild_param.to_dict() == expected3
+        assert new_grandchild_param.to_json_dict() == expected3
     
     def test_invalid_selection(self, data: ParameterData):
         with pytest.raises(InvalidInputError):
@@ -235,10 +238,10 @@ class TestDateParameter(TestParentParameters):
             'label': 'Date Value',
             'selected_date': '2020-01-01'
         }
-        assert self.date_parameter.to_dict() == expected
+        assert self.date_parameter.to_json_dict() == expected
 
         expected['selected_date'] = '2023-01-01'
-        assert new_date_param.to_dict() == expected
+        assert new_date_param.to_json_dict() == expected
 
     def test_cascadable(self, single_select_parent: p.SingleSelectParameter):
         child_options = (
@@ -256,11 +259,11 @@ class TestDateParameter(TestParentParameters):
             'label': 'Child Param',
             'selected_date': '2020-01-01'
         }
-        assert child_param.to_dict() == expected
+        assert child_param.to_json_dict() == expected
 
         expected['selected_date'] = '2022-01-01'
         new_child = new_parent.get_all_dependent_params()['child']
-        assert new_child.to_dict() == expected
+        assert new_child.to_json_dict() == expected
 
     def test_invalid_selection(self):
         with pytest.raises(InvalidInputError):
@@ -311,10 +314,10 @@ class TestNumberParameter(TestParentParameters):
             'increment': '2',
             'selected_value': '6'
         }
-        assert self.number_parameter.to_dict() == expected
+        assert self.number_parameter.to_json_dict() == expected
 
         expected['selected_value'] = '4'
-        assert new_num_param.to_dict() == expected
+        assert new_num_param.to_json_dict() == expected
 
     def test_cascadable(self, single_select_parent: p.SingleSelectParameter):
         child_options = (
@@ -334,7 +337,7 @@ class TestNumberParameter(TestParentParameters):
             'increment': '1',
             'selected_value': '1'
         }
-        assert child_param.to_dict() == expected
+        assert child_param.to_json_dict() == expected
 
         expected.update({
             'max_value': '4',
@@ -342,7 +345,7 @@ class TestNumberParameter(TestParentParameters):
             'selected_value': '2'
         })
         new_child = new_parent.get_all_dependent_params()['child']
-        assert new_child.to_dict() == expected
+        assert new_child.to_json_dict() == expected
     
     def test_invalid_selection(self):
         with pytest.raises(InvalidInputError):
@@ -369,7 +372,7 @@ class TestNumberParameter(TestParentParameters):
             p.NumberParameter.WithParent('child', 'Child Param', child_options, single_select_parent)
     
     def test_get_selected(self):
-        assert self.number_parameter.get_selected_value() == '6'
+        assert self.number_parameter.get_selected_value() == "6"
 
 
 class TestNumRangeParameter(TestParentParameters):
@@ -388,11 +391,11 @@ class TestNumRangeParameter(TestParentParameters):
             'selected_lower_value': '4',
             'selected_upper_value': '6'
         }
-        assert self.range_parameter.to_dict() == expected
+        assert self.range_parameter.to_json_dict() == expected
 
         expected['selected_lower_value'] = '2'
         expected['selected_upper_value'] = '8'
-        assert new_num_param.to_dict() == expected
+        assert new_num_param.to_json_dict() == expected
 
     def test_cascadable(self, single_select_parent: p.SingleSelectParameter):
         child_options = (
@@ -413,7 +416,7 @@ class TestNumRangeParameter(TestParentParameters):
             'selected_lower_value': '1',
             'selected_upper_value': '2'
         }
-        assert child_param.to_dict() == expected
+        assert child_param.to_json_dict() == expected
 
         expected.update({
             'max_value': '4',
@@ -422,7 +425,7 @@ class TestNumRangeParameter(TestParentParameters):
             'selected_upper_value': '4'
         })
         new_child = new_parent.get_all_dependent_params()['child']
-        assert new_child.to_dict() == expected
+        assert new_child.to_json_dict() == expected
 
     def test_invalid_selection(self):
         with pytest.raises(InvalidInputError):

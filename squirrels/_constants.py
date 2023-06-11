@@ -26,6 +26,7 @@ SETTINGS_KEY = 'settings'
 # Project variable keys
 PRODUCT_KEY = 'product'
 MAJOR_VERSION_KEY = 'major_version'
+MINOR_VERSION_KEY = 'minor_version'
 
 # Database credentials keys
 CREDENTIALS_KEY = 'credentials'
