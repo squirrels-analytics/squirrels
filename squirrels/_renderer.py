@@ -6,7 +6,7 @@ import concurrent.futures, os, json, time
 from squirrels import _constants as c, _manifest as mf, _utils
 from squirrels.connection_set import ConnectionSet, sqldf
 from squirrels.data_sources import DataSource
-from squirrels.parameter_set import ParameterSet
+from squirrels._parameter_set import ParameterSet
 from squirrels._utils import ConfigurationError
 from squirrels._timed_imports import pandas as pd, timer
 
@@ -58,7 +58,7 @@ class Renderer:
         for param_name, parameter in parameters_dict.items():
             if param_name in selections:
                 value = selections[param_name]
-                parameter = parameter_set[param_name].with_selection(value)
+                parameter = parameter_set.get_parameter(param_name).with_selection(value)
                 updates = parameter.get_all_dependent_params()
                 if updates_only:
                     parameter_set = updates
@@ -70,7 +70,7 @@ class Renderer:
 
     def _render_context(self, context_func: ContextFunc, param_set: ParameterSet) -> Dict[str, Any]:
         try:
-            return context_func(prms=param_set) if context_func is not None else {}
+            return context_func(prms=param_set.get_parameters_as_ordered_dict()) if context_func is not None else {}
         except Exception as e:
             raise ConfigurationError(f'Error in the {c.CONTEXT_FILE} function for dataset "{self.dataset}"') from e
     
@@ -80,7 +80,7 @@ class Renderer:
         else:
             args = self.manifest.get_view_args(self.dataset)
         return {
-            'prms': param_set,
+            'prms': param_set.get_parameters_as_ordered_dict(),
             'ctx':  context,
             'args': args
         }
@@ -186,7 +186,7 @@ class RendererIOWrapper:
         args = manifest.get_dataset_args(dataset)
         parameters_module = _utils.import_file_as_module(parameters_path)
         try:
-            parameter_set = parameters_module.main(args=args)
+            parameter_set = ParameterSet(parameters_module.main(args=args))
         except Exception as e:
             raise ConfigurationError(f'Error in the {c.PARAMETERS_FILE} function for dataset "{dataset}"') from e
 
@@ -260,7 +260,7 @@ class RendererIOWrapper:
         param_set, query_by_db_view, final_view_query, df_by_db_views, final_view_df = result
         
         # write the parameters response
-        param_set_dict = param_set.to_dict()
+        param_set_dict = param_set.to_json_dict()
         parameter_json_output_path = _utils.join_paths(self.output_folder, c.PARAMETERS_OUTPUT)
         with open(parameter_json_output_path, 'w') as f:
             json.dump(param_set_dict, f, indent=4)

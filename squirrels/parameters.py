@@ -7,12 +7,16 @@ import copy
 
 from squirrels import parameter_options as po, _utils as u
 from squirrels.data_sources import DataSource
-from squirrels.parameter_set import _ParameterSetBase
+from squirrels._parameter_set import ParameterSetBase
 from squirrels._timed_imports import pandas as pd
 
 
 @dataclass
 class Parameter:
+    """
+    Abstract class for all parameter classes. Useful for type hints.
+    """
+    widget_type: str
     name: str
     label: str
     all_options: Sequence[po.ParameterOption]
@@ -20,11 +24,28 @@ class Parameter:
     parent: Optional[_SelectionParameter]
 
     def WithParent(all_options: Sequence[po.ParameterOption], parent: SingleSelectParameter, new_param: Parameter):
+        """
+        Helper class method to assign a SingleSelectParameter as the parent for another parameter
+
+        Parameters:
+            all_options: The list of options with one of "parent_option_id" or "parent_option_ids" attribute set.
+            parent: The parent parameter. All option ids of the parent must exist at least once in "parent_option_ids" of all_options
+            new_param: The child parameter to modify. Usually not a selection parameter
+        """
         new_param._set_parent_and_options(parent, all_options)
         new_param.parent._add_child_mutate(new_param)
         return new_param.refresh(parent)
 
     def refresh(self, parent: Optional[_SelectionParameter] = None) -> Parameter:
+        """
+        Refreshes the selectable options (or change of default value) based on the selection of the parent parameter
+
+        Parameters:
+            parent: The parent parameter subscribed to for updates
+        
+        Returns:
+            A copy of self for the new selectable options based on current selection of parent
+        """
         param_copy = copy.copy(self)
         if parent is not None:
             param_copy.parent = parent
@@ -32,10 +53,19 @@ class Parameter:
         return param_copy
 
     def with_selection(self, _: str) -> Parameter:
+        """
+        Abstract method for applying the selection to the parameter
+        """
         raise u.AbstractMethodCallError(self.__class__, "with_selection")
     
-    def get_all_dependent_params(self) -> _ParameterSetBase:
-        dependent_params = _ParameterSetBase()
+    def get_all_dependent_params(self) -> ParameterSetBase:
+        """
+        Gets the collection of descendent parameters with changes applied based on the selection of this parameter
+
+        Returns:
+            A collection of descendent parameters as a ParameterSetBase
+        """
+        dependent_params = ParameterSetBase()
         self._accum_all_dependent_params(dependent_params)
         return dependent_params
     
@@ -73,15 +103,18 @@ class Parameter:
         self._verify_parent_is_single_select()
         self._verify_parent_options_have_one_child_each()
     
-    def _accum_all_dependent_params(self, param_set: _ParameterSetBase) -> None:
+    def _accum_all_dependent_params(self, param_set: ParameterSetBase) -> None:
         param_set.add_parameter(self)
         
     def _enquote(self, value: str) -> str:
         return "'" + value.replace("'", "''") + "'" 
 
-    def to_dict(self) -> Dict:
+    def to_json_dict(self) -> Dict:
+        """
+        Helper method to convert the derived Parameter class into a JSON dictionary
+        """
         return {
-            'widget_type': self.__class__.__name__,
+            'widget_type': self.widget_type,
             'name': self.name,
             'label': self.label
         }
@@ -119,13 +152,16 @@ class _SelectionParameter(Parameter):
         else:
             self._raise_invalid_input_error(selected_id)
     
-    def _accum_all_dependent_params(self, param_set: _ParameterSetBase) -> None:
+    def _accum_all_dependent_params(self, param_set: ParameterSetBase) -> None:
         super()._accum_all_dependent_params(param_set)
         for child in self.children:
             child._accum_all_dependent_params(param_set)
 
-    def to_dict(self):
-        output = super().to_dict()
+    def to_json_dict(self):
+        """
+        Helper method to convert the derived selection parameter class into a JSON object
+        """
+        output = super().to_json_dict()
         output['options'] = [x.to_dict() for x in self.options]
         output['trigger_refresh'] = self.trigger_refresh
         return output
@@ -133,31 +169,83 @@ class _SelectionParameter(Parameter):
 
 @dataclass
 class SingleSelectParameter(_SelectionParameter):
+    """
+    Class to define attributes for single-select parameter widgets.
+    """
     selected_id: Optional[str]
 
     def __init__(self, name: str, label: str, all_options: Sequence[po.SelectParameterOption], *, 
                  is_hidden: bool = False, parent: Optional[_SelectionParameter] = None) -> None:
-        super().__init__(name, label, all_options, is_hidden, parent)
+        """
+        Constructor for SingleSelectParameter class
+
+        Parameters:
+            name: The name of the parameter
+            label: The display label for the parameter
+            all_options: A sequence of SelectParameterOption which defines the attribute for each dropdown option
+            is_hidden: Whether the parameter is hidden in the parameters API response. Default is False.
+            parent: The parent parameter that may cascade the options for this parameter. Default is no parent
+        """
+        super().__init__("SingleSelectParameter", name, label, all_options, is_hidden, parent)
     
     def with_selection(self, selection: str) -> SingleSelectParameter:
+        """
+        Applies the selected value to this widget parameter
+
+        Parameters:
+            selection: The selected value as an ID of one of the dropdown options
+        
+        Returns:
+            A new copy of SingleSelectParameter with the selection applied
+        """
         param_copy = copy.copy(self)
         param_copy.selected_id = self._validate_selected_id_in_options(selection)
         param_copy.children = [child.refresh(param_copy) for child in param_copy.children]
         return param_copy
 
     def get_selected(self) -> po.SelectParameterOption:
+        """
+        Gets the selected single-select option
+
+        Returns:
+            A SelectParameterOption class object
+        """
         return next(x for x in self.options if x.identifier == self.selected_id)
     
     def get_selected_id(self) -> str:
+        """
+        Gets the ID of the selected option
+
+        Returns:
+            A string ID
+        """
         return self.get_selected().identifier
     
     def get_selected_id_quoted(self) -> str:
+        """
+        Gets the ID of the selected option surrounded by single quotes
+
+        Returns:
+            A string
+        """
         return self._enquote(self.get_selected_id())
     
     def get_selected_label(self) -> str:
+        """
+        Gets the label of the selected option
+
+        Returns:
+            A string
+        """
         return self.get_selected().label
     
     def get_selected_label_quoted(self) -> str:
+        """
+        Gets the label of the selected option surrounded by single quotes
+
+        Returns:
+            A string
+        """
         return self._enquote(self.get_selected_label())
     
     # Overriding for refresh method
@@ -173,25 +261,55 @@ class SingleSelectParameter(_SelectionParameter):
     def _set_default_as_selection_mutate(self) -> None:
         self.selected_id = self._get_default()
 
-    def to_dict(self) -> Dict:
-        output = super().to_dict()
+    def to_json_dict(self) -> Dict:
+        """
+        Converts this parameter as a JSON object for the parameters API response
+
+        Returns:
+            A dictionary for the JSON object
+        """
+        output = super().to_json_dict()
         output['selected_id'] = self.selected_id
         return output
 
 
 @dataclass
 class MultiSelectParameter(_SelectionParameter):
+    """
+    Class to define attributes for multi-select parameter widgets.
+    """
     selected_ids: Sequence[str]
     include_all: bool
     order_matters: bool
 
     def __init__(self, name: str, label: str, all_options: Sequence[po.SelectParameterOption], *, is_hidden = False,
                  parent: Optional[_SelectionParameter] = None, include_all: bool = True, order_matters: bool = False) -> None:
-        super().__init__(name, label, all_options, is_hidden, parent)
+        """
+        Constructor for MultiSelectParameter class
+
+        Parameters:
+            name: The name of the parameter
+            label: The display label for the parameter
+            all_options: A sequence of SelectParameterOption which defines the attribute for each dropdown option
+            is_hidden: Whether the parameter is hidden in the parameters API response. Default is False.
+            parent: The parent parameter that may cascade the options for this parameter. Default is no parent
+            include_all: Whether applying no selection is equivalent to selecting all. Default is True
+            order_matters: Whether the ordering of the selection matters. Default is False 
+        """
+        super().__init__("MultiSelectParameter", name, label, all_options, is_hidden, parent)
         self.include_all = include_all
         self.order_matters = order_matters
 
     def with_selection(self, selection: str) -> MultiSelectParameter:
+        """
+        Applies the selected value(s) to this widget parameter
+
+        Parameters:
+            selection: A JSON string of list of strings representing IDs of selected values
+        
+        Returns:
+            A new copy of MultiSelectParameter with the selection applied
+        """
         param_copy = copy.copy(self)
         selection_split = u.load_json_or_comma_delimited_str_as_list(selection)
         param_copy.selected_ids = tuple(self._validate_selected_id_in_options(x) for x in selection_split)
@@ -199,6 +317,12 @@ class MultiSelectParameter(_SelectionParameter):
         return param_copy
 
     def get_selected_list(self) -> Sequence[po.SelectParameterOption]:
+        """
+        Gets the sequence of the selected option(s)
+
+        Returns:
+            A sequence of SelectParameterOption class objects
+        """
         if len(self.selected_ids) == 0 and self.include_all:
             result = tuple(self.options)
         else:
@@ -206,27 +330,75 @@ class MultiSelectParameter(_SelectionParameter):
         return result
     
     def get_selected_ids_as_list(self) -> Sequence[str]:
+        """
+        Gets the sequence of ID(s) of the selected option(s)
+
+        Returns:
+            A sequence of strings
+        """
         return tuple(x.identifier for x in self.get_selected_list())
     
     def get_selected_ids_joined(self) -> str:
+        """
+        Gets the ID(s) of the selected option(s) joined by comma
+
+        Returns:
+            A string
+        """
         return ', '.join(self.get_selected_ids_as_list())
     
     def get_selected_ids_quoted_as_list(self) -> Sequence[str]:
+        """
+        Gets the sequence of ID(s) of the selected option(s) surrounded by single quotes
+
+        Returns:
+            A sequence of strings
+        """
         return tuple(self._enquote(x) for x in self.get_selected_ids_as_list())
     
     def get_selected_ids_quoted_joined(self) -> str:
+        """
+        Gets the ID(s) of the selected option(s) surrounded by single quotes and joined by comma
+
+        Returns:
+            A string
+        """
         return ', '.join(self.get_selected_ids_quoted_as_list())
     
     def get_selected_labels_as_list(self) -> Sequence[str]:
+        """
+        Gets the sequence of label(s) of the selected option(s)
+
+        Returns:
+            A sequence of strings
+        """
         return tuple(x.label for x in self.get_selected_list())
     
     def get_selected_labels_joined(self) -> str:
+        """
+        Gets the label(s) of the selected option(s) joined by comma
+
+        Returns:
+            A string
+        """
         return ', '.join(self.get_selected_labels_as_list())
     
     def get_selected_labels_quoted_as_list(self) -> Sequence[str]:
+        """
+        Gets the sequence of label(s) of the selected option(s) surrounded by single quotes
+
+        Returns:
+            A sequence of strings
+        """
         return tuple(self._enquote(x) for x in self.get_selected_labels_as_list())
     
     def get_selected_labels_quoted_joined(self) -> str:
+        """
+        Gets the label(s) of the selected option(s) surrounded by single quotes and joined by comma
+
+        Returns:
+            A string
+        """
         return ', '.join(self.get_selected_labels_quoted_as_list())
     
     def _get_selected_ids_as_list(self) -> Sequence[str]:
@@ -238,8 +410,14 @@ class MultiSelectParameter(_SelectionParameter):
     def _set_default_as_selection_mutate(self):
         self.selected_ids = self._get_default()
 
-    def to_dict(self):
-        output = super().to_dict()
+    def to_json_dict(self):
+        """
+        Converts this parameter as a JSON object for the parameters API response
+
+        Returns:
+            A dictionary for the JSON object
+        """
+        output = super().to_json_dict()
         output['selected_ids'] = list(self.selected_ids)
         output['include_all'] = self.include_all
         output['order_matters'] = self.order_matters
@@ -248,42 +426,101 @@ class MultiSelectParameter(_SelectionParameter):
 
 @dataclass
 class DateParameter(Parameter):
+    """
+    Class to define attributes for date parameter widgets.
+    """
     curr_option: po.DateParameterOption
     selected_date: datetime
 
     def __init__(self, name: str, label: str, default_date: Union[str, datetime], date_format: str = '%Y-%m-%d', 
                  *, is_hidden: bool = False) -> None:
+        """
+        Constructor for DateParameter class
+
+        Parameters:
+            name: The name of the parameter
+            label: The display label for the parameter
+            default_date: The default selected date
+            date_format: The format of the default_date. Default is '%Y-%m-%d'
+            is_hidden: Whether the parameter is hidden in the parameters API response. Default is False
+        """
         self.curr_option = po.DateParameterOption(default_date, date_format)
         all_options = (self.curr_option,)
-        super().__init__(name, label, all_options, is_hidden, None)
+        super().__init__("DateParameter", name, label, all_options, is_hidden, None)
         self._set_default_as_selection_mutate()
     
     @staticmethod
     def WithParent(name: str, label: str, all_options: Sequence[po.DateParameterOption], parent: SingleSelectParameter, *, 
                    is_hidden: bool = False) -> DateParameter:
-        new_param = DateParameter(name, label, '2020-01-01', is_hidden=is_hidden) # dummy date
+        """
+        A factory method to construct a DateParameter with a parent parameter
+
+        Parameters:
+            name: The name of the parameter
+            label: The display label for the parameter
+            all_options: A sequence of DateParameterOption which contains various default dates linked to specific parent options
+            parent: The parent parameter, which must be a SingleSelectParameter
+            is_hidden: Whether the parameter is hidden in the parameters API response. Default is False
+        """
+        new_param = DateParameter(name, label, '2020-01-01', is_hidden=is_hidden) # dummy date in valid format
         return Parameter.WithParent(all_options, parent, new_param)
     
     def with_selection(self, selection: str):
+        """
+        Applies the selected date to this widget parameter
+
+        Parameters:
+            selection: The date string which must be in yyyy-mm-dd format (regardless of self.date_format value)
+        
+        Returns:
+            A new copy of DateParameter with the selection applied
+        """
         param_copy = copy.copy(self)
         try:
-            param_copy.selected_date = param_copy.curr_option._validate_date(selection)
-        except u.ConfigurationError as e:
+            param_copy.selected_date = datetime.strptime(selection, "%Y-%m-%d")
+        except ValueError as e:
             self._raise_invalid_input_error(selection, 'Invalid selection for date.', e)
         return param_copy
 
-    def get_selected_date(self) -> str:
-        return self.selected_date.strftime(self.curr_option.date_format)
+    def get_selected_date(self, date_format: str = None) -> str:
+        """
+        Gets selected date as string
 
-    def get_selected_date_quoted(self) -> str:
-        return self._enquote(self.get_selected_date())
+        Parameters:
+            date_format: The date format (see Python's datetime formats). If not specified, self.date_format is used
+
+        Returns:
+            A string
+        """
+        date_format = self.curr_option.date_format if date_format is None else date_format
+        return self.selected_date.strftime(date_format)
+
+    def get_selected_date_quoted(self, date_format: str = None) -> str:
+        """
+        Gets selected date as string surrounded by single quotes
+
+        Parameters:
+            date_format: The date format (see Python's datetime formats). If not specified, self.date_format is used
+
+        Returns:
+            A string
+        """
+        return self._enquote(self.get_selected_date(date_format))
     
     def _set_default_as_selection_mutate(self) -> None:
         self.selected_date = self.curr_option.default_date
     
-    def to_dict(self):
-        output = super().to_dict()
-        output['selected_date'] = self.get_selected_date()
+    def to_json_dict(self):
+        """
+        Converts this parameter as a JSON object for the parameters API response
+
+        The "selected_date" field will always be in yyyy-mm-dd format
+
+        Returns:
+            A dictionary for the JSON object
+        """
+        output = super().to_json_dict()
+        output['selected_date'] = self.get_selected_date("%Y-%m-%d")
         return output
 
 
@@ -291,8 +528,14 @@ class DateParameter(Parameter):
 class _NumericParameter(Parameter):
     curr_option: po.NumericParameterOption
     
-    def to_dict(self):
-        output = super().to_dict()
+    def to_json_dict(self):
+        """
+        Helper method to converts numeric parameters into JSON objects for the parameters API response
+
+        Returns:
+            A dictionary for the JSON object
+        """
+        output = super().to_json_dict()
         output['min_value'] = str(self.curr_option.min_value)
         output['max_value'] = str(self.curr_option.max_value)
         output['increment'] = str(self.curr_option.increment)
@@ -301,23 +544,57 @@ class _NumericParameter(Parameter):
 
 @dataclass
 class NumberParameter(_NumericParameter):
+    """
+    Class to define attributes for number slider parameter widgets.
+    """
     selected_value: Decimal
 
     def __init__(self, name: str, label: str, min_value: po.Number, max_value: po.Number, increment: po.Number = 1, 
                  default_value: po.Number = None, *, is_hidden: bool = False) -> None:
+        """
+        Constructor for NumberParameter class
+
+        Parameters:
+            name: The name of the parameter
+            label: The display label for the parameter
+            min_value: The minimum bound for selection. Can be of type Decimal, integer, or number parsable string
+            max_value: The maxixmum bound for selection. Can be of type Decimal, integer, or number parsable string
+            increment: The increment for allowable selections. Can be of type Decimal, integer, or number parsable string. Default is 1
+            default_value: The default selection. Can be of type Decimal, integer, or number parsable string. Default is min_value
+            is_hidden: Whether the parameter is hidden in the parameters API response. Default is False
+        """
         default_value = default_value if default_value is not None else min_value
         curr_option = po.NumberParameterOption(min_value, max_value, increment, default_value)
         all_options = (curr_option,)
-        super().__init__(name, label, all_options, is_hidden, None, curr_option)
+        super().__init__("NumberParameter", name, label, all_options, is_hidden, None, curr_option)
         self._set_default_as_selection_mutate()
     
     @staticmethod
     def WithParent(name: str, label: str, all_options: Sequence[po.NumberParameterOption], parent: SingleSelectParameter, *, 
                    is_hidden: bool = False) -> DateParameter:
+        """
+        A factory method to construct a NumberParameter with a parent parameter
+
+        Parameters:
+            name: The name of the parameter
+            label: The display label for the parameter
+            all_options: A sequence of NumberParameterOption which contains various bounds and default values linked to specific parent options
+            parent: The parent parameter, which must be a SingleSelectParameter
+            is_hidden: Whether the parameter is hidden in the parameters API response. Default is False
+        """
         new_param = NumberParameter(name, label, 0, 1, is_hidden=is_hidden) # dummy values
         return Parameter.WithParent(all_options, parent, new_param)
     
     def with_selection(self, selection: str):
+        """
+        Applies the selected number to this widget parameter
+
+        Parameters:
+            selection: The selected number (must be a string parsable as a number)
+        
+        Returns:
+            A new copy of NumberParameter with the selection applied
+        """
         param_copy = copy.copy(self)
         try:
             param_copy.selected_value = param_copy.curr_option._validate_value(selection)
@@ -326,39 +603,86 @@ class NumberParameter(_NumericParameter):
         return param_copy
 
     def get_selected_value(self) -> str:
+        """
+        Get the selected number
+
+        Returns:
+            A number parsable string of the selected number
+        """
         return str(self.selected_value)
     
     def _set_default_as_selection_mutate(self) -> None:
         self.curr_option: po.NumberParameterOption
         self.selected_value = self.curr_option.default_value
         
-    def to_dict(self):
-        output = super().to_dict()
+    def to_json_dict(self):
+        """
+        Converts this parameter as a JSON object for the parameters API response
+
+        Returns:
+            A dictionary for the JSON object
+        """
+        output = super().to_json_dict()
         output['selected_value'] = self.get_selected_value()
         return output
 
 
 @dataclass
 class NumRangeParameter(_NumericParameter):
+    """
+    Class to define attributes for number range slider (double-ended) parameter widgets.
+    """
     selected_lower_value: Decimal
     selected_upper_value: Decimal
 
     def __init__(self, name: str, label: str, min_value: po.Number, max_value: po.Number, increment: po.Number = 1, 
                  default_lower_value: po.Number = None, default_upper_value: po.Number = None, *, is_hidden: bool = False) -> None:
+        """
+        Constructor for NumberParameter class
+
+        Parameters:
+            name: The name of the parameter
+            label: The display label for the parameter
+            min_value: The minimum bound for selection. Can be of type Decimal, integer, or number parsable string
+            max_value: The maxixmum bound for selection. Can be of type Decimal, integer, or number parsable string
+            increment: The increment for allowable selections. Can be of type Decimal, integer, or number parsable string. Default is 1
+            default_lower_value: The default lower selection. Can be of type Decimal, integer, or number parsable string. Default is min_value
+            default_upper_value: The default upper selection. Can be of type Decimal, integer, or number parsable string. Default is max_value
+            is_hidden: Whether the parameter is hidden in the parameters API response. Default is False
+        """
         default_lower_value = default_lower_value if default_lower_value is not None else min_value
         default_upper_value = default_upper_value if default_upper_value is not None else max_value
         curr_option = po.NumRangeParameterOption(min_value, max_value, increment, default_lower_value, default_upper_value)
         all_options = (curr_option,)
-        super().__init__(name, label, all_options, is_hidden, None, curr_option)
+        super().__init__("NumRangeParameter", name, label, all_options, is_hidden, None, curr_option)
         self._set_default_as_selection_mutate()
     
     @staticmethod
     def WithParent(name: str, label: str, all_options: Sequence[po.NumRangeParameterOption], parent: SingleSelectParameter, *, 
                    is_hidden: bool = False) -> DateParameter:
+        """
+        A factory method to construct a NumRangeParameter with a parent parameter
+
+        Parameters:
+            name: The name of the parameter
+            label: The display label for the parameter
+            all_options: A sequence of NumRangeParameterOption which contains various bounds and default values linked to specific parent options
+            parent: The parent parameter, which must be a SingleSelectParameter
+            is_hidden: Whether the parameter is hidden in the parameters API response. Default is False
+        """
         new_param = NumRangeParameter(name, label, 0, 1, is_hidden=is_hidden) # dummy values
         return Parameter.WithParent(all_options, parent, new_param)
     
     def with_selection(self, selection: str):
+        """
+        Applies the selected numbers to this widget parameter
+
+        Parameters:
+            selection: The lower and upper selected numbers joined by comma (with no spaces)
+        
+        Returns:
+            A new copy of NumRangeParameter with the selection applied
+        """
         try:
             lower, upper = selection.split(',')
         except ValueError as e:
@@ -373,9 +697,21 @@ class NumRangeParameter(_NumericParameter):
         return param_copy
 
     def get_selected_lower_value(self) -> str:
+        """
+        Get the selected lower number
+
+        Returns:
+            A number parsable string of the selected number
+        """
         return str(self.selected_lower_value)
 
     def get_selected_upper_value(self) -> str:
+        """
+        Get the selected upper number
+
+        Returns:
+            A number parsable string of the selected number
+        """
         return str(self.selected_upper_value)
     
     def _set_default_as_selection_mutate(self) -> None:
@@ -383,8 +719,14 @@ class NumRangeParameter(_NumericParameter):
         self.selected_lower_value = self.curr_option.default_lower_value
         self.selected_upper_value = self.curr_option.default_upper_value
 
-    def to_dict(self):
-        output = super().to_dict()
+    def to_json_dict(self):
+        """
+        Converts this parameter as a JSON object for the parameters API response
+
+        Returns:
+            A dictionary for the JSON object
+        """
+        output = super().to_json_dict()
         output['selected_lower_value'] = self.get_selected_lower_value()
         output['selected_upper_value'] = self.get_selected_upper_value()
         return output
@@ -392,6 +734,9 @@ class NumRangeParameter(_NumericParameter):
 
 @dataclass
 class DataSourceParameter(Parameter):
+    """
+    Class for parameters that can use a lookup table to convert itself into another parameter
+    """
     parameter_class: Type[Parameter]
     data_source: DataSource
     parent: Optional[Parameter] 
@@ -404,12 +749,12 @@ class DataSourceParameter(Parameter):
         Parameters:
             parameter_class: The class of widget parameter to convert to
             name: The name of the parameter
-            label: The label of the parameter
+            label: The display label for the parameter
             data_source: The lookup table to use for this parameter
-            is_hidden: Whether or not this parameter should be hidden from parameters response
-            parent: The parent parameter
+            is_hidden: Whether the parameter is hidden in the parameters API response. Default is False
+            parent: The parent parameter that may cascade the options for this parameter. Default is no parent
         """
-        super().__init__(name, label, None, is_hidden, None)
+        super().__init__("DataSourceParameter", name, label, None, is_hidden, None)
         self.parameter_class = parameter_class
         self.data_source = data_source
         self.parent = parent
@@ -426,16 +771,14 @@ class DataSourceParameter(Parameter):
         """
         return self.data_source.convert(self, df)
     
-    def to_dict(self) -> Dict:
+    def to_json_dict(self) -> Dict:
         """
-        Method to convert this DataSourceParameter into a dictionary
-
-        The field specific to this dictionary representation is "data_source".
+        Converts this parameter as a JSON object for the parameters API response
 
         Returns:
-            Dict: The dictionary representation of this DataSourceParameter
+            A dictionary for the JSON object
         """
-        output = super().to_dict()
+        output = super().to_json_dict()
         output['widget_type'] = self.parameter_class.__name__
         output['data_source'] = self.data_source.__dict__
         return output

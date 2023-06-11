@@ -4,6 +4,7 @@ from textwrap import dedent
 import pytest, sqlite3, sqlalchemy as sa, pandas as pd
 
 from squirrels import _manifest as mf, _renderer as rd, connection_set as cs
+from squirrels._parameter_set import ParameterSet
 import squirrels as sr
 
 
@@ -54,16 +55,16 @@ class TestRenderer:
         })
 
         yield connection_set
-        connection_set.dispose()
+        connection_set._dispose()
     
     @pytest.fixture
-    def raw_param_set(self) -> sr.ParameterSet:
+    def raw_param_set(self) -> ParameterSet:
         city_ds = sr.SelectionDataSource("lu_cities", "city_id", "city")
         city_param = sr.DataSourceParameter(sr.MultiSelectParameter, "city", "City", city_ds)
         price_limit = sr.NumberParameter('limit', 'Limit', 0, 100)
-        return sr.ParameterSet([city_param, price_limit])
+        return ParameterSet([city_param, price_limit])
 
-    def context_main(self, prms: sr.ParameterSet, *args, **kwargs) -> Dict[str, Any]:
+    def context_main(self, prms: ParameterSet, *args, **kwargs) -> Dict[str, Any]:
         city_param: sr.MultiSelectParameter = prms["city"]
         return {"cities": city_param.get_selected_labels_quoted_joined()}
     
@@ -118,13 +119,13 @@ class TestRenderer:
         """)
 
     @pytest.fixture
-    def renderer1(self, manifest: mf.Manifest, connection_set: cs.ConnectionSet, raw_param_set: sr.ParameterSet, 
+    def renderer1(self, manifest: mf.Manifest, connection_set: cs.ConnectionSet, raw_param_set: ParameterSet, 
                   raw_db_view_queries1: Dict[str, rd.Query], raw_final_view_py_query: rd.Query):
         return rd.Renderer("avg_shop_price_by_city", manifest, connection_set, raw_param_set, self.context_main, 
                            raw_db_view_queries1, raw_final_view_py_query)
 
     @pytest.fixture
-    def renderer2(self, manifest: mf.Manifest, connection_set: cs.ConnectionSet, raw_param_set: sr.ParameterSet, 
+    def renderer2(self, manifest: mf.Manifest, connection_set: cs.ConnectionSet, raw_param_set: ParameterSet, 
                   raw_db_view_queries2: Dict[str, rd.Query], raw_final_view_sql_query: rd.Query):
         return rd.Renderer("avg_shop_price_by_city", manifest, connection_set, raw_param_set, self.context_main, 
                            raw_db_view_queries2, raw_final_view_sql_query)

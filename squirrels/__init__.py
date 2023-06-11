@@ -1,7 +1,6 @@
 from .parameter_options import SelectParameterOption, DateParameterOption, NumberParameterOption, NumRangeParameterOption
 from .parameters import Parameter, SingleSelectParameter, MultiSelectParameter, DateParameter, NumberParameter, NumRangeParameter, DataSourceParameter
 from .data_sources import SelectionDataSource, DateDataSource, NumberDataSource, NumRangeDataSource
-from .parameter_set import ParameterSet
 from .connection_set import ConnectionSet
 
 

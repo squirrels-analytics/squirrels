@@ -207,15 +207,21 @@ def test_get_setting(manifest_name: str, key: str, expected: str, request: pytes
 
 
 def test_get_catalog(basic_manifest: Manifest):
-    expected = {"response_version": 0, "products": [
-        {"name": "my_product", "versions":[
-            {"major_version": 1, "datasets": [{
-                "name": "dataset1", 
-                "label": "Dataset", 
-                "parameters_path": "/parameters", 
-                "result_path": "/results",
-                "minor_version_ranges": [0, None]
-            }]}
-        ]}
-    ]}
+    expected = {
+        "response_version": 0, 
+        "products": [{
+            "name": "my_product", 
+            "versions":[{
+                "major_version": 1, 
+                "latest_minor_version": 0, 
+                "datasets": [{
+                    "name": "dataset1", 
+                    "label": "Dataset", 
+                    "parameters_path": "/parameters", 
+                    "result_path": "/results",
+                    "first_minor_version": 0
+                }]
+            }]
+        }]
+    }
     assert basic_manifest.get_catalog("/parameters", "/results") == expected

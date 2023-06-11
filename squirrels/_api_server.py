@@ -5,7 +5,7 @@ from fastapi.responses import HTMLResponse, JSONResponse
 from fastapi.templating import Jinja2Templates
 from fastapi.staticfiles import StaticFiles
 from cachetools.func import ttl_cache
-import os
+import os, traceback
 
 from squirrels import _constants as c, _utils
 from squirrels._version import major_version
@@ -41,7 +41,7 @@ class ApiServer:
             raise _utils.InvalidInputError("The /parameters endpoint takes at most 1 query parameter")
         renderer = self.renderers[dataset]
         parameters = renderer.apply_selections(dict(query_params), updates_only = True)
-        return parameters.to_dict(self.debug)
+        return parameters.to_json_dict(self.debug)
     
     def _get_results_helper(self, dataset: str, query_params: Set[Tuple[str, str]]) -> Dict:
         renderer = self.renderers[dataset]
@@ -52,10 +52,13 @@ class ApiServer:
         try:
             return api_function()
         except _utils.InvalidInputError as e:
+            traceback.print_exc()
             raise HTTPException(status_code=400, detail="Invalid User Input: "+str(e)) from e
         except _utils.ConfigurationError as e:
+            traceback.print_exc()
             raise HTTPException(status_code=500, detail="Squirrels Configuration Error: "+str(e)) from e
         except Exception as e:
+            traceback.print_exc()
             raise HTTPException(status_code=500, detail="Squirrels Framework Error: "+str(e)) from e
     
     def _apply_dataset_api_function(self, api_function, dataset: str, raw_query_params: QueryParams):
@@ -116,7 +119,7 @@ class ApiServer:
             return self._apply_dataset_api_function(api_function, dataset, request.query_params)
         
         # Catalog API
-        @app.get(base_path, response_class=JSONResponse)
+        @app.get(squirrels_version_path, response_class=JSONResponse)
         async def get_catalog():
             api_function = lambda: self.manifest.get_catalog(parameters_path, results_path)
             return self._apply_api_function(api_function)
@@ -124,7 +127,7 @@ class ApiServer:
         # Squirrels UI
         @app.get('/', response_class=HTMLResponse)
         async def get_ui(request: Request):
-            return templates.TemplateResponse('index.html', {'request': request, 'base_path': base_path})
+            return templates.TemplateResponse('index.html', {'request': request, 'catalog_path': squirrels_version_path})
         
         # Run API server
         import uvicorn

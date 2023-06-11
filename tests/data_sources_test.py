@@ -42,7 +42,7 @@ class TestSelectionDataSource(TestParentParameters):
             'test_options': ['zero', 'one', 'two'],
             'test_is_default': [0, 1, 1]
         })
-        param_to_dict = select_data_source.convert(ds_param, df).to_dict()
+        param_to_dict = select_data_source.convert(ds_param, df).to_json_dict()
         expected = {
             'widget_type': 'SingleSelectParameter',
             'name': 'test_param',
@@ -62,12 +62,12 @@ class TestSelectionDataSource(TestParentParameters):
         df['parent_id'] = ['p1', 'p1', 'p2']
         converted_param = select_data_source_with_parent.convert(ds_param, df)
         new_parent = multi_select_parent.with_selection('p0')
-        assert converted_param.to_dict() == expected
+        assert converted_param.to_json_dict() == expected
 
         new_child = new_parent.get_all_dependent_params()['test_param']
         new_expected = dict(expected)
         new_expected.update({'options': [], 'selected_id': None})
-        assert new_child.to_dict() == new_expected
+        assert new_child.to_json_dict() == new_expected
     
     def test_invalid_column(self, select_data_source: d.SelectionDataSource):
         ds_param = DataSourceParameter(sr.SingleSelectParameter, 'test_param', 'Test Parameter', select_data_source)
@@ -104,7 +104,7 @@ class TestDateDataSource(TestParentParameters):
                      date_data_source_with_parent: d.DateDataSource):
         ds_param = DataSourceParameter(sr.DateParameter, 'test_param', 'Test Parameter', date_data_source)
         df = pd.DataFrame({'date': ['2022-01-01']})
-        param_to_dict = date_data_source.convert(ds_param, df).to_dict()
+        param_to_dict = date_data_source.convert(ds_param, df).to_json_dict()
         expected = {
             'widget_type': 'DateParameter',
             'name': 'test_param',
@@ -123,7 +123,7 @@ class TestDateDataSource(TestParentParameters):
         new_parent = single_select_parent.with_selection('p2')
         new_child = new_parent.get_all_dependent_params()['test_param']
         expected['selected_date'] = '2022-01-01'
-        assert new_child.to_dict() == expected
+        assert new_child.to_json_dict() == expected
 
 
 class TestNumberDataSource(TestParentParameters):
@@ -143,7 +143,7 @@ class TestNumberDataSource(TestParentParameters):
                      num_data_source_with_parent: d.NumberDataSource):
         ds_param = DataSourceParameter(sr.NumberParameter, 'test_param', 'Test Parameter', num_data_source)
         df = pd.DataFrame([{ 'min_val': 0, 'max_val': 10, 'default_val': 2 }])
-        param_to_dict = num_data_source.convert(ds_param, df).to_dict()
+        param_to_dict = num_data_source.convert(ds_param, df).to_json_dict()
         expected = {
             'widget_type': 'NumberParameter',
             'name': 'test_param',
@@ -171,7 +171,7 @@ class TestNumberDataSource(TestParentParameters):
             'max_value': '9',
             'selected_value': '7'
         })
-        assert new_child.to_dict() == expected
+        assert new_child.to_json_dict() == expected
     
 
 class TestNumRangeDataSource(TestParentParameters):
@@ -191,7 +191,7 @@ class TestNumRangeDataSource(TestParentParameters):
                      range_data_source_with_parent: d.NumRangeDataSource):
         ds_param = DataSourceParameter(sr.NumRangeParameter, 'test_param', 'Test Parameter', range_data_source)
         df = pd.DataFrame([{ 'min_val': 0, 'max_val': 10, 'increment': 2, 'default_lower': 4, 'default_upper': 8 }])
-        param_to_dict = range_data_source.convert(ds_param, df).to_dict()
+        param_to_dict = range_data_source.convert(ds_param, df).to_json_dict()
         expected = {
             'widget_type': 'NumRangeParameter',
             'name': 'test_param',
@@ -224,4 +224,4 @@ class TestNumRangeDataSource(TestParentParameters):
             'selected_lower_value': '6',
             'selected_upper_value': '9'
         })
-        assert new_child.to_dict() == expected
+        assert new_child.to_json_dict() == expected
