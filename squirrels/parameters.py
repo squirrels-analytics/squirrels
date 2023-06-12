@@ -315,6 +315,18 @@ class MultiSelectParameter(_SelectionParameter):
         param_copy.selected_ids = tuple(self._validate_selected_id_in_options(x) for x in selection_split)
         param_copy.children = [child.refresh(param_copy) for child in self.children]
         return param_copy
+    
+    def has_non_empty_selection(self) -> bool:
+        """
+        Returns True if more than zero options were selected. False otherwise.
+        
+        Note that even when this returns False, all "get_selected" functions would 
+        return the full list of options if "include_all" is set to True
+
+        Returns:
+            A boolean
+        """
+        return len(self.selected_ids) > 0
 
     def get_selected_list(self) -> Sequence[po.SelectParameterOption]:
         """
@@ -323,7 +335,7 @@ class MultiSelectParameter(_SelectionParameter):
         Returns:
             A sequence of SelectParameterOption class objects
         """
-        if len(self.selected_ids) == 0 and self.include_all:
+        if not self.has_non_empty_selection() and self.include_all:
             result = tuple(self.options)
         else:
             result = tuple(x for x in self.options if x.identifier in self.selected_ids)

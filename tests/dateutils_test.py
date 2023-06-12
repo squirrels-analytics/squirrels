@@ -106,6 +106,10 @@ class TestDateStringModifier:
          ["2023-05-17", "2023-05-24", "2023-05-31", "2023-06-07", "2023-06-14", "2023-06-21"]),
         ([d.DayIdxOfWeek(-1), d.OffsetMonths(1)], d.OffsetWeeks(1), "2023-05-18", 
          ["2023-05-18", "2023-05-25", "2023-06-01", "2023-06-08", "2023-06-15"]),
+        ([d.DayIdxOfWeek(-1), d.OffsetMonths(-1)], d.OffsetWeeks(1), "2023-06-14", 
+         ["2023-05-18", "2023-05-25", "2023-06-01", "2023-06-08"]),
+        ([d.DayIdxOfWeek(-1), d.OffsetMonths(-1)], d.OffsetWeeks(1), "2023-06-15", 
+         ["2023-05-18", "2023-05-25", "2023-06-01", "2023-06-08", "2023-06-15"]),
     ])
     def test_with_more_modifiers(self, modifiers: List[d.DateModifier], step: d.DateModifier, 
                                  input_date: str, expected_dates: List[str]):

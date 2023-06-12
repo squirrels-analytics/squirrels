@@ -20,7 +20,7 @@ extra_files = package_files(os.path.join('squirrels', 'package_data'))
 
 setup(
     name='squirrels',
-    version='0.1.0rc4',
+    version='0.1.0',
     packages=find_packages(),
     description='Python Package for Configuring SQL Generating APIs',
     long_description=long_description,
