@@ -203,14 +203,20 @@ class SingleSelectParameter(_SelectionParameter):
         param_copy.children = [child.refresh(param_copy) for child in param_copy.children]
         return param_copy
 
-    def get_selected(self) -> po.SelectParameterOption:
+    def get_selected(self, field: Optional[str] = None) -> po.SelectParameterOption:
         """
         Gets the selected single-select option
 
         Returns:
             A SelectParameterOption class object
         """
-        return next(x for x in self.options if x.identifier == self.selected_id)
+        selected = next(x for x in self.options if x.identifier == self.selected_id)
+        if field is not None:
+            try:
+                selected = selected.custom_fields[field]
+            except KeyError as e:
+                raise u.ConfigurationError(f"Field '{field}' must exist for all parameter options for SingleSelectParameter '{self.name}'") from e
+        return selected
     
     def get_selected_id(self) -> str:
         """
@@ -328,7 +334,7 @@ class MultiSelectParameter(_SelectionParameter):
         """
         return len(self.selected_ids) > 0
 
-    def get_selected_list(self) -> Sequence[po.SelectParameterOption]:
+    def get_selected_list(self, field: Optional[str] = None) -> Sequence[po.SelectParameterOption]:
         """
         Gets the sequence of the selected option(s)
 
@@ -336,11 +342,18 @@ class MultiSelectParameter(_SelectionParameter):
             A sequence of SelectParameterOption class objects
         """
         if not self.has_non_empty_selection() and self.include_all:
-            result = tuple(self.options)
+            selected_list = self.options
         else:
-            result = tuple(x for x in self.options if x.identifier in self.selected_ids)
-        return result
-    
+            selected_list = (x for x in self.options if x.identifier in self.selected_ids)
+        
+        if field is not None:
+            try:
+                selected_list = [selected.custom_fields[field] for selected in selected_list]
+            except KeyError as e:
+                raise u.ConfigurationError(f"Field '{field}' must exist for all parameter options for MultiSelectParameter '{self.name}'") from e
+        
+        return tuple(selected_list)
+
     def get_selected_ids_as_list(self) -> Sequence[str]:
         """
         Gets the sequence of ID(s) of the selected option(s)

@@ -102,8 +102,8 @@ class SelectionDataSource(DataSource):
             raise _utils.ConfigurationError(f'Could not sort on column name "{self.order_by_col}" as it does not exist')
         
         options = tuple(
-            po.SelectParameterOption(str(_utils.get_row_value(row, self.id_col)), str(_utils.get_row_value(row, self.options_col)), is_default(row), 
-                                     parent_option_id=self._get_parent(row))
+            po.SelectParameterOption(str(_utils.get_row_value(row, self.id_col)), str(_utils.get_row_value(row, self.options_col)), 
+                                     is_default=is_default(row), parent_option_id=self._get_parent(row))
             for _, row in df.iterrows()
         )
         

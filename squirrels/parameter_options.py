@@ -57,6 +57,19 @@ class SelectParameterOption(ParameterOption):
     parent_option_id: Optional[str] = field(default=None, repr=False)
     parent_option_ids: Iterable[str] = frozenset()
 
+    def __init__(self, identifier: str, label: str, *, is_default: bool = False, 
+                 parent_option_id: Optional[str] = None, parent_option_ids: Iterable[str] = frozenset(), 
+                 custom_fields = {}, **kwargs):
+        self.identifier = identifier
+        self.label = label
+        self.is_default = is_default
+        self.parent_option_id = parent_option_id
+        self.parent_option_ids = parent_option_ids
+        self.custom_fields = {
+            **kwargs, **custom_fields, "id": identifier, "label": label
+        }
+        super().__post_init__()
+    
     def to_dict(self):
         return {'id': self.identifier, 'label': self.label}
 

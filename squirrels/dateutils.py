@@ -59,7 +59,7 @@ class _DayIdxOfCalendarUnit(DateModifier):
 
     def __post_init__(self):
         if self.idx == 0:
-            raise _utils.ConfigurationError("The idx attribute of any DateModifier object cannot be zero")
+            raise _utils.ConfigurationError("For constructors of class names that start with DayIdxOf_, idx cannot be zero")
         self.incr = self.idx - 1 if self.idx > 0 else self.idx
 
 
@@ -223,15 +223,72 @@ class DateModPipeline(DateModifier):
     Attributes:
         modifiers: The list of DateModifier's to apply in sequence.
     """
-    modifiers: Sequence[DateModifier]
+    date_modifiers: Sequence[DateModifier]
 
     def __post_init__(self):
-        self.modifiers = tuple(self.modifiers)
+        self.date_modifiers = tuple(self.date_modifiers)
     
     def modify(self, date: datetime) -> datetime:
-        for modifier in self.modifiers:
+        for modifier in self.date_modifiers:
             date = modifier.modify(date)
         return date
+    
+    def get_joined_modifiers(self, date_modifiers: Sequence[DateModifier]) -> Sequence[DateModifier]:
+        """
+        Create a new sequence of DateModifier by joining the date modifiers in this class 
+        with the input date_modifiers
+
+        Parameters:
+            date_modifiers: The new date modifier sequence to join
+
+        Returns:
+            A new sequence of DateModifier
+        """
+        joined_modifiers = self.date_modifiers + tuple(date_modifiers)
+        return joined_modifiers
+
+    def with_more_modifiers(self, date_modifiers: Sequence[DateModifier]):
+        """
+        Create a new DateModPipeline with more date modifiers
+
+        Parameters:
+            date_modifiers: The additional date modifiers to add
+
+        Returns:
+            A new DateModPipeline
+        """
+        joined_modifiers = self.get_joined_modifiers(date_modifiers)
+        return DateModPipeline(joined_modifiers)
+    
+    def get_date_list(self, start_date: datetime, step: _OffsetUnits) -> Sequence[datetime]:
+        """
+        This method modifies the input date, and returns all dates from the input date to the modified date, 
+        incremented by a DateModifier step.
+
+        If the step is positive and start date is less than end date, then it'll return an increasing list of
+        dates starting from the start date. If the step is positive and start date is less than end date, 
+        then it'll return a decreasing list of dates starting from the start date. Otherwise, an empty list
+        is returned.
+
+        Parameters:
+            start_date: The input date (it's the first date in the output list if step moves towards end date)
+            step: The increment to take (specified as an offset DateModifier). Offset cannot be zero
+
+        Returns:
+            A list of datetime objects
+        """
+        if step.offset == 0:
+            raise _utils.ConfigurationError("The length of 'step' must not be zero")
+        
+        output = []
+        end_date = self.modify(start_date)
+        curr_date = start_date
+        is_not_done_positive_step = lambda: curr_date <= end_date and step.offset > 0
+        is_not_done_negative_step = lambda: curr_date >= end_date and step.offset < 0
+        while is_not_done_positive_step() or is_not_done_negative_step():
+            output.append(curr_date)
+            curr_date = step.modify(curr_date)
+        return output
 
 
 @dataclass
@@ -241,26 +298,9 @@ class _DateRepresentationModifier:
     """
     def __init__(self, date_modifiers: Sequence[DateModifier]):
         self.date_modifier = DateModPipeline(date_modifiers)
-    
-    def _get_joined_modifiers(self, date_modifiers: Sequence[DateModifier]) -> Sequence[DateModifier]:
-        joined_modifiers = self.date_modifier.modifiers + tuple(date_modifiers)
-        return joined_modifiers
 
     def with_more_modifiers(self, date_modifiers: Sequence[DateModifier]):
         raise _utils.AbstractMethodCallError(self.__class__, "with_more_modifiers")
-    
-    def get_date_list(self, curr_date: datetime, step: DateModifier) -> Sequence[datetime]:
-        modified_date = self.date_modifier.modify(curr_date)
-        curr_date, end_date = min(curr_date, modified_date), max(curr_date, modified_date)
-        distance = None
-        output = []
-        while curr_date <= end_date:
-            if distance is not None and (end_date - curr_date) >= distance:
-                raise _utils.ConfigurationError("The step must increment forward in time")
-            distance = end_date - curr_date
-            output.append(curr_date)
-            curr_date = step.modify(curr_date)
-        return output
 
 
 @dataclass
@@ -286,7 +326,7 @@ class DateStringModifier(_DateRepresentationModifier):
         Returns:
             A new DateStringModifier
         """
-        joined_modifiers = self._get_joined_modifiers(date_modifiers)
+        joined_modifiers = self.date_modifier.get_joined_modifiers(date_modifiers)
         return DateStringModifier(joined_modifiers, self.date_format)
     
     def _get_input_date_obj(self, date_str: str, input_format: str = None) -> datetime:
@@ -307,21 +347,26 @@ class DateStringModifier(_DateRepresentationModifier):
         date_obj = self._get_input_date_obj(date_str, input_format)
         return self.date_modifier.modify(date_obj).strftime(self.date_format)
     
-    def get_date_list(self, date_str: str, step: DateModifier, input_format: str = None) -> Sequence[str]:
+    def get_date_list(self, start_date_str: str, step: DateModifier, input_format: str = None) -> Sequence[str]:
         """
-        This method modifies the input date string, and returns all dates from the earlier to later date, 
-        incremented by a DateModifier step, until the last date is less than or equal to the later date.
+        This method modifies the input date string, and returns all dates as strings from the input date 
+        to the modified date, incremented by a DateModifier step.
+
+        If the step is positive and start date is less than end date, then it'll return an increasing list of
+        dates starting from the start date. If the step is positive and start date is less than end date, 
+        then it'll return a decreasing list of dates starting from the start date. Otherwise, an empty list
+        is returned.
 
         Parameters:
-            date_str: The input date string, usually the first date in the output list
-            step: The increment to take (specified as a DateModifier). It must increment forward in time
+            start_date_str: The input date string (it's the first date in the output list if step moves towards end date)
+            step: The increment to take (specified as an offset DateModifier). Offset cannot be zero
             input_format: The input date format. Defaults to the same as output date format
 
         Returns:
             A list of date strings
         """
-        curr_date = self._get_input_date_obj(date_str, input_format)
-        output = super().get_date_list(curr_date, step)
+        curr_date = self._get_input_date_obj(start_date_str, input_format)
+        output = self.date_modifier.get_date_list(curr_date, step)
         return [x.strftime(self.date_format) for x in output]
 
 
@@ -347,7 +392,7 @@ class TimestampModifier(_DateRepresentationModifier):
         Returns:
             A new TimestampModifier
         """
-        joined_modifiers = self._get_joined_modifiers(date_modifiers)
+        joined_modifiers = self.date_modifier.get_joined_modifiers(date_modifiers)
         return TimestampModifier(joined_modifiers)
 
     def modify(self, timestamp: float) -> float:
@@ -363,18 +408,23 @@ class TimestampModifier(_DateRepresentationModifier):
         date_obj = datetime.fromtimestamp(timestamp)
         return self.date_modifier.modify(date_obj).timestamp()
     
-    def get_date_list(self, timestamp: float, step: DateModifier) -> Sequence[float]:
+    def get_date_list(self, start_timestamp: float, step: DateModifier) -> Sequence[float]:
         """
-        This method modifies the input date string, and returns all dates from the earlier to later date, 
-        incremented by a DateModifier step, until the last date is less than or equal to the later date.
+        This method modifies the input timestamp, and returns all dates as timestampes/floats from the input date 
+        to the modified date, incremented by a DateModifier step.
+
+        If the step is positive and start date is less than end date, then it'll return an increasing list of
+        dates starting from the start date. If the step is positive and start date is less than end date, 
+        then it'll return a decreasing list of dates starting from the start date. Otherwise, an empty list
+        is returned.
 
         Parameters:
-            timestamp: The input timestamp as float, usually the first date in the output list
-            step: The increment to take (specified as a DateModifier). It must increment forward in time
+            start_timestamp: The input timestamp as float (it's the first date in the output list if step moves towards end date)
+            step: The increment to take (specified as an offset DateModifier). Offset cannot be zero
 
         Returns:
             A list of timestamp as floats
         """
-        curr_date = datetime.fromtimestamp(timestamp)
-        output = super().get_date_list(curr_date, step)
+        curr_date = datetime.fromtimestamp(start_timestamp)
+        output = self.date_modifier.get_date_list(curr_date, step)
         return [x.timestamp() for x in output]
