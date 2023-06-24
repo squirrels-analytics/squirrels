@@ -1,4 +1,4 @@
-from typing import Iterable, Optional, Union
+from typing import Iterable, Optional, Union, Dict, Any
 from dataclasses import dataclass, field
 from decimal import Decimal, InvalidOperation as InvalidDecimalConversion
 from datetime import datetime
@@ -45,11 +45,6 @@ class SelectParameterOption(ParameterOption):
     Parameter option for a select parameter
 
     Attributes:
-        identifier: Unique identifier for this option that never changes over time
-        label: Human readable label that gets shown as a dropdown option
-        is_default: True if this is a default option, False otherwise
-        parent_option_id: Identifier of the parent option, or None if this is a top-level option
-        parent_option_ids: Set of parent option ids (only used if parent_option_id is None), or an empty set if this is a top-level option
     """
     identifier: str
     label: str
@@ -59,7 +54,19 @@ class SelectParameterOption(ParameterOption):
 
     def __init__(self, identifier: str, label: str, *, is_default: bool = False, 
                  parent_option_id: Optional[str] = None, parent_option_ids: Iterable[str] = frozenset(), 
-                 custom_fields = {}, **kwargs):
+                 custom_fields: Dict[str, Any] = {}, **kwargs):
+        """
+        Constructor for SelectParameterOption
+
+        Parameters:
+            identifier: Unique identifier for this option that never changes over time
+            label: Human readable label that gets shown as a dropdown option
+            is_default: True if this is a default option, False otherwise
+            parent_option_id: Identifier of the parent option, or None if this is a top-level option
+            parent_option_ids: Set of parent option ids (only used if parent_option_id is None)
+            custom_fields: Dictionary to associate custom attributes to the parameter option
+            **kwargs: Any additional keyword arguments specified (except the ones above) gets included into custom_fields as well
+        """
         self.identifier = identifier
         self.label = label
         self.is_default = is_default
@@ -83,7 +90,7 @@ class DateParameterOption(ParameterOption):
         default_date: Default date for this option
         date_format: Format of the default date, default is '%Y-%m-%d'
         parent_option_id: Identifier of the parent option, or None if this is a top-level option
-        parent_option_ids: Set of parent option ids (only used if parent_option_id is None), or an empty set if this is a top-level option
+        parent_option_ids: Set of parent option ids (only used if parent_option_id is None)
     """
     default_date: Union[str, datetime]
     date_format: str = '%Y-%m-%d'
@@ -161,7 +168,7 @@ class NumberParameterOption(_NumericParameterOption):
         increment: Increment of selectable values, and must fit evenly between min_value and max_value
         default_value: Default value for this option, and must be selectable based on min_value, max_value, and increment
         parent_option_id: Identifier of the parent option, or None if this is a top-level option
-        parent_option_ids: Set of parent option ids (only used if parent_option_id is None), or an empty set if this is a top-level option
+        parent_option_ids: Set of parent option ids (only used if parent_option_id is None)
     """
     default_value: Decimal
     parent_option_id: Optional[str] = field(default=None, repr=False)
@@ -185,7 +192,7 @@ class NumRangeParameterOption(_NumericParameterOption):
         default_upper_value: Default upper value for this option, and must be selectable based on min_value, max_value, and increment. 
                 Must also be greater than default_lower_value
         parent_option_id: Identifier of the parent option, or None if this is a top-level option
-        parent_option_ids: Set of parent option ids (only used if parent_option_id is None), or an empty set if this is a top-level option
+        parent_option_ids: Set of parent option ids (only used if parent_option_id is None)
     """
     default_lower_value: Decimal
     default_upper_value: Decimal
