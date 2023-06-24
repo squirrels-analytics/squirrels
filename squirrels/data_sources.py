@@ -1,6 +1,6 @@
 from __future__ import annotations
-from typing import Type, Tuple, List, Optional
-from dataclasses import dataclass
+from typing import Type, Dict, Tuple, List, Optional
+from dataclasses import dataclass, field
 
 from squirrels import parameters as p, parameter_options as po
 from squirrels._timed_imports import pandas as pd
@@ -69,12 +69,14 @@ class SelectionDataSource(DataSource):
         order_by_col: The column name to order the options by. Orders by the id_col instead if this is None
         is_default_col: The column name that indicates which options are the default
         parent_id_col: The column name of the parent option id that this option belongs to
+        custom_cols: Dictionary of attribute to column name for custom fields for the SelectParameterOption
     """
     id_col: str
     options_col: str
     order_by_col: Optional[str] = None
     is_default_col: Optional[str] = None
     parent_id_col: Optional[str] = None
+    custom_cols: Dict[str, str] = field(default_factory=dict)
     connection_name: str = c.DEFAULT_DB_CONN
 
     def __post_init__(self):
@@ -96,14 +98,20 @@ class SelectionDataSource(DataSource):
         def is_default(row):
             return int(_utils.get_row_value(row, self.is_default_col)) == 1 if self.is_default_col is not None else False
         
+        def get_custom_fields(row):
+            result = {}
+            for key, val in self.custom_cols.items():
+                result[key] = _utils.get_row_value(row, val)
+            return result
+        
         try:
             df.sort_values(self.order_by_col, inplace=True)
         except KeyError as e:
             raise _utils.ConfigurationError(f'Could not sort on column name "{self.order_by_col}" as it does not exist')
         
         options = tuple(
-            po.SelectParameterOption(str(_utils.get_row_value(row, self.id_col)), str(_utils.get_row_value(row, self.options_col)), is_default(row), 
-                                     parent_option_id=self._get_parent(row))
+            po.SelectParameterOption(str(_utils.get_row_value(row, self.id_col)), str(_utils.get_row_value(row, self.options_col)), 
+                                     is_default=is_default(row), parent_option_id=self._get_parent(row), custom_fields=get_custom_fields(row))
             for _, row in df.iterrows()
         )
         

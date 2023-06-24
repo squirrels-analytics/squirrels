@@ -101,10 +101,25 @@ class TestSingleSelectParameter(TestParentParameters):
             data.parent_param.with_selection('x1')
     
     def test_get_selected(self, data: ParameterData):
-        assert data.parent_param.get_selected_id() == 'p0'
+        assert data.parent_param.get_selected_id() == "p0"
+        assert data.parent_param.get_selected("id") == "p0"
         assert data.parent_param.get_selected_id_quoted() == "'p0'"
-        assert data.parent_param.get_selected_label() == 'Option 1'
+        assert data.parent_param.get_selected_label() == "Option 1"
+        assert data.parent_param.get_selected("label") == "Option 1"
         assert data.parent_param.get_selected_label_quoted() == "'Option 1'"
+    
+    def test_get_selected_custom_field(self):
+        options = (
+            sr.SelectParameterOption("x0", "Label", field0 = "a", field1 = "b",
+                                     custom_fields={"field1": "x", "field2": "y", "label": "z"}),
+        )
+        parameter = sr.SingleSelectParameter("test", "Test", options)
+        
+        assert parameter.get_selected("id") == "x0" 
+        assert parameter.get_selected("label") == "Label" # "id" and "label" cannot be overwritten
+        assert parameter.get_selected("field0") == "a"
+        assert parameter.get_selected("field1") == "x" # custom_fields take precedence over keyword arguments
+        assert parameter.get_selected("field2") == "y"
 
 
 class TestMultiSelectParameter(TestParentParameters):
@@ -212,11 +227,13 @@ class TestMultiSelectParameter(TestParentParameters):
         )
         parameter = p.MultiSelectParameter('parent', 'Parent Param', options)
 
+        assert parameter.get_selected_list("id") == ('p0', 'p2')
         assert parameter.get_selected_ids_as_list() == ('p0', 'p2')
         assert parameter.get_selected_ids_joined() == "p0, p2"
         assert parameter.get_selected_ids_quoted_as_list() == ("'p0'", "'p2'")
         assert parameter.get_selected_ids_quoted_joined() == "'p0', 'p2'"
 
+        assert parameter.get_selected_list("label") == ('Option 1', 'Option 3')
         assert parameter.get_selected_labels_as_list() == ('Option 1', 'Option 3')
         assert parameter.get_selected_labels_joined() == "Option 1, Option 3"
         assert parameter.get_selected_labels_quoted_as_list() == ("'Option 1'", "'Option 3'")
@@ -225,9 +242,24 @@ class TestMultiSelectParameter(TestParentParameters):
         assert parameter.has_non_empty_selection() == True
 
         new_param = parameter.with_selection('')
+        assert new_param.get_selected_list("id") == ('p0', 'p1', 'p2')
         assert new_param.get_selected_ids_as_list() == ('p0', 'p1', 'p2')
 
         assert new_param.has_non_empty_selection() == False
+    
+    def test_get_selected_custom_field(self):
+        options = (
+            sr.SelectParameterOption("x0", "Label 1", field0 = "a", field1 = "b", field2 = "c"),
+            sr.SelectParameterOption("x1", "Label 2", custom_fields={"field0": "x", "field1": "y"}),
+        )
+        parameter = sr.MultiSelectParameter("test", "Test", options)
+
+        assert parameter.get_selected_list("id") == ("x0", "x1")
+        assert parameter.get_selected_list("label") == ("Label 1", "Label 2")
+        assert parameter.get_selected_list("field0") == ("a", "x")
+        assert parameter.get_selected_list("field1") == ("b", "y")
+        with pytest.raises(ConfigurationError):
+            parameter.get_selected_list("field2")
 
 
 class TestDateParameter(TestParentParameters):
