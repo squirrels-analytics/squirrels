@@ -20,9 +20,9 @@ extra_files = package_files(os.path.join('squirrels', 'package_data'))
 
 setup(
     name='squirrels',
-    version='0.1.0',
+    version='0.1.1rc0',
     packages=find_packages(),
-    description='Python Package for Configuring SQL Generating APIs',
+    description='Squirrels - Configure REST APIs for BI Analytics',
     long_description=long_description,
     long_description_content_type="text/markdown",
     author='Tim Huang',
