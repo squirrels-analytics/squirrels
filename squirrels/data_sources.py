@@ -27,7 +27,7 @@ class DataSource:
         Returns:
             str: The converted select query
         """
-        if self.table_or_query.lower().startswith('select '):
+        if self.table_or_query.strip().lower().startswith('select '):
             query = self.table_or_query
         else:
             query = f'SELECT * FROM {self.table_or_query}'

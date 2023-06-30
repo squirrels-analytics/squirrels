@@ -76,6 +76,30 @@ class SelectParameterOption(ParameterOption):
             **kwargs, **custom_fields, "id": identifier, "label": label
         }
         super().__post_init__()
+
+    def get_custom_field(self, field: str, default_field: Optional[str] = None, default: Any = None) -> Any:
+        """
+        Get field value from the custom_fields attribute
+
+        Parameters:
+            field: The key to use to fetch the custom field from "custom_fields"
+            default_field: If field does not exist in "custom_fields", then this is used instead as the field (if not None)
+            default: If field does not exist and default_field is None, then this value is used as default
+        
+        Returns:
+            The type of the custom field
+        """
+        if default_field is not None:
+            default = self.get_custom_field(default_field)
+        try:
+            if default is not None:
+                selected_field = self.custom_fields.get(field, default)
+            else:
+                selected_field = self.custom_fields[field]
+        except KeyError as e:
+            raise ConfigurationError(f"Field '{field}' must exist for parameter option '{self.to_dict()}'") from e
+        
+        return selected_field
     
     def to_dict(self):
         return {'id': self.identifier, 'label': self.label}

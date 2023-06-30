@@ -1,5 +1,5 @@
 from __future__ import annotations
-from typing import Type, Sequence, Dict, List, Iterator, Optional, Union
+from typing import Type, Sequence, Dict, List, Any, Iterator, Optional, Union
 from dataclasses import dataclass
 from datetime import datetime
 from decimal import Decimal
@@ -202,20 +202,26 @@ class SingleSelectParameter(_SelectionParameter):
         param_copy.selected_id = self._validate_selected_id_in_options(selection)
         param_copy.children = [child.refresh(param_copy) for child in param_copy.children]
         return param_copy
-
-    def get_selected(self, field: Optional[str] = None) -> po.SelectParameterOption:
+    
+    def get_selected(self, field: Optional[str] = None, *, default_field: Optional[str] = None,
+                     default: Any = None) -> Union[po.SelectParameterOption, str]:
         """
-        Gets the selected single-select option
+        Gets the selected single-select option or selected custom field
+
+        Parameters:
+            field: If field is not None, the method gets this field from the "custom_fields" attribute of the selected option. 
+                Otherwise, returns the class object of the selected option
+            default_field: If field does not exist for a parameter option and default_field is not None, the default_field is used 
+                as the "field" instead. Does nothing if field is None
+            default: If field does not exist for a parameter option, default_field is None, but default is not None, then the default 
+                is returned as the selected field. Does nothing if field is None or default_field is not None
 
         Returns:
-            A SelectParameterOption class object
+            A SelectParameterOption class object if no field is provided, or the type of the custom field
         """
         selected = next(x for x in self.options if x.identifier == self.selected_id)
         if field is not None:
-            try:
-                selected = selected.custom_fields[field]
-            except KeyError as e:
-                raise u.ConfigurationError(f"Field '{field}' must exist for all parameter options for SingleSelectParameter '{self.name}'") from e
+            selected = selected.get_custom_field(field, default_field, default)
         return selected
     
     def get_selected_id(self) -> str:
@@ -334,12 +340,21 @@ class MultiSelectParameter(_SelectionParameter):
         """
         return len(self.selected_ids) > 0
 
-    def get_selected_list(self, field: Optional[str] = None) -> Sequence[po.SelectParameterOption]:
+    def get_selected_list(self, field: Optional[str] = None, *, default_field: Optional[str] = None,
+                          default: Any = None) -> Sequence[Union[po.SelectParameterOption, Any]]:
         """
-        Gets the sequence of the selected option(s)
+        Gets the sequence of the selected option(s) or a sequence of selected custom fields
+
+        Parameters:
+            field: If field is not None, the method gets this field from the "custom_fields" attribute of the selected options. 
+                Otherwise, returns the class objects of the selected options
+            default_field: If field does not exist for a parameter option and default_field is not None, the default_field is used 
+                as the "field" instead. Does nothing if field is None
+            default: If field does not exist for a parameter option, default_field is None, but default is not None, the default 
+                is returned as the selected field. Does nothing if field is None or default_field is not None
 
         Returns:
-            A sequence of SelectParameterOption class objects
+            A sequence of SelectParameterOption class objects or sequence of type of custom field
         """
         if not self.has_non_empty_selection() and self.include_all:
             selected_list = self.options
@@ -347,10 +362,7 @@ class MultiSelectParameter(_SelectionParameter):
             selected_list = (x for x in self.options if x.identifier in self.selected_ids)
         
         if field is not None:
-            try:
-                selected_list = [selected.custom_fields[field] for selected in selected_list]
-            except KeyError as e:
-                raise u.ConfigurationError(f"Field '{field}' must exist for all parameter options for MultiSelectParameter '{self.name}'") from e
+            selected_list = [selected.get_custom_field(field, default_field, default) for selected in selected_list]
         
         return tuple(selected_list)
 

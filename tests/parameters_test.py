@@ -258,6 +258,8 @@ class TestMultiSelectParameter(TestParentParameters):
         assert parameter.get_selected_list("label") == ("Label 1", "Label 2")
         assert parameter.get_selected_list("field0") == ("a", "x")
         assert parameter.get_selected_list("field1") == ("b", "y")
+        assert parameter.get_selected_list("field2", default_field="field0", default="h") == ("c", "x")
+        assert parameter.get_selected_list("field2", default="h") == ("c", "h")
         with pytest.raises(ConfigurationError):
             parameter.get_selected_list("field2")
 

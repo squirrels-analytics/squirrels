@@ -3,28 +3,45 @@ import squirrels as sr
 
 
 def main(args: Dict[str, Any], *p_args, **kwargs) -> Sequence[sr.Parameter]:
-    single_select_options = (
-        sr.SelectParameterOption('a0', 'Primary Colors'),
-        sr.SelectParameterOption('a1', 'Secondary Colors')
-    )
     
-    multi_select_options = (
-        sr.SelectParameterOption('x0', 'Red',    parent_option_id='a0'),
-        sr.SelectParameterOption('x1', 'Yellow', parent_option_id='a0'),
-        sr.SelectParameterOption('x2', 'Blue',   parent_option_id='a0'),
-        sr.SelectParameterOption('x3', 'Green',  parent_option_id='a1'),
-        sr.SelectParameterOption('x4', 'Orange', parent_option_id='a1'),
-        sr.SelectParameterOption('x5', 'Purple', parent_option_id='a1')
-    )
+    ## Example of creating SingleSelectParameter (similar for MultiSelectParameter)
+    group_by_options = [
+        sr.SelectParameterOption("g0", "Transaction", columns="ID,Date"),
+        sr.SelectParameterOption("g1", "Date", columns="Date"),
+        sr.SelectParameterOption("g2", "Category", columns="Category"),
+        sr.SelectParameterOption("g3", "Subcategory", columns="Category,Subcategory"),
+    ]
+    group_by_param = sr.SingleSelectParameter("group_by", "Group By", group_by_options)
 
-    single_select_example = sr.SingleSelectParameter('color_type', 'Color Type', single_select_options)
+    ## Example of creating DateParameter
+    start_date_param = sr.DateParameter("start_date", "Start Date", "2023-01-01")
 
-    multi_select_example = sr.MultiSelectParameter('colors', 'Colors', multi_select_options,
-                                                   parent=single_select_example)
+    ## Example of creating DateParameter from lookup query/table
+    end_date_ds = sr.DateDataSource("SELECT max(Date) as date FROM transactions", "date")
+    end_date_param = sr.DataSourceParameter(sr.DateParameter, "end_date", "End Date", end_date_ds)
+
+    ## Example of creating MultiSelectParameter from lookup query/table
+    category_ds = sr.SelectionDataSource("SELECT DISTINCT Category_ID, Category FROM categories", "Category_ID", "Category")
+    category_filter = sr.DataSourceParameter(sr.MultiSelectParameter, "category", "Category Filter", category_ds)
+
+    ## Example of creating MultiSelectParameter with parent from lookup query/table
+    subcategory_ds = sr.SelectionDataSource("categories", "Subcategory_ID", "Subcategory", parent_id_col="Category_ID")
+    subcategory_filter = sr.DataSourceParameter(sr.MultiSelectParameter, "subcategory", "Subcategory Filter", subcategory_ds, parent=category_filter)
+
+    ## Example of creating NumberParameter
+    min_amount_filter = sr.NumberParameter("min_filter", "Amounts Greater Than", 0, 500, 10)
     
-    date_example = sr.DateParameter('as_of_date', 'As Of Date', '2020-01-01')
+    ## Example of creating NumberParameter from lookup query/table
+    query = """
+        SELECT 0 as min_value, max(-Amount) as max_value, 10 as increment \
+        FROM transactions WHERE Category <> 'Income'
+    """
+    max_amount_ds = sr.NumberDataSource(query, "min_value", "max_value", "increment", default_value_col="max_value")
+    max_amount_filter = sr.DataSourceParameter(sr.NumberParameter, "max_filter", "Amounts Less Than", max_amount_ds)
     
-    number_example = sr.NumberParameter('upper_bound', 'Upper Bound', min_value=1, max_value=10, 
-                                        increment=1, default_value=5)
-    
-    return [single_select_example, multi_select_example, date_example, number_example]
+    return [
+        group_by_param, 
+        start_date_param, end_date_param, 
+        category_filter, subcategory_filter, 
+        min_amount_filter, max_amount_filter
+    ]
