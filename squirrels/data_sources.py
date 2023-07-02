@@ -62,7 +62,6 @@ class SelectionDataSource(DataSource):
     Lookup table for selection parameters (single and multi)
 
     Attributes:
-        connection_name: Name of the connection to use defined in connections.py
         table_or_query: Either the name of the table to use, or a query to run
         id_col: The column name of the id
         options_col: The column name of the options
@@ -70,6 +69,7 @@ class SelectionDataSource(DataSource):
         is_default_col: The column name that indicates which options are the default
         parent_id_col: The column name of the parent option id that this option belongs to
         custom_cols: Dictionary of attribute to column name for custom fields for the SelectParameterOption
+        connection_name: Name of the connection to use defined in connections.py
     """
     id_col: str
     options_col: str
@@ -124,11 +124,11 @@ class DateDataSource(DataSource):
     Lookup table for date parameter default options
 
     Attributes:
-        connection_name: Name of the connection to use defined in connections.py
         table_or_query: Either the name of the table to use, or a query to run
         default_date_col: The column name of the default date
-        date_format: The format of the default date(s). Defaults to '%Y-%m-%d'
         parent_id_col: The column name of the parent option id that the default date belongs to
+        date_format: The format of the default date(s). Defaults to '%Y-%m-%d'
+        connection_name: Name of the connection to use defined in connections.py
     """
     default_date_col: str
     parent_id_col: Optional[str] = None
@@ -185,13 +185,13 @@ class NumberDataSource(_NumericDataSource):
     Lookup table for number parameter default options
 
     Attributes:
-        connection_name: Name of the connection to use defined in connections.py
         table_or_query: Either the name of the table to use, or a query to run
         min_value_col: The column name of the minimum value
         max_value_col: The column name of the maximum value
         increment_col: The column name of the increment value. Defaults to column of 1's if None
         default_value_col: The column name of the default value. Defaults to min_value_col if None
         parent_id_col: The column name of the parent option id that the default value belongs to
+        connection_name: Name of the connection to use defined in connections.py
     """
     default_value_col: Optional[str] = None
     parent_id_col: Optional[str] = None
@@ -236,7 +236,6 @@ class NumRangeDataSource(_NumericDataSource):
     Lookup table for number range parameter default options
 
     Attributes:
-        connection_name: Name of the connection to use defined in connections.py
         table_or_query: Either the name of the table to use, or a query to run
         min_value_col: The column name of the minimum value
         max_value_col: The column name of the maximum value
@@ -244,6 +243,7 @@ class NumRangeDataSource(_NumericDataSource):
         default_lower_value_col: The column name of the default lower value. Defaults to min_value_col if None
         default_upper_value_col: The column name of the default upper value. Defaults to max_value_col if None
         parent_id_col: The column name of the parent option id that the default value belongs to
+        connection_name: Name of the connection to use defined in connections.py
     """
     default_lower_value_col: Optional[str] = None
     default_upper_value_col: Optional[str] = None
