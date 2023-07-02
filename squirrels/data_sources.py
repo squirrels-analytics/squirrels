@@ -1,6 +1,6 @@
 from __future__ import annotations
-from typing import Type, Tuple, List, Optional
-from dataclasses import dataclass
+from typing import Type, Dict, Tuple, List, Optional
+from dataclasses import dataclass, field
 
 from squirrels import parameters as p, parameter_options as po
 from squirrels._timed_imports import pandas as pd
@@ -27,7 +27,7 @@ class DataSource:
         Returns:
             str: The converted select query
         """
-        if self.table_or_query.lower().startswith('select '):
+        if self.table_or_query.strip().lower().startswith('select '):
             query = self.table_or_query
         else:
             query = f'SELECT * FROM {self.table_or_query}'
@@ -62,19 +62,21 @@ class SelectionDataSource(DataSource):
     Lookup table for selection parameters (single and multi)
 
     Attributes:
-        connection_name: Name of the connection to use defined in connections.py
         table_or_query: Either the name of the table to use, or a query to run
         id_col: The column name of the id
         options_col: The column name of the options
         order_by_col: The column name to order the options by. Orders by the id_col instead if this is None
         is_default_col: The column name that indicates which options are the default
         parent_id_col: The column name of the parent option id that this option belongs to
+        custom_cols: Dictionary of attribute to column name for custom fields for the SelectParameterOption
+        connection_name: Name of the connection to use defined in connections.py
     """
     id_col: str
     options_col: str
     order_by_col: Optional[str] = None
     is_default_col: Optional[str] = None
     parent_id_col: Optional[str] = None
+    custom_cols: Dict[str, str] = field(default_factory=dict)
     connection_name: str = c.DEFAULT_DB_CONN
 
     def __post_init__(self):
@@ -96,14 +98,20 @@ class SelectionDataSource(DataSource):
         def is_default(row):
             return int(_utils.get_row_value(row, self.is_default_col)) == 1 if self.is_default_col is not None else False
         
+        def get_custom_fields(row):
+            result = {}
+            for key, val in self.custom_cols.items():
+                result[key] = _utils.get_row_value(row, val)
+            return result
+        
         try:
             df.sort_values(self.order_by_col, inplace=True)
         except KeyError as e:
             raise _utils.ConfigurationError(f'Could not sort on column name "{self.order_by_col}" as it does not exist')
         
         options = tuple(
-            po.SelectParameterOption(str(_utils.get_row_value(row, self.id_col)), str(_utils.get_row_value(row, self.options_col)), is_default(row), 
-                                     parent_option_id=self._get_parent(row))
+            po.SelectParameterOption(str(_utils.get_row_value(row, self.id_col)), str(_utils.get_row_value(row, self.options_col)), 
+                                     is_default=is_default(row), parent_option_id=self._get_parent(row), custom_fields=get_custom_fields(row))
             for _, row in df.iterrows()
         )
         
@@ -116,11 +124,11 @@ class DateDataSource(DataSource):
     Lookup table for date parameter default options
 
     Attributes:
-        connection_name: Name of the connection to use defined in connections.py
         table_or_query: Either the name of the table to use, or a query to run
         default_date_col: The column name of the default date
-        date_format: The format of the default date(s). Defaults to '%Y-%m-%d'
         parent_id_col: The column name of the parent option id that the default date belongs to
+        date_format: The format of the default date(s). Defaults to '%Y-%m-%d'
+        connection_name: Name of the connection to use defined in connections.py
     """
     default_date_col: str
     parent_id_col: Optional[str] = None
@@ -177,13 +185,13 @@ class NumberDataSource(_NumericDataSource):
     Lookup table for number parameter default options
 
     Attributes:
-        connection_name: Name of the connection to use defined in connections.py
         table_or_query: Either the name of the table to use, or a query to run
         min_value_col: The column name of the minimum value
         max_value_col: The column name of the maximum value
         increment_col: The column name of the increment value. Defaults to column of 1's if None
         default_value_col: The column name of the default value. Defaults to min_value_col if None
         parent_id_col: The column name of the parent option id that the default value belongs to
+        connection_name: Name of the connection to use defined in connections.py
     """
     default_value_col: Optional[str] = None
     parent_id_col: Optional[str] = None
@@ -228,7 +236,6 @@ class NumRangeDataSource(_NumericDataSource):
     Lookup table for number range parameter default options
 
     Attributes:
-        connection_name: Name of the connection to use defined in connections.py
         table_or_query: Either the name of the table to use, or a query to run
         min_value_col: The column name of the minimum value
         max_value_col: The column name of the maximum value
@@ -236,6 +243,7 @@ class NumRangeDataSource(_NumericDataSource):
         default_lower_value_col: The column name of the default lower value. Defaults to min_value_col if None
         default_upper_value_col: The column name of the default upper value. Defaults to max_value_col if None
         parent_id_col: The column name of the parent option id that the default value belongs to
+        connection_name: Name of the connection to use defined in connections.py
     """
     default_lower_value_col: Optional[str] = None
     default_upper_value_col: Optional[str] = None

@@ -23,7 +23,7 @@ class TestDataSource:
 
 class TestSelectionDataSource(TestParentParameters):
     def create_data_source(self, parent_id_col: Optional[str]):
-        return d.SelectionDataSource('table', 'test_id', 'test_options',
+        return d.SelectionDataSource('table', 'test_id', 'test_options', custom_cols={"alliteration": "test_alliteration"},
                                      is_default_col='test_is_default', parent_id_col=parent_id_col)
     
     @pytest.fixture
@@ -40,9 +40,11 @@ class TestSelectionDataSource(TestParentParameters):
         df = pd.DataFrame({
             'test_id': ['0', '1', '2'],
             'test_options': ['zero', 'one', 'two'],
+            'test_alliteration': ['zerox', 'wonder', 'tutor'],
             'test_is_default': [0, 1, 1]
         })
-        param_to_dict = select_data_source.convert(ds_param, df).to_json_dict()
+        param: sr.SingleSelectParameter = select_data_source.convert(ds_param, df)
+        param_to_dict = param.to_json_dict()
         expected = {
             'widget_type': 'SingleSelectParameter',
             'name': 'test_param',
@@ -56,6 +58,9 @@ class TestSelectionDataSource(TestParentParameters):
             'trigger_refresh': False
         }
         assert param_to_dict == expected
+
+        custom_field_list = [x.custom_fields["alliteration"] for x in param.options]
+        assert custom_field_list == ['zerox', 'wonder', 'tutor']
 
         ds_param = DataSourceParameter(sr.SingleSelectParameter, 'test_param', 'Test Parameter', select_data_source_with_parent,
                                        parent=multi_select_parent)

@@ -1,7 +1,12 @@
 -- %USE some_db -- TBA: this line is optional when connecting to the "default" db_connection
 
--- note: if context.py is defined, you can use "ctx['limit']" instead of "prms['number_example'].get_selected_value()"
-SELECT dim1, avg(metric1) as metric1, avg(metric2) as metric2
-FROM fact_table
-WHERE metric1 <= {{ prms['upper_bound'].get_selected_value() }}
-GROUP BY dim1
+SELECT {{ prms["group_by"].get_selected("columns") }} -- {{ ctx["group_by_cols"] }}
+    , sum(-Amount) as Total_Amount
+FROM transactions
+WHERE Category IN ({{ prms["category"].get_selected_labels_quoted_joined() }}) -- ({{ ctx["categories"] }})
+    AND Subcategory IN ({{ prms["subcategory"].get_selected_labels_quoted_joined() }}) -- ({{ ctx["subcategories"] }})
+    AND "Date" >= {{ prms["start_date"].get_selected_date_quoted() }} -- {{ ctx["start_date"] }}
+    AND "Date" <= {{ prms["end_date"].get_selected_date_quoted() }} -- {{ ctx["end_date"] }}
+    AND -Amount >= {{ prms["min_filter"].get_selected_value() }} -- {{ ctx["min_amount"] }}
+    AND -Amount <= {{ prms["max_filter"].get_selected_value() }} -- {{ ctx["max_amount"] }}
+GROUP BY {{ prms["group_by"].get_selected("columns") }} -- {{ ctx["group_by_cols"] }}

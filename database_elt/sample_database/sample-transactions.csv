@@ -1,0 +1,214 @@
+﻿ID,Date,Category,Subcategory,Vendor,Amount,Balance,Description
+1000,2023-01-01,Income,Salary,MyWorkplace,5000,30000,Regular pay from MyWorkplace
+1001,2023-01-01,Food,Dining Out,Cafe Sunshine,-30,29970,Dinner with friends
+1002,2023-01-03,Food,Groceries,ABC Supermarket,-50,29920,Weekly grocery shopping
+1003,2023-01-03,Bills,Utilities,Gas Co.,-70,29850,Monthly gas bill
+1004,2023-01-04,Food,Dining Out,Pizza Palace,-25,29825,Pizza and drinks with friends
+1005,2023-01-05,Bills,Utilities,Water Co.,-75,29750,Monthly water bill
+1006,2023-01-06,Shopping,Electronics,TechZone,-500,29250,New smart TV
+1007,2023-01-07,Transportation,Ride Sharing,RideShare Co.,-20,29230,Commute to the office
+1008,2023-01-13,Bills,Mobile,Mobile Provider,-55,29175,Monthly mobile phone bill
+1009,2023-01-17,Shopping,Home Decor,Interior Designs,-250,28925,New curtains and decor items for the living room
+1010,2023-01-19,Bills,Internet,HighSpeed Co.,-60,28865,Monthly internet bill
+1011,2023-01-23,Transportation,Ride Sharing,RideShare Co.,-20,28845,Commute to the office
+1012,2023-01-25,Entertainment,Theater,Broadway Theater,-100,28745,Tickets to a play
+1013,2023-01-26,Entertainment,Movies,Star Cinema,-15,28730,Movie tickets for two
+1014,2023-01-28,Shopping,Home Decor,Interior Designs,-200,28530,New curtains and decor items for the living room
+1015,2023-01-30,Shopping,Electronics,Gadget World,-400,28130,New tablet
+1016,2023-02-01,Income,Salary,MyWorkplace,5000,33130,Regular pay from MyWorkplace
+1017,2023-02-04,Shopping,Sports,Sports Gear Co.,-120,33010,New running shoes and workout gear
+1018,2023-02-05,Transportation,Ride Sharing,RideShare Co.,-15,32995,Commute to the office
+1019,2023-02-06,Food,Groceries,Fresh Mart,-40,32955,Organic produce and pantry items
+1020,2023-02-06,Entertainment,Movies,Cinemax,-12,32943,Movie tickets for a comedy
+1021,2023-02-07,Transportation,Public Transit,City Metro,-5,32938,Bus fare
+1022,2023-02-08,Bills,Mobile,Mobile Provider,-50,32888,Monthly mobile phone bill
+1023,2023-02-09,Bills,Utilities,Gas Co.,-70,32818,Monthly gas bill
+1024,2023-02-11,Bills,Mobile,Mobile Provider,-50,32768,Monthly mobile phone bill
+1025,2023-02-12,Bills,Mobile,Mobile Provider,-50,32718,Monthly mobile phone bill
+1026,2023-02-13,Food,Dining Out,Sushi House,-45,32673,Sushi dinner
+1027,2023-02-13,Food,Groceries,Green Farms,-35,32638,"Fresh fruits, vegetables, and dairy products"
+1028,2023-02-14,Food,Dining Out,Burger Joint,-20,32618,Burgers and fries
+1029,2023-02-15,Transportation,Public Transit,City Metro,-5,32613,Bus fare
+1030,2023-02-19,Food,Dining Out,Pizzeria Italia,-35,32578,Pizza and pasta dinner
+1031,2023-02-21,Food,Dining Out,Sushi House,-45,32533,Sushi dinner
+1032,2023-02-25,Shopping,Home Decor,Home Accents,-150,32383,Decorative items for the bedroom
+1033,2023-02-26,Shopping,Home Decor,Home Accents,-150,32233,Decorative items for the bedroom
+1034,2023-02-28,Shopping,Clothing,Fashion Outlet,-90,32143,New jeans and shirts
+1035,2023-02-28,Food,Dining Out,Burger Joint,-20,32123,Burgers and fries
+1036,2023-03-01,Income,Salary,MyWorkplace,5000,37123,Regular pay from MyWorkplace
+1037,2023-03-02,Shopping,Electronics,Gadget World,-400,36723,New tablet
+1038,2023-03-05,Entertainment,Theater,Broadway Theater,-100,36623,Tickets to a musical
+1039,2023-03-05,Food,Groceries,Green Farms,-35,36588,"Fresh fruits, vegetables, and dairy products"
+1040,2023-03-07,Entertainment,Movies,Star Cinema,-15,36573,Movie tickets for two
+1041,2023-03-09,Shopping,Electronics,Gadget World,-400,36173,New smartphone
+1042,2023-03-18,Shopping,Clothing,Fashion Outlet,-150,36023,New shoes and accessories
+1043,2023-03-19,Food,Groceries,Green Farms,-35,35988,"Fresh fruits, vegetables, and dairy products"
+1044,2023-03-19,Transportation,Public Transit,City Metro,-5,35983,Bus fare
+1045,2023-03-20,Shopping,Electronics,TechZone,-300,35683,Laptop for work
+1046,2023-03-21,Food,Groceries,ABC Supermarket,-45,35638,Weekly grocery shopping
+1047,2023-03-27,Food,Groceries,ABC Supermarket,-45,35593,Weekly grocery shopping
+1048,2023-03-30,Entertainment,Movies,Star Cinema,-15,35578,Movie tickets for two
+1049,2023-04-01,Income,Salary,MyWorkplace,5000,40578,Regular pay from MyWorkplace
+1050,2023-04-01,Shopping,Electronics,Gadget World,-500,40078,New smartphone
+1051,2023-04-04,Bills,Utilities,Electric Co.,-80,39998,Monthly electricity bill
+1052,2023-04-09,Transportation,Ride Sharing,RideShare Co.,-20,39978,Commute to the office
+1053,2023-04-09,Transportation,Public Transit,City Metro,-4,39974,Bus fare
+1054,2023-04-11,Food,Dining Out,Pizza Palace,-25,39949,Pizza and drinks with friends
+1055,2023-04-13,Food,Dining Out,Pizza Palace,-25,39924,Pizza and drinks with friends
+1056,2023-04-13,Shopping,Sports,Sports Gear Co.,-120,39804,New running shoes and workout gear
+1057,2023-04-14,Food,Groceries,Green Farms,-35,39769,"Fresh fruits, vegetables, and dairy products"
+1058,2023-04-20,Food,Dining Out,Burger Joint,-20,39749,Burgers and fries
+1059,2023-04-20,Entertainment,Movies,Cinemax,-12,39737,Movie tickets for a sci-fi film
+1060,2023-04-25,Bills,Internet,HighSpeed Co.,-60,39677,Monthly internet bill
+1061,2023-04-25,Food,Groceries,Fresh Mart,-40,39637,Organic produce and pantry items
+1062,2023-04-27,Shopping,Electronics,Gadget World,-400,39237,New smartphone
+1063,2023-04-29,Shopping,Electronics,Gadget World,-400,38837,New tablet
+1064,2023-04-29,Entertainment,Movies,Cinemax,-12,38825,Movie tickets for an action film
+1065,2023-04-30,Bills,Internet,HighSpeed Co.,-60,38765,Monthly internet bill
+1066,2023-05-01,Income,Salary,MyWorkplace,5000,43765,Regular pay from MyWorkplace
+1067,2023-05-02,Entertainment,Theater,Broadway Theater,-100,43665,Tickets to a play
+1068,2023-05-04,Shopping,Electronics,TechZone,-300,43365,Laptop for work
+1069,2023-05-08,Transportation,Public Transit,City Metro,-4,43361,Bus fare
+1070,2023-05-08,Shopping,Clothing,Fashion Outlet,-75,43286,New dress and accessories
+1071,2023-05-08,Entertainment,Movies,Star Cinema,-15,43271,Movie tickets for two
+1072,2023-05-10,Food,Dining Out,Sushi House,-45,43226,Sushi dinner
+1073,2023-05-14,Bills,Internet,HighSpeed Co.,-60,43166,Monthly internet bill
+1074,2023-05-15,Food,Dining Out,Burger Joint,-20,43146,Burgers and fries
+1075,2023-05-16,Food,Dining Out,Cafe Sunshine,-30,43116,Breakfast with family
+1076,2023-05-18,Bills,Internet,HighSpeed Co.,-60,43056,Monthly internet bill
+1077,2023-05-24,Bills,Utilities,Gas Co.,-70,42986,Monthly gas bill
+1078,2023-05-28,Food,Groceries,ABC Supermarket,-55,42931,Weekly grocery shopping
+1079,2023-05-29,Food,Groceries,Fresh Mart,-40,42891,Organic produce and pantry items
+1080,2023-05-30,Bills,Mobile,Mobile Provider,-50,42841,Monthly mobile phone bill
+1081,2023-05-31,Shopping,Clothing,Fashion Outlet,-150,42691,New shoes and accessories
+1082,2023-06-01,Income,Salary,MyWorkplace,5000,47691,Regular pay from MyWorkplace
+1083,2023-06-03,Food,Dining Out,Sushi House,-45,47646,Sushi dinner
+1084,2023-06-04,Transportation,Public Transit,City Metro,-5,47641,Bus fare
+1085,2023-06-04,Bills,Internet,HighSpeed Co.,-60,47581,Monthly internet bill
+1086,2023-06-05,Bills,Utilities,Electric Co.,-80,47501,Monthly electricity bill
+1087,2023-06-12,Entertainment,Movies,Cinemax,-12,47489,Movie tickets for a comedy
+1088,2023-06-12,Food,Groceries,ABC Supermarket,-45,47444,Weekly grocery shopping
+1089,2023-06-12,Bills,Internet,HighSpeed Co.,-60,47384,Monthly internet bill
+1090,2023-06-12,Food,Groceries,ABC Supermarket,-55,47329,Weekly grocery shopping
+1091,2023-06-13,Shopping,Home Decor,Home Accents,-150,47179,Decorative items for the bedroom
+1092,2023-06-14,Shopping,Home Decor,Home Accents,-150,47029,Decorative items for the bedroom
+1093,2023-06-14,Food,Groceries,Green Farms,-35,46994,"Fresh fruits, vegetables, and dairy products"
+1094,2023-06-17,Food,Groceries,Fresh Mart,-40,46954,Organic produce and pantry items
+1095,2023-06-19,Transportation,Ride Sharing,RideShare Co.,-15,46939,Commute to the office
+1096,2023-06-19,Transportation,Public Transit,City Metro,-4,46935,Bus fare
+1097,2023-06-21,Entertainment,Movies,Star Cinema,-15,46920,Movie tickets for two
+1098,2023-06-27,Entertainment,Movies,Cinemax,-12,46908,Movie tickets for a comedy
+1099,2023-06-28,Transportation,Ride Sharing,RideShare Co.,-15,46893,Commute to the office
+1100,2023-06-30,Entertainment,Concerts,Music Arena,-80,46813,Tickets to a live concert
+1101,2023-06-30,Shopping,Clothing,Fashion Outlet,-75,46738,New dress and accessories
+1102,2023-07-01,Income,Salary,MyWorkplace,5000,51738,Regular pay from MyWorkplace
+1103,2023-07-02,Food,Groceries,ABC Supermarket,-45,51693,Weekly grocery shopping
+1104,2023-07-04,Food,Groceries,ABC Supermarket,-55,51638,Weekly grocery shopping
+1105,2023-07-04,Bills,Internet,HighSpeed Co.,-60,51578,Monthly internet bill
+1106,2023-07-11,Food,Dining Out,Cafe Sunshine,-30,51548,Breakfast with friends
+1107,2023-07-17,Bills,Mobile,Mobile Provider,-50,51498,Monthly mobile phone bill
+1108,2023-07-17,Food,Groceries,Fresh Mart,-40,51458,Organic produce and pantry items
+1109,2023-07-18,Entertainment,Concerts,Music Arena,-80,51378,Tickets to a live concert
+1110,2023-07-19,Shopping,Clothing,Fashion Outlet,-150,51228,New shoes and accessories
+1111,2023-07-23,Shopping,Clothing,Fashion Outlet,-150,51078,New shoes and accessories
+1112,2023-07-24,Transportation,Ride Sharing,RideShare Co.,-15,51063,Commute to the office
+1113,2023-07-25,Food,Groceries,ABC Supermarket,-55,51008,Weekly grocery shopping
+1114,2023-07-25,Food,Groceries,Green Farms,-35,50973,"Fresh fruits, vegetables, and dairy products"
+1115,2023-07-25,Shopping,Home Decor,Home Accents,-150,50823,Decorative items for the bedroom
+1116,2023-07-26,Shopping,Clothing,Fashion Outlet,-75,50748,New dress and accessories
+1117,2023-07-27,Shopping,Clothing,XYZ Boutique,-100,50648,New pair of shoes
+1118,2023-07-27,Shopping,Electronics,TechZone,-300,50348,Laptop for work
+1119,2023-07-28,Shopping,Home Decor,Interior Designs,-250,50098,New curtains and decor items for the living room
+1120,2023-07-29,Food,Dining Out,Pizza Palace,-25,50073,Pizza and drinks with friends
+1121,2023-07-30,Food,Dining Out,Pizza Palace,-25,50048,Pizza and drinks with friends
+1122,2023-07-31,Entertainment,Concerts,Music Arena,-80,49968,Tickets to a live concert
+1123,2023-08-01,Income,Salary,MyWorkplace,5000,54968,Regular pay from MyWorkplace
+1124,2023-08-01,Food,Dining Out,Cafe Sunshine,-30,54938,Breakfast with family
+1125,2023-08-01,Transportation,Ride Sharing,RideShare Co.,-20,54918,Commute to the office
+1126,2023-08-04,Entertainment,Movies,Star Cinema,-15,54903,Movie tickets for two
+1127,2023-08-04,Shopping,Clothing,Fashion Outlet,-150,54753,New shoes and accessories
+1128,2023-08-04,Food,Groceries,ABC Supermarket,-45,54708,Weekly grocery shopping
+1129,2023-08-04,Transportation,Ride Sharing,RideShare Co.,-20,54688,Commute to the office
+1130,2023-08-05,Bills,Utilities,Electric Co.,-80,54608,Monthly electricity bill
+1131,2023-08-06,Shopping,Clothing,Fashion Outlet,-90,54518,New jeans and shirts
+1132,2023-08-07,Food,Dining Out,Cafe Sunshine,-30,54488,Breakfast with family
+1133,2023-08-11,Entertainment,Movies,Cinemax,-12,54476,Movie tickets for a thriller
+1134,2023-08-12,Shopping,Clothing,Fashion Outlet,-75,54401,New dress and accessories
+1135,2023-08-13,Bills,Mobile,Mobile Provider,-55,54346,Monthly mobile phone bill
+1136,2023-08-16,Transportation,Ride Sharing,RideShare Co.,-15,54331,Commute to the office
+1137,2023-08-19,Entertainment,Movies,Star Cinema,-15,54316,Movie tickets for two
+1138,2023-08-29,Bills,Utilities,Gas Co.,-70,54246,Monthly gas bill
+1139,2023-09-01,Income,Salary,MyWorkplace,5000,59246,Regular pay from MyWorkplace
+1140,2023-09-05,Food,Dining Out,Cafe Sunshine,-30,59216,Breakfast with friends
+1141,2023-09-07,Entertainment,Concerts,Music Arena,-80,59136,Tickets to a live concert
+1142,2023-09-09,Transportation,Public Transit,City Metro,-5,59131,Bus fare
+1143,2023-09-09,Shopping,Home Decor,Interior Designs,-250,58881,New curtains and decor items for the living room
+1144,2023-09-10,Bills,Internet,HighSpeed Co.,-60,58821,Monthly internet bill
+1145,2023-09-11,Transportation,Public Transit,City Metro,-4,58817,Bus fare
+1146,2023-09-13,Shopping,Clothing,Fashion Outlet,-90,58727,New jeans and shirts
+1147,2023-09-15,Shopping,Clothing,Fashion Outlet,-75,58652,New dress and accessories
+1148,2023-09-15,Food,Groceries,Fresh Mart,-40,58612,Organic produce and pantry items
+1149,2023-09-17,Bills,Mobile,Mobile Provider,-50,58562,Monthly mobile phone bill
+1150,2023-09-18,Shopping,Clothing,Fashion Outlet,-75,58487,New dress and accessories
+1151,2023-09-19,Shopping,Electronics,TechZone,-300,58187,Laptop for work
+1152,2023-09-27,Bills,Utilities,Electric Co.,-80,58107,Monthly electricity bill
+1153,2023-09-30,Transportation,Ride Sharing,RideShare Co.,-20,58087,Commute to the office
+1154,2023-10-01,Income,Salary,MyWorkplace,5000,63087,Regular pay from MyWorkplace
+1155,2023-10-01,Bills,Utilities,Gas Co.,-70,63017,Monthly gas bill
+1156,2023-10-08,Shopping,Clothing,Fashion Outlet,-150,62867,New shoes and accessories
+1157,2023-10-10,Shopping,Clothing,Fashion Outlet,-90,62777,New jeans and shirts
+1158,2023-10-11,Bills,Utilities,Electric Co.,-80,62697,Monthly electricity bill
+1159,2023-10-12,Entertainment,Concerts,Music Arena,-80,62617,Tickets to a live concert
+1160,2023-10-12,Entertainment,Theater,Broadway Theater,-100,62517,Tickets to a play
+1161,2023-10-15,Transportation,Ride Sharing,RideShare Co.,-20,62497,Uber ride to the airport
+1162,2023-10-15,Shopping,Home Decor,Home Accents,-150,62347,Decorative items for the bedroom
+1163,2023-10-15,Food,Groceries,ABC Supermarket,-45,62302,Weekly grocery shopping
+1164,2023-10-17,Entertainment,Theater,Broadway Theater,-100,62202,Tickets to a play
+1165,2023-10-18,Food,Dining Out,Sushi House,-45,62157,Sushi dinner
+1166,2023-10-19,Shopping,Clothing,Fashion Outlet,-90,62067,New jeans and shirts
+1167,2023-10-19,Transportation,Public Transit,City Metro,-4,62063,Bus fare
+1168,2023-10-20,Shopping,Home Decor,Interior Designs,-250,61813,New furniture for the living room
+1169,2023-10-23,Bills,Mobile,Mobile Provider,-55,61758,Monthly mobile phone bill
+1170,2023-10-24,Bills,Mobile,Mobile Provider,-55,61703,Monthly mobile phone bill
+1171,2023-10-27,Food,Dining Out,Pizza Palace,-25,61678,Pizza and drinks with friends
+1172,2023-10-31,Food,Dining Out,Burger Joint,-20,61658,Burgers and fries
+1173,2023-10-31,Bills,Internet,HighSpeed Co.,-60,61598,Monthly internet bill
+1174,2023-10-31,Food,Dining Out,Burger Joint,-20,61578,Burgers and fries
+1175,2023-11-01,Income,Salary,MyWorkplace,5000,66578,Regular pay from MyWorkplace
+1176,2023-11-01,Food,Groceries,Fresh Mart,-40,66538,Organic produce and pantry items
+1177,2023-11-02,Entertainment,Theater,Broadway Theater,-100,66438,Tickets to a musical
+1178,2023-11-03,Entertainment,Movies,Star Cinema,-15,66423,Movie tickets for two
+1179,2023-11-07,Entertainment,Concerts,Music Arena,-80,66343,Tickets to a live concert
+1180,2023-11-07,Transportation,Public Transit,City Metro,-4,66339,Bus fare
+1181,2023-11-09,Transportation,Ride Sharing,RideShare Co.,-15,66324,Commute to the office
+1182,2023-11-10,Entertainment,Concerts,Music Arena,-80,66244,Tickets to a live concert
+1183,2023-11-12,Shopping,Sports,Sports Gear Co.,-120,66124,New running shoes and workout gear
+1184,2023-11-13,Bills,Mobile,Mobile Provider,-55,66069,Monthly mobile phone bill
+1185,2023-11-18,Bills,Internet,HighSpeed Co.,-60,66009,Monthly internet bill
+1186,2023-11-19,Food,Groceries,Green Farms,-35,65974,"Fresh fruits, vegetables, and dairy products"
+1187,2023-11-19,Bills,Mobile,Mobile Provider,-55,65919,Monthly mobile phone bill
+1188,2023-11-22,Shopping,Sports,Sports Gear Co.,-120,65799,New running shoes and workout gear
+1189,2023-11-22,Shopping,Home Decor,Interior Designs,-250,65549,New curtains and decor items for the living room
+1190,2023-11-22,Shopping,Clothing,Fashion Outlet,-90,65459,New jeans and shirts
+1191,2023-11-24,Bills,Utilities,Gas Co.,-70,65389,Monthly gas bill
+1192,2023-11-26,Bills,Utilities,Electric Co.,-80,65309,Monthly electricity bill
+1193,2023-11-27,Transportation,Public Transit,City Metro,-5,65304,Bus fare
+1194,2023-11-28,Shopping,Sports,Sports Gear Co.,-120,65184,New running shoes and workout gear
+1195,2023-11-29,Food,Dining Out,Cafe Sunshine,-30,65154,Breakfast with friends
+1196,2023-11-29,Shopping,Electronics,TechZone,-300,64854,Laptop accessories
+1197,2023-11-30,Shopping,Sports,Sports Gear Co.,-120,64734,New running shoes and workout gear
+1198,2023-11-30,Bills,Internet,HighSpeed Co.,-60,64674,Monthly internet bill
+1199,2023-12-01,Income,Salary,MyWorkplace,5000,69674,Regular pay from MyWorkplace
+1200,2023-12-02,Bills,Utilities,Electric Co.,-80,69594,Monthly electricity bill
+1201,2023-12-06,Transportation,Public Transit,City Metro,-4,69590,Bus fare
+1202,2023-12-06,Food,Dining Out,Sushi House,-45,69545,Sushi dinner
+1203,2023-12-11,Shopping,Electronics,TechZone,-300,69245,Laptop for work
+1204,2023-12-12,Shopping,Home Decor,Interior Designs,-200,69045,New furniture for the living room
+1205,2023-12-13,Food,Groceries,ABC Supermarket,-55,68990,Weekly grocery shopping
+1206,2023-12-22,Transportation,Public Transit,City Metro,-4,68986,Bus fare
+1207,2023-12-24,Food,Groceries,Fresh Mart,-55,68931,Weekly grocery shopping
+1208,2023-12-26,Shopping,Clothing,Fashion Outlet,-75,68856,New dress and accessories
+1209,2023-12-28,Shopping,Electronics,TechZone,-300,68556,Laptop for work
+1210,2023-12-31,Bills,Mobile,Mobile Provider,-50,68506,Monthly mobile phone bill
+1211,2023-12-31,Food,Dining Out,Sushi House,-45,68461,Sushi dinner
+1212,2023-12-31,Bills,Internet,HighSpeed Co.,-60,68401,Monthly internet bill
