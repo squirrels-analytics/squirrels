@@ -1,6 +1,6 @@
 # Squirrels
 
-Squirrels is an API framework for creating REST APIs that generate sql queries & dataframes dynamically from query parameters. 
+Squirrels is an API framework that lets you create REST APIs for dynamic BI analytics!
 
 ## Setup
 
