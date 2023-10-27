@@ -156,7 +156,7 @@ class DateDataSource(DataSource):
         
         if ds_param.parent is None:
             row = df.iloc[0]
-            return p.DateParameter(ds_param.name, ds_param.label, get_date(row), self.date_format, 
+            return p.DateParameter(ds_param.name, ds_param.label, get_date(row), date_format=self.date_format, 
                                    is_hidden=ds_param.is_hidden)
         else:
             all_options = tuple(create_date_param_option(row) for _, row in df.iterrows())

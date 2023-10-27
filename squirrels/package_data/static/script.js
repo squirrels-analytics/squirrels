@@ -8,23 +8,73 @@ const tableBody = document.getElementById('table-body');
 
 const loadingIndicator = document.getElementById('loading-indicator');
 
+const loginModal = document.getElementById('login-modal');
+const loginForm = document.getElementById('login-form');
+const incorrectMessage = document.getElementById('incorrect');
+let loginProcessor = null;
+
 const datasetsMap = new Map();
 const parametersMap = new Map();
 
+function processLogin(path, func) {
+    return event => {
+        event.preventDefault();
+        const formData = new FormData(loginForm);
+        fetch('/token', {
+            method: 'POST',
+            body: formData
+        })
+        .then(response => {
+            if (response.status === 401) {
+                incorrectMessage.style.display = 'block'
+            } else {
+                response.json()
+                .then(data => {
+                    sessionStorage.setItem("jwt_token", data.access_token);
+                    incorrectMessage.style.display = 'none'
+                    loginModal.style.display = 'none'
+                    callJsonAPI(path, func);
+                })
+            }
+        })
+    }
+}
+
 function callJsonAPI(path, func) {
     loadingIndicator.style.display = 'flex';
-    fetch(path)
-        .then(response => response.json())
-        .then(data => {
-            func(data);
-        })
-        .catch(error => {
-            alert('Server error...')
+    const jwt_token = sessionStorage.getItem("jwt_token");
+    fetch(path, {
+        headers: {
+            'Authorization': `Bearer ${jwt_token}`
+        }
+    })
+    .then(response => {
+        if (response.status === 401) {
+            loginModal.style.display = 'flex'
+            if (loginProcessor != null)
+                loginForm.removeEventListener('submit', loginProcessor)
+            loginProcessor = processLogin(path, func)
+            loginForm.addEventListener('submit', loginProcessor)
+            loadingIndicator.style.display = 'none';
+        } else if (response.status === 200) {
+            response.json()
+                .then(data => {
+                    func(data);
+                })
+                .catch(error => {
+                    alert(error)
+                    console.log(error)
+                })
+                .then(_ => {
+                    loadingIndicator.style.display = 'none';
+                })
+        } else {
+            const error = `Unexpected response status: ${response.status}`
+            alert(error)
             console.log(error)
-        })
-        .then(_ => {
-            loadingIndicator.style.display = 'none'
-        })
+            loadingIndicator.style.display = 'none';
+        }
+    })
 }
 
 function changeDatasetSelection() {
@@ -34,7 +84,7 @@ function changeDatasetSelection() {
 }
 
 function renderDatasetsSelection(data) {
-    const datasets = data.products[0].versions[0].datasets
+    const datasets = data.versions[0].datasets
     datasets.forEach(resource => {
         const option = document.createElement('option');
         option.value = resource.name;

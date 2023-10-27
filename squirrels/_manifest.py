@@ -36,16 +36,21 @@ class Manifest:
         except KeyError as e:
             raise ConfigurationError(f'Field "{key}" not found in squirrels.yaml') from e
     
-    def get_base_path(self) -> str:
+    def get_product(self) -> str:
         project_vars = self.get_proj_vars()
         try:
             product = project_vars[c.PRODUCT_KEY]
+        except KeyError as e:
+            raise ConfigurationError("The 'product' must be specified in project variables") from e
+        return product
+    
+    def get_major_version(self) -> str:
+        project_vars = self.get_proj_vars()
+        try:
             major_version = project_vars[c.MAJOR_VERSION_KEY]
         except KeyError as e:
-            raise ConfigurationError("Could not construct API endpoint as 'product' and 'major_version'" + 
-                "were not specified in project variables") from e
-        base_path = f"/{product}/v{major_version}"
-        return base_path
+            raise ConfigurationError("The 'major_version' must be specified in project variables") from e
+        return major_version
     
     def get_db_connections(self, test_creds: Dict[str, Credential] = None) -> Dict[str, Engine]:
         configs: Dict[str, Dict[str, str]] = self._parms.get(c.DB_CONNECTIONS_KEY, {})
@@ -172,13 +177,11 @@ class Manifest:
         project_vars = self.get_proj_vars()
         return {
             'response_version': 0,
-            'products': [{
-                'name': project_vars[c.PRODUCT_KEY],
-                'versions': [{
-                    'major_version': project_vars[c.MAJOR_VERSION_KEY],
-                    'latest_minor_version': project_vars[c.MINOR_VERSION_KEY],
-                    'datasets': datasets_info
-                }]
+            'product': project_vars[c.PRODUCT_KEY],
+            'versions': [{
+                'major_version': project_vars[c.MAJOR_VERSION_KEY],
+                'latest_minor_version': project_vars[c.MINOR_VERSION_KEY],
+                'datasets': datasets_info
             }]
         }
 

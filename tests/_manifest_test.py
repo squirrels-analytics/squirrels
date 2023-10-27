@@ -87,9 +87,13 @@ def basic_manifest() -> Manifest:
 def test_invalid_configurations(empty_manifest: Manifest, empty_db_view_manifest: Manifest, 
                                 minimal_manifest: Manifest):
     with pytest.raises(ConfigurationError):
-        empty_manifest.get_base_path()
+        empty_manifest.get_product()
     with pytest.raises(ConfigurationError):
-        empty_db_view_manifest.get_base_path()
+        empty_db_view_manifest.get_product()
+    with pytest.raises(ConfigurationError):
+        empty_manifest.get_major_version()
+    with pytest.raises(ConfigurationError):
+        empty_db_view_manifest.get_major_version()
     with pytest.raises(ConfigurationError):
         empty_manifest.get_all_dataset_names()
     with pytest.raises(ConfigurationError):
@@ -121,11 +125,19 @@ def test_get_modules(manifest_name: str, expected: List[str], request: pytest.Fi
 
 
 @pytest.mark.parametrize('manifest_name,expected', [
-    ('minimal_manifest', '/my_product/v1')
+    ('minimal_manifest', 'my_product')
 ])
-def test_get_base_path(manifest_name: str, expected: str, request: pytest.FixtureRequest):
+def test_get_product(manifest_name: str, expected: str, request: pytest.FixtureRequest):
     manifest: Manifest = request.getfixturevalue(manifest_name)
-    assert manifest.get_base_path() == expected
+    assert manifest.get_product() == expected
+
+
+@pytest.mark.parametrize('manifest_name,expected', [
+    ('minimal_manifest', 1)
+])
+def test_get_major_version(manifest_name: str, expected: str, request: pytest.FixtureRequest):
+    manifest: Manifest = request.getfixturevalue(manifest_name)
+    assert manifest.get_major_version() == expected
 
 
 def test_get_db_connections(basic_manifest: Manifest):
@@ -208,19 +220,17 @@ def test_get_setting(manifest_name: str, key: str, expected: str, request: pytes
 
 def test_get_catalog(basic_manifest: Manifest):
     expected = {
-        "response_version": 0, 
-        "products": [{
-            "name": "my_product", 
-            "versions":[{
-                "major_version": 1, 
-                "latest_minor_version": 0, 
-                "datasets": [{
-                    "name": "dataset1", 
-                    "label": "Dataset", 
-                    "parameters_path": "/parameters", 
-                    "result_path": "/results",
-                    "first_minor_version": 0
-                }]
+        "response_version": 0,
+        "product": "my_product", 
+        "versions":[{
+            "major_version": 1, 
+            "latest_minor_version": 0, 
+            "datasets": [{
+                "name": "dataset1", 
+                "label": "Dataset", 
+                "parameters_path": "/parameters", 
+                "result_path": "/results",
+                "first_minor_version": 0
             }]
         }]
     }

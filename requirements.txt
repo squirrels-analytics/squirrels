@@ -10,3 +10,5 @@ cachetools
 pwinput
 inquirer
 openpyxl
+bcrypt
+passlib

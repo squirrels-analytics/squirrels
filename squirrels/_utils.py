@@ -26,7 +26,7 @@ class AbstractMethodCallError(NotImplementedError):
 j2_env = j2.Environment(loader=j2.FileSystemLoader('.'))
 
 
-def import_file_as_module(filepath: Optional[FilePath]) -> ModuleType:
+def import_file_as_module(filepath: Optional[FilePath]) -> Optional[ModuleType]:
     """
     Imports a python file as a module.
 

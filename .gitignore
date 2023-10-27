@@ -3,6 +3,9 @@ playground/
 site/
 venv/ 
 
+# pyenv files
+.python-version
+
 # Pipenv files
 Pipfile
 Pipfile.lock

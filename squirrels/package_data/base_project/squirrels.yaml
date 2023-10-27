@@ -19,4 +19,13 @@ datasets:
         db_connection: default
     final_view: database_view1
 
-settings: {}
+settings:
+  auth.enabled: false
+
+# Default values for settings:
+#   auth.enabled: false
+#   auth.token.expire.minutes: 30
+#   parameters.cache.size: 1024
+#   parameters.cache.ttl.seconds: 0
+#   results.cache.size: 128
+#   results.cache.ttl.seconds: 0

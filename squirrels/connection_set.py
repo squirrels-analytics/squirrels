@@ -5,7 +5,7 @@ import sqlite3
 
 from squirrels import _constants as c, _manifest as mf
 from squirrels._timed_imports import pandas as pd
-from squirrels._utils import ConfigurationError
+from squirrels._utils import ConfigurationError, import_file_as_module
 
 ConnectionPool = Union[Engine, Pool]
 
@@ -91,7 +91,7 @@ def _from_file(manifest: mf.Manifest) -> ConnectionSet:
     """
     connections = manifest.get_db_connections()
     try:
-        module = SourceFileLoader(c.CONNECTIONS_FILE, c.CONNECTIONS_FILE).load_module()
+        module = import_file_as_module(c.CONNECTIONS_FILE)
     except FileNotFoundError:
         module = None
     

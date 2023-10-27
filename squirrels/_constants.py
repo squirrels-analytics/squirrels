@@ -49,12 +49,15 @@ FINAL_VIEW_PY_NAME = 'final_view.py'
 FINAL_VIEW_OUT_STEM = 'final_view'
 CONTEXT_FILE = 'context.py'
 SELECTIONS_CFG_FILE = 'selections.cfg'
+AUTH_FILE = 'auth.py'
 
 # Dataset setting names
+AUTH_ENABLED_SETTING = 'auth.enabled'
+AUTH_TOKEN_EXPIRE_SETTING = 'auth.token.expire.minutes'
 PARAMETERS_CACHE_SIZE_SETTING = 'parameters.cache.size'
-PARAMETERS_CACHE_TTL_SETTING = 'parameters.cache.ttl'
+PARAMETERS_CACHE_TTL_SETTING = 'parameters.cache.ttl.seconds'
 RESULTS_CACHE_SIZE_SETTING = 'results.cache.size'
-RESULTS_CACHE_TTL_SETTING = 'results.cache.ttl'
+RESULTS_CACHE_TTL_SETTING = 'results.cache.ttl.seconds'
 
 # Selection cfg sections
 PARAMETERS_SECTION = 'parameters'

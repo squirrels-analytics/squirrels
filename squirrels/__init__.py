@@ -2,6 +2,7 @@ from .parameter_options import SelectParameterOption, DateParameterOption, Numbe
 from .parameters import Parameter, SingleSelectParameter, MultiSelectParameter, DateParameter, NumberParameter, NumRangeParameter, DataSourceParameter
 from .data_sources import SelectionDataSource, DateDataSource, NumberDataSource, NumRangeDataSource
 from .connection_set import ConnectionSet
+from ._auth import UserBase, UserPwd
 
 
 def get_credential(key: str):
