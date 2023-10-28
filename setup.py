@@ -20,7 +20,7 @@ extra_files = package_files(os.path.join('squirrels', 'package_data'))
 
 setup(
     name='squirrels',
-    version='0.1.1.post1',
+    version='0.2.0',
     packages=find_packages(),
     description='Squirrels - Create REST APIs for BI Analytics',
     long_description=long_description,
@@ -29,8 +29,8 @@ setup(
     author_email='tim.yuting@hotmail.com',
     license='MIT',
     install_requires=[
-        'passlib', 'bcrypt', 'openpyxl', 'inquirer', 'pwinput', 'cachetools', 
-        'fastapi', 'uvicorn', 'Jinja2', 'GitPython', 'sqlalchemy', 'pandas', 'pyyaml'
+        'python-jose', 'cryptography', 'python-multipart', 'openpyxl', 'inquirer', 'pwinput', 
+        'cachetools', 'fastapi', 'uvicorn', 'Jinja2', 'GitPython', 'sqlalchemy', 'pandas', 'pyyaml'
     ],
     setup_requires=['pytest-runner==6.0.0'],
     tests_require=['pytest==7.2.0'],

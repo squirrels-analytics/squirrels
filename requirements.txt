@@ -10,5 +10,6 @@ cachetools
 pwinput
 inquirer
 openpyxl
-bcrypt
-passlib
+python-multipart
+cryptography
+python-jose

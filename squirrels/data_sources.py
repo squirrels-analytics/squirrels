@@ -1,24 +1,22 @@
 from __future__ import annotations
 from typing import Type, Dict, Tuple, List, Optional
 from dataclasses import dataclass, field
+from abc import ABCMeta, abstractmethod
 
 from squirrels import parameters as p, parameter_options as po
 from squirrels._timed_imports import pandas as pd
 from squirrels import _constants as c, _utils
 
 
-@dataclass
-class DataSource:
+class DataSource(metaclass=ABCMeta):
     """
     Abstract class for lookup tables coming from a database
     """
-    table_or_query: str
-    
-    def __post_init__(self) -> None:
-        if not hasattr(self, 'parent_id_col'):
-            self.parent_id_col = None
-        if not hasattr(self, 'connection_name'):
-            self.connection_name = c.DEFAULT_DB_CONN
+
+    def __init__(self, table_or_query: str) -> None:
+        self.table_or_query = table_or_query
+        self.parent_id_col = None
+        self.connection_name = c.DEFAULT_DB_CONN
 
     def get_query(self) -> str:
         """
@@ -33,18 +31,12 @@ class DataSource:
             query = f'SELECT * FROM {self.table_or_query}'
         return query
     
+    @abstractmethod
     def convert(self, ds_param: p.DataSourceParameter, df: pd.DataFrame) -> p.Parameter:
         """
         An abstract method for converting itself into a parameter
-
-        Args:
-            ds_param: The parameter to convert
-            df: The dataframe containing the parameter options data
-
-        Returns:
-            The converted parameter
         """
-        raise _utils.AbstractMethodCallError(self.__class__, "convert")
+        pass
     
     def _get_parent(self, row):
         return str(_utils.get_row_value(row, self.parent_id_col)) if self.parent_id_col is not None else None
@@ -73,14 +65,22 @@ class SelectionDataSource(DataSource):
     """
     id_col: str
     options_col: str
-    order_by_col: Optional[str] = None
-    is_default_col: Optional[str] = None
-    parent_id_col: Optional[str] = None
-    custom_cols: Dict[str, str] = field(default_factory=dict)
-    connection_name: str = c.DEFAULT_DB_CONN
+    order_by_col: Optional[str]
+    is_default_col: Optional[str]
+    parent_id_col: Optional[str]
+    custom_cols: Dict[str, str]
+    connection_name: str
 
-    def __post_init__(self):
-        self.order_by_col = self.order_by_col if self.order_by_col is not None else self.id_col
+    def __init__(self, table_or_query: str, id_col: str, options_col: str, order_by_col: Optional[str] = None, is_default_col: Optional[str] = None, 
+                 parent_id_col: Optional[str] = None, custom_cols: Dict[str, str] = {}, connection_name: str = c.DEFAULT_DB_CONN) -> None:
+        super().__init__(table_or_query)
+        self.id_col = id_col
+        self.options_col = options_col
+        self.order_by_col = order_by_col if order_by_col is not None else id_col
+        self.is_default_col = is_default_col
+        self.parent_id_col = parent_id_col
+        self.custom_cols = custom_cols
+        self.connection_name = connection_name
 
     def convert(self, ds_param: p.DataSourceParameter, df: pd.DataFrame) -> p.Parameter:
         """
@@ -131,9 +131,17 @@ class DateDataSource(DataSource):
         connection_name: Name of the connection to use defined in connections.py
     """
     default_date_col: str
-    parent_id_col: Optional[str] = None
-    date_format: Optional[str] = '%Y-%m-%d'
-    connection_name: str = c.DEFAULT_DB_CONN
+    parent_id_col: Optional[str]
+    date_format: Optional[str]
+    connection_name: str
+
+    def __init__(self, table_or_query: str, default_date_col: str, parent_id_col: Optional[str] = None, 
+                 date_format: Optional[str] = '%Y-%m-%d', connection_name: str = c.DEFAULT_DB_CONN) -> None:
+        super().__init__(table_or_query)
+        self.default_date_col = default_date_col
+        self.parent_id_col = parent_id_col
+        self.date_format = date_format
+        self.connection_name = connection_name
 
     def convert(self, ds_param: p.DataSourceParameter, df: pd.DataFrame) -> p.DateParameter:
         """
@@ -164,20 +172,26 @@ class DateDataSource(DataSource):
                                               is_hidden=ds_param.is_hidden)
 
 
-@dataclass
 class _NumericDataSource(DataSource):
     """
     Abstract class for number or number range data sources
     """
     min_value_col: str
     max_value_col: str
-    increment_col: Optional[str] = None
+    increment_col: Optional[str]
+
+    def __init__(self, table_or_query: str, min_value_col: str, max_value_col: str, increment_col: Optional[str] = None) -> None:
+        super().__init__(table_or_query)
+        self.min_value_col = min_value_col
+        self.max_value_col = max_value_col
+        self.increment_col = increment_col
 
     def _convert_helper(self, row: pd.Series) -> Tuple[str, str, str]:
         min_val = str(_utils.get_row_value(row, self.min_value_col))
         max_val = str(_utils.get_row_value(row, self.max_value_col))
         incr_val = str(_utils.get_row_value(row, self.increment_col)) if self.increment_col is not None else '1'
         return min_val, max_val, incr_val
+
 
 @dataclass
 class NumberDataSource(_NumericDataSource):
@@ -193,9 +207,17 @@ class NumberDataSource(_NumericDataSource):
         parent_id_col: The column name of the parent option id that the default value belongs to
         connection_name: Name of the connection to use defined in connections.py
     """
-    default_value_col: Optional[str] = None
-    parent_id_col: Optional[str] = None
-    connection_name: str = c.DEFAULT_DB_CONN
+    default_value_col: Optional[str]
+    parent_id_col: Optional[str]
+    connection_name: str
+
+    def __init__(self, table_or_query: str, min_value_col: str, max_value_col: str, increment_col: Optional[str] = None,
+                 default_value_col: Optional[str] = None, parent_id_col: Optional[str] = None, 
+                 connection_name: str = c.DEFAULT_DB_CONN) -> None:
+        super().__init__(table_or_query, min_value_col, max_value_col, increment_col)
+        self.default_value_col = default_value_col
+        self.parent_id_col = parent_id_col
+        self.connection_name = connection_name
 
     def convert(self, ds_param: p.DataSourceParameter, df: pd.DataFrame) -> p.NumberParameter:
         """
@@ -245,10 +267,19 @@ class NumRangeDataSource(_NumericDataSource):
         parent_id_col: The column name of the parent option id that the default value belongs to
         connection_name: Name of the connection to use defined in connections.py
     """
-    default_lower_value_col: Optional[str] = None
-    default_upper_value_col: Optional[str] = None
-    parent_id_col: Optional[str] = None
-    connection_name: str = c.DEFAULT_DB_CONN
+    default_lower_value_col: Optional[str]
+    default_upper_value_col: Optional[str]
+    parent_id_col: Optional[str]
+    connection_name: str
+
+    def __init__(self, table_or_query: str, min_value_col: str, max_value_col: str, increment_col: Optional[str] = None,
+                 default_lower_value_col: Optional[str] = None, default_upper_value_col: Optional[str] = None,
+                 parent_id_col: Optional[str] = None, connection_name: str = c.DEFAULT_DB_CONN) -> None:
+        super().__init__(table_or_query, min_value_col, max_value_col, increment_col)
+        self.default_lower_value_col = default_lower_value_col
+        self.default_upper_value_col = default_upper_value_col
+        self.parent_id_col = parent_id_col
+        self.connection_name = connection_name
 
     def convert(self, ds_param: p.DataSourceParameter, df: pd.DataFrame) -> p.NumRangeParameter:
         """

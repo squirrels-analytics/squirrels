@@ -9,10 +9,10 @@ import squirrels as sr
 
 
 class TestDataSource:
-    data_source1 = d.DataSource('table_name')
-    data_source2 = d.DataSource('select')
-    data_source3 = d.DataSource("SELECT * FROM table_name WHERE col = 'value'")
-    data_source4 = d.DataSource("select * from table_name where col = 'value'")
+    data_source1 = d.DateDataSource('table_name', 'my_dates')
+    data_source2 = d.SelectionDataSource('select', 'my_ids', 'my_options')
+    data_source3 = d.NumberDataSource("SELECT * FROM table_name WHERE col = 'value'", 'my_min_values', 'my_max_values')
+    data_source4 = d.NumRangeDataSource("select * from table_name where col = 'value'", 'my_min_values', 'my_max_values')
     
     def test_get_query(self):
         assert self.data_source1.get_query() == 'SELECT * FROM table_name'

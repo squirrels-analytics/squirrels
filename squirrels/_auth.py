@@ -17,13 +17,13 @@ class UserPwd:
 
 
 class Authenticator:
-    def __init__(self, token_expiry_minutes):
+    def __init__(self, token_expiry_minutes: int, auth_helper = None) -> None:
         self.token_expiry_minutes = token_expiry_minutes
-        self.auth_helper = _utils.import_file_as_module(c.AUTH_FILE)
+        self.auth_helper = _utils.import_file_as_module(c.AUTH_FILE) if auth_helper is None else auth_helper
         self.public_key = '9f6e5dfbffe8559c5551f91473fb0a26c06e23bd589f04a97180f3219103ca63'
         self.algorithm = "HS256"
 
-    def authenticate_user(self, username: str, password: str):
+    def authenticate_user(self, username: str, password: str) -> Optional[UserBase]:
         user_pwd: UserPwd = self.auth_helper.get_user_and_hashed_pwd(username)
         if not user_pwd:
             return None
@@ -31,20 +31,18 @@ class Authenticator:
             return None
         return user_pwd.user
     
-    def create_access_token(self, data: dict):
-        to_encode = data.copy()
+    def create_access_token(self, user: UserBase) -> str:
         expire = datetime.utcnow() + timedelta(minutes=self.token_expiry_minutes)
-        to_encode.update({"exp": expire})
+        to_encode = {**vars(user), "exp": expire}
         encoded_jwt = jwt.encode(to_encode, self.public_key, algorithm=self.algorithm)
         return encoded_jwt
     
-    def get_user_from_token(self, token: str):
+    def get_user_from_token(self, token: str) -> UserBase:
         user: Optional[UserBase] = None
         try:
             payload = jwt.decode(token, self.public_key, algorithms=[self.algorithm])
-            username: str = payload.get("sub")
-            user_pwd: UserPwd = self.auth_helper.get_user_and_hashed_pwd(username)
-            user = user_pwd.user
+            payload.pop("exp")
+            user = self.auth_helper.User(**payload)
         except JWTError:
             pass
         
