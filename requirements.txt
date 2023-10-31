@@ -10,3 +10,6 @@ cachetools
 pwinput
 inquirer
 openpyxl
+python-multipart
+cryptography
+python-jose

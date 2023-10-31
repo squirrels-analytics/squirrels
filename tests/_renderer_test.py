@@ -155,9 +155,9 @@ class TestRenderer:
             "price": [15.0, 22.5]
         })
 
-        _, _, _, _, df1 = renderer1.load_results({})
+        _, _, _, _, df1 = renderer1.load_results(None, {})
         assert df1.equals(expected_df)
 
-        _, _, _, _, df2 = renderer2.load_results({})
+        _, _, _, _, df2 = renderer2.load_results(None, {})
         assert df2.equals(expected_df)
     

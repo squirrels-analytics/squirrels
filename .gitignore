@@ -1,7 +1,10 @@
 *sandbox.*
-playground/
+playground*
 site/
 venv/ 
+
+# pyenv files
+.python-version
 
 # Pipenv files
 Pipfile

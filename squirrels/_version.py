@@ -1,3 +1,3 @@
-__version__ = '0.1.1'
+__version__ = '0.2.0'
 
-major_version, minor_version, patch_version = __version__.split('.')
+sq_major_version, sq_minor_version, sq_patch_version = __version__.split('.')

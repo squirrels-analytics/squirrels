@@ -39,6 +39,7 @@ def main():
     init_parser.add_argument('--context', action='store_true', help=f'Include the {c.CONTEXT_FILE} file')
     init_parser.add_argument('--selections-cfg', action='store_true', help=f'Include the {c.SELECTIONS_CFG_FILE} file')
     init_parser.add_argument('--final-view', type=str, choices=c.FILE_TYPE_CHOICES, help='Include final view as sql or python file')
+    init_parser.add_argument('--auth-file', action='store_true', help=f'Include the {c.AUTH_FILE} file')
     init_parser.add_argument('--sample-db', type=str, choices=c.DATABASE_CHOICES, help='Sample sqlite database to include')
 
     subparsers.add_parser(c.LOAD_MODULES_CMD, help='Load all the modules specified in squirrels.yaml from git')
@@ -65,7 +66,7 @@ def main():
     run_parser.add_argument('--no-cache', action='store_true', help='Do not cache any api results')
     run_parser.add_argument('--debug', action='store_true', help='In debug mode, all "hidden parameters" show in the parameters response')
     run_parser.add_argument('--host', type=str, default='127.0.0.1')
-    run_parser.add_argument('--port', type=int, default=8000)
+    run_parser.add_argument('--port', type=int, default=4465)
 
     args, _ = parser.parse_known_args()
     timer.verbose = args.verbose

@@ -1,7 +1,7 @@
 import inquirer, os, shutil
 
 from squirrels import _constants as c, _utils
-from squirrels._version import major_version
+from squirrels._version import sq_major_version
 
 base_proj_dir = _utils.join_paths(os.path.dirname(__file__), 'package_data', 'base_project')
 dataset_dir = _utils.join_paths('datasets', 'sample_dataset')
@@ -34,13 +34,13 @@ class Initializer:
     def _create_requirements_txt(self):
         filename = 'requirements.txt'
         if not self._path_exists(filename):
-            next_major_version = int(major_version) + 1
+            next_major_version = int(sq_major_version) + 1
             content = f'squirrels<{next_major_version}'
             with open(filename, 'w') as f:
                 f.write(content)
 
     def init_project(self, args):
-        options = ['core', 'db_view', 'connections', 'context', 'selections_cfg', 'final_view', 'sample_db']
+        options = ['core', 'db_view', 'connections', 'context', 'selections_cfg', 'final_view', 'auth_file', 'sample_db']
         answers = { x: getattr(args, x) for x in options }
         if not any(answers.values()):
             core_questions = [
@@ -71,6 +71,9 @@ class Initializer:
                 inquirer.List('final_view', 
                             message="What's the file format for the final view (if any)?",
                             choices=['none'] + c.FILE_TYPE_CHOICES),
+                inquirer.Confirm('auth_file',
+                                message=f"Do you want to add a '{c.AUTH_FILE}' file?" ,
+                                default=False),
                 inquirer.List('sample_db', 
                             message="What sample sqlite database do you wish to use (if any)?",
                             choices=['none'] + c.DATABASE_CHOICES)
@@ -101,6 +104,9 @@ class Initializer:
             self._copy_dataset_file(c.FINAL_VIEW_PY_NAME)
         elif final_view_format == 'sql':
             self._copy_dataset_file(c.FINAL_VIEW_SQL_NAME)
+        
+        if answers.get('auth_file', False):
+            self._copy_file(c.AUTH_FILE)
 
         sample_db = answers.get('sample_db')
         if sample_db == 'sample_database':

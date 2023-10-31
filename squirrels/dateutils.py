@@ -2,6 +2,7 @@ from typing import Sequence
 from dataclasses import dataclass
 from datetime import datetime
 from dateutil.relativedelta import relativedelta
+from abc import ABCMeta, abstractmethod
 from enum import Enum
 
 from squirrels import _utils
@@ -31,12 +32,12 @@ class Month(Enum):
     December = 12
 
 
-@dataclass
-class DateModifier:
+class DateModifier(metaclass=ABCMeta):
     """
     Interface for all Date modification classes, and declares a "modify" method
     """
 
+    @abstractmethod
     def modify(self, date: datetime) -> datetime:
         """
         Method to be overwritten, modifies the input date
@@ -47,17 +48,16 @@ class DateModifier:
         Returns:
             The modified date.
         """
-        raise _utils.AbstractMethodCallError(self.__class__, "modify")
+        pass
 
 
-@dataclass
 class _DayIdxOfCalendarUnit(DateModifier):
     """
     Interface for adjusting a date to some day of calendar unit
     """
-    idx: int
-
-    def __post_init__(self):
+    def __init__(self, idx: int) -> None:
+        super().__init__()
+        self.idx = idx
         if self.idx == 0:
             raise _utils.ConfigurationError("For constructors of class names that start with DayIdxOf_, idx cannot be zero")
         self.incr = self.idx - 1 if self.idx > 0 else self.idx
@@ -74,10 +74,12 @@ class DayIdxOfMonthsCycle(_DayIdxOfCalendarUnit):
         first_month_of_cycle: The first month of months cycle of year. Default is January
     """
     num_months_in_cycle: int
-    first_month_of_cycle: Month = Month.January
+    first_month_of_cycle: Month
 
-    def __post_init__(self):
-        super().__post_init__()
+    def __init__(self, idx: int, num_months_in_cycle: int, first_month_of_cycle: Month = Month.January) -> None:
+        super().__init__(idx)
+        self.num_months_in_cycle = num_months_in_cycle
+        self.first_month_of_cycle = first_month_of_cycle
         if 12 % self.num_months_in_cycle != 0:
             raise _utils.ConfigurationError("Value X must fit evenly in 12")
         self.first_month_of_first_cycle = (self.first_month_of_cycle.value - 1) % self.num_months_in_cycle + 1
@@ -128,6 +130,9 @@ class DayIdxOfMonth(_DayIdxOfCalendarUnit):
         idx: 1 for first, 2 for second, etc. Or, -1 for last, -2 for second last, etc. Must not be 0
     """
 
+    def __init__(self, idx: int) -> None:
+        super().__init__(idx)
+
     def modify(self, date: datetime) -> datetime:
         first_day = datetime(date.year, date.month, 1)
         ref_date = first_day if self.idx > 0 else first_day + relativedelta(months=1)
@@ -143,10 +148,11 @@ class DayIdxOfWeek(_DayIdxOfCalendarUnit):
         idx: 1 for first, 2 for second, etc. Or, -1 for last, -2 for second last, etc. Must not be 0
         first_day_of_week: The day of week identified as the "first". Default is Monday
     """
-    first_day_of_week: DayOfWeek = DayOfWeek.Monday
+    first_day_of_week: DayOfWeek
 
-    def __post_init__(self):
-        super().__post_init__()
+    def __init__(self, idx: int, first_day_of_week: DayOfWeek = DayOfWeek.Monday) -> None:
+        super().__init__(idx)
+        self.first_day_of_week = first_day_of_week
         self.first_dow_num = self.first_day_of_week.value
     
     def modify(self, date: datetime) -> datetime:
@@ -155,12 +161,13 @@ class DayIdxOfWeek(_DayIdxOfCalendarUnit):
         return date + relativedelta(days=total_incr)
 
 
-@dataclass
 class _OffsetUnits(DateModifier):
     """
     Abstract DateModifier class to offset an input date by some number of some calendar unit
     """
-    offset: int
+    def __init__(self, offset: int) -> None:
+        super().__init__()
+        self.offset = offset
 
 
 @dataclass
@@ -171,6 +178,9 @@ class OffsetYears(_OffsetUnits):
     Attributes:
         offset: The number of years to offset the input date.
     """
+
+    def __init__(self, offset: int) -> None:
+        super().__init__(offset)
 
     def modify(self, date: datetime) -> datetime:
         return date + relativedelta(years=self.offset)
@@ -185,6 +195,9 @@ class OffsetMonths(_OffsetUnits):
         offset: The number of months to offset the input date.
     """
 
+    def __init__(self, offset: int) -> None:
+        super().__init__(offset)
+
     def modify(self, date: datetime) -> datetime:
         return date + relativedelta(months=self.offset)
 
@@ -198,6 +211,9 @@ class OffsetWeeks(_OffsetUnits):
         offset: The number of weeks to offset the input date.
     """
 
+    def __init__(self, offset: int) -> None:
+        super().__init__(offset)
+
     def modify(self, date: datetime) -> datetime:
         return date + relativedelta(weeks=self.offset)
 
@@ -210,6 +226,9 @@ class OffsetDays(_OffsetUnits):
     Attributes:
         offset: The number of days to offset the input date.
     """
+
+    def __init__(self, offset: int) -> None:
+        super().__init__(offset)
 
     def modify(self, date: datetime) -> datetime:
         return date + relativedelta(days=self.offset)
@@ -225,8 +244,9 @@ class DateModPipeline(DateModifier):
     """
     date_modifiers: Sequence[DateModifier]
 
-    def __post_init__(self):
-        self.date_modifiers = tuple(self.date_modifiers)
+    def __init__(self, date_modifiers: Sequence[DateModifier]) -> None:
+        super().__init__()
+        self.date_modifiers = tuple(date_modifiers)
     
     def modify(self, date: datetime) -> datetime:
         for modifier in self.date_modifiers:
@@ -291,16 +311,16 @@ class DateModPipeline(DateModifier):
         return output
 
 
-@dataclass
-class _DateRepresentationModifier:
+class _DateRepresentationModifier(metaclass=ABCMeta):
     """
     Abstract class for modifying other representations of dates (such as string or unix timestemp)
     """
     def __init__(self, date_modifiers: Sequence[DateModifier]):
         self.date_modifier = DateModPipeline(date_modifiers)
 
+    @abstractmethod
     def with_more_modifiers(self, date_modifiers: Sequence[DateModifier]):
-        raise _utils.AbstractMethodCallError(self.__class__, "with_more_modifiers")
+        pass
 
 
 @dataclass
@@ -312,6 +332,9 @@ class DateStringModifier(_DateRepresentationModifier):
         date_modifier: The DateModifier to apply on datetime objects
         date_format: Format of the output date string. Default is '%Y-%m-%d'
     """
+    date_modifiers: Sequence[DateModifier]
+    date_format: str
+
     def __init__(self, date_modifiers: Sequence[DateModifier], date_format: str = '%Y-%m-%d'):
         super().__init__(date_modifiers)
         self.date_format = date_format
@@ -379,6 +402,8 @@ class TimestampModifier(_DateRepresentationModifier):
         date_modifier: The DateModifier to apply on datetime objects
         date_format: Format of the date string. Default is '%Y-%m-%d'
     """
+    date_modifiers: Sequence[DateModifier]
+
     def __init__(self, date_modifiers: Sequence[DateModifier]):
         super().__init__(date_modifiers)
 

@@ -1,11 +1,10 @@
-from typing import Dict, Any
+from typing import Dict, Any, Optional
 from sqlalchemy import text
 import pandas as pd
-
 import squirrels as sr
 
 
-def main(connection_set: sr.ConnectionSet, 
+def main(connection_set: sr.ConnectionSet, user: Optional[sr.UserBase], 
          prms: Dict[str, sr.Parameter], ctx: Dict[str, Any], args: Dict[str, Any], 
          *p_args, **kwargs) -> pd.DataFrame:
     

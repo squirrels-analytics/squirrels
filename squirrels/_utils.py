@@ -16,17 +16,12 @@ class InvalidInputError(Exception):
 class ConfigurationError(Exception):
     pass
 
-class AbstractMethodCallError(NotImplementedError):
-    def __init__(self, cls, method, more_message = ""):
-        message = f"Abstract method {method}() not implemented in {cls.__name__}."
-        super().__init__(message + more_message)
-
 
 # Utility functions/variables
 j2_env = j2.Environment(loader=j2.FileSystemLoader('.'))
 
 
-def import_file_as_module(filepath: Optional[FilePath]) -> ModuleType:
+def import_file_as_module(filepath: Optional[FilePath]) -> Optional[ModuleType]:
     """
     Imports a python file as a module.
 

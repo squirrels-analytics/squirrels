@@ -3,30 +3,62 @@
     <head>
         <title>Squirrels UI</title>
         <link id="favicon" rel="icon" type="image/x-icon" href="static/favicon.ico">
-        <link href="{{ url_for('static', path='/style.css?version=0') }}" rel="stylesheet">
-        <script src="{{ url_for('static', path='/script.js?version=2') }}" defer></script>
+        <link href="{{ url_for('static', path='/style.css?version=1') }}" rel="stylesheet">
+        <script>
+            const token_path = '{{ token_path }}';
+            const catalog_path = '{{ catalog_path }}';
+        </script>
+        <script src="{{ url_for('static', path='/script.js?version=3') }}" defer></script>
     </head>
-    <body onload="callJsonAPI('{{ catalog_path }}', renderDatasetsSelection)">
-    <div id="main-container">
-        <div id="parameter-container">
-            <label for="dataset-select">Select a Dataset:</label>
-            <select id="dataset-select" onchange="changeDatasetSelection()"></select>
-            <div id="generated-parameters"></div>
-            <input type="submit" value="Apply" onclick="getDatasetResults()">
+    <body onload="callJsonAPI(catalog_path, renderDatasetsSelection)">
+        <div id="main-container" class="horizontal-container">
+            <div id="parameter-container">
+                <label for="product-select">Select a Product:</label>
+                <select id="product-select"></select>
+                <label for="dataset-select">Select a Dataset:</label>
+                <select id="dataset-select" onchange="changeDatasetSelection()"></select>
+                <div id="generated-parameters"></div>
+                <input type="submit" value="Apply" onclick="getDatasetResults()">
+            </div>
+            <div id="right-container">
+                <div id="header-container">
+                    <div class="horizontal-container">
+                        <button onclick="copyTable()">Copy Table</button>
+                    </div>
+                    <div class="horizontal-container">
+                        <div style="vertical-align: middle;">Logged in as <span id="username-txt">guest</span></div>
+                        <button onclick="openLoginModal()">Authenticate</button>
+                    </div>
+                </div>
+                <div id="table-container">
+                    <table id="result-table">
+                        <thead id="table-header"></thead>
+                        <tbody id="table-body"></tbody>
+                    </table>
+                </div>
+            </div>
         </div>
-        <div id="table-container">
-            <button onclick="copyTable()">Copy Table</button>
-            <table id="result-table">
-                <thead id="table-header"></thead>
-                <tbody id="table-body"></tbody>
-            </table>
+        <div id="loading-indicator">
+            <div>
+                <div class="spinner"></div>
+                <div>Loading...</div>
+            </div>
         </div>
-    </div>
-    <div id="loading-indicator">
-        <div>
-            <div class="spinner"></div>
-            <div>Loading...</div>
-        </div>
-    </div>      
+        <div id="login-modal">
+            <form id="login-form" class="modal-content">
+              <div class="container">
+                <label for="username"><b>Username</b></label>
+                <input type="text" placeholder="Enter Username" name="username" required>
+          
+                <label for="password"><b>Password</b></label>
+                <input type="password" placeholder="Enter Password" name="password" required>
+                
+                <div id="incorrect">Incorrect username or password. Please try again</div>
+
+                <button type="submit">Login</button>
+                <button type="reset">Cancel</button>
+              </div>
+            </form>
+          </div>
     </body>
 </html>

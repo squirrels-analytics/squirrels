@@ -9,6 +9,7 @@ from squirrels.data_sources import DataSource
 from squirrels._parameter_set import ParameterSet
 from squirrels._utils import ConfigurationError
 from squirrels._timed_imports import pandas as pd, timer
+from squirrels._auth import UserBase, get_auth_helper
 
 ContextFunc = Optional[Callable[..., Dict[str, Any]]]
 DatabaseViews = Optional[Dict[str, pd.DataFrame]]
@@ -68,18 +69,20 @@ class Renderer:
         
         return parameter_set
 
-    def _render_context(self, context_func: ContextFunc, param_set: ParameterSet) -> Dict[str, Any]:
+    def _render_context(self, context_func: ContextFunc, user: Optional[UserBase], param_set: ParameterSet) -> Dict[str, Any]:
         try:
-            return context_func(prms=param_set.get_parameters_as_ordered_dict()) if context_func is not None else {}
+            return context_func(user=user, prms=param_set.get_parameters_as_ordered_dict()) \
+                if context_func is not None else {}
         except Exception as e:
             raise ConfigurationError(f'Error in the {c.CONTEXT_FILE} function for dataset "{self.dataset}"') from e
     
-    def _get_args(self, param_set: ParameterSet, context: Dict[str, Any], db_view: str = None) -> Dict:
+    def _get_args(self, user: Optional[UserBase], param_set: ParameterSet, context: Dict[str, Any], db_view: str = None) -> Dict:
         if db_view is not None:
             args = self.manifest.get_view_args(self.dataset, db_view)
         else:
             args = self.manifest.get_view_args(self.dataset)
         return {
+            'user': user,
             'prms': param_set.get_parameters_as_ordered_dict(),
             'ctx':  context,
             'args': args
@@ -115,7 +118,7 @@ class Renderer:
             except Exception as e:
                 raise ConfigurationError(f'Error in the python function for database view "{db_view_name}" in dataset "{self.dataset}"') from e
     
-    def _render_db_view_dataframes(self, query_by_db_view: Dict[str, Query]) -> Dict[str, pd.DataFrame]:
+    def _create_db_view_dataframes(self, query_by_db_view: Dict[str, Query]) -> Dict[str, pd.DataFrame]:
         def run_single_query(item: Tuple[str, Query]) -> Tuple[str, pd.DataFrame]:
             view_name, query = item
             if isinstance(query, str):
@@ -128,7 +131,7 @@ class Renderer:
         
         return dict(df_by_view_name)
     
-    def _render_final_view_dataframe(self, df_by_db_views: Dict[str, pd.DataFrame], 
+    def _create_final_view_dataframe(self, df_by_db_views: Dict[str, pd.DataFrame], 
                                     final_view_query: Optional[Query]) -> pd.DataFrame:
         if final_view_query in df_by_db_views:
             return df_by_db_views[final_view_query]
@@ -137,39 +140,39 @@ class Renderer:
         else:
             return self._render_dataframe_from_py_func("final_view", final_view_query, df_by_db_views)
 
-    def load_results(self, selections: Dict[str, str], run_query: bool = True) \
+    def load_results(self, user: Optional[UserBase], selections: Dict[str, str], run_query: bool = True) \
         -> Tuple[ParameterSet, Dict[str, Query], Query, Dict[str, pd.DataFrame], Optional[pd.DataFrame]]:
         
         # apply selections and render context
         param_set = self.apply_selections(selections)
         start = time.time()
-        context = self._render_context(self.context_func, param_set)
+        context = self._render_context(self.context_func, user, param_set)
         timer.add_activity_time(f"render context - dataset {self.dataset}", start)
 
         # render database view queries
         start = time.time()
         query_by_db_view = {}
         for db_view, raw_query in self.raw_query_by_db_view.items():
-            args = self._get_args(param_set, context, db_view)
+            args = self._get_args(user, param_set, context, db_view)
             query_by_db_view[db_view] = self._render_query_from_raw(raw_query, args)
         timer.add_activity_time(f"render database view queries - dataset {self.dataset}", start)
 
         # render final view query
         start = time.time()
-        args = self._get_args(param_set, context)
+        args = self._get_args(user, param_set, context)
         final_view_query = self._render_query_from_raw(self.raw_final_view_query, args)
         timer.add_activity_time(f"render final view query - dataset {self.dataset}", start)
 
-        # render all dataframes if "run_query" is enabled
+        # create all dataframes if "run_query" is enabled
         df_by_db_views = {}
         final_view_df = None
         if run_query:
             start = time.time()
-            df_by_db_views = self._render_db_view_dataframes(query_by_db_view)
+            df_by_db_views = self._create_db_view_dataframes(query_by_db_view)
             timer.add_activity_time(f"execute dataview view queries - dataset {self.dataset}", start)
 
             start = time.time()
-            final_view_df = self._render_final_view_dataframe(df_by_db_views, final_view_query)
+            final_view_df = self._create_final_view_dataframe(df_by_db_views, final_view_query)
             timer.add_activity_time(f"execute final view query - dataset {self.dataset}", start)
         
         return param_set, query_by_db_view, final_view_query, df_by_db_views, final_view_df
@@ -228,14 +231,18 @@ class RendererIOWrapper:
             return sql_template
 
     def _get_selections(self, selection_cfg_file: Optional[str]) -> Dict[str, str]:
+        user_attributes, parameter_selections = {}, {}
         if selection_cfg_file is not None:
             selection_cfg_path = _utils.join_paths(self.dataset_folder, selection_cfg_file)
             config = ConfigParser()
             config.read(selection_cfg_path)
+            if config.has_section(c.USER_ATTRIBUTES_SECTION):
+                config_section = config[c.USER_ATTRIBUTES_SECTION]
+                user_attributes = dict(config_section.items())
             if config.has_section(c.PARAMETERS_SECTION):
                 config_section = config[c.PARAMETERS_SECTION]
-                return dict(config_section.items())
-        return {}
+                parameter_selections = dict(config_section.items())
+        return user_attributes, parameter_selections
 
     def _write_sql_file(self, view_name: str, query: Any):
         if isinstance(query, str):
@@ -255,8 +262,10 @@ class RendererIOWrapper:
             os.remove(file_path)
         
         # apply selections and render outputs
-        selections = self._get_selections(selection_cfg_file)
-        result = self.renderer.load_results(selections, run_query)
+        user_attributes, parameter_selections = self._get_selections(selection_cfg_file)
+        auth_helper = get_auth_helper()
+        user = auth_helper.User.FromDict(user_attributes) if auth_helper is not None else None
+        result = self.renderer.load_results(user, parameter_selections, run_query)
         param_set, query_by_db_view, final_view_query, df_by_db_views, final_view_df = result
         
         # write the parameters response
