@@ -43,12 +43,7 @@ class Authenticator:
         if self.auth_helper is None:
             raise FileNotFoundError(f"File '{c.AUTH_FILE}' must exist to authenticate user")
         
-        user_pwd: UserPwd = self.auth_helper.get_user_and_hashed_pwd(username)
-        if not user_pwd:
-            return None
-        if not self.auth_helper.verify_pwd(password, user_pwd.hashed_password):
-            return None
-        return user_pwd.user
+        return self.auth_helper.get_user_if_valid(username, password)
     
     def create_access_token(self, user: UserBase) -> str:
         expire = datetime.utcnow() + timedelta(minutes=self.token_expiry_minutes)

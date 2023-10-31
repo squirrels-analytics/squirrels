@@ -19,7 +19,7 @@ mock_users_db = {
 
 from typing import Optional
 
-from squirrels import UserBase, UserPwd
+from squirrels import UserBase
 
 
 class User(UserBase):
@@ -28,14 +28,11 @@ class User(UserBase):
         self.organization = organization
 
 
-def get_user_and_hashed_pwd(username: str) -> Optional[UserPwd]:
+def get_user_if_valid(username: str, password: str) -> Optional[User]:
     if username in mock_users_db:
         user_dict = mock_users_db[username]
-        user = User(**user_dict)
         hashed_pwd = user_dict["hashed_password"]
-        return UserPwd(user, hashed_pwd)
-
-
-def verify_pwd(login_pwd: str, hashed_pwd: str) -> bool:
-    return str(hash(login_pwd)) == hashed_pwd
-    
+        if str(hash(password)) == hashed_pwd:
+            user = User(**user_dict)
+            return user
+    return None
