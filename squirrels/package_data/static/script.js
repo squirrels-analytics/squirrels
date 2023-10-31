@@ -1,3 +1,4 @@
+const productSelect = document.getElementById('product-select');
 const datasetSelect = document.getElementById('dataset-select');
 const generatedParamsDiv = document.getElementById('generated-parameters');
 
@@ -13,68 +14,68 @@ const loginForm = document.getElementById('login-form');
 const incorrectMessage = document.getElementById('incorrect');
 let loginProcessor = null;
 
+const usernameTxt = document.getElementById('username-txt');
+
 const datasetsMap = new Map();
 const parametersMap = new Map();
 
-function processLogin(path, func) {
-    return event => {
-        event.preventDefault();
-        const formData = new FormData(loginForm);
-        fetch('/token', {
-            method: 'POST',
-            body: formData
-        })
-        .then(response => {
-            if (response.status === 401) {
-                incorrectMessage.style.display = 'block'
-            } else {
-                response.json()
-                .then(data => {
-                    sessionStorage.setItem("jwt_token", data.access_token);
-                    incorrectMessage.style.display = 'none'
-                    loginModal.style.display = 'none'
-                    callJsonAPI(path, func);
-                })
-            }
-        })
-    }
-}
-
-function callJsonAPI(path, func) {
-    loadingIndicator.style.display = 'flex';
-    const jwt_token = sessionStorage.getItem("jwt_token");
-    fetch(path, {
-        headers: {
-            'Authorization': `Bearer ${jwt_token}`
-        }
+function loginEvent(event) {
+    event.preventDefault();
+    const formData = new FormData(loginForm);
+    fetch(token_path, {
+        method: 'POST',
+        body: formData
     })
     .then(response => {
         if (response.status === 401) {
-            loginModal.style.display = 'flex'
-            if (loginProcessor != null)
-                loginForm.removeEventListener('submit', loginProcessor)
-            loginProcessor = processLogin(path, func)
-            loginForm.addEventListener('submit', loginProcessor)
-            loadingIndicator.style.display = 'none';
-        } else if (response.status === 200) {
-            response.json()
-                .then(data => {
-                    func(data);
-                })
-                .catch(error => {
-                    alert(error)
-                    console.log(error)
-                })
-                .then(_ => {
-                    loadingIndicator.style.display = 'none';
-                })
+            incorrectMessage.style.display = 'block'
         } else {
-            const error = `Unexpected response status: ${response.status}`
-            alert(error)
-            console.log(error)
-            loadingIndicator.style.display = 'none';
+            response.json()
+            .then(data => {
+                sessionStorage.setItem("jwt_token", data.access_token);
+                sessionStorage.setItem("username", `"${data.username}"`);
+                callJsonAPI(catalog_path, renderDatasetsSelection);
+                updateUsername();
+                closeLoginModal();
+            })
         }
     })
+}
+
+async function updateUsername() {
+    const username = sessionStorage.getItem("username");
+    usernameTxt.innerHTML = (username === null) ? "guest" : username;
+}
+
+function openLoginModal() {
+    loginModal.style.display = 'flex';
+    loadingIndicator.style.display = 'none';
+}
+
+function closeLoginModal() {
+    loginModal.style.display = 'none';
+}
+
+async function callJsonAPI(path, func) {
+    loadingIndicator.style.display = 'flex';
+    const jwt_token = sessionStorage.getItem("jwt_token");
+    const response = await fetch(path, {
+        headers: {
+            'Authorization': `Bearer ${jwt_token}`
+        }
+    });
+
+    if (response.status === 401) {
+        alert("Unauthorized action. Please try to 'Authorize' first");
+    } else if (response.status === 200) {
+        const data = await response.json();
+        func(data);
+    } else {
+        const error = `Unexpected response status: ${response.status}`;
+        alert(error);
+        console.log(error);
+    }
+    loadingIndicator.style.display = 'none';
 }
 
 function changeDatasetSelection() {
@@ -84,7 +85,16 @@ function changeDatasetSelection() {
 }
 
 function renderDatasetsSelection(data) {
-    const datasets = data.versions[0].datasets
+    productSelect.innerHTML = "";
+    datasetSelect.innerHTML = "";
+
+    const product = data.products[0];
+    const option = document.createElement('option');
+    option.value = product.name;
+    option.textContent = product.label;
+    productSelect.appendChild(option);
+
+    const datasets = product.versions[0].datasets;
     datasets.forEach(resource => {
         const option = document.createElement('option');
         option.value = resource.name;
@@ -282,3 +292,8 @@ function copyTable() {
       alert("Copying failed.");
     });
 }
+
+
+loginForm.addEventListener('submit', loginEvent);
+loginForm.addEventListener('reset', closeLoginModal);
+updateUsername();

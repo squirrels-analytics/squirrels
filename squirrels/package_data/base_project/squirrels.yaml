@@ -2,6 +2,7 @@ modules: []
 
 project_variables:
   product: sample
+  product_label: Sample Product
   major_version: 1
   minor_version: 0
 
@@ -13,17 +14,16 @@ db_connections:
 datasets:
   sample_dataset:
     label: Sample Dataset
+    scope: public # one of 'public', 'protected', or 'private'
     database_views:
       database_view1: 
         file: database_view1.sql.j2
         db_connection: default
     final_view: database_view1
 
-settings:
-  auth.enabled: false
+settings: {}
 
 # Default values for settings:
-#   auth.enabled: false
 #   auth.token.expire.minutes: 30
 #   parameters.cache.size: 1024
 #   parameters.cache.ttl.seconds: 0

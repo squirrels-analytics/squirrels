@@ -2,12 +2,13 @@ from typing import Optional
 import pytest
 
 from squirrels._auth import Authenticator, UserBase, UserPwd
+from squirrels import _constants as c
 
 
 class AuthHelper:
     class User(UserBase):
-        def __init__(self, username, email, **kwargs):
-            super().__init__(username, **kwargs)
+        def __init__(self, username="", is_admin=False, email="", **kwargs):
+            super().__init__(username, is_internal=is_admin, **kwargs)
             self.email = email
         
         def __eq__(self, other) -> bool:
@@ -18,6 +19,13 @@ class AuthHelper:
             "johndoe": {
                 "username": "johndoe",
                 "email": "john.doe@email.com",
+                "is_admin": True,
+                "password": str(hash("secret"))
+            },
+            "mattdoe": {
+                "username": "mattdoe",
+                "email": "matt.doe@email.com",
+                "is_admin": False,
                 "password": str(hash("secret"))
             }
         }
@@ -37,7 +45,12 @@ def auth() -> Authenticator:
 
 @pytest.fixture
 def john_doe_user() -> UserBase:
-    return AuthHelper.User("johndoe", "john.doe@email.com")
+    return AuthHelper.User("johndoe", is_admin=True, email="john.doe@email.com")
+
+
+@pytest.fixture
+def matt_doe_user() -> UserBase:
+    return AuthHelper.User("mattdoe", is_admin=False, email="matt.doe@email.com")
 
 
 @pytest.mark.parametrize('username,password,expected', [
@@ -47,10 +60,28 @@ def john_doe_user() -> UserBase:
 ])
 def test_authenticate_user(username: str, password: str, expected: Optional[str], auth: Authenticator, request: pytest.FixtureRequest):
     expected_user = None if expected is None else request.getfixturevalue(expected)
-    assert auth.authenticate_user(username, password) == expected_user
+    retrieved_user = auth.authenticate_user(username, password)
+    assert retrieved_user == expected_user
 
 
-def test_get_user_from_token(auth: Authenticator, john_doe_user: UserBase):
-    token = auth.create_access_token(john_doe_user)
+@pytest.mark.parametrize('user_fixture', [
+    ('john_doe_user'), ('matt_doe_user')
+])
+def test_get_user_from_token(user_fixture: str, auth: Authenticator, request: pytest.FixtureRequest):
+    input_user = request.getfixturevalue(user_fixture)
+    token, _ = auth.create_access_token(input_user)
     user = auth.get_user_from_token(token)
-    assert user == john_doe_user
+    assert user == input_user
+
+
+@pytest.mark.parametrize('user_fixture,public,protected,private', [
+    ('john_doe_user', True, True, True), 
+    ('matt_doe_user', True, True, False),
+    (None, True, False, False)
+])
+def test_can_user_access_scope(user_fixture: str, public: bool, protected: bool, private: bool,
+                               auth: Authenticator, request: pytest.FixtureRequest):
+    input_user = request.getfixturevalue(user_fixture) if user_fixture is not None else None
+    assert auth.can_user_access_scope(input_user, c.PUBLIC_SCOPE) == public
+    assert auth.can_user_access_scope(input_user, c.PROTECTED_SCOPE) == protected
+    assert auth.can_user_access_scope(input_user, c.PRIVATE_SCOPE) == private

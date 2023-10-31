@@ -1,5 +1,3 @@
--- %USE some_db -- TBA: this line is optional when connecting to the "default" db_connection
-
 SELECT {{ prms["group_by"].get_selected("columns") }} -- {{ ctx["group_by_cols"] }}
     , sum(-Amount) as Total_Amount
 FROM transactions

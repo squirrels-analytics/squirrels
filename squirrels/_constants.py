@@ -23,8 +23,14 @@ FINAL_VIEW_KEY = 'final_view'
 BASE_PATH_KEY = 'base_path'
 SETTINGS_KEY = 'settings'
 
+SCOPE_KEY = 'scope'
+PUBLIC_SCOPE = 'public'
+PROTECTED_SCOPE = 'protected'
+PRIVATE_SCOPE = 'private'
+
 # Project variable keys
 PRODUCT_KEY = 'product'
+PRODUCT_LABEL_KEY = 'product_label'
 MAJOR_VERSION_KEY = 'major_version'
 MINOR_VERSION_KEY = 'minor_version'
 
@@ -52,7 +58,6 @@ SELECTIONS_CFG_FILE = 'selections.cfg'
 AUTH_FILE = 'auth.py'
 
 # Dataset setting names
-AUTH_ENABLED_SETTING = 'auth.enabled'
 AUTH_TOKEN_EXPIRE_SETTING = 'auth.token.expire.minutes'
 PARAMETERS_CACHE_SIZE_SETTING = 'parameters.cache.size'
 PARAMETERS_CACHE_TTL_SETTING = 'parameters.cache.ttl.seconds'
@@ -60,6 +65,7 @@ RESULTS_CACHE_SIZE_SETTING = 'results.cache.size'
 RESULTS_CACHE_TTL_SETTING = 'results.cache.ttl.seconds'
 
 # Selection cfg sections
+USER_ATTRIBUTES_SECTION = 'user_attributes'
 PARAMETERS_SECTION = 'parameters'
 
 # Init Command Choices

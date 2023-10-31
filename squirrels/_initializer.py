@@ -1,7 +1,7 @@
 import inquirer, os, shutil
 
 from squirrels import _constants as c, _utils
-from squirrels._version import major_version
+from squirrels._version import sq_major_version
 
 base_proj_dir = _utils.join_paths(os.path.dirname(__file__), 'package_data', 'base_project')
 dataset_dir = _utils.join_paths('datasets', 'sample_dataset')
@@ -34,7 +34,7 @@ class Initializer:
     def _create_requirements_txt(self):
         filename = 'requirements.txt'
         if not self._path_exists(filename):
-            next_major_version = int(major_version) + 1
+            next_major_version = int(sq_major_version) + 1
             content = f'squirrels<{next_major_version}'
             with open(filename, 'w') as f:
                 f.write(content)
