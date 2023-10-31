@@ -3,12 +3,12 @@
     <head>
         <title>Squirrels UI</title>
         <link id="favicon" rel="icon" type="image/x-icon" href="static/favicon.ico">
-        <link href="{{ url_for('static', path='/style.css?version=1&test=1') }}" rel="stylesheet">
+        <link href="{{ url_for('static', path='/style.css?version=1') }}" rel="stylesheet">
         <script>
             const token_path = '{{ token_path }}';
             const catalog_path = '{{ catalog_path }}';
         </script>
-        <script src="{{ url_for('static', path='/script.js?version=3&test=1') }}" defer></script>
+        <script src="{{ url_for('static', path='/script.js?version=3') }}" defer></script>
     </head>
     <body onload="callJsonAPI(catalog_path, renderDatasetsSelection)">
         <div id="main-container" class="horizontal-container">
