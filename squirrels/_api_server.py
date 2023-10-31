@@ -179,11 +179,13 @@ class ApiServer:
                         })
                 
                 project_vars = self.manifest.get_proj_vars()
+                product_name = project_vars[c.PRODUCT_KEY]
+                product_label = project_vars.get(c.PRODUCT_LABEL_KEY, product_name)
                 return {
                     'response_version': 0,
                     'products': [{
-                        'name': project_vars[c.PRODUCT_KEY],
-                        'label': project_vars[c.PRODUCT_LABEL_KEY],
+                        'name': product_name,
+                        'label': product_label,
                         'versions': [{
                             'major_version': project_vars[c.MAJOR_VERSION_KEY],
                             'latest_minor_version': project_vars[c.MINOR_VERSION_KEY],
