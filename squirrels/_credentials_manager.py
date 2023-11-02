@@ -20,11 +20,16 @@ class Credential:
 
 
 class SquirrelsConfigParser(ConfigParser):
-    def _get_creds_section(self):
-        section_name: str = c.CREDENTIALS_KEY
+    def _get_section(self, section_name: str):
         if not self.has_section(section_name):
             self.add_section(section_name)
         return self[section_name]
+
+    def _get_creds_section(self):
+        return self._get_section(c.CREDENTIALS_KEY)
+    
+    def _get_secrets_section(self):
+        return self._get_section(c.SECRETS_KEY)
     
     def _json_str_to_credential(self, json_str: str) -> Credential:
         cred_dict = json.loads(json_str)
@@ -54,7 +59,7 @@ class SquirrelsConfigParser(ConfigParser):
         section = self._get_creds_section()
         section.pop(key)
         return self
-
+    
 
 class SquirrelsConfigIOWrapper:
     def __init__(self) -> None:
@@ -83,5 +88,15 @@ class SquirrelsConfigIOWrapper:
         self.config.delete_credential(key)
         print(f'Credential key "{key}" has been deleted')
         self._write_config()
+    
+    def get_secret(self, key: str) -> str:
+        section = self.config._get_secrets_section()
+        return section.get(key)
+    
+    def set_secret(self, key: str, value: str) -> None:
+        section = self.config._get_secrets_section()
+        section[key] = value
+        self._write_config()
+
 
 squirrels_config_io = SquirrelsConfigIOWrapper()
