@@ -1,19 +1,34 @@
-from .parameter_options import SelectParameterOption, DateParameterOption, NumberParameterOption, NumRangeParameterOption
-from .parameters import Parameter, SingleSelectParameter, MultiSelectParameter, DateParameter, NumberParameter, NumRangeParameter, DataSourceParameter
-from .data_sources import SelectionDataSource, DateDataSource, NumberDataSource, NumRangeDataSource
-from .connection_set import ConnectionSet
-from ._auth import UserBase, UserPwd
+from typing import Tuple
+from .parameter_options import SelectParameterOption, DateParameterOption, DateRangeParameterOption, NumberParameterOption, NumRangeParameterOption
+from .parameters import Parameter, SingleSelectParameter, MultiSelectParameter, DateParameter, DateRangeParameter, NumberParameter, NumRangeParameter
+from .data_sources import SingleSelectDataSource, MultiSelectDataSource, DateDataSource, DateRangeDataSource, NumberDataSource, NumRangeDataSource
+from .connection_set import ConnectionSet, sqldf
+from .user_base import UserBase, WrongPassword
 
 
-def get_credential(key: str):
+def get_env_var(key: str) -> str:
     """
-    Gets the username and password that was set through "$squirrels set-credential [key]"
+    Gets the environment variable set in .squirrelscfg.yaml
+
+    Parameters:
+        key (str): The environment variable key
+    
+    Returns:
+        A string
+    """
+    from ._environcfg import EnvironConfigIO
+    return EnvironConfigIO.obj.get_env_var(key)
+
+
+def get_credential(key: str) -> Tuple[str, str]:
+    """
+    Gets the username and password for credentials set in .squirrelscfg.yaml
 
     Parameters:
         key (str): The credential key
     
     Returns:
-        Credential: Object with attributes "username" and "password"
+        Tuple of two strings
     """
-    from ._credentials_manager import squirrels_config_io
-    return squirrels_config_io.get_credential(key)
+    from ._environcfg import EnvironConfigIO
+    return EnvironConfigIO.obj.get_credential(key)

@@ -5,7 +5,7 @@ from dateutil.relativedelta import relativedelta
 from abc import ABCMeta, abstractmethod
 from enum import Enum
 
-from squirrels import _utils
+from . import _utils as u
 
 
 class DayOfWeek(Enum):
@@ -59,7 +59,7 @@ class _DayIdxOfCalendarUnit(DateModifier):
         super().__init__()
         self.idx = idx
         if self.idx == 0:
-            raise _utils.ConfigurationError("For constructors of class names that start with DayIdxOf_, idx cannot be zero")
+            raise u.ConfigurationError("For constructors of class names that start with DayIdxOf_, idx cannot be zero")
         self.incr = self.idx - 1 if self.idx > 0 else self.idx
 
 
@@ -81,7 +81,7 @@ class DayIdxOfMonthsCycle(_DayIdxOfCalendarUnit):
         self.num_months_in_cycle = num_months_in_cycle
         self.first_month_of_cycle = first_month_of_cycle
         if 12 % self.num_months_in_cycle != 0:
-            raise _utils.ConfigurationError("Value X must fit evenly in 12")
+            raise u.ConfigurationError("Value X must fit evenly in 12")
         self.first_month_of_first_cycle = (self.first_month_of_cycle.value - 1) % self.num_months_in_cycle + 1
 
     def modify(self, date: datetime) -> datetime:
@@ -298,7 +298,7 @@ class DateModPipeline(DateModifier):
             A list of datetime objects
         """
         if step.offset == 0:
-            raise _utils.ConfigurationError("The length of 'step' must not be zero")
+            raise u.ConfigurationError("The length of 'step' must not be zero")
         
         output = []
         end_date = self.modify(start_date)

@@ -1,24 +1,18 @@
-from typing import List, Tuple, Optional
 from argparse import ArgumentParser
-import sys, time, pwinput
+import sys, time
 sys.path.append('.')
 
-from squirrels import _constants as c, _credentials_manager as cm, _manifest as mf, _module_loader as ml
-from squirrels import connection_set as cs
-from squirrels._version import __version__
-from squirrels._api_server import ApiServer
-from squirrels._renderer import RendererIOWrapper
-from squirrels._initializer import Initializer
-from squirrels._timed_imports import timer
-
-
-def _prompt_user_pw(args_values: Optional[List[str]]) -> Tuple[str, str]:
-    if args_values is not None:
-        user, pw = args_values
-    else:
-        user = input("Enter username: ")
-        pw = pwinput.pwinput("Enter password: ")
-    return user, pw
+from . import _constants as c
+from ._version import __version__
+from ._api_server import ApiServer
+from ._renderer import RendererIOWrapper
+from ._initializer import Initializer
+from ._timed_imports import timer
+from ._manifest import ManifestIO
+from ._module_loader import ModuleLoaderIO
+from ._environcfg import EnvironConfigIO
+from ._connection_set_io import ConnectionSetIO
+from ._parameter_configs import ParameterConfigsSetIO
 
 
 def main():
@@ -44,22 +38,10 @@ def main():
 
     subparsers.add_parser(c.LOAD_MODULES_CMD, help='Load all the modules specified in squirrels.yaml from git')
 
-    def _add_profile_argument(parser: ArgumentParser):
-        parser.add_argument('key', type=str, help='Key to the database connection credential')
-
-    set_cred_parser = subparsers.add_parser(c.SET_CRED_CMD, help='Set a database connection credential key')
-    _add_profile_argument(set_cred_parser)
-    set_cred_parser.add_argument('--values', type=str, nargs=2, help='The username and password')
-
-    subparsers.add_parser(c.GET_CREDS_CMD, help='Get all database connection credential keys')
-
-    delete_cred_parser = subparsers.add_parser(c.DELETE_CRED_CMD, help='Delete a database connection credential key')
-    _add_profile_argument(delete_cred_parser)
-
     test_parser = subparsers.add_parser(c.TEST_CMD, help='For a given dataset, create outputs for parameter API response and rendered sql queries')
     test_parser.add_argument('dataset', type=str, help='Name of dataset (provided in squirrels.yaml) to test. Results are written in an "outputs" folder')
     test_parser.add_argument('-c', '--cfg', type=str, help="Configuration file for parameter selections. Path is relative to the dataset's folder")
-    test_parser.add_argument('-d', '--data', type=str, help="Excel file with lookup data to avoid making a database connection. Path is relative to the dataset's folder")
+    test_parser.add_argument('-d', '--data', type=str, help="Excel file with lookup data to avoid making a database connection. Path is relative to project root")
     test_parser.add_argument('-r', '--runquery', action='store_true', help='Runs all database queries and final view, and produce the results as csv files')
 
     run_parser = subparsers.add_parser(c.RUN_CMD, help='Run the builtin API server')
@@ -77,25 +59,24 @@ def main():
     elif args.command == c.INIT_CMD:
         Initializer(args.overwrite).init_project(args)
     elif args.command == c.LOAD_MODULES_CMD:
-        manifest = mf._from_file()
-        ml.load_modules(manifest)
-    elif args.command == c.SET_CRED_CMD:
-        user, pw = _prompt_user_pw(args.values)
-        cm.squirrels_config_io.set_credential(args.key, user, pw)
-    elif args.command == c.GET_CREDS_CMD: 
-        cm.squirrels_config_io.print_all_credentials()
-    elif args.command == c.DELETE_CRED_CMD:
-        cm.squirrels_config_io.delete_credential(args.key)
+        ManifestIO.LoadFromFile()
+        ModuleLoaderIO.LoadModules()
     elif args.command in [c.RUN_CMD, c.TEST_CMD]:
-        manifest = mf._from_file()
-        conn_set = cs._from_file(manifest)
+        EnvironConfigIO.LoadFromFile()
+        ManifestIO.LoadFromFile()
+        ConnectionSetIO.LoadFromFile()
+        
+        excel_name = args.data if args.command == c.TEST_CMD else None
+        ParameterConfigsSetIO.LoadFromFile(excel_file_name=excel_name)
+        
         if args.command == c.RUN_CMD:
-            server = ApiServer(manifest, conn_set, args.no_cache, args.debug)
+            server = ApiServer(args.no_cache, args.debug)
             server.run(args)
         elif args.command == c.TEST_CMD:
-            rendererIO = RendererIOWrapper(args.dataset, manifest, conn_set, args.data)
+            rendererIO = RendererIOWrapper(args.dataset)
             rendererIO.write_outputs(args.cfg, args.runquery)
-        conn_set._dispose()
+        
+        ConnectionSetIO.Dispose()
     elif args.command is None:
         print(f'Command is missing. Enter "squirrels -h" for help.')
     else:

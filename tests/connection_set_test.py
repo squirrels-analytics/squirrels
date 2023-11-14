@@ -6,7 +6,7 @@ import pytest
 from squirrels import _utils, connection_set as cs
 
 
-@pytest.fixture
+@pytest.fixture(scope="module")
 def connection_set() -> cs.ConnectionSet:
     connection_creator = partial(sqlite3.connect, ":memory:", check_same_thread=False)
     
@@ -39,26 +39,6 @@ def connection_set() -> cs.ConnectionSet:
     connection_set._dispose()
 
 
-def test_get_connection_pool(connection_set: cs.ConnectionSet):
-    with pytest.raises(_utils.ConfigurationError):
-        connection_set.get_connection_pool('does_not_exist')
-
-
-def test_get_dataframe_from_query(connection_set: cs.ConnectionSet):
-    df: pd.DataFrame = connection_set.get_dataframe_from_query("db2", 
-        "SELECT id, name FROM test WHERE id < 0")
-    expected_df = pd.DataFrame(columns=["id", "name"]) # empty dataframe
-    assert df.equals(expected_df)
-
-    df: pd.DataFrame = connection_set.get_dataframe_from_query("db2", 
-        "SELECT name, avg(number) AS avg_number FROM test GROUP BY name")
-    expected_df = pd.DataFrame({
-        "name": ["test1", "test2"],
-        "avg_number": [15.0, 30.0]
-    })
-    assert df.equals(expected_df)
-
-
 def test_sqldf():
     df1 = pd.DataFrame({
         "name": ["test1", "test2"],
@@ -75,5 +55,25 @@ def test_sqldf():
         "name": ["test1", "test2"],
         "num1": [10, 20],
         "num2": [30, 40]
+    })
+    assert df.equals(expected_df)
+
+
+def test_get_connection_pool(connection_set: cs.ConnectionSet):
+    with pytest.raises(_utils.ConfigurationError):
+        connection_set.get_connection_pool('does_not_exist')
+
+
+def test_get_dataframe_from_query(connection_set: cs.ConnectionSet):
+    df: pd.DataFrame = connection_set.get_dataframe_from_query("db2", 
+        "SELECT id, name FROM test WHERE id < 0")
+    expected_df = pd.DataFrame(columns=["id", "name"]) # empty dataframe
+    assert df.equals(expected_df)
+
+    df: pd.DataFrame = connection_set.get_dataframe_from_query("db2", 
+        "SELECT name, avg(number) AS avg_number FROM test GROUP BY name")
+    expected_df = pd.DataFrame({
+        "name": ["test1", "test2"],
+        "avg_number": [15.0, 30.0]
     })
     assert df.equals(expected_df)

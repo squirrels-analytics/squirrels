@@ -1,59 +1,49 @@
 from typing import Optional
 from datetime import datetime, timedelta
-from typing import Dict, Any
 from jose import JWTError, jwt
 import secrets
 
-from squirrels._credentials_manager import squirrels_config_io
-from squirrels import _utils, _constants as c
-
-
-class UserBase:
-    def __init__(self, username, *, is_internal = False, **kwargs):
-        self.username = username
-        self.is_internal = is_internal
-    
-    @classmethod
-    def FromDict(cls, user_dict: Dict[str, Any]):
-        user = cls()
-        for key, val in user_dict.items():
-            setattr(user, key, val)
-        return user
-
-
-class UserPwd:
-    def __init__(self, user: UserBase, hashed_password: str, **kwargs):
-        self.user = user
-        self.hashed_password = hashed_password
-
-
-def get_auth_helper():
-    try:
-        return _utils.import_file_as_module(c.AUTH_FILE) 
-    except FileNotFoundError:
-        return None
-
-
-def get_secret_key():
-    secret_key = squirrels_config_io.get_secret(c.JWT_SECRET_KEY)
-    if secret_key is None:
-        secret_key = secrets.token_hex(32)
-        squirrels_config_io.set_secret(c.JWT_SECRET_KEY, secret_key)
-    return secret_key
+from . import _utils as u, _constants as c
+from .user_base import UserBase, WrongPassword
+from ._environcfg import EnvironConfigIO
 
 
 class Authenticator:
+    
+    @classmethod
+    def get_auth_helper(cls):
+        try:
+            return u.import_file_as_module(c.AUTH_FILE) 
+        except FileNotFoundError:
+            return None
+
     def __init__(self, token_expiry_minutes: int, auth_helper = None) -> None:
         self.token_expiry_minutes = token_expiry_minutes
-        self.auth_helper = get_auth_helper() if auth_helper is None else auth_helper
-        self.secret_key = get_secret_key()
+        self.auth_helper = self.get_auth_helper() if auth_helper is None else auth_helper
+        self.secret_key = self._get_secret_key()
         self.algorithm = "HS256"
 
+    def _get_secret_key(self):
+        secret_key = EnvironConfigIO.obj.get_secret(c.JWT_SECRET_KEY, default_factory=lambda: secrets.token_hex(32))
+        return secret_key
+
     def authenticate_user(self, username: str, password: str) -> Optional[UserBase]:
-        if self.auth_helper is None:
-            raise FileNotFoundError(f"File '{c.AUTH_FILE}' must exist to authenticate user")
+        try:
+            user_cls = self.auth_helper.User
+            real_user = self.auth_helper.get_user_if_valid(username, password)
+        except Exception:
+            user_cls = UserBase
+            real_user = None
         
-        return self.auth_helper.get_user_if_valid(username, password)
+        if isinstance(real_user, UserBase):
+            return real_user
+        
+        if not isinstance(real_user, WrongPassword):
+            fake_users = EnvironConfigIO.obj.get_users()
+            if username in fake_users and secrets.compare_digest(fake_users[username][c.USER_PWD_KEY], password):
+                return user_cls(**fake_users[username])
+        
+        return None
     
     def create_access_token(self, user: UserBase) -> str:
         expire = datetime.utcnow() + timedelta(minutes=self.token_expiry_minutes)
@@ -68,6 +58,8 @@ class Authenticator:
                 payload.pop("exp")
                 if self.auth_helper is not None:
                     return self.auth_helper.User.FromDict(payload)
+                else:
+                    return UserBase._FromDict(payload)
             except JWTError:
                 return None
 

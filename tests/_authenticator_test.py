@@ -1,7 +1,7 @@
 from typing import Optional
 import pytest
 
-from squirrels._auth import Authenticator, UserBase, UserPwd
+from squirrels._authenticator import Authenticator, UserBase, WrongPassword
 from squirrels import _constants as c
 
 
@@ -14,7 +14,7 @@ class AuthHelper:
         def __eq__(self, other) -> bool:
             return type(other) is self.__class__ and self.__dict__ == other.__dict__
     
-    def get_user_and_hashed_pwd(self, username: str) -> Optional[UserPwd]:
+    def get_user_if_valid(self, username: str, password: str) -> Optional[UserBase]:
         mock_db = {
             "johndoe": {
                 "username": "johndoe",
@@ -31,31 +31,37 @@ class AuthHelper:
         }
         if username in mock_db:
             record = mock_db[username]
-            user = self.User(**record)
-            return UserPwd(user, record["password"])
-    
-    def verify_pwd(self, login_pwd: str, hashed_pwd: str) -> bool:
-        return str(hash(login_pwd)) == hashed_pwd
+            if str(hash(password)) == record["password"]:
+                return self.User(**record)
+            else:
+                return WrongPassword(username)
 
 
-@pytest.fixture
+@pytest.fixture(scope="module")
 def auth() -> Authenticator:
     return Authenticator(30, AuthHelper())
 
 
-@pytest.fixture
-def john_doe_user() -> UserBase:
+@pytest.fixture(scope="module")
+def john_doe_user() -> AuthHelper.User:
     return AuthHelper.User("johndoe", is_admin=True, email="john.doe@email.com")
 
 
-@pytest.fixture
-def matt_doe_user() -> UserBase:
+@pytest.fixture(scope="module")
+def matt_doe_user() -> AuthHelper.User:
     return AuthHelper.User("mattdoe", is_admin=False, email="matt.doe@email.com")
+
+
+@pytest.fixture(scope="module")
+def lisa_doe_user() -> AuthHelper.User:
+    return AuthHelper.User("lisadoe", is_admin=True, email="")
 
 
 @pytest.mark.parametrize('username,password,expected', [
     ("johndoe", "secret", "john_doe_user"),
+    ("johndoe", "qwerty", None),
     ("johndoe", "wrong", None),
+    ("lisadoe", "abcd1234", "lisa_doe_user"),
     ("wrong", "secret", None),
 ])
 def test_authenticate_user(username: str, password: str, expected: Optional[str], auth: Authenticator, request: pytest.FixtureRequest):
@@ -65,7 +71,7 @@ def test_authenticate_user(username: str, password: str, expected: Optional[str]
 
 
 @pytest.mark.parametrize('user_fixture', [
-    ('john_doe_user'), ('matt_doe_user')
+    ('john_doe_user'), ('matt_doe_user'), ('lisa_doe_user')
 ])
 def test_get_user_from_token(user_fixture: str, auth: Authenticator, request: pytest.FixtureRequest):
     input_user = request.getfixturevalue(user_fixture)

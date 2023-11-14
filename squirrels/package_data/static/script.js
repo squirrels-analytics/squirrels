@@ -102,7 +102,7 @@ function renderDatasetsSelection(data) {
         datasetSelect.appendChild(option);
         datasetsMap.set(option.value, resource);
     });
-    console.log(datasets);
+    
     if (datasets.length === 0) {
         alert("No datasets available! Authentication may be required to access.");
     } else {

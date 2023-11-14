@@ -8,16 +8,15 @@ from fastapi.security import OAuth2PasswordBearer, OAuth2PasswordRequestForm
 from cachetools.func import ttl_cache
 import os, traceback
 
-from squirrels import _constants as c, _utils
-from squirrels._version import sq_major_version
-from squirrels._manifest import Manifest
-from squirrels.connection_set import ConnectionSet
-from squirrels._renderer import RendererIOWrapper, Renderer
-from squirrels._auth import UserBase, Authenticator
+from . import _constants as c, _utils
+from ._version import sq_major_version
+from ._manifest import ManifestIO
+from ._renderer import RendererIOWrapper, Renderer
+from ._authenticator import UserBase, Authenticator
 
 
 class ApiServer:
-    def __init__(self, manifest: Manifest, conn_set: ConnectionSet, no_cache: bool, debug: bool) -> None:
+    def __init__(self, no_cache: bool, debug: bool) -> None:
         """
         Constructor for ApiServer
 
@@ -27,26 +26,24 @@ class ApiServer:
             no_cache (bool): Whether to disable caching
             debug (bool): Set to True to show "hidden" parameters in the /parameters endpoint response
         """
-        self.manifest = manifest
-        self.conn_set = conn_set
         self.no_cache = no_cache
         self.debug = debug
         
-        self.datasets = manifest.get_all_dataset_names()
+        self.datasets = ManifestIO.obj.get_all_dataset_names()
         self.renderers: Dict[str, Renderer] = {}
         for dataset in self.datasets:
-            rendererIO = RendererIOWrapper(dataset, manifest, conn_set)
+            rendererIO = RendererIOWrapper(dataset)
             self.renderers[dataset] = rendererIO.renderer
         
-        token_expiry_minutes = self.manifest.get_setting(c.AUTH_TOKEN_EXPIRE_SETTING, 30)
+        token_expiry_minutes = ManifestIO.obj.get_setting(c.AUTH_TOKEN_EXPIRE_SETTING, 30)
         self.authenticator = Authenticator(token_expiry_minutes)
         
     def _get_parameters_helper(self, user: Optional[UserBase], dataset: str, query_params: Set[Tuple[str, str]]) -> Dict:
         if len(query_params) > 1:
             raise _utils.InvalidInputError("The /parameters endpoint takes at most 1 query parameter")
         renderer = self.renderers[dataset]
-        parameters = renderer.apply_selections(dict(query_params), updates_only = True)
-        return parameters.to_json_dict(self.debug)
+        parameters = renderer.apply_selections(dict(query_params), user, updates_only = True)
+        return parameters.to_json_dict(debug=self.debug)
     
     def _get_results_helper(self, user: Optional[UserBase], dataset: str, query_params: Set[Tuple[str, str]]) -> Dict:
         renderer = self.renderers[dataset]
@@ -54,7 +51,7 @@ class ApiServer:
         return _utils.df_to_json(df)
     
     def _can_user_access_dataset(self, user: Optional[UserBase], dataset: str):
-        dataset_scope = self.manifest.get_dataset_scope(dataset)
+        dataset_scope = ManifestIO.obj.get_dataset_scope(dataset)
         return self.authenticator.can_user_access_scope(user, dataset_scope)
 
     def _apply_api_function(self, api_function):
@@ -99,7 +96,7 @@ class ApiServer:
         app = FastAPI()
 
         squirrels_version_path = f'/squirrels-v{sq_major_version}'
-        partial_base_path = f'/{self.manifest.get_product()}/v{self.manifest.get_major_version()}'
+        partial_base_path = f'/{ManifestIO.obj.get_product()}/v{ManifestIO.obj.get_major_version()}'
         base_path = squirrels_version_path + _utils.normalize_name_for_api(partial_base_path)
 
         static_dir = _utils.join_paths(os.path.dirname(__file__), 'package_data', 'static')
@@ -135,8 +132,8 @@ class ApiServer:
         # Parameters API
         parameters_path = base_path + '/{dataset}/parameters'
         
-        parameters_cache_size = self.manifest.get_setting(c.PARAMETERS_CACHE_SIZE_SETTING, 1024)
-        parameters_cache_ttl = self.manifest.get_setting(c.PARAMETERS_CACHE_TTL_SETTING, 0)
+        parameters_cache_size = ManifestIO.obj.get_setting(c.PARAMETERS_CACHE_SIZE_SETTING, 1024)
+        parameters_cache_ttl = ManifestIO.obj.get_setting(c.PARAMETERS_CACHE_TTL_SETTING, 0)
 
         @ttl_cache(maxsize=parameters_cache_size, ttl=parameters_cache_ttl)
         def get_parameters_cachable(*args):
@@ -150,8 +147,8 @@ class ApiServer:
         # Results API
         results_path = base_path + '/{dataset}'
 
-        results_cache_size = self.manifest.get_setting(c.RESULTS_CACHE_SIZE_SETTING, 128)
-        results_cache_ttl = self.manifest.get_setting(c.RESULTS_CACHE_TTL_SETTING, 0)
+        results_cache_size = ManifestIO.obj.get_setting(c.RESULTS_CACHE_SIZE_SETTING, 128)
+        results_cache_ttl = ManifestIO.obj.get_setting(c.RESULTS_CACHE_TTL_SETTING, 0)
 
         @ttl_cache(maxsize=results_cache_size, ttl=results_cache_ttl)
         def get_results_cachable(*args):
@@ -167,18 +164,18 @@ class ApiServer:
         async def get_catalog(user: Optional[UserBase] = Depends(get_current_user)):
             def api_function():
                 datasets_info = []
-                for dataset in self.manifest.get_all_dataset_names():
+                for dataset in ManifestIO.obj.get_all_dataset_names():
                     if self._can_user_access_dataset(user, dataset):
                         dataset_normalized = _utils.normalize_name_for_api(dataset)
                         datasets_info.append({
                             'name': dataset,
-                            'label': self.manifest.get_dataset_label(dataset),
+                            'label': ManifestIO.obj.get_dataset_label(dataset),
                             'parameters_path': parameters_path.format(dataset=dataset_normalized),
                             'result_path': results_path.format(dataset=dataset_normalized),
                             'first_minor_version': 0
                         })
                 
-                project_vars = self.manifest.get_proj_vars()
+                project_vars = ManifestIO.obj.get_proj_vars()
                 product_name = project_vars[c.PRODUCT_KEY]
                 product_label = project_vars.get(c.PRODUCT_LABEL_KEY, product_name)
                 return {

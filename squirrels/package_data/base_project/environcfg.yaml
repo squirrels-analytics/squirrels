@@ -1,0 +1,29 @@
+# Note: You can copy this file to the .squirrels folder in your home directory to make 
+#   the configurations global for all squirrels projects on the current machine
+
+# Fake users for local development testing
+users:
+  johndoe:
+    password: I<3Squirrels
+    full_name: John Doe
+    is_admin: True
+    organization: org1
+  mattdoe:
+    password: abcd5678
+    full_name: Matt Doe
+    is_admin: False
+    organization: org2
+
+# Custom environment variables
+env_vars:
+  sqlite_conn_str: sqlite://${username}:${password}@/./database/sample_database.db
+
+# Database credentials
+credentials:
+  sqlite_user:
+    username: Test
+    password: test1
+
+# Predefined secrets used by the squirrels framework
+secrets:
+  jwt_signature: # generate a random 32 byte hex string here for jwt signatures

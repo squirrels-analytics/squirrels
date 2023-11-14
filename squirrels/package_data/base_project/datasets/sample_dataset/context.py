@@ -2,7 +2,10 @@ from typing import Dict, Any, Optional
 import squirrels as sr
 
 
-def main(user: Optional[sr.UserBase], prms: Dict[str, sr.Parameter], args: Dict[str, Any], *p_args, **kwargs) -> Dict[str, Any]:
+def main(
+    user: Optional[sr.UserBase], prms: Dict[str, sr.Parameter], args: Dict[str, Any], *p_args, **kwargs
+) -> Dict[str, Any]:
+    
     group_by_param: sr.SingleSelectParameter = prms["group_by"]
     start_date_param: sr.DateParameter = prms["start_date"]
     end_date_param: sr.DateParameter = prms["end_date"]

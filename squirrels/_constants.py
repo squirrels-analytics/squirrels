@@ -28,21 +28,26 @@ PUBLIC_SCOPE = 'public'
 PROTECTED_SCOPE = 'protected'
 PRIVATE_SCOPE = 'private'
 
+PARAMETERS_KEY = 'parameters'
+
 # Project variable keys
 PRODUCT_KEY = 'product'
 PRODUCT_LABEL_KEY = 'product_label'
 MAJOR_VERSION_KEY = 'major_version'
 MINOR_VERSION_KEY = 'minor_version'
 
-# Config file keys
+# Environment config keys keys
 CREDENTIALS_KEY = 'credentials'
 USERNAME_KEY = 'username'
 PASSWORD_KEY = 'password'
+USER_NAME_KEY = 'username'
+USER_PWD_KEY = 'password'
 DEFAULT_DB_CONN = 'default'
 SECRETS_KEY = 'secrets'
 JWT_SECRET_KEY = 'jwt_secret'
 
 # Folder/File names
+ENVIRON_CONFIG_FILE = 'environcfg.yaml'
 MANIFEST_FILE = 'squirrels.yaml'
 CONNECTIONS_FILE = 'connections.py'
 OUTPUTS_FOLDER = 'outputs'

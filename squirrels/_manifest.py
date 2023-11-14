@@ -1,47 +1,34 @@
 from typing import List, Dict, Any, Optional, Union
+from dataclasses import dataclass
 from pathlib import Path
-from sqlalchemy import Engine, create_engine
 import yaml
 
-from squirrels import _constants as c, _utils
-from squirrels._credentials_manager import Credential, squirrels_config_io
-from squirrels._utils import ConfigurationError, InvalidInputError
+from . import _constants as c, _utils as u
+from ._environcfg import EnvironConfigIO
 
 
-class Manifest:
-    def __init__(self, parms: Dict) -> None:
-        self._parms = parms
-    
-    @classmethod
-    def from_yaml_str(cls, parms_str: str):
-        parms = yaml.safe_load(parms_str)
-        return cls(parms)
-
-    @classmethod
-    def from_file(cls, manifest_path: str):
-        with open(manifest_path, 'r') as f:
-            parms_str = f.read()
-        
-        return Manifest.from_yaml_str(parms_str)
+@dataclass
+class _Manifest:
+    _config: Dict
     
     def get_proj_vars(self) -> Dict[str, Any]:
-        return self._parms.get(c.PROJ_VARS_KEY, dict())
+        return self._config.get(c.PROJ_VARS_KEY, dict())
     
     def get_modules(self) -> List[str]:
-        return self._parms.get(c.MODULES_KEY, list())
+        return self._config.get(c.MODULES_KEY, list())
     
     def _get_required_field(self, key: str) -> Any:
         try:
-            return self._parms[key]
+            return self._config[key]
         except KeyError as e:
-            raise ConfigurationError(f'Field "{key}" not found in squirrels.yaml') from e
+            raise u.ConfigurationError(f'Field "{key}" not found in squirrels.yaml') from e
     
     def get_product(self) -> str:
         project_vars = self.get_proj_vars()
         try:
             product = project_vars[c.PRODUCT_KEY]
         except KeyError as e:
-            raise ConfigurationError("The 'product' must be specified in project variables") from e
+            raise u.ConfigurationError("The 'product' must be specified in project variables") from e
         return product
     
     def get_major_version(self) -> str:
@@ -49,35 +36,23 @@ class Manifest:
         try:
             major_version = project_vars[c.MAJOR_VERSION_KEY]
         except KeyError as e:
-            raise ConfigurationError("The 'major_version' must be specified in project variables") from e
+            raise u.ConfigurationError("The 'major_version' must be specified in project variables") from e
         return major_version
     
-    def get_db_connections(self, test_creds: Dict[str, Credential] = None) -> Dict[str, Engine]:
-        configs: Dict[str, Dict[str, str]] = self._parms.get(c.DB_CONNECTIONS_KEY, {})
-        output = {}
-        for key, config in configs.items():
-            cred_key = config.get(c.DB_CREDENTIALS_KEY)
-            if cred_key is None:
-                cred = Credential("", "")
-            elif test_creds is not None:
-                cred = test_creds[cred_key]
-            else:
-                cred = squirrels_config_io.get_credential(cred_key)
-            url = config[c.URL_KEY].replace("${username}", cred.username).replace("${password}", cred.password)
-            output[key] = create_engine(url)
-        return output
+    def get_db_connections(self) -> Dict[str, Dict[str, str]]:
+        return self._config.get(c.DB_CONNECTIONS_KEY, {})
 
     def _get_dataset_parms(self, dataset: str) -> Dict[str, Any]:
         try:
             return self._get_required_field(c.DATASETS_KEY)[dataset]
         except KeyError as e:
-            raise InvalidInputError(f'No such dataset named "{dataset}" exists') from e
+            raise u.InvalidInputError(f'No such dataset named "{dataset}" exists') from e
         
     def _get_required_field_from_dataset_parms(self, dataset: str, key: str):
         try:
             return self._get_dataset_parms(dataset)[key]
         except KeyError as e:
-            raise ConfigurationError(f'The "{key}" field is not defined for dataset "{dataset}"') from e
+            raise u.ConfigurationError(f'The "{key}" field is not defined for dataset "{dataset}"') from e
     
     def _get_all_database_view_parms(self, dataset: str) -> Dict[str, Dict[str, str]]:
         return self._get_required_field_from_dataset_parms(dataset, c.DATABASE_VIEWS_KEY)
@@ -87,7 +62,7 @@ class Manifest:
         return list(datasets.keys())
     
     def get_dataset_folder(self, dataset: str) -> Path:
-        return _utils.join_paths(c.DATASETS_FOLDER, dataset)
+        return u.join_paths(c.DATASETS_FOLDER, dataset)
         
     def get_dataset_args(self, dataset: str) -> Dict[str, Any]:
         dataset_args = self._get_dataset_parms(dataset).get("args", {})
@@ -106,9 +81,9 @@ class Manifest:
             try:
                 db_view_file = database_view_parms[c.FILE_KEY]
             except KeyError as e:
-                raise ConfigurationError(f'The "{c.FILE_KEY}" field is not defined for "{database_view}" in dataset "{dataset}"') from e
+                raise u.ConfigurationError(f'The "{c.FILE_KEY}" field is not defined for "{database_view}" in dataset "{dataset}"') from e
         dataset_folder = self.get_dataset_folder(dataset)
-        return _utils.join_paths(dataset_folder, db_view_file)
+        return u.join_paths(dataset_folder, db_view_file)
     
     def get_view_args(self, dataset: str, database_view: str = None) -> Dict[str, Any]:
         dataset_args = self.get_dataset_args(dataset)
@@ -135,6 +110,10 @@ class Manifest:
         scope: str = self._get_dataset_parms(dataset).get(c.SCOPE_KEY, c.PUBLIC_SCOPE)
         return scope.strip().lower()
     
+    def get_dataset_parameters(self, dataset: str) -> Optional[List[str]]:
+        dataset_params = self._get_dataset_parms(dataset).get(c.PARAMETERS_KEY)
+        return dataset_params
+    
     def get_dataset_final_view_file(self, dataset: str) -> Union[str, Path]:
         final_view_parms: Dict[str, Any] = self._get_required_field_from_dataset_parms(dataset, c.FINAL_VIEW_KEY)
         if isinstance(final_view_parms, str):
@@ -143,19 +122,29 @@ class Manifest:
             try:
                 final_view_file = final_view_parms[c.FILE_KEY]
             except KeyError as e:
-                raise ConfigurationError(f'The "{c.FILE_KEY}" field is not defined for the final view') from e
+                raise u.ConfigurationError(f'The "{c.FILE_KEY}" field is not defined for the final view') from e
         
         database_views = self.get_all_database_view_names(dataset)
         if final_view_file in database_views:
             return final_view_file
         else:
             dataset_path = self.get_dataset_folder(dataset)
-            return _utils.join_paths(dataset_path, final_view_file)
+            return u.join_paths(dataset_path, final_view_file)
 
     def get_setting(self, key: str, default: Any) -> Any:
-        settings: Dict[str, Any] = self._parms.get(c.SETTINGS_KEY, dict())
+        settings: Dict[str, Any] = self._config.get(c.SETTINGS_KEY, dict())
         return settings.get(key, default)
 
 
-def _from_file():
-    return Manifest.from_file(c.MANIFEST_FILE)
+class ManifestIO:
+    obj: _Manifest
+
+    @classmethod
+    def LoadFromFile(cls) -> None:
+        with open(c.MANIFEST_FILE, 'r') as f:
+            raw_content = f.read()
+        
+        env_config = EnvironConfigIO.obj.get_all_env_vars()
+        content = u.render_string(raw_content, env_config)
+        proj_config = yaml.safe_load(content)
+        cls.obj = _Manifest(proj_config)

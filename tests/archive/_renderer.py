@@ -3,14 +3,14 @@ from functools import partial
 from textwrap import dedent
 import pytest, sqlite3, sqlalchemy as sa, pandas as pd
 
-from squirrels import _manifest as mf, _renderer as rd, connection_set as cs
-from squirrels._parameter_set import ParameterSet
-import squirrels as sr
+from squirrels import _renderer as rd, parameters as p, parameter_options as po
+from squirrels._manifest import ManifestIO, _Manifest
+from squirrels._connection_set_io import ConnectionSetIO, ConnectionSet
 
 
 class TestRenderer:
-    @pytest.fixture
-    def manifest(self) -> mf.Manifest:
+    @pytest.fixture(scope="class", autouse=True)
+    def manifest(self) -> None:
         parms = {
             "datasets": {
                 "avg_shop_price_by_city": {
@@ -22,10 +22,10 @@ class TestRenderer:
                 }
             }
         }
-        return mf.Manifest(parms)
+        ManifestIO.obj = _Manifest(parms)
     
     @pytest.fixture
-    def connection_set(self) -> cs.ConnectionSet:
+    def connection_set(self) -> None:
         connection_creator = partial(sqlite3.connect, ":memory:", check_same_thread=False)
         pool1 = sa.StaticPool(connection_creator)
         conn1 = pool1.connect()
@@ -49,13 +49,12 @@ class TestRenderer:
         finally:
             conn2.close()
         
-        connection_set = cs.ConnectionSet({
+        ConnectionSetIO.obj = ConnectionSet({
             "default": pool1, 
             "test_db2": pool2
         })
-
-        yield connection_set
-        connection_set._dispose()
+        yield
+        ConnectionSetIO.Dispose()
     
     @pytest.fixture
     def raw_param_set(self) -> ParameterSet:
@@ -119,23 +118,23 @@ class TestRenderer:
         """)
 
     @pytest.fixture
-    def renderer1(self, manifest: mf.Manifest, connection_set: cs.ConnectionSet, raw_param_set: ParameterSet, 
+    def renderer1(self, manifest: mf._Manifest, connection_set: cs.ConnectionSet, raw_param_set: ParameterSet, 
                   raw_db_view_queries1: Dict[str, rd.Query], raw_final_view_py_query: rd.Query):
         return rd.Renderer("avg_shop_price_by_city", manifest, connection_set, raw_param_set, self.context_main, 
                            raw_db_view_queries1, raw_final_view_py_query)
 
     @pytest.fixture
-    def renderer2(self, manifest: mf.Manifest, connection_set: cs.ConnectionSet, raw_param_set: ParameterSet, 
-                  raw_db_view_queries2: Dict[str, rd.Query], raw_final_view_sql_query: rd.Query):
+    def renderer2(self, raw_db_view_queries2: Dict[str, rd.Query], raw_final_view_sql_query: rd.Query):
         return rd.Renderer("avg_shop_price_by_city", manifest, connection_set, raw_param_set, self.context_main, 
                            raw_db_view_queries2, raw_final_view_sql_query)
     
     def test_apply_selections(self, renderer1: rd.Renderer):
+        
         expected_params = {
-            "city": sr.MultiSelectParameter('city', 'City', (
-                sr.SelectParameterOption('c0', 'Toronto'), sr.SelectParameterOption('c1', 'Boston')
+            "city": p.MultiSelectParameter('city', 'City', (
+                po.SelectParameterOption('c0', 'Toronto'), po.SelectParameterOption('c1', 'Boston')
             )),
-            "limit": sr.NumberParameter('limit', 'Limit', 0, 100)
+            "limit": p.NumberParameter('limit', 'Limit', 0, 100)
         }
         
         param_set = renderer1.apply_selections({})

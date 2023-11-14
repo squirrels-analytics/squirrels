@@ -3,7 +3,7 @@ import pytest
 
 from squirrels import parameters as p
 from squirrels._utils import InvalidInputError, ConfigurationError
-from tests.parent_parameters import TestParentParameters
+from tests_archive.parent_parameters import TestParentParameters
 import squirrels as sr
 
 
