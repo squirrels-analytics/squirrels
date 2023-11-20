@@ -40,7 +40,7 @@ class Initializer:
                 f.write(content)
 
     def init_project(self, args):
-        options = ['core', 'db_view', 'connections', 'context', 'selections_cfg', 'final_view', 'auth_file', 'sample_db']
+        options = ['core', 'db_view', 'connections', 'context', 'final_view', 'auth_file', 'selections_cfg', 'sample_db']
         answers = { x: getattr(args, x) for x in options }
         if not any(answers.values()):
             core_questions = [
@@ -65,14 +65,14 @@ class Initializer:
                 inquirer.Confirm('context',
                                  message=f"Do you want to add a '{c.CONTEXT_FILE}' file?" ,
                                  default=False),
-                inquirer.Confirm('selections_cfg',
-                                 message=f"Do you want to add a '{c.SELECTIONS_CFG_FILE}' file?" ,
-                                 default=False),
                 inquirer.List('final_view', 
                               message="What's the file format for the final view (if any)?",
                               choices=['none'] + c.FILE_TYPE_CHOICES),
                 inquirer.Confirm('auth_file',
                                  message=f"Do you want to add a '{c.AUTH_FILE}' file?" ,
+                                 default=False),
+                inquirer.Confirm('selections_cfg',
+                                 message=f"Do you want to add '{c.SELECTIONS_CFG_FILE}' and '{c.LU_DATA_FILE}' files?" ,
                                  default=False),
                 inquirer.List('sample_db', 
                               message="What sample sqlite database do you wish to use (if any)?",
@@ -99,6 +99,7 @@ class Initializer:
         
         if answers.get('selections_cfg', False):
             self._copy_dataset_file(c.SELECTIONS_CFG_FILE)
+            self._copy_file(c.LU_DATA_FILE)
         
         final_view_format = answers.get('final_view')
         if final_view_format == 'py':

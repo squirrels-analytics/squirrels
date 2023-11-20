@@ -28,10 +28,10 @@ class Authenticator:
         return secret_key
 
     def authenticate_user(self, username: str, password: str) -> Optional[UserBase]:
-        try:
+        if self.auth_helper:
             user_cls = self.auth_helper.User
             real_user = self.auth_helper.get_user_if_valid(username, password)
-        except Exception:
+        else:
             user_cls = UserBase
             real_user = None
         
@@ -41,7 +41,8 @@ class Authenticator:
         if not isinstance(real_user, WrongPassword):
             fake_users = EnvironConfigIO.obj.get_users()
             if username in fake_users and secrets.compare_digest(fake_users[username][c.USER_PWD_KEY], password):
-                return user_cls(**fake_users[username])
+                is_internal = fake_users[username].get("is_internal", False)
+                return user_cls(username, is_internal=is_internal).with_attributes(**fake_users[username])
         
         return None
     
@@ -57,7 +58,7 @@ class Authenticator:
                 payload = jwt.decode(token, self.secret_key, algorithms=[self.algorithm])
                 payload.pop("exp")
                 if self.auth_helper is not None:
-                    return self.auth_helper.User.FromDict(payload)
+                    return self.auth_helper.User._FromDict(payload)
                 else:
                     return UserBase._FromDict(payload)
             except JWTError:

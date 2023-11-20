@@ -3,6 +3,7 @@ from dataclasses import dataclass
 import os, yaml
 
 from . import _constants as c, _utils as u
+from ._timed_imports import timer, time
 
 _GLOBAL_SQUIRRELS_CFG_FILE = u.join_paths(os.path.expanduser('~'), '.squirrels', c.ENVIRON_CONFIG_FILE)
 
@@ -18,7 +19,7 @@ class _EnvironConfig:
         for username, user in self._users.items():
             user[c.USER_NAME_KEY] = username
             if c.USER_PWD_KEY not in user:
-                raise u.ConfigurationError("All users must have password in environcfg.yaml")
+                raise u.ConfigurationError(f"All users must have password in environcfg.yaml")
         
         for key, cred in self._credentials.items():
             if c.USERNAME_KEY not in cred or c.PASSWORD_KEY not in cred:
@@ -58,6 +59,7 @@ class EnvironConfigIO:
     
     @classmethod
     def LoadFromFile(cls):
+        start = time.time()
         def load_yaml(filename: str) -> Dict[str, Dict]:
             try:
                 with open(filename, 'r') as f:
@@ -78,3 +80,4 @@ class EnvironConfigIO:
         secrets = config1.get("secrets", {})
 
         cls.obj = _EnvironConfig(users, env_vars, credentials, secrets)
+        timer.add_activity_time("loading environcfg.yaml file", start)

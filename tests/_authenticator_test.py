@@ -1,3 +1,4 @@
+from __future__ import annotations
 from typing import Optional
 import pytest
 
@@ -7,9 +8,10 @@ from squirrels import _constants as c
 
 class AuthHelper:
     class User(UserBase):
-        def __init__(self, username="", is_admin=False, email="", **kwargs):
-            super().__init__(username, is_internal=is_admin, **kwargs)
+        def with_attributes(self, is_admin: bool, email: str, **kwargs) -> AuthHelper.User:
+            self.is_internal = is_admin
             self.email = email
+            return self
         
         def __eq__(self, other) -> bool:
             return type(other) is self.__class__ and self.__dict__ == other.__dict__
@@ -32,7 +34,7 @@ class AuthHelper:
         if username in mock_db:
             record = mock_db[username]
             if str(hash(password)) == record["password"]:
-                return self.User(**record)
+                return self.User(username).with_attributes(**record)
             else:
                 return WrongPassword(username)
 
@@ -44,17 +46,17 @@ def auth() -> Authenticator:
 
 @pytest.fixture(scope="module")
 def john_doe_user() -> AuthHelper.User:
-    return AuthHelper.User("johndoe", is_admin=True, email="john.doe@email.com")
+    return AuthHelper.User("johndoe").with_attributes(True, "john.doe@email.com")
 
 
 @pytest.fixture(scope="module")
 def matt_doe_user() -> AuthHelper.User:
-    return AuthHelper.User("mattdoe", is_admin=False, email="matt.doe@email.com")
+    return AuthHelper.User("mattdoe").with_attributes(False, "matt.doe@email.com")
 
 
 @pytest.fixture(scope="module")
 def lisa_doe_user() -> AuthHelper.User:
-    return AuthHelper.User("lisadoe", is_admin=True, email="")
+    return AuthHelper.User("lisadoe").with_attributes(True, "lisadoe@org2.com")
 
 
 @pytest.mark.parametrize('username,password,expected', [

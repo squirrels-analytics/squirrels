@@ -1,10 +1,15 @@
-SELECT {{ prms["group_by"].get_selected("columns") }} -- {{ ctx["group_by_cols"] }}
+SELECT {{ prms["group_by"].get_selected("columns") }} -- {# or use {{ ctx["group_by_cols"] }} if context.py is available #}
     , sum(-Amount) as Total_Amount
 FROM transactions
-WHERE Category IN ({{ prms["category"].get_selected_labels_quoted_joined() }}) -- ({{ ctx["categories"] }})
-    AND Subcategory IN ({{ prms["subcategory"].get_selected_labels_quoted_joined() }}) -- ({{ ctx["subcategories"] }})
-    AND "Date" >= {{ prms["start_date"].get_selected_date_quoted() }} -- {{ ctx["start_date"] }}
-    AND "Date" <= {{ prms["end_date"].get_selected_date_quoted() }} -- {{ ctx["end_date"] }}
-    AND -Amount >= {{ prms["min_filter"].get_selected_value() }} -- {{ ctx["min_amount"] }}
-    AND -Amount <= {{ prms["max_filter"].get_selected_value() }} -- {{ ctx["max_amount"] }}
-GROUP BY {{ prms["group_by"].get_selected("columns") }} -- {{ ctx["group_by_cols"] }}
+WHERE 1=1
+{%- if prms["category"].has_non_empty_selection() %} -- {# {{ ctx["has_categories"] }} #}
+    AND Category IN ({{ prms["category"].get_selected_labels_quoted_joined() }}) -- {# {{ ctx["categories"] }} #}
+{%- endif %}
+{%- if prms["subcategory"].has_non_empty_selection() %} -- {# {{ ctx["has_subcategories"] }} #}
+    AND Subcategory IN ({{ prms["subcategory"].get_selected_labels_quoted_joined() }}) -- {# {{ ctx["subcategories"] }} #}
+{%- endif %}
+    AND "Date" >= {{ prms["start_date"].get_selected_date_quoted() }} -- {# {{ ctx["start_date"] }} #}
+    AND "Date" <= {{ prms["end_date"].get_selected_date_quoted() }} -- {# {{ ctx["end_date"] }} #}
+    AND -Amount >= {{ prms["min_filter"].get_selected_value() }} -- {# {{ ctx["min_amount"] }} #}
+    AND -Amount <= {{ prms["max_filter"].get_selected_value() }} -- {# {{ ctx["max_amount"] }} #}
+GROUP BY {{ prms["group_by"].get_selected("columns") }} -- {# {{ ctx["group_by_cols"] }} #}

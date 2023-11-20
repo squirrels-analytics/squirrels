@@ -1,4 +1,4 @@
-from typing import List, Dict, Optional, Union, Any
+from typing import List, Dict, Optional, Union, Any, TypeVar, Callable
 from types import ModuleType
 from pathlib import Path
 from importlib.machinery import SourceFileLoader
@@ -138,3 +138,20 @@ def load_json_or_comma_delimited_str_as_list(input_str: str) -> List[str]:
         return output
     else:
         return [] if input_str == "" else input_str.split(",")
+
+
+X, Y = TypeVar('X'), TypeVar('Y')
+def process_if_not_none(input_val: Optional[X], processor: Callable[[X], Y]) -> Optional[Y]:
+    """
+    Given a input value and a function that processes the value, return the output of the function unless input is None
+
+    Parameters:
+        input_val: The input value
+        processor: The function that processes the input value
+    
+    Returns:
+        The output type of "processor" or None if input value if None
+    """
+    if input_val is None:
+        return None
+    return processor(input_val)

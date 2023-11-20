@@ -62,6 +62,7 @@ FINAL_VIEW_PY_NAME = 'final_view.py'
 FINAL_VIEW_OUT_STEM = 'final_view'
 CONTEXT_FILE = 'context.py'
 SELECTIONS_CFG_FILE = 'selections.cfg'
+LU_DATA_FILE = 'lu_data.xlsx'
 AUTH_FILE = 'auth.py'
 
 # Dataset setting names

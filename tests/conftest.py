@@ -8,11 +8,13 @@ def my_initial_code():
         "johndoe": {
             "password": "qwerty",
             "is_admin": True,
+            "email": "johndoe@org1.com",
             "organization": "org1"
         },
         "lisadoe": {
             "password": "abcd1234",
             "is_admin": True,
+            "email": "lisadoe@org2.com",
             "organization": "org2"
         }
     }

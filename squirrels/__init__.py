@@ -1,4 +1,3 @@
-from typing import Tuple
 from .parameter_options import SelectParameterOption, DateParameterOption, DateRangeParameterOption, NumberParameterOption, NumRangeParameterOption
 from .parameters import Parameter, SingleSelectParameter, MultiSelectParameter, DateParameter, DateRangeParameter, NumberParameter, NumRangeParameter
 from .data_sources import SingleSelectDataSource, MultiSelectDataSource, DateDataSource, DateRangeDataSource, NumberDataSource, NumRangeDataSource
@@ -20,7 +19,7 @@ def get_env_var(key: str) -> str:
     return EnvironConfigIO.obj.get_env_var(key)
 
 
-def get_credential(key: str) -> Tuple[str, str]:
+def get_credential(key: str):
     """
     Gets the username and password for credentials set in .squirrelscfg.yaml
 

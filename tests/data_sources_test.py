@@ -23,16 +23,16 @@ class TestSingleSelectDataSource:
 
     def test_get_query(self):
         data_source1 = d.SingleSelectDataSource('table_name', 'my_ids', 'my_options')
-        assert data_source1.get_query() == 'SELECT * FROM table_name'
+        assert data_source1._get_query() == 'SELECT * FROM table_name'
 
         data_source2 = d.SingleSelectDataSource('select', 'my_ids', 'my_options')
-        assert data_source2.get_query() == 'SELECT * FROM select'
+        assert data_source2._get_query() == 'SELECT * FROM select'
         
         data_source3 = d.SingleSelectDataSource('SELECT * FROM table_name', 'my_ids', 'my_options')
-        assert data_source3.get_query() == 'SELECT * FROM table_name'
+        assert data_source3._get_query() == 'SELECT * FROM table_name'
 
         data_source4 = d.SingleSelectDataSource('select * from table_name', 'my_ids', 'my_options')
-        assert data_source4.get_query() == 'select * from table_name'
+        assert data_source4._get_query() == 'select * from table_name'
 
     def test_convert(self, data_source: d.SingleSelectDataSource, data_source_with_parent: d.SingleSelectDataSource,
                      data_source_with_user: d.SingleSelectDataSource):

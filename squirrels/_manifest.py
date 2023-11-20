@@ -5,6 +5,7 @@ import yaml
 
 from . import _constants as c, _utils as u
 from ._environcfg import EnvironConfigIO
+from ._timed_imports import timer, time
 
 
 @dataclass
@@ -28,7 +29,7 @@ class _Manifest:
         try:
             product = project_vars[c.PRODUCT_KEY]
         except KeyError as e:
-            raise u.ConfigurationError("The 'product' must be specified in project variables") from e
+            raise u.ConfigurationError(f"The 'product' must be specified in project variables") from e
         return product
     
     def get_major_version(self) -> str:
@@ -36,7 +37,7 @@ class _Manifest:
         try:
             major_version = project_vars[c.MAJOR_VERSION_KEY]
         except KeyError as e:
-            raise u.ConfigurationError("The 'major_version' must be specified in project variables") from e
+            raise u.ConfigurationError(f"The 'major_version' must be specified in project variables") from e
         return major_version
     
     def get_db_connections(self) -> Dict[str, Dict[str, str]]:
@@ -141,6 +142,9 @@ class ManifestIO:
 
     @classmethod
     def LoadFromFile(cls) -> None:
+        EnvironConfigIO.LoadFromFile()
+        
+        start = time.time()
         with open(c.MANIFEST_FILE, 'r') as f:
             raw_content = f.read()
         
@@ -148,3 +152,4 @@ class ManifestIO:
         content = u.render_string(raw_content, env_config)
         proj_config = yaml.safe_load(content)
         cls.obj = _Manifest(proj_config)
+        timer.add_activity_time("loading squirrels.yaml file", start)

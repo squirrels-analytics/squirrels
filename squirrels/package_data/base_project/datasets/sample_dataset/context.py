@@ -18,6 +18,8 @@ def main(
         "group_by_cols": group_by_param.get_selected("columns"),
         "start_date": start_date_param.get_selected_date_quoted(),
         "end_date": end_date_param.get_selected_date_quoted(),
+        "has_categories": category_param.has_non_empty_selection(),
+        "has_subcatories": subcategory_param.has_non_empty_selection(),
         "categories": category_param.get_selected_labels_quoted_joined(),
         "subcategories": subcategory_param.get_selected_labels_quoted_joined(),
         "min_amount": min_amount_filter.get_selected_value(),

@@ -5,7 +5,7 @@ from datetime import datetime
 from decimal import Decimal
 from abc import ABCMeta, abstractmethod
 
-from . import _parameter_configs as pc, parameter_options as po, data_sources as d
+from . import _parameter_configs as pc, _parameter_sets as ps, parameter_options as po, data_sources as d, _utils as u
 
 
 @dataclass
@@ -13,7 +13,7 @@ class Parameter(metaclass=ABCMeta):
     """
     Abstract class for all parameter widgets
     """
-    config: pc.ParameterConfig
+    _config: pc.ParameterConfig
     
     @classmethod
     def CreateFromSource(
@@ -33,31 +33,46 @@ class Parameter(metaclass=ABCMeta):
         """
         param_config = pc.DataSourceParameterConfig(cls, name, label, data_source, is_hidden=is_hidden, user_attribute=user_attribute, 
                                                     parent_name=parent_name)
-        pc.ParameterConfigsSetIO.obj.add(param_config)
+        ps.ParameterConfigsSetIO.obj.add(param_config)
         
     def _enquote(self, value: str) -> str:
         return "'" + value.replace("'", "''") + "'" 
+    
+    def _validate_date(self, input_date: str) -> datetime:
+        try:
+            return datetime.strptime(input_date.strip(), "%Y-%m-%d") if isinstance(input_date, str) else input_date
+        except ValueError as e:
+            self._config._raise_invalid_input_error(input_date, 'Invalid selection for date.', e)
+    
+    def _validate_number(self, input_number: po.Number, curr_option: po._NumericParameterOption) -> Decimal:
+        try:
+            return curr_option._validate_value(input_number)
+        except u.ConfigurationError as e:
+            self._config._raise_invalid_input_error(input_number, 'Invalid selection for number.', e)
     
     @abstractmethod
     def to_json_dict(self) -> Dict:
         """
         Helper method to convert the derived Parameter class into a JSON dictionary
         """
-        return self.config.to_json_dict()
+        return self._config.to_json_dict()
 
 
 @dataclass
 class _SelectionParameter(Parameter):
-    config: pc.SelectionParameterConfig
-    options: Sequence[po.SelectParameterOption]
+    _config: pc.SelectionParameterConfig
+    _options: Sequence[po.SelectParameterOption]
+
+    def __post_init__(self):
+        self._options = tuple(self._options)
 
     @abstractmethod
     def _get_selected_ids_as_list(self) -> Sequence[str]:
         pass
 
     def _validate_selected_id_in_options(self, selected_id):
-        if selected_id not in (x.identifier for x in self.options):
-            self.config._raise_invalid_input_error(selected_id)
+        if selected_id not in (x._identifier for x in self._options):
+            self._config._raise_invalid_input_error(selected_id)
 
     @abstractmethod
     def to_json_dict(self):
@@ -65,7 +80,7 @@ class _SelectionParameter(Parameter):
         Helper method to convert the derived selection parameter class into a JSON object
         """
         output = super().to_json_dict()
-        output['options'] = [x._to_json_dict() for x in self.options]
+        output['options'] = [x._to_json_dict() for x in self._options]
         return output
 
 
@@ -79,11 +94,16 @@ class SingleSelectParameter(_SelectionParameter):
         options: The parameter options that are currently selectable
         selected_id: The ID of the selected option
     """
-    config: pc.SingleSelectParameterConfig
-    selected_id: str
+    _config: pc.SingleSelectParameterConfig
+    _selected_id: Optional[str]
 
     def __post_init__(self):
-        self._validate_selected_id_in_options(self.selected_id)
+        super().__post_init__()
+        if len(self._options) > 0:
+            assert self._selected_id != None
+            self._validate_selected_id_in_options(self._selected_id)
+        else:
+            self._selected_id = None
     
     @staticmethod
     def Create(
@@ -103,7 +123,7 @@ class SingleSelectParameter(_SelectionParameter):
         """
         param_config = pc.SingleSelectParameterConfig(name, label, all_options, is_hidden=is_hidden, user_attribute=user_attribute, 
                                                       parent_name=parent_name)
-        pc.ParameterConfigsSetIO.obj.add(param_config)
+        ps.ParameterConfigsSetIO.obj.add(param_config)
     
     @classmethod
     def CreateSimple(cls, name: str, label: str, all_options: Sequence[po.SelectParameterOption], *, is_hidden: bool = False) -> None:
@@ -120,7 +140,7 @@ class SingleSelectParameter(_SelectionParameter):
     
     def get_selected(
         self, field: Optional[str] = None, *, default_field: Optional[str] = None, default: Any = None
-    ) -> Union[po.SelectParameterOption, str]:
+    ) -> Union[po.SelectParameterOption, Any, None]:
         """
         Gets the selected single-select option or selected custom field
 
@@ -135,49 +155,57 @@ class SingleSelectParameter(_SelectionParameter):
         Returns:
             A SelectParameterOption class object if no field is provided, or the type of the custom field
         """
-        selected = next(x for x in self.options if x.identifier == self.selected_id)
-        if field is not None:
-            selected = selected.get_custom_field(field, default_field=default_field, default=default)
-        return selected
+        def get_selected_from_id(identifier: str):
+            selected = next(x for x in self._options if x._identifier == identifier)
+            if field is not None:
+                selected = selected.get_custom_field(field, default_field=default_field, default=default)
+            return selected
+        return u.process_if_not_none(self._selected_id, get_selected_from_id)
     
-    def get_selected_id(self) -> str:
+    def get_selected_id(self) -> Optional[str]:
         """
         Gets the ID of the selected option
 
         Returns:
-            A string ID
+            A string ID or None if there are no selectable options
         """
-        return self.get_selected().identifier
+        def get_id(x: po.SelectParameterOption): return x._identifier
+        return u.process_if_not_none(self.get_selected(), get_id)
     
-    def get_selected_id_quoted(self) -> str:
+    def get_selected_id_quoted(self) -> Optional[str]:
         """
         Gets the ID of the selected option surrounded by single quotes
 
         Returns:
-            A string
+            A string or None if there are no selectable options
         """
-        return self._enquote(self.get_selected_id())
+        return u.process_if_not_none(self.get_selected_id(), self._enquote)
     
-    def get_selected_label(self) -> str:
+    def get_selected_label(self) -> Optional[str]:
         """
         Gets the label of the selected option
 
         Returns:
-            A string
+            A string or None if there are no selectable options
         """
-        return self.get_selected().label
+        def get_label(x: po.SelectParameterOption): return x._label
+        return u.process_if_not_none(self.get_selected(), get_label)
     
-    def get_selected_label_quoted(self) -> str:
+    def get_selected_label_quoted(self) -> Optional[str]:
         """
         Gets the label of the selected option surrounded by single quotes
 
         Returns:
-            A string
+            A string or None if there are no selectable options
         """
-        return self._enquote(self.get_selected_label())
+        return u.process_if_not_none(self.get_selected_label(), self._enquote)
 
     def _get_selected_ids_as_list(self) -> Sequence[str]:
-        return (self.get_selected_id(),)
+        selected_id = self.get_selected_id()
+        if selected_id is not None:
+            return (self.get_selected_id(),)
+        else:
+            return tuple()
 
     def to_json_dict(self) -> Dict:
         """
@@ -187,7 +215,7 @@ class SingleSelectParameter(_SelectionParameter):
             A dictionary for the JSON object
         """
         output = super().to_json_dict()
-        output['selected_id'] = self.selected_id
+        output['selected_id'] = self._selected_id
         return output
 
 
@@ -201,11 +229,13 @@ class MultiSelectParameter(_SelectionParameter):
         options: The parameter options that are currently selectable
         selected_ids: A sequence of IDs of the selected options
     """
-    config: pc.MultiSelectParameterConfig
-    selected_ids: Sequence[str]
+    _config: pc.MultiSelectParameterConfig
+    _selected_ids: Sequence[str]
 
     def __post_init__(self):
-        for selected_id in self.selected_ids:
+        super().__post_init__()
+        self._selected_ids = tuple(self._selected_ids)
+        for selected_id in self._selected_ids:
             self._validate_selected_id_in_options(selected_id)
     
     @staticmethod
@@ -228,7 +258,7 @@ class MultiSelectParameter(_SelectionParameter):
         """
         param_config = pc.MultiSelectParameterConfig(name, label, all_options, include_all=include_all, order_matters=order_matters, 
                                                      is_hidden=is_hidden, user_attribute=user_attribute, parent_name=parent_name)
-        pc.ParameterConfigsSetIO.obj.add(param_config)
+        ps.ParameterConfigsSetIO.obj.add(param_config)
 
     @classmethod
     def CreateSimple(
@@ -258,7 +288,7 @@ class MultiSelectParameter(_SelectionParameter):
         Returns:
             A boolean
         """
-        return len(self.selected_ids) > 0
+        return len(self._selected_ids) > 0
 
     def get_selected_list(self, field: Optional[str] = None, *, default_field: Optional[str] = None,
                           default: Any = None) -> Sequence[Union[po.SelectParameterOption, Any]]:
@@ -276,10 +306,10 @@ class MultiSelectParameter(_SelectionParameter):
         Returns:
             A sequence of SelectParameterOption class objects or sequence of type of custom field
         """
-        if not self.has_non_empty_selection() and self.config.include_all:
-            selected_list = self.options
+        if not self.has_non_empty_selection() and self._config.include_all:
+            selected_list = self._options
         else:
-            selected_list = (x for x in self.options if x.identifier in self.selected_ids)
+            selected_list = (x for x in self._options if x._identifier in self._selected_ids)
         
         if field is not None:
             selected_list = [selected.get_custom_field(field, default_field=default_field, default=default) for selected in selected_list]
@@ -293,7 +323,7 @@ class MultiSelectParameter(_SelectionParameter):
         Returns:
             A sequence of strings
         """
-        return tuple(x.identifier for x in self.get_selected_list())
+        return tuple(x._identifier for x in self.get_selected_list())
     
     def get_selected_ids_joined(self) -> str:
         """
@@ -329,7 +359,7 @@ class MultiSelectParameter(_SelectionParameter):
         Returns:
             A sequence of strings
         """
-        return tuple(x.label for x in self.get_selected_list())
+        return tuple(x._label for x in self.get_selected_list())
     
     def get_selected_labels_joined(self) -> str:
         """
@@ -369,7 +399,7 @@ class MultiSelectParameter(_SelectionParameter):
             A dictionary for the JSON object
         """
         output = super().to_json_dict()
-        output['selected_ids'] = list(self.selected_ids)
+        output['selected_ids'] = list(self._selected_ids)
         return output
 
 
@@ -381,9 +411,13 @@ class DateParameter(Parameter):
     Attributes:
         config: The config for this widget parameter (for immutable attributes like name, label, all possible options, etc)
         curr_option: The current option showing for defaults based on user attribute and selection of parent
+        selected_date: The selected date
     """
-    curr_option: po.DateParameterOption
-    selected_date: datetime
+    _curr_option: po.DateParameterOption
+    _selected_date: Union[datetime, str]
+
+    def __post_init__(self):
+        self._selected_date: datetime = self._validate_date(self._selected_date)
     
     @staticmethod
     def Create(
@@ -403,7 +437,7 @@ class DateParameter(Parameter):
         """
         param_config = pc.DateParameterConfig(name, label, all_options, is_hidden=is_hidden, user_attribute=user_attribute, 
                                               parent_name=parent_name)
-        pc.ParameterConfigsSetIO.obj.add(param_config)
+        ps.ParameterConfigsSetIO.obj.add(param_config)
 
     @classmethod
     def CreateSimple(
@@ -432,8 +466,8 @@ class DateParameter(Parameter):
         Returns:
             A string
         """
-        date_format = self.curr_option.date_format if date_format is None else date_format
-        return self.selected_date.strftime(date_format)
+        date_format = self._curr_option._date_format if date_format is None else date_format
+        return self._selected_date.strftime(date_format)
 
     def get_selected_date_quoted(self, date_format: str = None) -> str:
         """
@@ -457,7 +491,7 @@ class DateParameter(Parameter):
             A dictionary for the JSON object
         """
         output = super().to_json_dict()
-        output.update(self.curr_option._to_json_dict())
+        output.update(self._curr_option._to_json_dict())
         output['selected_date'] = self.get_selected_date("%Y-%m-%d")
         return output
 
@@ -470,10 +504,16 @@ class DateRangeParameter(Parameter):
     Attributes:
         config: The config for this widget parameter (for immutable attributes like name, label, all possible options, etc)
         curr_option: The current option showing for defaults based on user attribute and selection of parent
+        selected_start_date: The selected start date
+        selected_end_date: The selected end date
     """
-    curr_option: po.DateRangeParameterOption
-    selected_start_date: datetime
-    selected_end_date: datetime
+    _curr_option: po.DateRangeParameterOption
+    _selected_start_date: Union[datetime, str]
+    _selected_end_date: Union[datetime, str]
+
+    def __post_init__(self):
+        self._selected_start_date: datetime = self._validate_date(self._selected_start_date)
+        self._selected_end_date: datetime = self._validate_date(self._selected_end_date)
     
     @staticmethod
     def Create(
@@ -493,7 +533,7 @@ class DateRangeParameter(Parameter):
         """
         param_config = pc.DateRangeParameterConfig(name, label, all_options, is_hidden=is_hidden, user_attribute=user_attribute, 
                                                    parent_name=parent_name)
-        pc.ParameterConfigsSetIO.obj.add(param_config)
+        ps.ParameterConfigsSetIO.obj.add(param_config)
 
     @classmethod
     def CreateSimple(
@@ -524,8 +564,8 @@ class DateRangeParameter(Parameter):
         Returns:
             A string
         """
-        date_format = self.curr_option.date_format if date_format is None else date_format
-        return self.selected_start_date.strftime(date_format)
+        date_format = self._curr_option._date_format if date_format is None else date_format
+        return self._selected_start_date.strftime(date_format)
 
     def get_selected_start_date_quoted(self, date_format: str = None) -> str:
         """
@@ -549,8 +589,8 @@ class DateRangeParameter(Parameter):
         Returns:
             A string
         """
-        date_format = self.curr_option.date_format if date_format is None else date_format
-        return self.selected_end_date.strftime(date_format)
+        date_format = self._curr_option._date_format if date_format is None else date_format
+        return self._selected_end_date.strftime(date_format)
 
     def get_selected_end_date_quoted(self, date_format: str = None) -> str:
         """
@@ -574,7 +614,7 @@ class DateRangeParameter(Parameter):
             A dictionary for the JSON object
         """
         output = super().to_json_dict()
-        output.update(self.curr_option._to_json_dict())
+        output.update(self._curr_option._to_json_dict())
         output['selected_start_date'] = self.get_selected_start_date("%Y-%m-%d")
         output['selected_end_date'] = self.get_selected_end_date("%Y-%m-%d")
         return output
@@ -583,14 +623,18 @@ class DateRangeParameter(Parameter):
 @dataclass
 class NumberParameter(Parameter):
     """
-    Class for date range parameter widgets.
+    Class for number parameter widgets.
 
     Attributes:
         config: The config for this widget parameter (for immutable attributes like name, label, all possible options, etc)
         curr_option: The current option showing for defaults based on user attribute and selection of parent
+        selected_value: The selected integer or decimal number
     """
-    curr_option: po.NumberParameterOption
-    selected_value: Decimal
+    _curr_option: po.NumberParameterOption
+    _selected_value: po.Number
+
+    def __post_init__(self):
+        self._selected_value: Decimal = self._validate_number(self._selected_value, self._curr_option)
     
     @staticmethod
     def Create(
@@ -610,17 +654,19 @@ class NumberParameter(Parameter):
         """
         param_config = pc.NumberParameterConfig(name, label, all_options, is_hidden=is_hidden, user_attribute=user_attribute, 
                                                 parent_name=parent_name)
-        pc.ParameterConfigsSetIO.obj.add(param_config)
+        ps.ParameterConfigsSetIO.obj.add(param_config)
 
     @classmethod
     def CreateSimple(
         cls, name: str, label: str, min_value: po.Number, max_value: po.Number, *, increment: po.Number = 1, 
-        default_value: po.Number = None, is_hidden: bool = False
+        default_value: Optional[po.Number] = None, is_hidden: bool = False
     ) -> None:
         """
         Method for creating the configurations for a Parameter that doesn't involve user attributes or parent parameters
         
-        Parameters
+        * Note that the "Number" type denotes an int, a Decimal (from decimal module), or a string that can be parsed to Decimal
+        
+        Parameters:
             name: The name of the parameter
             label: The display label for the parameter
             min_value: Minimum selectable value
@@ -639,7 +685,7 @@ class NumberParameter(Parameter):
         Returns:
             A number parsable string of the selected number
         """
-        return str(self.selected_value)
+        return str(self._selected_value)
         
     def to_json_dict(self):
         """
@@ -649,7 +695,7 @@ class NumberParameter(Parameter):
             A dictionary for the JSON object
         """
         output = super().to_json_dict()
-        output.update(self.curr_option._to_json_dict())
+        output.update(self._curr_option._to_json_dict())
         output['selected_value'] = self.get_selected_value()
         return output
 
@@ -657,15 +703,21 @@ class NumberParameter(Parameter):
 @dataclass
 class NumRangeParameter(Parameter):
     """
-    Class for date range parameter widgets.
+    Class for number range parameter widgets.
 
     Attributes:
         config: The config for this widget parameter (for immutable attributes like name, label, all possible options, etc)
         curr_option: The current option showing for defaults based on user attribute and selection of parent
+        selected_lower_value: The selected lower integer or decimal number
+        selected_upper_value: The selected upper integer or decimal number
     """
-    curr_option: po.NumRangeParameterOption
-    selected_lower_value: Decimal
-    selected_upper_value: Decimal
+    _curr_option: po.NumRangeParameterOption
+    _selected_lower_value: po.Number
+    _selected_upper_value: po.Number
+
+    def __post_init__(self):
+        self._selected_lower_value: Decimal = self._validate_number(self._selected_lower_value, self._curr_option)
+        self._selected_upper_value: Decimal = self._validate_number(self._selected_upper_value, self._curr_option)
     
     @staticmethod
     def Create(
@@ -685,15 +737,17 @@ class NumRangeParameter(Parameter):
         """
         param_config = pc.NumRangeParameterConfig(name, label, all_options, is_hidden=is_hidden, user_attribute=user_attribute, 
                                                   parent_name=parent_name)
-        pc.ParameterConfigsSetIO.obj.add(param_config)
+        ps.ParameterConfigsSetIO.obj.add(param_config)
 
     @classmethod
     def CreateSimple(
         cls, name: str, label: str, min_value: po.Number, max_value: po.Number, *, increment: po.Number = 1, 
-        default_lower_value: po.Number = None, default_upper_value: po.Number = None, is_hidden: bool = False
+        default_lower_value: Optional[po.Number] = None, default_upper_value: Optional[po.Number] = None, is_hidden: bool = False
     ) -> None:
         """
         Method for creating the configurations for a Parameter that doesn't involve user attributes or parent parameters
+        
+        * Note that the "Number" type denotes an int, a Decimal (from decimal module), or a string that can be parsed to Decimal
 
         Parameters:
             name: The name of the parameter
@@ -717,7 +771,7 @@ class NumRangeParameter(Parameter):
         Returns:
             A number parsable string of the selected number
         """
-        return str(self.selected_lower_value)
+        return str(self._selected_lower_value)
 
     def get_selected_upper_value(self) -> str:
         """
@@ -726,7 +780,7 @@ class NumRangeParameter(Parameter):
         Returns:
             A number parsable string of the selected number
         """
-        return str(self.selected_upper_value)
+        return str(self._selected_upper_value)
 
     def to_json_dict(self):
         """
@@ -736,7 +790,7 @@ class NumRangeParameter(Parameter):
             A dictionary for the JSON object
         """
         output = super().to_json_dict()
-        output.update(self.curr_option._to_json_dict())
+        output.update(self._curr_option._to_json_dict())
         output['selected_lower_value'] = self.get_selected_lower_value()
         output['selected_upper_value'] = self.get_selected_upper_value()
         return output

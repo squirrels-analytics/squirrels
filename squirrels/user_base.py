@@ -27,9 +27,12 @@ class UserBase:
     def __hash__(self) -> int:
         return hash(self.username)
     
+    def with_attributes(self, **kwargs):
+        return self
+    
     @classmethod
     def _FromDict(cls, user_dict: Dict[str, Any]):
-        user = cls()
+        user = cls(username="TBA")
         for key, val in user_dict.items():
             setattr(user, key, val)
         return user

@@ -1,6 +1,6 @@
 from __future__ import annotations
 from typing import Type, Dict, Sequence, Iterable, Optional, Any
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from abc import ABCMeta, abstractmethod
 
 from . import _parameter_configs as pc, parameter_options as po, parameters as p, _constants as c, _utils as u
@@ -12,34 +12,34 @@ class DataSource(metaclass=ABCMeta):
     """
     Abstract class for lookup tables coming from a database
     """
-    table_or_query: str
-    id_col: str
-    user_group_col: Optional[str]
-    parent_id_col: Optional[str]
-    connection_name: str
+    _table_or_query: str
+    _id_col: str
+    _user_group_col: Optional[str] # = field(default=None, kw_only=True)
+    _parent_id_col: Optional[str] # = field(default=None, kw_only=True)
+    _connection_name: str # = field(default=c.DEFAULT_DB_CONN, kw_only=True)
 
     @abstractmethod
     def __init__(
         self, table_or_query: str, id_col: str, *, user_group_col: Optional[str] = None, parent_id_col: Optional[str] = None,
         connection_name: str = c.DEFAULT_DB_CONN
     ) -> None:
-        self.table_or_query = table_or_query
-        self.id_col = id_col
-        self.user_group_col = user_group_col
-        self.parent_id_col = parent_id_col
-        self.connection_name = connection_name
+        self._table_or_query = table_or_query
+        self._id_col = id_col
+        self._user_group_col = user_group_col
+        self._parent_id_col = parent_id_col
+        self._connection_name = connection_name
 
-    def get_query(self) -> str:
+    def _get_query(self) -> str:
         """
         Get the "table_or_query" attribute as a select query
 
         Returns:
             str: The converted select query
         """
-        if self.table_or_query.strip().lower().startswith('select '):
-            query = self.table_or_query
+        if self._table_or_query.strip().lower().startswith('select '):
+            query = self._table_or_query
         else:
-            query = f'SELECT * FROM {self.table_or_query}'
+            query = f'SELECT * FROM {self._table_or_query}'
         return query
     
     @abstractmethod
@@ -60,13 +60,13 @@ class DataSource(metaclass=ABCMeta):
         for column in columns_to_include:
             if column is not None:
                 agg_rules[column] = "first"
-        if self.user_group_col is not None:
-            agg_rules[self.user_group_col] = list
-        if self.parent_id_col is not None:
-            agg_rules[self.parent_id_col] = list
+        if self._user_group_col is not None:
+            agg_rules[self._user_group_col] = list
+        if self._parent_id_col is not None:
+            agg_rules[self._parent_id_col] = list
 
         try:
-            df_agg = df.groupby(self.id_col).agg(agg_rules)
+            df_agg = df.groupby(self._id_col).agg(agg_rules)
         except KeyError as e:
             raise u.ConfigurationError(e)
         
@@ -85,10 +85,10 @@ class _SelectionDataSource(DataSource):
     """
     Abstract class for selection parameter data sources
     """
-    options_col: str
-    order_by_col: Optional[str]
-    is_default_col: Optional[str]
-    custom_cols: Dict[str, str]
+    _options_col: str
+    _order_by_col: Optional[str] # = field(default=None, kw_only=True)
+    _is_default_col: Optional[str] # = field(default=None, kw_only=True)
+    _custom_cols: Dict[str, str] # = field(default_factory=dict, kw_only=True)
 
     @abstractmethod
     def __init__(
@@ -97,35 +97,35 @@ class _SelectionDataSource(DataSource):
         parent_id_col: Optional[str] = None, connection_name: str = c.DEFAULT_DB_CONN
     ) -> None:
         super().__init__(table_or_query, id_col, user_group_col=user_group_col, parent_id_col=parent_id_col, connection_name=connection_name)
-        self.options_col = options_col
-        self.order_by_col = order_by_col
-        self.is_default_col = is_default_col
-        self.custom_cols = custom_cols
+        self._options_col = options_col
+        self._order_by_col = order_by_col
+        self._is_default_col = is_default_col
+        self._custom_cols = custom_cols
 
     def _get_all_options(self, df: pd.DataFrame) -> Sequence[po.SelectParameterOption]:
-        columns = [self.options_col, self.order_by_col, self.is_default_col, *self.custom_cols.values()]
+        columns = [self._options_col, self._order_by_col, self._is_default_col, *self._custom_cols.values()]
         df_agg = self._get_aggregated_df(df, columns)
 
-        if self.order_by_col is None:
+        if self._order_by_col is None:
             df_agg.sort_index(inplace=True)
         else:
-            df_agg.sort_values(self.order_by_col, inplace=True)
+            df_agg.sort_values(self._order_by_col, inplace=True)
 
         def get_is_default(record: Dict[str, Any]) -> bool:
-            return int(record[self.is_default_col]) == 1 if self.is_default_col is not None else False
+            return int(record[self._is_default_col]) == 1 if self._is_default_col is not None else False
 
         def get_custom_fields(record: Dict[str, Any]) -> Dict[str, Any]:
             result = {}
-            for key, val in self.custom_cols.items():
+            for key, val in self._custom_cols.items():
                 result[key] = record[val]
             return result
         
         records: Dict[str, Dict[str, Any]] = df_agg.to_dict("index")
         return tuple(
-            po.SelectParameterOption(str(id), str(record[self.options_col]), 
+            po.SelectParameterOption(str(id), str(record[self._options_col]), 
                                      is_default=get_is_default(record), custom_fields=get_custom_fields(record),
-                                     user_groups=self._get_key_from_record_as_list(self.user_group_col, record), 
-                                     parent_option_ids=self._get_key_from_record_as_list(self.parent_id_col, record))
+                                     user_groups=self._get_key_from_record_as_list(self._user_group_col, record), 
+                                     parent_option_ids=self._get_key_from_record_as_list(self._parent_id_col, record))
             for id, record in records.items()
         )
 
@@ -197,8 +197,8 @@ class MultiSelectDataSource(_SelectionDataSource):
         parent_id_col: The column name of the parent option id that must be selected for this option to be valid
         connection_name: Name of the connection to use defined in connections.py
     """
-    include_all: bool
-    order_matters: bool 
+    _include_all: bool # = field(default=True, kw_only=True)
+    _order_matters: bool # = field(default=False, kw_only=True)
 
     def __init__(
             self, table_or_query: str, id_col: str, options_col: str, *, order_by_col: Optional[str] = None, 
@@ -214,8 +214,8 @@ class MultiSelectDataSource(_SelectionDataSource):
         super().__init__(table_or_query, id_col, options_col, order_by_col=order_by_col, is_default_col=is_default_col,
                          custom_cols=custom_cols, user_group_col=user_group_col, parent_id_col=parent_id_col, 
                          connection_name=connection_name)
-        self.include_all = include_all
-        self.order_matters = order_matters
+        self._include_all = include_all
+        self._order_matters = order_matters
     
     def _convert(self, ds_param: pc.DataSourceParameterConfig, df: pd.DataFrame) -> pc.MultiSelectParameterConfig:
         """
@@ -230,8 +230,8 @@ class MultiSelectDataSource(_SelectionDataSource):
         """
         self._validate_parameter_class(ds_param, p.MultiSelectParameter)
         all_options = self._get_all_options(df)
-        return pc.MultiSelectParameterConfig(ds_param.name, ds_param.label, all_options, include_all=self.include_all, 
-                                             order_matters=self.order_matters, is_hidden=ds_param.is_hidden, 
+        return pc.MultiSelectParameterConfig(ds_param.name, ds_param.label, all_options, include_all=self._include_all, 
+                                             order_matters=self._order_matters, is_hidden=ds_param.is_hidden, 
                                              user_attribute=ds_param.user_attribute, parent_name=ds_param.parent_name)
 
 
@@ -249,8 +249,8 @@ class DateDataSource(DataSource):
         parent_id_col: The column name of the parent option id that the default date belongs to
         connection_name: Name of the connection to use defined in connections.py
     """
-    default_date_col: str
-    date_format: str
+    _default_date_col: str
+    _date_format: str # = field(default="%Y-%m-%d", kw_only=True)
 
     def __init__(
         self, table_or_query: str, id_col: str, default_date_col: str, *, date_format: str = '%Y-%m-%d', 
@@ -264,8 +264,8 @@ class DateDataSource(DataSource):
         """
         super().__init__(table_or_query, id_col, user_group_col=user_group_col, parent_id_col=parent_id_col, 
                          connection_name=connection_name)
-        self.default_date_col = default_date_col
-        self.date_format = date_format
+        self._default_date_col = default_date_col
+        self._date_format = date_format
 
     def _convert(self, ds_param: pc.DataSourceParameterConfig, df: pd.DataFrame) -> pc.DateParameterConfig:
         """
@@ -280,14 +280,14 @@ class DateDataSource(DataSource):
         """
         self._validate_parameter_class(ds_param, p.DateParameter)
 
-        columns = [self.default_date_col]
+        columns = [self._default_date_col]
         df_agg = self._get_aggregated_df(df, columns)
 
         records: Dict[str, Dict[str, Any]] = df_agg.to_dict("index")
         options = tuple(
-            po.DateParameterOption(str(record[self.default_date_col]), date_format=self.date_format, 
-                                   user_groups=self._get_key_from_record_as_list(self.user_group_col, record), 
-                                   parent_option_ids=self._get_key_from_record_as_list(self.parent_id_col, record))
+            po.DateParameterOption(str(record[self._default_date_col]), date_format=self._date_format, 
+                                   user_groups=self._get_key_from_record_as_list(self._user_group_col, record), 
+                                   parent_option_ids=self._get_key_from_record_as_list(self._parent_id_col, record))
             for _, record in records.items()
         )
         return pc.DateParameterConfig(ds_param.name, ds_param.label, options, is_hidden=ds_param.is_hidden, 
@@ -309,9 +309,9 @@ class DateRangeDataSource(DataSource):
         parent_id_col: The column name of the parent option id that the default date belongs to
         connection_name: Name of the connection to use defined in connections.py
     """
-    default_start_date_col: str
-    default_end_date_col: str
-    date_format: str
+    _default_start_date_col: str
+    _default_end_date_col: str
+    _date_format: str # = field(default="%Y-%m-%d", kw_only=True)
 
     def __init__(self, table_or_query: str, id_col: str, default_start_date_col: str, default_end_date_col: str, *, 
                  date_format: str = '%Y-%m-%d', user_group_col: Optional[str] = None, parent_id_col: Optional[str] = None, 
@@ -324,9 +324,9 @@ class DateRangeDataSource(DataSource):
         """
         super().__init__(table_or_query, id_col, user_group_col=user_group_col, parent_id_col=parent_id_col, 
                          connection_name=connection_name)
-        self.default_start_date_col = default_start_date_col
-        self.default_end_date_col = default_end_date_col
-        self.date_format = date_format
+        self._default_start_date_col = default_start_date_col
+        self._default_end_date_col = default_end_date_col
+        self._date_format = date_format
 
     def _convert(self, ds_param: pc.DataSourceParameterConfig, df: pd.DataFrame) -> pc.DateRangeParameterConfig:
         """
@@ -341,15 +341,15 @@ class DateRangeDataSource(DataSource):
         """
         self._validate_parameter_class(ds_param, p.DateRangeParameter)
 
-        columns = [self.default_start_date_col, self.default_end_date_col]
+        columns = [self._default_start_date_col, self._default_end_date_col]
         df_agg = self._get_aggregated_df(df, columns)
 
         records: Dict[str, Dict[str, Any]] = df_agg.to_dict("index")
         options = tuple(
-            po.DateRangeParameterOption(str(record[self.default_start_date_col]), str(record[self.default_end_date_col]),
-                                        date_format=self.date_format, 
-                                        user_groups=self._get_key_from_record_as_list(self.user_group_col, record), 
-                                        parent_option_ids=self._get_key_from_record_as_list(self.parent_id_col, record))
+            po.DateRangeParameterOption(str(record[self._default_start_date_col]), str(record[self._default_end_date_col]),
+                                        date_format=self._date_format, 
+                                        user_groups=self._get_key_from_record_as_list(self._user_group_col, record), 
+                                        parent_option_ids=self._get_key_from_record_as_list(self._parent_id_col, record))
             for _, record in records.items()
         )
         return pc.DateRangeParameterConfig(ds_param.name, ds_param.label, options, is_hidden=ds_param.is_hidden, 
@@ -361,17 +361,17 @@ class _NumericDataSource(DataSource):
     """
     Abstract class for number or number range data sources
     """
-    min_value_col: str
-    max_value_col: str
-    increment_col: Optional[str]
+    _min_value_col: str
+    _max_value_col: str
+    _increment_col: Optional[str] # = field(default=None, kw_only=True)
     
     @abstractmethod
     def __init__(self, table_or_query: str, id_col: str, min_value_col: str, max_value_col: str, *, increment_col: Optional[str] = None, 
                  user_group_col: Optional[str] = None, parent_id_col: Optional[str] = None, connection_name: str = c.DEFAULT_DB_CONN) -> None:
         super().__init__(table_or_query, id_col, user_group_col=user_group_col, parent_id_col=parent_id_col, connection_name=connection_name)
-        self.min_value_col = min_value_col
-        self.max_value_col = max_value_col
-        self.increment_col = increment_col
+        self._min_value_col = min_value_col
+        self._max_value_col = max_value_col
+        self._increment_col = increment_col
 
 
 @dataclass
@@ -390,7 +390,7 @@ class NumberDataSource(_NumericDataSource):
         parent_id_col: The column name of the parent option id that the default value belongs to
         connection_name: Name of the connection to use defined in connections.py
     """
-    default_value_col: Optional[str]
+    _default_value_col: Optional[str] # = field(default=None, kw_only=True)
 
     def __init__(self, table_or_query: str, id_col: str, min_value_col: str, max_value_col: str, *, increment_col: Optional[str] = None,
                  default_value_col: Optional[str] = None, user_group_col: Optional[str] = None, parent_id_col: Optional[str] = None, 
@@ -403,7 +403,7 @@ class NumberDataSource(_NumericDataSource):
         """
         super().__init__(table_or_query, id_col, min_value_col, max_value_col, increment_col=increment_col, user_group_col=user_group_col, 
                          parent_id_col=parent_id_col, connection_name=connection_name)
-        self.default_value_col = default_value_col
+        self._default_value_col = default_value_col
 
     def _convert(self, ds_param: pc.DataSourceParameterConfig, df: pd.DataFrame) -> pc.NumberParameterConfig:
         """
@@ -418,16 +418,16 @@ class NumberDataSource(_NumericDataSource):
         """
         self._validate_parameter_class(ds_param, p.NumberParameter)
 
-        columns = [self.min_value_col, self.max_value_col, self.increment_col, self.default_value_col]
+        columns = [self._min_value_col, self._max_value_col, self._increment_col, self._default_value_col]
         df_agg = self._get_aggregated_df(df, columns)
 
         records: Dict[str, Dict[str, Any]] = df_agg.to_dict("index")
         options = tuple(
-            po.NumberParameterOption(record[self.min_value_col], record[self.max_value_col], 
-                                     increment=self._get_key_from_record(self.increment_col, record, 1),
-                                     default_value=self._get_key_from_record(self.default_value_col, record, None),
-                                     user_groups=self._get_key_from_record_as_list(self.user_group_col, record), 
-                                     parent_option_ids=self._get_key_from_record_as_list(self.parent_id_col, record))
+            po.NumberParameterOption(record[self._min_value_col], record[self._max_value_col], 
+                                     increment=self._get_key_from_record(self._increment_col, record, 1),
+                                     default_value=self._get_key_from_record(self._default_value_col, record, None),
+                                     user_groups=self._get_key_from_record_as_list(self._user_group_col, record), 
+                                     parent_option_ids=self._get_key_from_record_as_list(self._parent_id_col, record))
             for _, record in records.items()
         )
         return pc.NumberParameterConfig(ds_param.name, ds_param.label, options, is_hidden=ds_param.is_hidden,
@@ -451,8 +451,8 @@ class NumRangeDataSource(_NumericDataSource):
         parent_id_col: The column name of the parent option id that the default value belongs to
         connection_name: Name of the connection to use defined in connections.py
     """
-    default_lower_value_col: Optional[str]
-    default_upper_value_col: Optional[str]
+    _default_lower_value_col: Optional[str] # = field(default=None, kw_only=True)
+    _default_upper_value_col: Optional[str] # = field(default=None, kw_only=True)
 
     def __init__(self, table_or_query: str, id_col: str, min_value_col: str, max_value_col: str, *, increment_col: Optional[str] = None,
                  default_lower_value_col: Optional[str] = None, default_upper_value_col: Optional[str] = None, user_group_col: Optional[str] = None,
@@ -465,8 +465,8 @@ class NumRangeDataSource(_NumericDataSource):
         """
         super().__init__(table_or_query, id_col, min_value_col, max_value_col, increment_col=increment_col, user_group_col=user_group_col, 
                          parent_id_col=parent_id_col, connection_name=connection_name)
-        self.default_lower_value_col = default_lower_value_col
-        self.default_upper_value_col = default_upper_value_col
+        self._default_lower_value_col = default_lower_value_col
+        self._default_upper_value_col = default_upper_value_col
 
     def _convert(self, ds_param: pc.DataSourceParameterConfig, df: pd.DataFrame) -> pc.NumRangeParameterConfig:
         """
@@ -481,17 +481,17 @@ class NumRangeDataSource(_NumericDataSource):
         """
         self._validate_parameter_class(ds_param, p.NumRangeParameter)
 
-        columns = [self.min_value_col, self.max_value_col, self.increment_col, self.default_lower_value_col, self.default_upper_value_col]
+        columns = [self._min_value_col, self._max_value_col, self._increment_col, self._default_lower_value_col, self._default_upper_value_col]
         df_agg = self._get_aggregated_df(df, columns)
 
         records: Dict[str, Any] = df_agg.to_dict("index")
         options = tuple(
-            po.NumRangeParameterOption(record[self.min_value_col], record[self.max_value_col], 
-                                       increment=self._get_key_from_record(self.increment_col, record, 1),
-                                       default_lower_value=self._get_key_from_record(self.default_lower_value_col, record, None),
-                                       default_upper_value=self._get_key_from_record(self.default_upper_value_col, record, None),
-                                       user_groups=self._get_key_from_record_as_list(self.user_group_col, record), 
-                                       parent_option_ids=self._get_key_from_record_as_list(self.parent_id_col, record))
+            po.NumRangeParameterOption(record[self._min_value_col], record[self._max_value_col], 
+                                       increment=self._get_key_from_record(self._increment_col, record, 1),
+                                       default_lower_value=self._get_key_from_record(self._default_lower_value_col, record, None),
+                                       default_upper_value=self._get_key_from_record(self._default_upper_value_col, record, None),
+                                       user_groups=self._get_key_from_record_as_list(self._user_group_col, record), 
+                                       parent_option_ids=self._get_key_from_record_as_list(self._parent_id_col, record))
             for _, record in records.items()
         )
         return pc.NumRangeParameterConfig(ds_param.name, ds_param.label, options, is_hidden=ds_param.is_hidden,

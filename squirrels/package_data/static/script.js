@@ -131,7 +131,7 @@ function refreshParameters(provoker = null) {
                 newDiv.appendChild(paramLabel)
             }
 
-            if (param.widget_type === "DateParameter") {
+            if (param.widget_type === "date") {
                 addLabel()
                 const dateInput = document.createElement('input')
                 dateInput.type = 'date'
@@ -139,7 +139,7 @@ function refreshParameters(provoker = null) {
                 dateInput.value = param.selected_date
                 dateInput.onchange = updateParameter
                 newDiv.appendChild(dateInput)
-            } else if (param.widget_type === "NumberParameter") {
+            } else if (param.widget_type === "number") {
                 addLabel()
                 const sliderInput = document.createElement('input')
                 sliderInput.type = 'range'
@@ -161,9 +161,9 @@ function refreshParameters(provoker = null) {
 
                 newDiv.appendChild(sliderInput)
                 newDiv.appendChild(sliderValue)
-            } else if (param.widget_type === "NumRangeParameter") {
+            } else if (param.widget_type === "number_range") {
                 // TODO
-            } else if (param.widget_type === "SingleSelectParameter" && param.options.length > 0) {
+            } else if (param.widget_type === "single_select" && param.options.length > 0) {
                 addLabel()
                 const singleSelect = document.createElement('select');
                 singleSelect.id = param.name;
@@ -178,7 +178,7 @@ function refreshParameters(provoker = null) {
                 });
                 singleSelect.onchange = updateParameter
                 newDiv.appendChild(singleSelect);
-            } else if (param.widget_type === "MultiSelectParameter" && param.options.length > 0) {
+            } else if (param.widget_type === "multi_select" && param.options.length > 0) {
                 addLabel()
                 const multiSelect = document.createElement('select');
                 multiSelect.id = param.name;
@@ -202,15 +202,15 @@ function refreshParameters(provoker = null) {
 
 function updateParameter() {
     const param = parametersMap.get(this.id)
-    if (param.widget_type === "DateParameter") {
+    if (param.widget_type === "date") {
         param.selected_date = this.value
-    } else if (param.widget_type === "NumberParameter") {
+    } else if (param.widget_type === "number") {
         param.selected_value = this.value
-    } else if (param.widget_type === "NumRangeParameter") {
+    } else if (param.widget_type === "number_range") {
         // TODO
-    } else if (param.widget_type === "SingleSelectParameter") {
+    } else if (param.widget_type === "single_select") {
         param.selected_id = this.options[this.selectedIndex].value
-    } else if (param.widget_type === "MultiSelectParameter") {
+    } else if (param.widget_type === "multi_select") {
         param.selected_ids = [...this.selectedOptions].map(option => option.value)
     }
     
@@ -222,15 +222,15 @@ function updateParameter() {
 function getQueryParams(provoker = null) {
     const queryParams = {}
     function addToQueryParams(key, value) {
-        if (value.widget_type === "DateParameter") {
+        if (value.widget_type === "date") {
             queryParams[key] = value.selected_date
-        } else if (value.widget_type === "NumberParameter") {
+        } else if (value.widget_type === "number") {
             queryParams[key] = value.selected_value
-        } else if (value.widget_type === "NumRangeParameter") {
+        } else if (value.widget_type === "number_range") {
             // TODO
-        } else if (value.widget_type === "SingleSelectParameter") {
+        } else if (value.widget_type === "single_select") {
             queryParams[key] = value.selected_id
-        } else if (value.widget_type === "MultiSelectParameter") {
+        } else if (value.widget_type === "multi_select") {
             result = JSON.stringify(value.selected_ids)
             if (result !== '') queryParams[key] = result
         }

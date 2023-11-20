@@ -1,14 +1,15 @@
 from typing import Dict, Tuple, Optional, Union, Callable, Any
 from functools import partial
 from configparser import ConfigParser
-import concurrent.futures, os, json, time
+import concurrent.futures, os, json
 
 from . import _constants as c, _utils as u
 from ._manifest import ManifestIO
 from ._connection_set_io import ConnectionSetIO, sqldf
-from ._parameter_configs import ParameterSet, ParameterConfigsSetIO
+from ._parameter_sets import ParameterConfigsSetIO
 from .parameters import Parameter
-from ._timed_imports import pandas as pd, timer
+from ._parameter_sets import ParameterSet
+from ._timed_imports import pandas as pd, timer, time
 from ._authenticator import UserBase, Authenticator
 
 ContextFunc = Optional[Callable[..., Dict[str, Any]]]
@@ -29,7 +30,7 @@ class Renderer:
         start = time.time()
         dataset_params = ManifestIO.obj.get_dataset_parameters(self.dataset)
         parameter_set = ParameterConfigsSetIO.obj.apply_selections(dataset_params, selections, user, updates_only=updates_only)
-        timer.add_activity_time(f"apply selections - dataset {self.dataset}", start)
+        timer.add_activity_time(f"applying selections - dataset {self.dataset}", start)
         return parameter_set
 
     def _render_context(self, context_func: ContextFunc, user: Optional[UserBase], prms: Dict[str, Parameter]) -> Dict[str, Any]:
@@ -103,7 +104,7 @@ class Renderer:
         start = time.time()
         prms = param_set.get_parameters_as_dict()
         context = self._render_context(self.context_func, user, prms)
-        timer.add_activity_time(f"render context - dataset {self.dataset}", start)
+        timer.add_activity_time(f"rendering context - dataset {self.dataset}", start)
 
         # render database view queries
         start = time.time()
@@ -112,13 +113,13 @@ class Renderer:
         for db_view, raw_query in self.raw_query_by_db_view.items():
             kwargs["args"] = ManifestIO.obj.get_view_args(self.dataset, database_view=db_view)
             query_by_db_view[db_view] = self._render_query_from_raw(raw_query, kwargs)
-        timer.add_activity_time(f"render database view queries - dataset {self.dataset}", start)
+        timer.add_activity_time(f"rendering database view queries - dataset {self.dataset}", start)
 
         # render final view query
         start = time.time()
         kwargs["args"] = ManifestIO.obj.get_view_args(self.dataset)
         final_view_query = self._render_query_from_raw(self.raw_final_view_query, kwargs)
-        timer.add_activity_time(f"render final view query - dataset {self.dataset}", start)
+        timer.add_activity_time(f"rendering final view query - dataset {self.dataset}", start)
 
         # create all dataframes if "run_query" is enabled
         df_by_db_views = {}
@@ -126,11 +127,11 @@ class Renderer:
         if run_query:
             start = time.time()
             df_by_db_views = self._create_db_view_dataframes(query_by_db_view)
-            timer.add_activity_time(f"execute dataview view queries - dataset {self.dataset}", start)
+            timer.add_activity_time(f"executing dataview view queries - dataset {self.dataset}", start)
 
             start = time.time()
             final_view_df = self._create_final_view_dataframe(df_by_db_views, final_view_query)
-            timer.add_activity_time(f"execute final view query - dataset {self.dataset}", start)
+            timer.add_activity_time(f"executing final view query - dataset {self.dataset}", start)
         
         return param_set, query_by_db_view, final_view_query, df_by_db_views, final_view_df
 
@@ -207,7 +208,7 @@ class RendererIOWrapper:
         # apply selections and render outputs
         user_attributes, parameter_selections = self._get_selections(selection_cfg_file)
         auth_helper = Authenticator.get_auth_helper()
-        user = auth_helper.User.FromDict(user_attributes) if auth_helper is not None else None
+        user = auth_helper.User._FromDict(user_attributes) if auth_helper is not None else None
         result = self.renderer.load_results(user, parameter_selections, run_query=run_query)
         param_set, query_by_db_view, final_view_query, df_by_db_views, final_view_df = result
         

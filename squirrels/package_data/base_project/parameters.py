@@ -6,17 +6,17 @@ def main(proj: Dict[str, Any], *p_args, **kwargs) -> None:
     
     ## Example of creating SingleSelectParameter (similar for MultiSelectParameter)
     group_by_options = [
-        sr.SelectParameterOption("g0", "Transaction", columns="ID,Date"),
+        sr.SelectParameterOption("g0", "Transaction", columns="ID, Date"),
         sr.SelectParameterOption("g1", "Date", columns="Date"),
         sr.SelectParameterOption("g2", "Category", columns="Category"),
-        sr.SelectParameterOption("g3", "Subcategory", columns="Category,Subcategory"),
+        sr.SelectParameterOption("g3", "Subcategory", columns="Category, Subcategory"),
     ]
     sr.SingleSelectParameter.Create("group_by", "Group By", group_by_options)
 
     ## Example of creating DateParameter
     sr.DateParameter.CreateSimple("start_date", "Start Date", "2023-01-01")
 
-    ## Example of creating DateParameter from lookup query/table
+    ## Example of creating DateParameter from with list of DateParameterOption's
     end_date_option = [sr.DateParameterOption("2023-12-31")]
     sr.DateParameter.Create("end_date", "End Date", end_date_option)
 

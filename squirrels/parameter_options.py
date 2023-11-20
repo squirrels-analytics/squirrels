@@ -1,5 +1,5 @@
 from typing import Set, Iterable, Optional, Union, Dict, Any
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from decimal import Decimal, InvalidOperation as InvalidDecimalConversion
 from datetime import datetime
 from abc import ABCMeta, abstractmethod
@@ -14,13 +14,15 @@ class ParameterOption(metaclass=ABCMeta):
     """
     Abstract class for parameter options
     """
-    user_groups: Set[str]
-    parent_option_ids: Set[str]
+    _user_groups: Set[str] # = field(default_factory=frozenset, kw_only=True)
+    _parent_option_ids: Set[str] # = field(default_factory=frozenset, kw_only=True)
 
     @abstractmethod
-    def __init__(self, *, user_groups: Iterable[str] = frozenset(), parent_option_ids: Iterable[str] = frozenset()) -> None:
-        self.user_groups = frozenset(user_groups)
-        self.parent_option_ids = frozenset(parent_option_ids)
+    def __init__(
+        self, *, user_groups: Union[Iterable[str], str] = frozenset(), parent_option_ids: Union[Iterable[str], str] = frozenset()
+    ) -> None:
+        self._user_groups = frozenset({user_groups} if isinstance(user_groups, str) else user_groups)
+        self._parent_option_ids = frozenset({parent_option_ids} if isinstance(parent_option_ids, str) else parent_option_ids)
 
     def _validate_lower_upper_values(self, lower_label: str, lower_value: Union[Decimal, datetime], 
                                      upper_label: str, upper_value: Union[Decimal, datetime]):
@@ -40,10 +42,10 @@ class ParameterOption(metaclass=ABCMeta):
         Returns:
             True if valid, False otherwise
         """
-        if user_group is not None and user_group not in self.user_groups:
+        if user_group is not None and user_group not in self._user_groups:
             return False
 
-        if selected_parent_option_ids is not None and self.parent_option_ids.isdisjoint(selected_parent_option_ids):
+        if selected_parent_option_ids is not None and self._parent_option_ids.isdisjoint(selected_parent_option_ids):
             return False
         
         return True
@@ -66,13 +68,15 @@ class SelectParameterOption(ParameterOption):
         parent_option_ids: Set of parent option ids this parameter option would show for if "parent" is specified in the Parameter object
         custom_fields: Dictionary to associate custom attributes to the parameter option
     """
-    identifier: str
-    label: str
-    is_default: bool
-    custom_fields: Dict[str, Any]
+    _identifier: str
+    _label: str
+    _is_default: bool # = field(default=False, kw_only=True)
+    _custom_fields: Dict[str, Any] # = field(default_factory=False, kw_only=True)
 
-    def __init__(self, identifier: str, label: str, *, is_default: bool = False, user_groups: Iterable[str] = frozenset(), 
-                 parent_option_ids: Iterable[str] = frozenset(), custom_fields: Dict[str, Any] = {}, **kwargs):
+    def __init__(
+        self, identifier: str, label: str, *, is_default: bool = False, user_groups: Union[Iterable[str], str] = frozenset(), 
+        parent_option_ids: Union[Iterable[str], str] = frozenset(), custom_fields: Dict[str, Any] = {}, **kwargs
+    ) -> None:
         """
         Constructor for SelectParameterOption
 
@@ -81,10 +85,10 @@ class SelectParameterOption(ParameterOption):
             **kwargs: Any additional keyword arguments specified (except the ones above) gets included into custom_fields as well
         """
         super().__init__(user_groups=user_groups, parent_option_ids=parent_option_ids)
-        self.identifier = identifier
-        self.label = label
-        self.is_default = is_default
-        self.custom_fields = {
+        self._identifier = identifier
+        self._label = label
+        self._is_default = is_default
+        self._custom_fields = {
             **kwargs, **custom_fields, **self._to_json_dict()
         }
 
@@ -105,17 +109,17 @@ class SelectParameterOption(ParameterOption):
             default = self.get_custom_field(default_field, default=default)
         
         if default is not None:
-            selected_field = self.custom_fields.get(field, default)
+            selected_field = self._custom_fields.get(field, default)
         else:
             try:
-                selected_field = self.custom_fields[field]
+                selected_field = self._custom_fields[field]
             except KeyError as e:
                 raise ConfigurationError(f"Field '{field}' must exist for parameter option {self._to_json_dict()}") from e
         
         return selected_field
     
     def _to_json_dict(self):
-        return {'id': self.identifier, 'label': self.label}
+        return {'id': self._identifier, 'label': self._label}
 
 
 @dataclass
@@ -123,17 +127,19 @@ class _DateTypeParameterOption(ParameterOption):
     """
     Abstract class (or type) for date type parameter options
     """
-    date_format: str
+    _date_format: str # = field(default="%Y-%m-%d", kw_only=True)
 
     @abstractmethod
-    def __init__(self, *, date_format: str = '%Y-%m-%d', user_groups: Iterable[str] = frozenset(), 
-                 parent_option_ids: Iterable[str] = frozenset()) -> None:
+    def __init__(
+        self, *, date_format: str = '%Y-%m-%d', user_groups: Union[Iterable[str], str] = frozenset(), 
+        parent_option_ids: Union[Iterable[str], str] = frozenset()
+    ) -> None:
         super().__init__(user_groups=user_groups, parent_option_ids=parent_option_ids)
-        self.date_format = date_format
+        self._date_format = date_format
     
     def _validate_date(self, date_str: Union[str, datetime]) -> datetime:
         try:
-            return datetime.strptime(date_str, self.date_format) if isinstance(date_str, str) else date_str
+            return datetime.strptime(date_str, self._date_format) if isinstance(date_str, str) else date_str
         except ValueError as e:
             raise ConfigurationError(f'Invalid format for date "{date_str}".') from e
     
@@ -152,10 +158,12 @@ class DateParameterOption(_DateTypeParameterOption):
         user_groups: The user groups this parameter option would show for if "user_group_attr" is specified in the Parameter object
         parent_option_ids: Set of parent option ids this parameter option would show for if "parent" is specified in the Parameter object
     """
-    default_date: datetime
+    _default_date: datetime
 
-    def __init__(self, default_date: Union[str, datetime], *, date_format: str = '%Y-%m-%d', user_groups: Iterable[str] = frozenset(), 
-                 parent_option_ids: Iterable[str] = frozenset()) -> None:
+    def __init__(
+        self, default_date: Union[str, datetime], *, date_format: str = '%Y-%m-%d', user_groups: Union[Iterable[str], str] = frozenset(), 
+        parent_option_ids: Union[Iterable[str], str] = frozenset()
+    ) -> None:
         """
         Constructor for DateParameterOption
 
@@ -163,7 +171,7 @@ class DateParameterOption(_DateTypeParameterOption):
             ...see Attributes of DateParameterOption
         """
         super().__init__(date_format=date_format, user_groups=user_groups, parent_option_ids=parent_option_ids)
-        self.default_date = self._validate_date(default_date)
+        self._default_date = self._validate_date(default_date)
 
 
 @dataclass
@@ -178,11 +186,13 @@ class DateRangeParameterOption(_DateTypeParameterOption):
         user_groups: The user groups this parameter option would show for if "user_group_attr" is specified in the Parameter object
         parent_option_ids: Set of parent option ids this parameter option would show for if "parent" is specified in the Parameter object
     """
-    default_start_date: datetime
-    default_end_date: datetime
+    _default_start_date: datetime
+    _default_end_date: datetime
 
-    def __init__(self, default_start_date: Union[str, datetime], default_end_date: Union[str, datetime], *, date_format: str = '%Y-%m-%d', 
-                 user_groups: Iterable[str] = frozenset(), parent_option_ids: Iterable[str] = frozenset()) -> None:
+    def __init__(
+        self, default_start_date: Union[str, datetime], default_end_date: Union[str, datetime], *, date_format: str = '%Y-%m-%d', 
+        user_groups: Union[Iterable[str], str] = frozenset(), parent_option_ids: Union[Iterable[str], str] = frozenset()
+    ) -> None:
         """
         Constructor for DateRangeParameterOption
 
@@ -190,9 +200,9 @@ class DateRangeParameterOption(_DateTypeParameterOption):
             ...see Attributes of DateRangeParameterOption
         """
         super().__init__(date_format=date_format, user_groups=user_groups, parent_option_ids=parent_option_ids)
-        self.default_start_date = self._validate_date(default_start_date)
-        self.default_end_date = self._validate_date(default_end_date)
-        self._validate_lower_upper_values("default_start_date", self.default_start_date, "default_end_date", self.default_end_date)
+        self._default_start_date = self._validate_date(default_start_date)
+        self._default_end_date = self._validate_date(default_end_date)
+        self._validate_lower_upper_values("default_start_date", self._default_start_date, "default_end_date", self._default_end_date)
 
 
 @dataclass
@@ -200,33 +210,35 @@ class _NumericParameterOption(ParameterOption):
     """
     Abstract class (or type) for numeric parameter options
     """
-    min_value: Decimal
-    max_value: Decimal
-    increment: Decimal
+    _min_value: Decimal
+    _max_value: Decimal
+    _increment: Decimal # = field(default=1, kw_only=True)
 
     @abstractmethod
-    def __init__(self, min_value: Number, max_value: Number, *, increment: Number = 1, user_groups: Iterable[str] = frozenset(),
-                 parent_option_ids: Iterable[str] = frozenset()) -> None:
+    def __init__(
+        self, min_value: Number, max_value: Number, *, increment: Number = 1, user_groups: Union[Iterable[str], str] = frozenset(), 
+        parent_option_ids: Union[Iterable[str], str] = frozenset()
+    ) -> None:
         super().__init__(user_groups=user_groups, parent_option_ids=parent_option_ids)
         try:
-            self.min_value = Decimal(min_value)
-            self.max_value = Decimal(max_value)
-            self.increment = Decimal(increment)
+            self._min_value = Decimal(min_value)
+            self._max_value = Decimal(max_value)
+            self._increment = Decimal(increment)
         except InvalidDecimalConversion as e:
             raise ConfigurationError(f'Could not convert either min, max, or increment to number') from e
         
-        self._validate_lower_upper_values("min_value", self.min_value, "max_value", self.max_value)
+        self._validate_lower_upper_values("min_value", self._min_value, "max_value", self._max_value)
 
-        if (self.max_value - self.min_value) % self.increment != 0:
-            raise ConfigurationError(f'The increment "{self.increment}" must fit evenly between ' + 
-                f'the min_value "{self.min_value}" and max_value "{self.max_value}"')
+        if (self._max_value - self._min_value) % self._increment != 0:
+            raise ConfigurationError(f'The increment "{self._increment}" must fit evenly between ' + 
+                f'the min_value "{self._min_value}" and max_value "{self._max_value}"')
 
     def __value_in_range(self, value: Decimal) -> bool:
-        return self.min_value <= value <= self.max_value
+        return self._min_value <= value <= self._max_value
     
     def __value_on_increment(self, value: Decimal) -> bool:
-        diff = (value - self.min_value)
-        return diff >= 0 and diff % self.increment == 0
+        diff = (value - self._min_value)
+        return diff >= 0 and diff % self._increment == 0
 
     def _validate_value(self, value: Number) -> Decimal:
         try:
@@ -244,9 +256,9 @@ class _NumericParameterOption(ParameterOption):
     
     def _to_json_dict(self):
         return {
-            "min_value": str(self.min_value),
-            "max_value": str(self.max_value),
-            "increment": str(self.increment)
+            "min_value": str(self._min_value),
+            "max_value": str(self._max_value),
+            "increment": str(self._increment)
         }
 
 
@@ -263,18 +275,22 @@ class NumberParameterOption(_NumericParameterOption):
         user_groups: The user groups this parameter option would show for if "user_group_attr" is specified in the Parameter object
         parent_option_ids: Set of parent option ids this parameter option would show for if "parent" is specified in the Parameter object
     """
-    default_value: Decimal
+    _default_value: Decimal # = field(default=None, kw_only=True)
 
-    def __init__(self, min_value: Number, max_value: Number, *, increment: Number = 1, default_value: Optional[Number] = None,
-                 user_groups: Iterable[str] = frozenset(), parent_option_ids: Iterable[str] = frozenset()) -> None:
+    def __init__(
+        self, min_value: Number, max_value: Number, *, increment: Number = 1, default_value: Optional[Number] = None,
+        user_groups: Union[Iterable[str], str] = frozenset(), parent_option_ids: Union[Iterable[str], str] = frozenset()
+    ) -> None:
         """
         Constructor for NumberParameterOption
+        
+        * Note that the "Number" type denotes an int, a Decimal (from decimal module), or a string that can be parsed to Decimal
 
         Parameters:
             ...see Attributes of NumberParameterOption
         """
         super().__init__(min_value, max_value, increment=increment, user_groups=user_groups, parent_option_ids=parent_option_ids)
-        self.default_value = self._validate_value(default_value) if default_value is not None else self.min_value
+        self._default_value = self._validate_value(default_value) if default_value is not None else self._min_value
 
 
 @dataclass
@@ -292,19 +308,23 @@ class NumRangeParameterOption(_NumericParameterOption):
         user_groups: The user groups this parameter option would show for if "user_group_attr" is specified in the Parameter object
         parent_option_ids: Set of parent option ids this parameter option would show for if "parent" is specified in the Parameter object
     """
-    default_lower_value: Decimal
-    default_upper_value: Decimal
+    _default_lower_value: Decimal # = field(default=None, kw_only=True)
+    _default_upper_value: Decimal # = field(default=None, kw_only=True)
 
-    def __init__(self, min_value: Number, max_value: Number, *, increment: Number = 1, default_lower_value: Optional[Number] = None, 
-                 default_upper_value: Optional[Number] = None, user_groups: Iterable[str] = frozenset(), 
-                 parent_option_ids: Iterable[str] = frozenset()) -> None:
+    def __init__(
+        self, min_value: Number, max_value: Number, *, increment: Number = 1, default_lower_value: Optional[Number] = None, 
+        default_upper_value: Optional[Number] = None, user_groups: Union[Iterable[str], str] = frozenset(), 
+        parent_option_ids: Union[Iterable[str], str] = frozenset()
+    ) -> None:
         """
         Constructor for NumRangeParameterOption
+        
+        * Note that the "Number" type denotes an int, a Decimal (from decimal module), or a string that can be parsed to Decimal
 
         Parameters:
             ...see Attributes of NumRangeParameterOption
         """
         super().__init__(min_value, max_value, increment=increment, user_groups=user_groups, parent_option_ids=parent_option_ids)
-        self.default_lower_value = self._validate_value(default_lower_value) if default_lower_value is not None else self.min_value
-        self.default_upper_value = self._validate_value(default_upper_value) if default_upper_value is not None else self.max_value
-        self._validate_lower_upper_values("default_lower_value", self.default_lower_value, "default_upper_value", self.default_upper_value)
+        self._default_lower_value = self._validate_value(default_lower_value) if default_lower_value is not None else self._min_value
+        self._default_upper_value = self._validate_value(default_upper_value) if default_upper_value is not None else self._max_value
+        self._validate_lower_upper_values("default_lower_value", self._default_lower_value, "default_upper_value", self._default_upper_value)
