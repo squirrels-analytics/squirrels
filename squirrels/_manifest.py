@@ -5,7 +5,7 @@ import yaml
 
 from . import _constants as c, _utils as u
 from ._environcfg import EnvironConfigIO
-from ._timed_imports import timer, time
+from ._timer import timer, time
 
 
 @dataclass

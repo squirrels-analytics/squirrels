@@ -1,15 +1,14 @@
 from __future__ import annotations
-from typing import Dict, Optional, Set, Sequence, Tuple
+from typing import Dict, Optional, Sequence
 from dataclasses import dataclass, field
 from collections import OrderedDict
-import concurrent.futures
+import concurrent.futures, pandas as pd
 
 from . import _parameter_configs as pc, _utils as u, _constants as c, parameters as p
-from ._timed_imports import pandas as pd
 from ._manifest import ManifestIO
-from ._connection_set_io import ConnectionSetIO
+from ._connection_set import ConnectionSetIO
 from ._authenticator import UserBase
-from ._timed_imports import timer, time
+from ._timer import timer, time
 
 
 @dataclass
@@ -40,36 +39,39 @@ class _ParameterConfigsSet:
     """
     Pool of parameter configs, can create multiple for unit testing purposes
     """
-    _data: Dict[str, pc.ParameterConfigBase] = field(default_factory=OrderedDict)
-    _data_source_param_names: Set[str] = field(default_factory=set)
+    _data: Dict[str, pc.ParameterConfig] = field(default_factory=OrderedDict)
+    _data_source_params: Dict[str, pc.DataSourceParameterConfig] = field(default_factory=dict)
         
-    def get(self, name: Optional[str]) -> Optional[pc.ParameterConfigBase]:
-        return self._data[name] if name is not None else None
+    def get(self, name: Optional[str]) -> Optional[pc.ParameterConfig]:
+        try:
+            return self._data[name] if name is not None else None
+        except KeyError as e:
+            raise u.ConfigurationError(f'Unable to find parameter named "{name}"') from e
 
     def add(self, param_config: pc.ParameterConfigBase) -> None:
         self._data[param_config.name] = param_config
         if isinstance(param_config, pc.DataSourceParameterConfig):
-            self._data_source_param_names.add(param_config.name)
+            self._data_source_params[param_config.name] = param_config
     
-    def _get_all_ds_param_configs(self) -> Dict[str, pc.DataSourceParameterConfig]:
-        return {key: self._data[key] for key in self._data_source_param_names}
+    def _get_all_ds_param_configs(self) -> Sequence[pc.DataSourceParameterConfig]:
+        return list(self._data_source_params.values())
 
     def __convert_datasource_params(self, df_dict: Dict[str, pd.DataFrame]) -> None:
         done = set()
-        for curr_name in self._data_source_param_names:
+        for curr_name in self._data_source_params:
             stack = [curr_name] # Note: parents must be converted first before children
             while stack:
                 name = stack[-1]
                 if name not in done:
-                    ds_param = self._data[name]
-                    parent_name = ds_param.parent_name
+                    param = self._data_source_params.get(name, self.get(name))
+                    parent_name = param.parent_name
                     if parent_name is not None and parent_name not in done:
                         stack.append(parent_name)
                         continue
-                    if isinstance(ds_param, pc.DataSourceParameterConfig):
+                    if isinstance(param, pc.DataSourceParameterConfig):
                         if name not in df_dict:
                             raise u.ConfigurationError(f'No reference data found for parameter "{name}"')
-                        self._data[name] = ds_param.convert(df_dict[name])
+                        self._data[name] = param.convert(df_dict[name])
                     done.add(name)
                 stack.pop()
     
@@ -77,7 +79,7 @@ class _ParameterConfigsSet:
         for param_config in self._data.values():
             assert isinstance(param_config, pc.ParameterConfig)
             parent_name = param_config.parent_name
-            parent = self._data.get(parent_name)
+            parent = self.get(parent_name)
             if parent:
                 if not isinstance(param_config, pc.SelectionParameterConfig):
                     if not isinstance(parent, pc.SingleSelectParameterConfig):
@@ -119,7 +121,7 @@ class _ParameterConfigsSet:
                 curr_name = stack[-1]
                 children = []
                 if curr_name not in parameters_by_name:
-                    param_conf: pc.ParameterConfig = self._data[curr_name]
+                    param_conf = self.get(curr_name)
                     parent_name = param_conf.parent_name
                     if parent_name is None:
                         parent = None
@@ -151,15 +153,14 @@ class ParameterConfigsSetIO:
             excel_file = pd.ExcelFile(excel_file_name)
             df_dict = pd.read_excel(excel_file, None)
         else:
-            def get_dataframe_from_query(item: Tuple[str, pc.DataSourceParameterConfig]) -> pd.DataFrame:
-                key, ds_param_config = item
-                datasource = ds_param_config.data_source
-                df = ConnectionSetIO.obj.get_dataframe_from_query(datasource._connection_name, datasource._get_query())
+            def get_dataframe_from_query(ds_param_config: pc.DataSourceParameterConfig) -> pd.DataFrame:
+                key, datasource = ds_param_config.name, ds_param_config.data_source
+                df = ConnectionSetIO.obj.run_sql_query_from_conn_name(datasource._get_query(), datasource._connection_name)
                 return key, df
             
             ds_param_configs = cls.obj._get_all_ds_param_configs()
             with concurrent.futures.ThreadPoolExecutor() as executor:
-                df_dict = dict(executor.map(get_dataframe_from_query, ds_param_configs.items()))
+                df_dict = dict(executor.map(get_dataframe_from_query, ds_param_configs))
         
         return df_dict
     

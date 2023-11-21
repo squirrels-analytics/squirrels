@@ -2,9 +2,9 @@ from __future__ import annotations
 from typing import Type, Dict, Sequence, Iterable, Optional, Any
 from dataclasses import dataclass, field
 from abc import ABCMeta, abstractmethod
+import pandas as pd
 
 from . import _parameter_configs as pc, parameter_options as po, parameters as p, _constants as c, _utils as u
-from squirrels._timed_imports import pandas as pd
 
 
 @dataclass

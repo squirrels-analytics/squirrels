@@ -3,7 +3,7 @@ from dataclasses import dataclass
 import os, yaml
 
 from . import _constants as c, _utils as u
-from ._timed_imports import timer, time
+from ._timer import timer, time
 
 _GLOBAL_SQUIRRELS_CFG_FILE = u.join_paths(os.path.expanduser('~'), '.squirrels', c.ENVIRON_CONFIG_FILE)
 

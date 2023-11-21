@@ -7,7 +7,7 @@ import pytest, sqlite3, sqlalchemy as sa, pandas as pd
 from squirrels import _renderer as rd, parameters as p, parameter_options as po, data_sources as d, \
     _parameter_configs as pc, _parameter_sets as ps
 from squirrels._manifest import ManifestIO, _Manifest
-from squirrels._connection_set_io import ConnectionSetIO, ConnectionSet
+from squirrels._connection_set import ConnectionSetIO, ConnectionSet
 
 
 @pytest.fixture(scope="module")

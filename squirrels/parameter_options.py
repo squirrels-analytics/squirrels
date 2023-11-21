@@ -71,7 +71,7 @@ class SelectParameterOption(ParameterOption):
     _identifier: str
     _label: str
     _is_default: bool # = field(default=False, kw_only=True)
-    _custom_fields: Dict[str, Any] # = field(default_factory=False, kw_only=True)
+    custom_fields: Dict[str, Any] # = field(default_factory=False, kw_only=True)
 
     def __init__(
         self, identifier: str, label: str, *, is_default: bool = False, user_groups: Union[Iterable[str], str] = frozenset(), 
@@ -88,7 +88,7 @@ class SelectParameterOption(ParameterOption):
         self._identifier = identifier
         self._label = label
         self._is_default = is_default
-        self._custom_fields = {
+        self.custom_fields = {
             **kwargs, **custom_fields, **self._to_json_dict()
         }
 
@@ -109,10 +109,10 @@ class SelectParameterOption(ParameterOption):
             default = self.get_custom_field(default_field, default=default)
         
         if default is not None:
-            selected_field = self._custom_fields.get(field, default)
+            selected_field = self.custom_fields.get(field, default)
         else:
             try:
-                selected_field = self._custom_fields[field]
+                selected_field = self.custom_fields[field]
             except KeyError as e:
                 raise ConfigurationError(f"Field '{field}' must exist for parameter option {self._to_json_dict()}") from e
         

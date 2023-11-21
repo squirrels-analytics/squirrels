@@ -1,18 +1,9 @@
 from argparse import ArgumentParser
-import sys
+import sys, time
 sys.path.append('.')
 
 from . import _constants as c
-from ._version import __version__
-from ._api_server import ApiServer
-from ._renderer import RendererIOWrapper
-from ._initializer import Initializer
-from ._timed_imports import timer, time
-from ._manifest import ManifestIO
-from ._module_loader import ModuleLoaderIO
-from ._environcfg import EnvironConfigIO
-from ._connection_set_io import ConnectionSetIO
-from ._parameter_sets import ParameterConfigsSetIO
+from ._timer import timer
 
 
 def main():
@@ -34,7 +25,7 @@ def main():
     init_parser.add_argument('--connections', action='store_true', help=f'Include the {c.CONNECTIONS_FILE} file')
     init_parser.add_argument('--context', action='store_true', help=f'Include the {c.CONTEXT_FILE} file')
     init_parser.add_argument('--final-view', type=str, choices=c.FILE_TYPE_CHOICES, help='Include final view as sql or python file')
-    init_parser.add_argument('--auth-file', action='store_true', help=f'Include the {c.AUTH_FILE} file')
+    init_parser.add_argument('--auth', action='store_true', help=f'Include the {c.AUTH_FILE} file')
     init_parser.add_argument('--selections-cfg', action='store_true', help=f'Include the {c.SELECTIONS_CFG_FILE} and {c.LU_DATA_FILE} files')
     init_parser.add_argument('--sample-db', type=str, choices=c.DATABASE_CHOICES, help='Sample sqlite database to include')
 
@@ -58,6 +49,15 @@ def main():
     args, _ = parser.parse_known_args()
     timer.verbose = args.verbose
     timer.add_activity_time('parsing arguments', start)
+    
+    from ._version import __version__
+    from ._api_server import ApiServer
+    from ._renderer import RendererIOWrapper
+    from ._initializer import Initializer
+    from ._manifest import ManifestIO
+    from ._module_loader import ModuleLoaderIO
+    from ._connection_set import ConnectionSetIO
+    from ._parameter_sets import ParameterConfigsSetIO
 
     if args.version:
         print(__version__)

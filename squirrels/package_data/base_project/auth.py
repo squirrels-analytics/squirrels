@@ -29,7 +29,6 @@ def get_user_if_valid(username: str, password: str, **kwargs) -> Union[User, Wro
         user_dict = mock_users_db[username]
         hashed_pwd = user_dict["hashed_password"]
         if str(hash(password)) == hashed_pwd:
-            username = user_dict["username"]
             is_admin = user_dict["is_admin"]
             return User(username, is_internal=is_admin).with_attributes(**user_dict)
         else:

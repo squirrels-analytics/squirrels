@@ -68,9 +68,9 @@ AUTH_FILE = 'auth.py'
 # Dataset setting names
 AUTH_TOKEN_EXPIRE_SETTING = 'auth.token.expire.minutes'
 PARAMETERS_CACHE_SIZE_SETTING = 'parameters.cache.size'
-PARAMETERS_CACHE_TTL_SETTING = 'parameters.cache.ttl.seconds'
+PARAMETERS_CACHE_TTL_SETTING = 'parameters.cache.ttl.minutes'
 RESULTS_CACHE_SIZE_SETTING = 'results.cache.size'
-RESULTS_CACHE_TTL_SETTING = 'results.cache.ttl.seconds'
+RESULTS_CACHE_TTL_SETTING = 'results.cache.ttl.minutes'
 
 # Selection cfg sections
 USER_ATTRIBUTES_SECTION = 'user_attributes'

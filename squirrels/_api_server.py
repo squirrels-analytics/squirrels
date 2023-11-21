@@ -7,12 +7,12 @@ from fastapi.security import OAuth2PasswordBearer, OAuth2PasswordRequestForm
 from cachetools.func import ttl_cache
 import os, traceback
 
-from . import _constants as c, _utils
+from . import _constants as c, _utils as u
 from ._version import sq_major_version
 from ._manifest import ManifestIO
 from ._renderer import RendererIOWrapper, Renderer
 from ._authenticator import UserBase, Authenticator
-from ._timed_imports import timer, time
+from ._timer import timer, time
 
 
 class ApiServer:
@@ -38,7 +38,7 @@ class ApiServer:
         
     def _get_parameters_helper(self, user: Optional[UserBase], dataset: str, query_params: Iterable[Tuple[str, str]]) -> Dict:
         if len(query_params) > 1:
-            raise _utils.InvalidInputError("The /parameters endpoint takes at most 1 query parameter")
+            raise u.InvalidInputError("The /parameters endpoint takes at most 1 query parameter")
         renderer = self.renderers[dataset]
         parameters = renderer.apply_selections(dict(query_params), user, updates_only = True)
         return parameters.to_json_dict(debug=self.debug)
@@ -46,7 +46,7 @@ class ApiServer:
     def _get_results_helper(self, user: Optional[UserBase], dataset: str, query_params: Iterable[Tuple[str, str]]) -> Dict:
         renderer = self.renderers[dataset]
         _, _, _, _, df = renderer.load_results(user, dict(query_params))
-        return _utils.df_to_json(df)
+        return u.df_to_json(df)
     
     def _can_user_access_dataset(self, user: Optional[UserBase], dataset: str):
         dataset_scope = ManifestIO.obj.get_dataset_scope(dataset)
@@ -55,11 +55,11 @@ class ApiServer:
     def _apply_api_function(self, api_function):
         try:
             return api_function()
-        except _utils.InvalidInputError as e:
+        except u.InvalidInputError as e:
             traceback.print_exc()
             raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, 
                                 detail="Invalid User Input: "+str(e)) from e
-        except _utils.ConfigurationError as e:
+        except u.ConfigurationError as e:
             traceback.print_exc()
             raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, 
                                 detail="Squirrels Configuration Error: "+str(e)) from e
@@ -70,14 +70,14 @@ class ApiServer:
     
     def _apply_dataset_api_function(self, api_function, user: Optional[UserBase], dataset: str, raw_query_params: Mapping):
         def dataset_api_function():
-            dataset_normalized = _utils.normalize_name(dataset)
+            dataset_normalized = u.normalize_name(dataset)
             if not self._can_user_access_dataset(user, dataset_normalized):
                 raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED,
                                     detail="Could not validate credentials",
                                     headers={"WWW-Authenticate": "Bearer"})
             query_params = set()
             for key, val in raw_query_params.items():
-                query_params.add((_utils.normalize_name(key), val))
+                query_params.add((u.normalize_name(key), val))
             query_params = frozenset(query_params)
             
             return api_function(user, dataset_normalized, query_params)
@@ -96,12 +96,12 @@ class ApiServer:
 
         squirrels_version_path = f'/squirrels-v{sq_major_version}'
         partial_base_path = f'/{ManifestIO.obj.get_product()}/v{ManifestIO.obj.get_major_version()}'
-        base_path = squirrels_version_path + _utils.normalize_name_for_api(partial_base_path)
+        base_path = squirrels_version_path + u.normalize_name_for_api(partial_base_path)
 
-        static_dir = _utils.join_paths(os.path.dirname(__file__), 'package_data', 'static')
+        static_dir = u.join_paths(os.path.dirname(__file__), 'package_data', 'static')
         app.mount('/static', StaticFiles(directory=static_dir), name='static')
 
-        templates_dir = _utils.join_paths(os.path.dirname(__file__), 'package_data', 'templates')
+        templates_dir = u.join_paths(os.path.dirname(__file__), 'package_data', 'templates')
         templates = Jinja2Templates(directory=templates_dir)
 
         # Login
@@ -134,20 +134,26 @@ class ApiServer:
         parameters_cache_size = ManifestIO.obj.get_setting(c.PARAMETERS_CACHE_SIZE_SETTING, 1024)
         parameters_cache_ttl = ManifestIO.obj.get_setting(c.PARAMETERS_CACHE_TTL_SETTING, 0)
 
-        @ttl_cache(maxsize=parameters_cache_size, ttl=parameters_cache_ttl)
+        @ttl_cache(maxsize=parameters_cache_size, ttl=parameters_cache_ttl*60)
         def get_parameters_cachable(*args):
             return self._get_parameters_helper(*args)
         
         @app.get(parameters_path, response_class=JSONResponse)
         async def get_parameters(dataset: str, request: Request, user: Optional[UserBase] = Depends(get_current_user)):
+            start = time.time()
             api_function = self._get_parameters_helper if self.no_cache else get_parameters_cachable
-            return self._apply_dataset_api_function(api_function, user, dataset, request.query_params)
+            result = self._apply_dataset_api_function(api_function, user, dataset, request.query_params)
+            timer.add_activity_time("GET REQUEST total time for PARAMETERS", start)
+            return result
 
         @app.post(parameters_path, response_class=JSONResponse)
         async def get_parameters_with_post(dataset: str, request: Request, user: Optional[UserBase] = Depends(get_current_user)):
+            start = time.time()
             api_function = self._get_parameters_helper if self.no_cache else get_parameters_cachable
             request_body = await request.json()
-            return self._apply_dataset_api_function(api_function, user, dataset, request_body)
+            result = self._apply_dataset_api_function(api_function, user, dataset, request_body)
+            timer.add_activity_time("POST REQUEST total time for PARAMETERS", start)
+            return result
 
         # Results API
         results_path = base_path + '/{dataset}'
@@ -155,20 +161,26 @@ class ApiServer:
         results_cache_size = ManifestIO.obj.get_setting(c.RESULTS_CACHE_SIZE_SETTING, 128)
         results_cache_ttl = ManifestIO.obj.get_setting(c.RESULTS_CACHE_TTL_SETTING, 0)
 
-        @ttl_cache(maxsize=results_cache_size, ttl=results_cache_ttl)
+        @ttl_cache(maxsize=results_cache_size, ttl=results_cache_ttl*60)
         def get_results_cachable(*args):
             return self._get_results_helper(*args)
         
         @app.get(results_path, response_class=JSONResponse)
         async def get_results(dataset: str, request: Request, user: Optional[UserBase] = Depends(get_current_user)):
+            start = time.time()
             api_function = self._get_results_helper if self.no_cache else get_results_cachable
-            return self._apply_dataset_api_function(api_function, user, dataset, request.query_params)
+            result = self._apply_dataset_api_function(api_function, user, dataset, request.query_params)
+            timer.add_activity_time("GET REQUEST total time for DATASET", start)
+            return result
         
         @app.post(results_path, response_class=JSONResponse)
         async def get_results_with_post(dataset: str, request: Request, user: Optional[UserBase] = Depends(get_current_user)):
+            start = time.time()
             api_function = self._get_results_helper if self.no_cache else get_results_cachable
             request_body = await request.json()
-            return self._apply_dataset_api_function(api_function, user, dataset, request_body)
+            result = self._apply_dataset_api_function(api_function, user, dataset, request_body)
+            timer.add_activity_time("POST REQUEST total time for DATASET", start)
+            return result
         
         # Catalog API
         @app.get(squirrels_version_path, response_class=JSONResponse)
@@ -177,7 +189,7 @@ class ApiServer:
                 datasets_info = []
                 for dataset in ManifestIO.obj.get_all_dataset_names():
                     if self._can_user_access_dataset(user, dataset):
-                        dataset_normalized = _utils.normalize_name_for_api(dataset)
+                        dataset_normalized = u.normalize_name_for_api(dataset)
                         datasets_info.append({
                             'name': dataset,
                             'label': ManifestIO.obj.get_dataset_label(dataset),

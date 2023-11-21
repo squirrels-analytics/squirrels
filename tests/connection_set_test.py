@@ -3,7 +3,7 @@ from functools import partial
 import sqlite3, pandas as pd
 import pytest
 
-from squirrels import _utils, connection_set as cs
+from squirrels import _connection_set as cs, _utils as u, sqldf
 
 
 @pytest.fixture(scope="module")
@@ -50,7 +50,7 @@ def test_sqldf():
     })
 
     query = "SELECT a.name, a.number as num1, b.number as num2 FROM df1 a JOIN df2 b ON a.name = b.name"
-    df = cs.sqldf(query, {'df1': df1, 'df2': df2})
+    df = sqldf(query, {'df1': df1, 'df2': df2})
     expected_df = pd.DataFrame({
         "name": ["test1", "test2"],
         "num1": [10, 20],
@@ -60,18 +60,16 @@ def test_sqldf():
 
 
 def test_get_connection_pool(connection_set: cs.ConnectionSet):
-    with pytest.raises(_utils.ConfigurationError):
+    with pytest.raises(u.ConfigurationError):
         connection_set.get_connection_pool('does_not_exist')
 
 
 def test_get_dataframe_from_query(connection_set: cs.ConnectionSet):
-    df: pd.DataFrame = connection_set.get_dataframe_from_query("db2", 
-        "SELECT id, name FROM test WHERE id < 0")
+    df: pd.DataFrame = connection_set.run_sql_query_from_conn_name("SELECT id, name FROM test WHERE id < 0", "db2")
     expected_df = pd.DataFrame(columns=["id", "name"]) # empty dataframe
     assert df.equals(expected_df)
 
-    df: pd.DataFrame = connection_set.get_dataframe_from_query("db2", 
-        "SELECT name, avg(number) AS avg_number FROM test GROUP BY name")
+    df: pd.DataFrame = connection_set.run_sql_query_from_conn_name("SELECT name, avg(number) AS avg_number FROM test GROUP BY name", "db2")
     expected_df = pd.DataFrame({
         "name": ["test1", "test2"],
         "avg_number": [15.0, 30.0]

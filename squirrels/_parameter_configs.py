@@ -4,9 +4,9 @@ from dataclasses import dataclass, field
 from abc import ABCMeta, abstractmethod
 from datetime import datetime
 from copy import copy
+import pandas as pd
 
 from . import parameter_options as po, parameters as p, data_sources as d, _utils as u
-from ._timed_imports import pandas as pd
 from ._authenticator import UserBase
 
 

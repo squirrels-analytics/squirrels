@@ -1,15 +1,14 @@
 from typing import Dict, Tuple, Optional, Union, Callable, Any
 from functools import partial
 from configparser import ConfigParser
-import concurrent.futures, os, json
+import concurrent.futures, os, json, pandas as pd
 
-from . import _constants as c, _utils as u
+from . import _constants as c, _utils as u, Parameter, sqldf
 from ._manifest import ManifestIO
-from ._connection_set_io import ConnectionSetIO, sqldf
+from ._connection_set import ConnectionSetIO
 from ._parameter_sets import ParameterConfigsSetIO
-from .parameters import Parameter
 from ._parameter_sets import ParameterSet
-from ._timed_imports import pandas as pd, timer, time
+from ._timer import timer, time
 from ._authenticator import UserBase, Authenticator
 
 ContextFunc = Optional[Callable[..., Dict[str, Any]]]
@@ -53,7 +52,7 @@ class Renderer:
             return sqldf(sql_str, database_views)
         else:
             conn_name = ManifestIO.obj.get_database_view_db_connection(self.dataset, db_view_name)
-            return ConnectionSetIO.obj.get_dataframe_from_query(conn_name, sql_str)
+            return ConnectionSetIO.obj.run_sql_query_from_conn_name(sql_str, conn_name)
 
     def _render_dataframe_from_py_func(
         self, db_view_name: str, py_func: Callable[[Any], pd.DataFrame], database_views: DatabaseViews = None
@@ -67,7 +66,7 @@ class Renderer:
             conn_name = ManifestIO.obj.get_database_view_db_connection(self.dataset, db_view_name)
             connection_pool = ConnectionSetIO.obj.get_connection_pool(conn_name)
             try:
-                return py_func(connection_pool=connection_pool, connection_set=ConnectionSetIO.obj)
+                return py_func(connection_pool=connection_pool)
             except Exception as e:
                 raise u.ConfigurationError(f'Error in the python function for database view "{db_view_name}" in dataset "{self.dataset}"') from e
     

@@ -4,14 +4,14 @@
 # Fake users for local development testing
 users:
   johndoe:
+    is_internal: True
     password: I<3Squirrels
     full_name: John Doe
-    is_admin: True
     organization: org1
   mattdoe:
+    is_internal: False
     password: abcd5678
     full_name: Matt Doe
-    is_admin: False
     organization: org2
 
 # Custom environment variables
@@ -26,4 +26,4 @@ credentials:
 
 # Predefined secrets used by the squirrels framework
 secrets:
-  jwt_signature: # generate a random 32 byte hex string here for jwt signatures
+  jwt_signature: # generate a random 32 byte hex string here for jwt signatures. In bash, you can run "openssl rand -hex 32"

@@ -5,8 +5,8 @@ import squirrels as sr
 
 
 def main(
-    connection_pool: Union[Engine, Pool], connection_set: sr.ConnectionSet, user: Optional[sr.UserBase], 
-    prms: Dict[str, sr.Parameter], ctx: Dict[str, Any], args: Dict[str, Any], *p_args, **kwargs
+    connection_pool: Union[Engine, Pool], user: Optional[sr.UserBase], prms: Dict[str, sr.Parameter], 
+    ctx: Dict[str, Any], args: Dict[str, Any], *p_args, **kwargs
 ) -> pd.DataFrame:
     
     query = f"""
@@ -22,10 +22,7 @@ def main(
         GROUP BY {ctx["group_by_cols"]}
     """
     
-    # # Use 'connection_set' to query from any connection key
-    # connection_pool = connection_set.get_connection_pool("default")
+    # # Use 'get_connection_pool' to get a different connection pool
+    # connection_pool = sr.get_connection_pool("default")
 
-    conn = connection_pool.raw_connection()
-    df = pd.read_sql(query, conn)
-    conn.close()
-    return df
+    return sr.run_sql_query(query, connection_pool)

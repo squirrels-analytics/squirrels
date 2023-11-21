@@ -2,9 +2,8 @@ from typing import List, Dict, Optional, Union, Any, TypeVar, Callable
 from types import ModuleType
 from pathlib import Path
 from importlib.machinery import SourceFileLoader
-import json
-
-from ._timed_imports import jinja2 as j2, pandas as pd, pd_types
+from pandas.api import types as pd_types
+import json, jinja2 as j2, pandas as pd
 
 FilePath = Union[str, Path]
 
