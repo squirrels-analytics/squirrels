@@ -11,7 +11,7 @@ const loadingIndicator = document.getElementById('loading-indicator');
 
 const loginModal = document.getElementById('login-modal');
 const loginForm = document.getElementById('login-form');
-const incorrectMessage = document.getElementById('incorrect');
+const incorrectPwdMessage = document.getElementById('incorrectpwd');
 let loginProcessor = null;
 
 const usernameTxt = document.getElementById('username-txt');
@@ -28,7 +28,7 @@ function loginEvent(event) {
     })
     .then(response => {
         if (response.status === 401) {
-            incorrectMessage.style.display = 'block'
+            incorrectPwdMessage.style.display = 'block'
         } else {
             response.json()
             .then(data => {
@@ -53,7 +53,9 @@ function openLoginModal() {
 }
 
 function closeLoginModal() {
+    loginForm.reset()
     loginModal.style.display = 'none';
+    incorrectPwdMessage.style.display = 'none';
 }
 
 async function callJsonAPI(path, func) {
@@ -139,6 +141,8 @@ function refreshParameters(provoker = null) {
                 dateInput.value = param.selected_date
                 dateInput.onchange = updateParameter
                 newDiv.appendChild(dateInput)
+            } else if (param.widget_type === "date_range") {
+                // TODO
             } else if (param.widget_type === "number") {
                 addLabel()
                 const sliderInput = document.createElement('input')
@@ -204,6 +208,8 @@ function updateParameter() {
     const param = parametersMap.get(this.id)
     if (param.widget_type === "date") {
         param.selected_date = this.value
+    } else if (param.widget_type === "date_range") {
+        // TODO
     } else if (param.widget_type === "number") {
         param.selected_value = this.value
     } else if (param.widget_type === "number_range") {

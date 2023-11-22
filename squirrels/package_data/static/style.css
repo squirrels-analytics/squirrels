@@ -172,6 +172,6 @@ button:hover {
 }
 
 /* Warning for incorrect username/password */
-#incorrect {
+#incorrectpwd {
     display: none;
 }
