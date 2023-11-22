@@ -5,7 +5,7 @@ from dateutil.relativedelta import relativedelta
 from abc import ABCMeta, abstractmethod
 from enum import Enum
 
-from squirrels import _utils
+from . import _utils as u
 
 
 class DayOfWeek(Enum):
@@ -59,7 +59,7 @@ class _DayIdxOfCalendarUnit(DateModifier):
         super().__init__()
         self.idx = idx
         if self.idx == 0:
-            raise _utils.ConfigurationError("For constructors of class names that start with DayIdxOf_, idx cannot be zero")
+            raise u.ConfigurationError(f"For constructors of class names that start with DayIdxOf_, idx cannot be zero")
         self.incr = self.idx - 1 if self.idx > 0 else self.idx
 
 
@@ -73,23 +73,23 @@ class DayIdxOfMonthsCycle(_DayIdxOfCalendarUnit):
         num_months_in_cycle: 2 for one 6th of year, 3 for Quarter, 4 for one 3rd of year, 6 for half year, 12 for full year. Must fit evenly in 12
         first_month_of_cycle: The first month of months cycle of year. Default is January
     """
-    num_months_in_cycle: int
-    first_month_of_cycle: Month
+    _num_months_in_cycle: int
+    _first_month_of_cycle: Month
 
     def __init__(self, idx: int, num_months_in_cycle: int, first_month_of_cycle: Month = Month.January) -> None:
         super().__init__(idx)
-        self.num_months_in_cycle = num_months_in_cycle
-        self.first_month_of_cycle = first_month_of_cycle
-        if 12 % self.num_months_in_cycle != 0:
-            raise _utils.ConfigurationError("Value X must fit evenly in 12")
-        self.first_month_of_first_cycle = (self.first_month_of_cycle.value - 1) % self.num_months_in_cycle + 1
+        self._num_months_in_cycle = num_months_in_cycle
+        self._first_month_of_cycle = first_month_of_cycle
+        if 12 % self._num_months_in_cycle != 0:
+            raise u.ConfigurationError(f"Value X must fit evenly in 12")
+        self.first_month_of_first_cycle = (self._first_month_of_cycle.value - 1) % self._num_months_in_cycle + 1
 
     def modify(self, date: datetime) -> datetime:
-        current_cycle = (date.month - self.first_month_of_first_cycle) % 12 // self.num_months_in_cycle
-        first_month_of_curr_cycle = current_cycle * self.num_months_in_cycle + self.first_month_of_first_cycle
+        current_cycle = (date.month - self.first_month_of_first_cycle) % 12 // self._num_months_in_cycle
+        first_month_of_curr_cycle = current_cycle * self._num_months_in_cycle + self.first_month_of_first_cycle
         year = date.year if date.month >= first_month_of_curr_cycle else date.year - 1
         first_day = datetime(year, first_month_of_curr_cycle, 1)
-        ref_date = first_day if self.idx > 0 else first_day + relativedelta(months=self.num_months_in_cycle)
+        ref_date = first_day if self.idx > 0 else first_day + relativedelta(months=self._num_months_in_cycle)
         return ref_date + relativedelta(days=self.incr)
 
 
@@ -148,12 +148,12 @@ class DayIdxOfWeek(_DayIdxOfCalendarUnit):
         idx: 1 for first, 2 for second, etc. Or, -1 for last, -2 for second last, etc. Must not be 0
         first_day_of_week: The day of week identified as the "first". Default is Monday
     """
-    first_day_of_week: DayOfWeek
+    _first_day_of_week: DayOfWeek
 
     def __init__(self, idx: int, first_day_of_week: DayOfWeek = DayOfWeek.Monday) -> None:
         super().__init__(idx)
-        self.first_day_of_week = first_day_of_week
-        self.first_dow_num = self.first_day_of_week.value
+        self._first_day_of_week = first_day_of_week
+        self.first_dow_num = self._first_day_of_week.value
     
     def modify(self, date: datetime) -> datetime:
         distance_from_first_day = (1 + date.weekday() - self.first_dow_num) % 7
@@ -242,14 +242,14 @@ class DateModPipeline(DateModifier):
     Attributes:
         modifiers: The list of DateModifier's to apply in sequence.
     """
-    date_modifiers: Sequence[DateModifier]
+    _date_modifiers: Sequence[DateModifier]
 
     def __init__(self, date_modifiers: Sequence[DateModifier]) -> None:
         super().__init__()
-        self.date_modifiers = tuple(date_modifiers)
+        self._date_modifiers = tuple(date_modifiers)
     
     def modify(self, date: datetime) -> datetime:
-        for modifier in self.date_modifiers:
+        for modifier in self._date_modifiers:
             date = modifier.modify(date)
         return date
     
@@ -264,7 +264,7 @@ class DateModPipeline(DateModifier):
         Returns:
             A new sequence of DateModifier
         """
-        joined_modifiers = self.date_modifiers + tuple(date_modifiers)
+        joined_modifiers = self._date_modifiers + tuple(date_modifiers)
         return joined_modifiers
 
     def with_more_modifiers(self, date_modifiers: Sequence[DateModifier]):
@@ -298,7 +298,7 @@ class DateModPipeline(DateModifier):
             A list of datetime objects
         """
         if step.offset == 0:
-            raise _utils.ConfigurationError("The length of 'step' must not be zero")
+            raise u.ConfigurationError(f"The length of 'step' must not be zero")
         
         output = []
         end_date = self.modify(start_date)
@@ -332,12 +332,12 @@ class DateStringModifier(_DateRepresentationModifier):
         date_modifier: The DateModifier to apply on datetime objects
         date_format: Format of the output date string. Default is '%Y-%m-%d'
     """
-    date_modifiers: Sequence[DateModifier]
-    date_format: str
+    _date_modifiers: Sequence[DateModifier]
+    _date_format: str
 
     def __init__(self, date_modifiers: Sequence[DateModifier], date_format: str = '%Y-%m-%d'):
         super().__init__(date_modifiers)
-        self.date_format = date_format
+        self._date_format = date_format
 
     def with_more_modifiers(self, date_modifiers: Sequence[DateModifier]):
         """
@@ -350,10 +350,10 @@ class DateStringModifier(_DateRepresentationModifier):
             A new DateStringModifier
         """
         joined_modifiers = self.date_modifier.get_joined_modifiers(date_modifiers)
-        return DateStringModifier(joined_modifiers, self.date_format)
+        return DateStringModifier(joined_modifiers, self._date_format)
     
     def _get_input_date_obj(self, date_str: str, input_format: str = None) -> datetime:
-        input_format = self.date_format if input_format is None else input_format
+        input_format = self._date_format if input_format is None else input_format
         return datetime.strptime(date_str, input_format)
 
     def modify(self, date_str: str, input_format: str = None) -> str:
@@ -368,7 +368,7 @@ class DateStringModifier(_DateRepresentationModifier):
             The resulting date string
         """
         date_obj = self._get_input_date_obj(date_str, input_format)
-        return self.date_modifier.modify(date_obj).strftime(self.date_format)
+        return self.date_modifier.modify(date_obj).strftime(self._date_format)
     
     def get_date_list(self, start_date_str: str, step: DateModifier, input_format: str = None) -> Sequence[str]:
         """
@@ -390,7 +390,7 @@ class DateStringModifier(_DateRepresentationModifier):
         """
         curr_date = self._get_input_date_obj(start_date_str, input_format)
         output = self.date_modifier.get_date_list(curr_date, step)
-        return [x.strftime(self.date_format) for x in output]
+        return [x.strftime(self._date_format) for x in output]
 
 
 @dataclass
@@ -402,7 +402,7 @@ class TimestampModifier(_DateRepresentationModifier):
         date_modifier: The DateModifier to apply on datetime objects
         date_format: Format of the date string. Default is '%Y-%m-%d'
     """
-    date_modifiers: Sequence[DateModifier]
+    _date_modifiers: Sequence[DateModifier]
 
     def __init__(self, date_modifiers: Sequence[DateModifier]):
         super().__init__(date_modifiers)

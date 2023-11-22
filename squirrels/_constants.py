@@ -28,19 +28,26 @@ PUBLIC_SCOPE = 'public'
 PROTECTED_SCOPE = 'protected'
 PRIVATE_SCOPE = 'private'
 
+PARAMETERS_KEY = 'parameters'
+
 # Project variable keys
 PRODUCT_KEY = 'product'
 PRODUCT_LABEL_KEY = 'product_label'
 MAJOR_VERSION_KEY = 'major_version'
 MINOR_VERSION_KEY = 'minor_version'
 
-# Database credentials keys
+# Environment config keys keys
 CREDENTIALS_KEY = 'credentials'
 USERNAME_KEY = 'username'
 PASSWORD_KEY = 'password'
+USER_NAME_KEY = 'username'
+USER_PWD_KEY = 'password'
 DEFAULT_DB_CONN = 'default'
+SECRETS_KEY = 'secrets'
+JWT_SECRET_KEY = 'jwt_secret'
 
 # Folder/File names
+ENVIRON_CONFIG_FILE = 'environcfg.yaml'
 MANIFEST_FILE = 'squirrels.yaml'
 CONNECTIONS_FILE = 'connections.py'
 OUTPUTS_FOLDER = 'outputs'
@@ -55,14 +62,15 @@ FINAL_VIEW_PY_NAME = 'final_view.py'
 FINAL_VIEW_OUT_STEM = 'final_view'
 CONTEXT_FILE = 'context.py'
 SELECTIONS_CFG_FILE = 'selections.cfg'
+LU_DATA_FILE = 'lu_data.xlsx'
 AUTH_FILE = 'auth.py'
 
 # Dataset setting names
 AUTH_TOKEN_EXPIRE_SETTING = 'auth.token.expire.minutes'
 PARAMETERS_CACHE_SIZE_SETTING = 'parameters.cache.size'
-PARAMETERS_CACHE_TTL_SETTING = 'parameters.cache.ttl.seconds'
+PARAMETERS_CACHE_TTL_SETTING = 'parameters.cache.ttl.minutes'
 RESULTS_CACHE_SIZE_SETTING = 'results.cache.size'
-RESULTS_CACHE_TTL_SETTING = 'results.cache.ttl.seconds'
+RESULTS_CACHE_TTL_SETTING = 'results.cache.ttl.minutes'
 
 # Selection cfg sections
 USER_ATTRIBUTES_SECTION = 'user_attributes'

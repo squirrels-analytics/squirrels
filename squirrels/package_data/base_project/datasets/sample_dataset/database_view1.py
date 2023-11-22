@@ -1,12 +1,13 @@
-from typing import Dict, Any, Optional
-from sqlalchemy import text
+from typing import Dict, Any, Optional, Union
+from sqlalchemy import Engine, Pool
 import pandas as pd
 import squirrels as sr
 
 
-def main(connection_set: sr.ConnectionSet, user: Optional[sr.UserBase], 
-         prms: Dict[str, sr.Parameter], ctx: Dict[str, Any], args: Dict[str, Any], 
-         *p_args, **kwargs) -> pd.DataFrame:
+def main(
+    connection_pool: Union[Engine, Pool], user: Optional[sr.UserBase], prms: Dict[str, sr.Parameter], 
+    ctx: Dict[str, Any], args: Dict[str, Any], *p_args, **kwargs
+) -> pd.DataFrame:
     
     query = f"""
         SELECT {ctx["group_by_cols"]}
@@ -21,8 +22,7 @@ def main(connection_set: sr.ConnectionSet, user: Optional[sr.UserBase],
         GROUP BY {ctx["group_by_cols"]}
     """
     
-    engine = connection_set.get_connection_pool("default")
-    conn = engine.raw_connection()
-    df = pd.read_sql(query, conn)
-    conn.close()
-    return df
+    # # Use 'get_connection_pool' to get a different connection pool
+    # connection_pool = sr.get_connection_pool("default")
+
+    return sr.run_sql_query(query, connection_pool)

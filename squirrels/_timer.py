@@ -24,14 +24,4 @@ class Timer:
                 print(f'  Total time: {total_time}ms')
                 print(f'  Average time: {avg_time}ms')
 
-timer = Timer()
-
-
-start = time.time()
-import pandas
-from pandas.api import types as pd_types
-timer.add_activity_time("import pandas", start)
-
-start = time.time()
-import jinja2
-timer.add_activity_time("import jinja", start)
+timer = Timer(True)

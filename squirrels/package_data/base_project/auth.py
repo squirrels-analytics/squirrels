@@ -1,41 +1,36 @@
-mock_users_db = {
-    "johndoe": {
-        "username": "johndoe",
-        "is_admin": True,
-        "full_name": "John Doe",
-        "email": "johndoe@squirrels.com",
-        "organization": "squirrels",
-        "hashed_password": str(hash("I<3Squirrels"))
-    },
-    "mattperry": {
-        "username": "mattperry",
-        "is_admin": False,
-        "full_name": "Matthew Perry",
-        "email": "mattperry@friends.com",
-        "organization": "friends",
-        "hashed_password": str(hash("ChandlerRocks0"))
-    }
-}
-
-from typing import Optional
-
-from squirrels import UserBase, UserPwd
+from __future__ import annotations
+from typing import Union
+from squirrels import UserBase, WrongPassword
 
 
 class User(UserBase):
-    def __init__(self, username='', is_admin=False, organization='', **kwargs):
-        super().__init__(username, is_internal=is_admin)
+    def with_attributes(self, organization: str, **kwargs) -> User:
         self.organization = organization
+        return self
 
 
-def get_user_and_hashed_pwd(username: str) -> Optional[UserPwd]:
+def get_user_if_valid(username: str, password: str, **kwargs) -> Union[User, WrongPassword, None]:
+    mock_users_db = {
+        "johndoe": {
+            "username": "johndoe",
+            "is_admin": True,
+            "organization": "org1",
+            "hashed_password": str(hash("I<3Squirrels"))
+        },
+        "mattdoe": {
+            "username": "mattdoe",
+            "is_admin": False,
+            "organization": "org2",
+            "hashed_password": str(hash("abcd5678"))
+        }
+    }
+
     if username in mock_users_db:
         user_dict = mock_users_db[username]
-        user = User(**user_dict)
         hashed_pwd = user_dict["hashed_password"]
-        return UserPwd(user, hashed_pwd)
-
-
-def verify_pwd(login_pwd: str, hashed_pwd: str) -> bool:
-    return str(hash(login_pwd)) == hashed_pwd
-    
+        if str(hash(password)) == hashed_pwd:
+            is_admin = user_dict["is_admin"]
+            return User(username, is_internal=is_admin).with_attributes(**user_dict)
+        else:
+            return WrongPassword(username)
+    return None

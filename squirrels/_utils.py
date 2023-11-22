@@ -1,10 +1,9 @@
-from typing import List, Dict, Optional, Union, Any
+from typing import List, Dict, Optional, Union, Any, TypeVar, Callable
 from types import ModuleType
 from pathlib import Path
 from importlib.machinery import SourceFileLoader
-import json
-
-from squirrels._timed_imports import jinja2 as j2, pandas as pd, pd_types
+from pandas.api import types as pd_types
+import json, jinja2 as j2, pandas as pd
 
 FilePath = Union[str, Path]
 
@@ -18,7 +17,11 @@ class ConfigurationError(Exception):
 
 
 # Utility functions/variables
-j2_env = j2.Environment(loader=j2.FileSystemLoader('.'))
+_j2_env = j2.Environment(loader=j2.FileSystemLoader('.'))
+
+def render_string(raw_str: str, kwargs: Dict):
+    template = _j2_env.from_string(raw_str)
+    return template.render(kwargs)
 
 
 def import_file_as_module(filepath: Optional[FilePath]) -> Optional[ModuleType]:
@@ -33,6 +36,19 @@ def import_file_as_module(filepath: Optional[FilePath]) -> Optional[ModuleType]:
     """
     filepath = str(filepath) if filepath is not None else None
     return SourceFileLoader(filepath, filepath).load_module() if filepath is not None else None
+
+
+def run_module_main(filepath: Optional[FilePath], kwargs: Dict[str, Any]) -> Optional[ModuleType]:
+    try:
+        module = import_file_as_module(filepath)
+    except FileNotFoundError:
+        module = None
+    
+    if module is not None:
+        try:
+            return module.main(**kwargs)
+        except Exception as e:
+            raise ConfigurationError(f'Error in the {filepath} file') from e
 
 
 def join_paths(*paths: FilePath) -> Path:
@@ -72,27 +88,6 @@ def normalize_name_for_api(name: str) -> str:
         The normalized name.
     """
     return name.replace('_', '-')
-
-
-def get_row_value(row: pd.Series, value: str) -> Any:
-    """
-    Gets the value of a row from a pandas Series.
-
-    Parameters:
-        row: The row to get the value from.
-        value: The name of the column to get the value from.
-
-    Returns:
-        The value of the column.
-
-    Raises:
-        ConfigurationError: If the column does not exist.
-    """
-    try:
-        result = row[value]
-    except KeyError as e:
-        raise ConfigurationError(f'Column name "{value}" does not exist') from e
-    return result
 
 
 def df_to_json(df: pd.DataFrame, dimensions: List[str] = None) -> Dict[str, Any]:
@@ -142,3 +137,20 @@ def load_json_or_comma_delimited_str_as_list(input_str: str) -> List[str]:
         return output
     else:
         return [] if input_str == "" else input_str.split(",")
+
+
+X, Y = TypeVar('X'), TypeVar('Y')
+def process_if_not_none(input_val: Optional[X], processor: Callable[[X], Y]) -> Optional[Y]:
+    """
+    Given a input value and a function that processes the value, return the output of the function unless input is None
+
+    Parameters:
+        input_val: The input value
+        processor: The function that processes the input value
+    
+    Returns:
+        The output type of "processor" or None if input value if None
+    """
+    if input_val is None:
+        return None
+    return processor(input_val)
