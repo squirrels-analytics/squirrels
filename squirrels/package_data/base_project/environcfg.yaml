@@ -14,15 +14,15 @@ users:
     full_name: Matt Doe
     organization: org2
 
-# Custom environment variables
+# Custom environment variables / secrets
 env_vars:
-  sqlite_conn_str: sqlite://${username}:${password}@/./database/sample_database.db
+  sqlite_conn_str: sqlite://${username}:${password}@/./database/expenses.db
 
 # Database credentials
 credentials:
-  sqlite_user:
-    username: Test
-    password: test1
+  db_user:
+    username: user1
+    password: pass1
 
 # Predefined secrets used by the squirrels framework
 secrets:

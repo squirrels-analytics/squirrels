@@ -1,3 +1,5 @@
+__version__ = '0.2.0'
+
 from typing import Union, Tuple
 from sqlalchemy import Engine, Pool
 from pandas import DataFrame

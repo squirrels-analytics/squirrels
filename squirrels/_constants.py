@@ -1,9 +1,6 @@
 # Squirrels CLI commands
 INIT_CMD = 'init'
 LOAD_MODULES_CMD = 'load-modules'
-GET_CREDS_CMD = 'get-all-credentials'
-SET_CRED_CMD = 'set-credential'
-DELETE_CRED_CMD = 'delete-credential'
 TEST_CMD = 'test'
 RUN_CMD = 'run'
 
@@ -78,4 +75,4 @@ PARAMETERS_SECTION = 'parameters'
 
 # Init Command Choices
 FILE_TYPE_CHOICES = ['sql', 'py']
-DATABASE_CHOICES = ['sample_database', 'seattle_weather']
+DATABASE_CHOICES = ['expenses', 'seattle-weather']

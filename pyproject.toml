@@ -1,0 +1,43 @@
+[tool.poetry]
+name = "squirrels"
+version = "0.2.0.dev0"
+description = "Squirrels - API Framework for Data Analytics"
+license = "MIT"
+authors = ["ty2huang <tim.yuting@hotmail.com>"]
+readme = "README.md"
+homepage = "https://squirrels-nest.github.io/squirrels-docs/"
+repository = "https://github.com/squirrels-nest/squirrels"
+documentation = "https://squirrels-nest.github.io/squirrels-docs/"
+classifiers = [
+    "Intended Audience :: Developers",
+    "Topic :: Software Development :: Libraries :: Application Frameworks",
+    "Topic :: Software Development :: Libraries :: Python Modules",
+    "Typing :: Typed",
+]
+
+[tool.poetry.scripts]
+squirrels = "squirrels._command_line:main"
+
+[tool.poetry.dependencies]
+python = "^3.9"
+pyyaml = "*"
+pandas = "*"
+openpyxl = "*"
+sqlalchemy = "*"
+gitpython = "*"
+jinja2 = "*"
+fastapi = "*"
+uvicorn = "*"
+cachetools = "*"
+inquirer = "*"
+python-multipart = "*"
+python-jose = "*"
+cryptography = "*"
+
+
+[tool.poetry.group.test.dependencies]
+pytest = "*"
+
+[build-system]
+requires = ["poetry-core"]
+build-backend = "poetry.core.masonry.api"

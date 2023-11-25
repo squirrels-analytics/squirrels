@@ -19,9 +19,10 @@ def main():
 
     init_parser = subparsers.add_parser(c.INIT_CMD, help='Initialize a squirrels project', add_help=False)
     init_parser.add_argument('-h', '--help', action="help", help="Show this help message and exit")
-    init_parser.add_argument('--overwrite', action='store_true', help="Overwrite files that already exist")
+    init_parser.add_argument('-o', '--overwrite', action='store_true', help="Overwrite files that already exist")
     init_parser.add_argument('--core', action='store_true', help='Include all core files (squirrels.yaml, environcfg.yaml, parameters.py, database view, etc.)')
     init_parser.add_argument('--db-view', type=str, choices=c.FILE_TYPE_CHOICES, help='Create database view as sql (default) or python file. Ignored if "--core" is not specified')
+    init_parser.add_argument('--environcfg', action='store_true', help=f'Include the {c.ENVIRON_CONFIG_FILE} file')
     init_parser.add_argument('--connections', action='store_true', help=f'Include the {c.CONNECTIONS_FILE} file')
     init_parser.add_argument('--context', action='store_true', help=f'Include the {c.CONTEXT_FILE} file')
     init_parser.add_argument('--final-view', type=str, choices=c.FILE_TYPE_CHOICES, help='Include final view as sql or python file')

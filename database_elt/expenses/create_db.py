@@ -11,7 +11,7 @@ df_cat = df_subcat[['Category_ID', 'Category']].drop_duplicates()
 df_subcat = df_subcat.drop('Category', axis=1)
 
 # Connect to SQLite database
-conn = sqlite3.connect('sample_database.db')
+conn = sqlite3.connect('expenses.db')
 try:
     df.to_sql('transactions', conn, index=False, if_exists='replace')
     df_cat.to_sql('categories', conn, index=False, if_exists='replace')

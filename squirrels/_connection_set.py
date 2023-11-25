@@ -73,6 +73,8 @@ class ConnectionSetIO:
         for key, config in connection_configs.items():
             cred_key = config.get(c.DB_CREDENTIALS_KEY)
             username, password = EnvironConfigIO.obj.get_credential(cred_key)
+            if c.URL_KEY not in config or config[c.URL_KEY] is None:
+                raise u.ConfigurationError(f"The db_connection '{key}' is missing attribute '{c.URL_KEY}'")
             url = config[c.URL_KEY].replace("${username}", username).replace("${password}", password)
             connections[key] = create_engine(url)
         

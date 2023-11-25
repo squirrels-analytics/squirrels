@@ -9,7 +9,7 @@ project_variables:
 db_connections:
   default: 
     credential_key: null
-    url: {{ sqlite_conn_str }}
+    url: sqlite://${username}:${password}@/./database/expenses.db # or use {{ sqlite_conn_str }} with the environcfg.yaml file
 
 datasets:
   sample_dataset:
