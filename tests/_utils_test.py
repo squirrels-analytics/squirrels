@@ -10,9 +10,8 @@ from squirrels import _utils as u
 ])
 def test_df_to_json(in_dimensions: Optional[List[str]], out_dimensions: List[str]):
     df = pd.DataFrame({'A': [1.0, 2.0], 'B': ['a', 'b'], 'C': [1, 2]})
-    result = u.df_to_json(df, in_dimensions)
+    result = u.df_to_json0(df, in_dimensions)
     expected = {
-        "response_version": 0,
         "schema": {
             "fields": [
                 {"name": "A", "type": "number"},

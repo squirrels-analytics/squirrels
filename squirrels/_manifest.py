@@ -42,6 +42,9 @@ class _Manifest:
     
     def get_db_connections(self) -> Dict[str, Dict[str, str]]:
         return self._config.get(c.DB_CONNECTIONS_KEY, {})
+    
+    def get_parameters(self) -> List[Dict]: # TOTEST
+        return self._config.get(c.PARAMETERS_KEY, [])
 
     def _get_dataset_parms(self, dataset: str) -> Dict[str, Any]:
         try:
@@ -112,7 +115,7 @@ class _Manifest:
         return scope.strip().lower()
     
     def get_dataset_parameters(self, dataset: str) -> Optional[List[str]]:
-        dataset_params = self._get_dataset_parms(dataset).get(c.PARAMETERS_KEY)
+        dataset_params = self._get_dataset_parms(dataset).get(c.DATASET_PARAMETERS_KEY)
         return dataset_params
     
     def get_dataset_final_view_file(self, dataset: str) -> Union[str, Path]:

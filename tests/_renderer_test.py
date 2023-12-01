@@ -69,9 +69,9 @@ def raw_param_set(manifest, connection_set) -> None:
     ps.ParameterConfigsSetIO.obj._post_process_params(df_dict)
 
 
-def context_main(prms: Dict[str, p.Parameter], *args, **kwargs) -> Dict[str, Any]:
+def context_main(ctx: Dict, prms: Dict[str, p.Parameter], *args, **kwargs) -> Dict[str, Any]:
     city_param: p.MultiSelectParameter = prms["city"]
-    return {"cities": city_param.get_selected_labels_quoted_joined()}
+    ctx["cities"] = city_param.get_selected_labels_quoted_joined()
 
 
 @pytest.fixture(scope="module")
@@ -149,11 +149,11 @@ def test_apply_selections(renderer1: rd.Renderer):
     ordered_dict["limit"] = p.NumberParameter(limit_config, limit_options[0], 0)
     expected = ps.ParameterSet(ordered_dict)
     
-    actual = renderer1.apply_selections({}, None)
+    actual = renderer1.apply_selections(None, {})
     assert actual == expected
 
     ordered_dict["city"]._selected_ids = ('c0',)
-    actual = renderer1.apply_selections({'city': 'c0'}, None)
+    actual = renderer1.apply_selections(None, {'city': 'c0'})
     assert actual == expected
 
 

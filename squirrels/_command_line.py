@@ -21,9 +21,10 @@ def main():
     init_parser.add_argument('-h', '--help', action="help", help="Show this help message and exit")
     init_parser.add_argument('-o', '--overwrite', action='store_true', help="Overwrite files that already exist")
     init_parser.add_argument('--core', action='store_true', help='Include all core files (squirrels.yaml, environcfg.yaml, parameters.py, database view, etc.)')
+    init_parser.add_argument('--connections', type=str, choices=c.CONF_FORMAT_CHOICES, help=f'Configure database connections as yaml (default) or python. Ignored if "--core" is not specified')
+    init_parser.add_argument('--parameters', type=str, choices=c.CONF_FORMAT_CHOICES, help=f'Configure parameters as python (default) or yaml. Ignored if "--core" is not specified')
     init_parser.add_argument('--db-view', type=str, choices=c.FILE_TYPE_CHOICES, help='Create database view as sql (default) or python file. Ignored if "--core" is not specified')
     init_parser.add_argument('--environcfg', action='store_true', help=f'Include the {c.ENVIRON_CONFIG_FILE} file')
-    init_parser.add_argument('--connections', action='store_true', help=f'Include the {c.CONNECTIONS_FILE} file')
     init_parser.add_argument('--context', action='store_true', help=f'Include the {c.CONTEXT_FILE} file')
     init_parser.add_argument('--final-view', type=str, choices=c.FILE_TYPE_CHOICES, help='Include final view as sql or python file')
     init_parser.add_argument('--auth', action='store_true', help=f'Include the {c.AUTH_FILE} file')
@@ -51,7 +52,7 @@ def main():
     timer.verbose = args.verbose
     timer.add_activity_time('parsing arguments', start)
     
-    from ._version import __version__
+    from . import __version__
     from ._api_server import ApiServer
     from ._renderer import RendererIOWrapper
     from ._initializer import Initializer

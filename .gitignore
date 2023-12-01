@@ -10,9 +10,6 @@ venv/
 Pipfile
 Pipfile.lock
 
-# Created by https://www.toptal.com/developers/gitignore/api/pythonvanilla,visualstudiocode
-# Edit at https://www.toptal.com/developers/gitignore?templates=pythonvanilla,visualstudiocode
-
 ### PythonVanilla ###
 # Byte-compiled / optimized / DLL files
 __pycache__/
@@ -82,5 +79,3 @@ __pypackages__/
 # Ignore all local history of files
 .history
 .ionide
-
-# End of https://www.toptal.com/developers/gitignore/api/pythonvanilla,visualstudiocode

@@ -11,7 +11,7 @@ from .sqldf import sqldf
 from .user_base import UserBase, WrongPassword
 
 
-def get_env_var(key: str) -> str:
+def get_env_var(key: str, **kwargs) -> str:
     """
     Gets the environment variable set in .squirrelscfg.yaml
 
@@ -25,7 +25,7 @@ def get_env_var(key: str) -> str:
     return EnvironConfigIO.obj.get_env_var(key)
 
 
-def get_credential(key: str) -> Tuple[str, str]:
+def get_credential(key: str, **kwargs) -> Tuple[str, str]:
     """
     Gets the username and password for credentials set in .squirrelscfg.yaml
 
@@ -39,12 +39,12 @@ def get_credential(key: str) -> Tuple[str, str]:
     return EnvironConfigIO.obj.get_credential(key)
 
 
-def get_connection_pool(conn_name: str = "default") -> Union[Engine, Pool]:
+def get_connection_pool(conn_name: str, **kwargs) -> Union[Engine, Pool]:
     """
     Gets to sqlalchemy Pool or Engine from the database connection name
 
     Parameters:
-        conn_name: Name of Pool or Engine. If not provided, defaults to "default"
+        conn_name: Name of Pool or Engine
     
     Returns:
         A sqlalchemy Pool or Engine
@@ -53,7 +53,7 @@ def get_connection_pool(conn_name: str = "default") -> Union[Engine, Pool]:
     return ConnectionSetIO.obj.get_connection_pool(conn_name)
 
 
-def run_sql_query(query: str, connection_pool: Union[Engine, Pool]) -> DataFrame:
+def run_sql_query(query: str, connection_pool: Union[Engine, Pool], **kwargs) -> DataFrame:
     """
     Runs a SQL query on a database connection name, and returns the results as pandas DataFrame
 

@@ -21,17 +21,12 @@ class ParameterSet:
     def get_parameters_as_dict(self) -> Dict[str, p.Parameter]:
         return self._parameters_dict.copy()
 
-    def to_json_dict(self, *, debug: bool = False) -> Dict:
+    def to_json_dict0(self, *, debug: bool = False) -> Dict:
         parameters = []
         for x in self._parameters_dict.values():
             if not x._config.is_hidden or debug:
-                parameters.append(x.to_json_dict())
-        
-        output = {
-            "response_version": 0, 
-            "parameters": parameters
-        }
-        return output
+                parameters.append(x.to_json_dict0())
+        return {"parameters": parameters}
 
 
 @dataclass
@@ -52,6 +47,18 @@ class _ParameterConfigsSet:
         self._data[param_config.name] = param_config
         if isinstance(param_config, pc.DataSourceParameterConfig):
             self._data_source_params[param_config.name] = param_config
+    
+    def _add_from_dict(self, param_as_dict: Dict) -> None: # TOTEST
+        try:
+            name, ptype_str = param_as_dict["name"], param_as_dict["type"]
+            factory_str, arguments = param_as_dict["factory"], param_as_dict["arguments"]
+        except KeyError as e:
+            raise u.ConfigurationError(f"Each parameter in {c.MANIFEST_FILE} must have 'name', 'type', 'factory', and 'arguments'.")
+        
+        arguments["name"] = name
+        ptype = getattr(p, ptype_str)
+        factory = getattr(ptype, factory_str)
+        factory(**arguments)
     
     def _get_all_ds_param_configs(self) -> Sequence[pc.DataSourceParameterConfig]:
         return list(self._data_source_params.values())
@@ -107,7 +114,8 @@ class _ParameterConfigsSet:
         self.__validate_param_relationships()
     
     def apply_selections(
-        self, dataset_params: Optional[Sequence[str]], selections: Dict[str, str], user: Optional[UserBase], *, updates_only: bool = False
+        self, dataset_params: Optional[Sequence[str]], selections: Dict[str, str], user: Optional[UserBase], 
+        *, updates_only: bool = False, request_version: Optional[int] = None
     ) -> ParameterSet:
         if dataset_params is None:
             dataset_params = self._data.keys()
@@ -167,8 +175,15 @@ class ParameterConfigsSetIO:
     @classmethod
     def LoadFromFile(cls, *, excel_file_name: Optional[str] = None) -> None:
         start = time.time()
+
+        parameters_from_manifest = ManifestIO.obj.get_parameters()
+        for param_as_dict in parameters_from_manifest:
+            cls.obj._add_from_dict(param_as_dict)
+        
         proj_vars = ManifestIO.obj.get_proj_vars()
-        u.run_module_main(c.PARAMETERS_FILE, {"proj": proj_vars})
+        u.run_pyconfig_main(c.PARAMETERS_FILE, {"proj": proj_vars})
+        
         df_dict = cls._GetDfDict(excel_file_name)
         cls.obj._post_process_params(df_dict)
+        
         timer.add_activity_time("loading parameters", start)

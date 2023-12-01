@@ -1,7 +1,7 @@
 from typing import Optional
 import pytest, pandas as pd
 
-from squirrels import data_sources as d, _parameter_configs as pc, parameters as p, parameter_options as po, _utils as u
+from squirrels import data_sources as d, _parameter_configs as pc, parameter_options as po, _utils as u
 
 
 class TestSingleSelectDataSource:
@@ -43,7 +43,7 @@ class TestSingleSelectDataSource:
             'test_is_default': [0, 1, 1]
         })
 
-        ds_param = pc.DataSourceParameterConfig(p.SingleSelectParameter, 'test_param', 'Test Parameter', data_source)
+        ds_param = pc.DataSourceParameterConfig(pc.SingleSelectParameterConfig, 'test_param', 'Test Parameter', data_source)
         param: pc.SingleSelectParameterConfig = ds_param.convert(df)
         param_options = (
             po.SelectParameterOption('0', 'zero', test_field='zerox'),
@@ -53,7 +53,7 @@ class TestSingleSelectDataSource:
         expected = pc.SingleSelectParameterConfig('test_param', 'Test Parameter', param_options)
         assert param == expected
 
-        ds_param = pc.DataSourceParameterConfig(p.SingleSelectParameter, 'test_param', 'Test Parameter', data_source_with_parent,
+        ds_param = pc.DataSourceParameterConfig(pc.SingleSelectParameterConfig, 'test_param', 'Test Parameter', data_source_with_parent,
                                                 parent_name='multi_select_grandparent')
         df['test_parent_id'] = ['gp1', 'gp1', 'gp2']
         param: pc.SingleSelectParameterConfig = ds_param.convert(df)
@@ -65,7 +65,7 @@ class TestSingleSelectDataSource:
         expected = pc.SingleSelectParameterConfig('test_param', 'Test Parameter', param_options, parent_name='multi_select_grandparent')
         assert param == expected
 
-        ds_param = pc.DataSourceParameterConfig(p.SingleSelectParameter, 'test_param', 'Test Parameter', data_source_with_user,
+        ds_param = pc.DataSourceParameterConfig(pc.SingleSelectParameterConfig, 'test_param', 'Test Parameter', data_source_with_user,
                                                 user_attribute='organization')
         df['test_user_group'] = ['org1', 'org2', 'org2']
         param: pc.SingleSelectParameterConfig = ds_param.convert(df)
@@ -78,7 +78,7 @@ class TestSingleSelectDataSource:
         assert param == expected
     
     def test_invalid_column_names(self, data_source: d.SingleSelectDataSource):
-        ds_param = pc.DataSourceParameterConfig(p.SingleSelectParameter, 'test_param', 'Test Parameter', data_source)
+        ds_param = pc.DataSourceParameterConfig(pc.SingleSelectParameterConfig, 'test_param', 'Test Parameter', data_source)
         df = pd.DataFrame({
             'invalid_name': ['0', '1', '2'],
             'test_options': ['zero', 'one', 'two'],
@@ -109,7 +109,7 @@ class TestMultiSelectDataSource:
             'test_parent_id': ['0', '0', '1', '1']
         })
 
-        ds_param = pc.DataSourceParameterConfig(p.MultiSelectParameter, 'name', 'Label', data_source)
+        ds_param = pc.DataSourceParameterConfig(pc.MultiSelectParameterConfig, 'name', 'Label', data_source)
         param: pc.MultiSelectParameterConfig = ds_param.convert(df)
         param_options = [
             po.SelectParameterOption('0', 'zero', parent_option_ids=['0']),
@@ -123,15 +123,14 @@ class TestMultiSelectDataSource:
 class TestDateDataSource:
     @pytest.fixture(scope="class")
     def data_source(self) -> d.DateDataSource:
-        return d.DateDataSource('table', 'test_id', 'test_date')
+        return d.DateDataSource('table', 'test_date')
 
     def test_convert(self, data_source: d.DateDataSource):
         df = pd.DataFrame({
-            'test_id': ['0', '1'], 
             'test_date': ['2022-01-01', '2022-02-01']
         })
 
-        ds_param = pc.DataSourceParameterConfig(p.DateParameter, 'name', 'Label', data_source)
+        ds_param = pc.DataSourceParameterConfig(pc.DateParameterConfig, 'name', 'Label', data_source)
         param: pc.DateParameterConfig = ds_param.convert(df)
         param_options = [po.DateParameterOption('2022-01-01'), po.DateParameterOption('2022-02-01')]
         expected = pc.DateParameterConfig('name', 'Label', param_options)
@@ -141,16 +140,15 @@ class TestDateDataSource:
 class TestDateRangeDataSource:
     @pytest.fixture(scope="class")
     def data_source(self) -> d.DateRangeDataSource:
-        return d.DateRangeDataSource('table', 'test_id', 'test_start_date', 'test_end_date')
+        return d.DateRangeDataSource('table', 'test_start_date', 'test_end_date')
 
     def test_convert(self, data_source: d.DateDataSource):
         df = pd.DataFrame({
-            'test_id': ['0', '1'],
             'test_start_date': ['2023-01-01', '2023-02-01'],
             'test_end_date': ['2023-04-01', '2023-03-01'],
         })
 
-        ds_param = pc.DataSourceParameterConfig(p.DateRangeParameter, 'name', 'Label', data_source)
+        ds_param = pc.DataSourceParameterConfig(pc.DateRangeParameterConfig, 'name', 'Label', data_source)
         param: pc.DateRangeParameterConfig = ds_param.convert(df)
         param_options = [
             po.DateRangeParameterOption('2023-01-01', '2023-04-01'), 
@@ -163,11 +161,11 @@ class TestDateRangeDataSource:
 class TestNumberDataSource:
     @pytest.fixture(scope="class")
     def data_source(self) -> d.NumberDataSource:
-        return d.NumberDataSource('table', 'test_id', 'test_min', 'test_max', default_value_col='test_default')
+        return d.NumberDataSource('table', 'test_min', 'test_max', default_value_col='test_default')
 
     def test_convert(self, data_source: d.NumberDataSource):
-        df = pd.DataFrame([{ 'test_id': 0, 'test_min': 0, 'test_max': 10, 'test_default': 2 }])
-        ds_param = pc.DataSourceParameterConfig(p.NumberParameter, 'name', 'Label', data_source)
+        df = pd.DataFrame([{ 'test_min': 0, 'test_max': 10, 'test_default': 2 }])
+        ds_param = pc.DataSourceParameterConfig(pc.NumberParameterConfig, 'name', 'Label', data_source)
         param: pc.NumberParameterConfig = ds_param.convert(df)
         param_options = [po.NumberParameterOption(0, 10, default_value=2)]
         expected = pc.NumberParameterConfig('name', 'Label', param_options)
@@ -177,9 +175,9 @@ class TestNumberDataSource:
 class TestNumRangeDataSource:
     @pytest.fixture(scope="class")
     def data_source(self) -> d.NumRangeDataSource:
-        return d.NumRangeDataSource('table', 'test_id', 'test_min', 'test_max', increment_col='test_increment', 
+        return d.NumRangeDataSource('table', 'test_min', 'test_max', increment_col='test_increment', 
                                     default_lower_value_col='test_default_lower', default_upper_value_col='test_default_upper',
-                                    parent_id_col='test_parent_id', user_group_col='test_user_group')
+                                    id_col='test_id', parent_id_col='test_parent_id', user_group_col='test_user_group')
 
     def test_convert(self, data_source: d.NumRangeDataSource):
         df = pd.DataFrame([
@@ -193,7 +191,7 @@ class TestNumRangeDataSource:
             }
         ])
 
-        ds_param = pc.DataSourceParameterConfig(p.NumRangeParameter, 'name', 'Label', data_source)
+        ds_param = pc.DataSourceParameterConfig(pc.NumRangeParameterConfig, 'name', 'Label', data_source)
         param: pc.NumRangeParameterConfig = ds_param.convert(df)
         param_options = [
             po.NumRangeParameterOption(0, 10, increment=2, default_lower_value=4, default_upper_value=8, 

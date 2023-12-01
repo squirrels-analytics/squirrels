@@ -1,0 +1,108 @@
+parameters:
+  - name: group_by
+    type: SingleSelectParameter
+    factory: Create               ## one of 'Create', 'CreateSimple', or 'CreateFromSource'
+    arguments:                    ## arguments to specify depend on values for 'type' and 'factory'
+      label: Group By
+      all_options:
+        - id: g0
+          label: Transaction
+          columns: [ID, Date]     ## custom field
+          is_default: false       ## optional, default, exists for SingleSelect or MultiSelect options only
+          user_groups: []         ## optional, default, exists for all parameter options
+          parent_option_ids: []   ## optional, default, exists for all parameter options
+        - id: g1
+          label: Date
+          columns: [Date]
+        - id: g2
+          label: Category
+          columns: [Category]
+        - id: g3
+          label: Subcategory
+          columns: [Category, Subcategory]
+      is_hidden: false            ## optional, default, exists for all parameter types
+      user_attribute: null        ## optional, default, exists for all parameter types
+      parent_name: null           ## optional, default, exists for all parameter types
+  - name: start_date
+    type: DateParameter
+    factory: Create
+    arguments:
+      label: Start Date
+      all_options:
+        - default_date: 2023-01-01
+          date_format: '%Y-%m-%d' ## optional, default, format comes from python datetime, exists for Date and DateRange parameter options
+  - name: end_date
+    type: DateParameter
+    factory: Create
+    arguments:
+      label: End Date
+      all_options:
+        - default_date: 2023-12-31
+  - name: date_range
+    type: DateRangeParameter
+    factory: Create
+    arguments:
+      label: Date Range
+      all_options:
+        - default_start_date: 2023-01-01
+          default_end_date: 2023-12-31
+  - name: category
+    type: MultiSelectParameter
+    factory: CreateFromSource
+    arguments:
+      label: Category Filter
+      data_source:
+        table_or_query: categories
+        id_col: Category_ID
+        options_col: Category
+        order_by_col: null        ## optional, default, exists for SingleSelect and MultiSelect
+        is_default_col: null      ## optional, default, exists for SingleSelect and MultiSelect
+        custom_cols: {}           ## optional, default, exists for SingleSelect and MultiSelect
+        include_all: true         ## optional, default, exists for MultiSelect only
+        order_matters: false      ## optional, default, exists for MultiSelect only
+        user_group_col: null      ## optional, default, exists for all parameters
+        connection_name: default  ## optional, default, exists for all parameters
+  - name: subcategory
+    type: MultiSelectParameter
+    factory: CreateFromSource
+    arguments:
+      label: Subcategory Filter
+      data_source:
+        table_or_query: subcategories
+        id_col: Subcategory_ID
+        options_col: Subcategory
+        parent_id_col: Category_ID  ## optional, default is null, exists for all parameter types
+      parent_name: category
+  - name: min_filter
+    type: NumberParameter
+    factory: Create
+    arguments:
+      label: Amounts Greater Than
+      all_options:
+        - min_value: 0
+          max_value: 500
+          increment: 1            ## optional, default, exists for Number and NumRange options
+          default_value: null     ## optional, default, exists for Number options only
+  - name: max_filter
+    type: NumberParameter
+    factory: CreateFromSource
+    arguments:
+      label: Amounts Less Than
+      data_source:
+        table_or_query: "SELECT 0 as min_value, max(-Amount) as max_value, 10 as increment FROM transactions WHERE Category <> 'Income'"
+        min_value_col: min_value
+        max_value_col: max_value
+        increment_col: increment      ## optional, default is null
+        default_value_col: max_value  ## optional, default is null
+        id_col: null                  ## optional, default, required for SingleSelect and MultiSelect, optional for all others
+  - name: between_filter
+    type: NumRangeParameter
+    factory: Create
+    arguments:
+      label: Amounts Between
+      all_options:
+        - min_value: 0
+          max_value: 500
+          default_lower_value: 10   ## optional, default is null (or min_value), exists for NumRange options only
+          default_upper_value: 400  ## optional, default is null (or max_value), exists for NumRange options only
+
