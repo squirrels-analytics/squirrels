@@ -1,7 +1,7 @@
 from __future__ import annotations
-from typing import Dict, Sequence, Optional, Union, Any
+from typing import Type, Dict, Sequence, Optional, Union, Any
 from dataclasses import dataclass
-from datetime import datetime
+from datetime import datetime, date
 from decimal import Decimal
 from abc import ABCMeta, abstractmethod
 
@@ -14,11 +14,42 @@ class Parameter(metaclass=ABCMeta):
     Abstract class for all parameter widgets
     """
     _config: pc.ParameterConfig
+
+    @staticmethod
+    @abstractmethod
+    def _ParameterConfigType() -> Type:
+        pass
+    
+    @classmethod
+    def Create(
+        cls, name: str, label: str, all_options: Sequence[Union[po.ParameterOption, Dict]], *, is_hidden: bool = False, 
+        user_attribute: Optional[str] = None, parent_name: Optional[str] = None, **kwargs
+    ) -> None:
+        """
+        Method for creating the configurations for a Parameter that may include user attribute or parent
+
+        Parameters:
+            name: The name of the parameter
+            label: The display label for the parameter
+            all_options: All options associated to this parameter regardless of the user group or parent parameter option they depend on
+            is_hidden: Whether the parameter is hidden in the parameters API response. Default is False
+            user_attribute: The user attribute that may cascade the options for this parameter. Default is None
+            parent_name: Name of parent parameter that may cascade the options for this parameter. Default is None (no parent)
+        """
+        param_config_type = cls._ParameterConfigType()
+        param_config = param_config_type(name, label, all_options, is_hidden=is_hidden, user_attribute=user_attribute, 
+                                         parent_name=parent_name, **kwargs)
+        ps.ParameterConfigsSetIO.obj.add(param_config)
+
+    @classmethod
+    @abstractmethod
+    def CreateSimple(cls, name: str, label: str, *args, is_hidden: bool = False, **kwargs) -> None:
+        pass
     
     @classmethod
     def CreateFromSource(
-        cls, name: str, label: str, data_source: d.DataSource, *, is_hidden: bool = False, user_attribute: Optional[str] = None, 
-        parent_name: Optional[str] = None
+        cls, name: str, label: str, data_source: Union[d.DataSource , Dict], *, is_hidden: bool = False, 
+        user_attribute: Optional[str] = None, parent_name: Optional[str] = None, **kwargs
     ) -> None:
         """
         Method for creating the configurations for any Parameter that uses a DataSource to received the options
@@ -31,16 +62,17 @@ class Parameter(metaclass=ABCMeta):
             user_attribute: The user attribute that may cascade the options for this parameter. Default is None
             parent_name: Name of parent parameter that may cascade the options for this parameter. Default is None (no parent)
         """
-        param_config = pc.DataSourceParameterConfig(cls, name, label, data_source, is_hidden=is_hidden, user_attribute=user_attribute, 
-                                                    parent_name=parent_name)
+        param_config_type = cls._ParameterConfigType()
+        param_config = pc.DataSourceParameterConfig(param_config_type, name, label, data_source, is_hidden=is_hidden, 
+                                                    user_attribute=user_attribute, parent_name=parent_name)
         ps.ParameterConfigsSetIO.obj.add(param_config)
         
     def _enquote(self, value: str) -> str:
         return "'" + value.replace("'", "''") + "'" 
     
-    def _validate_date(self, input_date: str) -> datetime:
+    def _validate_date(self, input_date: str) -> date:
         try:
-            return datetime.strptime(input_date.strip(), "%Y-%m-%d") if isinstance(input_date, str) else input_date
+            return datetime.strptime(input_date.strip(), "%Y-%m-%d").date() if isinstance(input_date, str) else input_date
         except ValueError as e:
             self._config._raise_invalid_input_error(input_date, 'Invalid selection for date.', e)
     
@@ -51,11 +83,11 @@ class Parameter(metaclass=ABCMeta):
             self._config._raise_invalid_input_error(input_number, 'Invalid selection for number.', e)
     
     @abstractmethod
-    def to_json_dict(self) -> Dict:
+    def to_json_dict0(self) -> Dict:
         """
         Helper method to convert the derived Parameter class into a JSON dictionary
         """
-        return self._config.to_json_dict()
+        return self._config.to_json_dict0()
 
 
 @dataclass
@@ -73,13 +105,13 @@ class _SelectionParameter(Parameter):
     def _validate_selected_id_in_options(self, selected_id):
         if selected_id not in (x._identifier for x in self._options):
             self._config._raise_invalid_input_error(selected_id)
-
+    
     @abstractmethod
-    def to_json_dict(self):
+    def to_json_dict0(self):
         """
         Helper method to convert the derived selection parameter class into a JSON object
         """
-        output = super().to_json_dict()
+        output = super().to_json_dict0()
         output['options'] = [x._to_json_dict() for x in self._options]
         return output
 
@@ -106,27 +138,13 @@ class SingleSelectParameter(_SelectionParameter):
             self._selected_id = None
     
     @staticmethod
-    def Create(
-        name: str, label: str, all_options: Sequence[po.SelectParameterOption], *, is_hidden: bool = False, 
-        user_attribute: Optional[str] = None, parent_name: Optional[str] = None
-    ) -> None:
-        """
-        Method for creating the configurations for a Parameter that may include user attribute or parent
-
-        Parameters:
-            name: The name of the parameter
-            label: The display label for the parameter
-            all_options: All options associated to this parameter regardless of the user group or parent parameter option they depend on
-            is_hidden: Whether the parameter is hidden in the parameters API response. Default is False
-            user_attribute: The user attribute that may cascade the options for this parameter. Default is None
-            parent_name: Name of parent parameter that may cascade the options for this parameter. Default is None (no parent)
-        """
-        param_config = pc.SingleSelectParameterConfig(name, label, all_options, is_hidden=is_hidden, user_attribute=user_attribute, 
-                                                      parent_name=parent_name)
-        ps.ParameterConfigsSetIO.obj.add(param_config)
+    def _ParameterConfigType():
+        return pc.SingleSelectParameterConfig
     
     @classmethod
-    def CreateSimple(cls, name: str, label: str, all_options: Sequence[po.SelectParameterOption], *, is_hidden: bool = False) -> None:
+    def CreateSimple(
+        cls, name: str, label: str, all_options: Sequence[po.SelectParameterOption], *, is_hidden: bool = False, **kwargs
+    ) -> None:
         """
         Method for creating the configurations for a Parameter that doesn't involve user attributes or parent parameters
 
@@ -137,9 +155,9 @@ class SingleSelectParameter(_SelectionParameter):
             is_hidden: Whether the parameter is hidden in the parameters API response. Default is False
         """
         cls.Create(name, label, all_options, is_hidden=is_hidden)
-    
+
     def get_selected(
-        self, field: Optional[str] = None, *, default_field: Optional[str] = None, default: Any = None
+        self, field: Optional[str] = None, *, default_field: Optional[str] = None, default: Any = None, **kwargs
     ) -> Union[po.SelectParameterOption, Any, None]:
         """
         Gets the selected single-select option or selected custom field
@@ -162,7 +180,7 @@ class SingleSelectParameter(_SelectionParameter):
             return selected
         return u.process_if_not_none(self._selected_id, get_selected_from_id)
     
-    def get_selected_id(self) -> Optional[str]:
+    def get_selected_id(self, **kwargs) -> Optional[str]:
         """
         Gets the ID of the selected option
 
@@ -172,7 +190,7 @@ class SingleSelectParameter(_SelectionParameter):
         def get_id(x: po.SelectParameterOption): return x._identifier
         return u.process_if_not_none(self.get_selected(), get_id)
     
-    def get_selected_id_quoted(self) -> Optional[str]:
+    def get_selected_id_quoted(self, **kwargs) -> Optional[str]:
         """
         Gets the ID of the selected option surrounded by single quotes
 
@@ -181,7 +199,7 @@ class SingleSelectParameter(_SelectionParameter):
         """
         return u.process_if_not_none(self.get_selected_id(), self._enquote)
     
-    def get_selected_label(self) -> Optional[str]:
+    def get_selected_label(self, **kwargs) -> Optional[str]:
         """
         Gets the label of the selected option
 
@@ -191,7 +209,7 @@ class SingleSelectParameter(_SelectionParameter):
         def get_label(x: po.SelectParameterOption): return x._label
         return u.process_if_not_none(self.get_selected(), get_label)
     
-    def get_selected_label_quoted(self) -> Optional[str]:
+    def get_selected_label_quoted(self, **kwargs) -> Optional[str]:
         """
         Gets the label of the selected option surrounded by single quotes
 
@@ -206,15 +224,15 @@ class SingleSelectParameter(_SelectionParameter):
             return (self.get_selected_id(),)
         else:
             return tuple()
-
-    def to_json_dict(self) -> Dict:
+    
+    def to_json_dict0(self) -> Dict:
         """
         Converts this parameter as a JSON object for the parameters API response
 
         Returns:
             A dictionary for the JSON object
         """
-        output = super().to_json_dict()
+        output = super().to_json_dict0()
         output['selected_id'] = self._selected_id
         return output
 
@@ -239,9 +257,14 @@ class MultiSelectParameter(_SelectionParameter):
             self._validate_selected_id_in_options(selected_id)
     
     @staticmethod
+    def _ParameterConfigType():
+        return pc.MultiSelectParameterConfig
+    
+    @classmethod
     def Create(
-        name: str, label: str, all_options: Sequence[po.SelectParameterOption], *, include_all: bool = True, order_matters: bool = False, 
-        is_hidden: bool = False, user_attribute: Optional[str] = None, parent_name: Optional[str] = None
+        cls, name: str, label: str, all_options: Sequence[Union[po.SelectParameterOption, Dict]], *, include_all: bool = True, 
+        order_matters: bool = False, is_hidden: bool = False, user_attribute: Optional[str] = None, parent_name: Optional[str] = None, 
+        **kwargs
     ) -> None:
         """
         Method for creating the configurations for a Parameter that may include user attribute or parent
@@ -256,14 +279,13 @@ class MultiSelectParameter(_SelectionParameter):
             user_attribute: The user attribute that may cascade the options for this parameter. Default is None
             parent_name: Name of parent parameter that may cascade the options for this parameter. Default is None (no parent)
         """
-        param_config = pc.MultiSelectParameterConfig(name, label, all_options, include_all=include_all, order_matters=order_matters, 
-                                                     is_hidden=is_hidden, user_attribute=user_attribute, parent_name=parent_name)
-        ps.ParameterConfigsSetIO.obj.add(param_config)
+        super(cls, cls).Create(name, label, all_options, include_all=include_all, order_matters=order_matters, is_hidden=is_hidden, 
+                               user_attribute=user_attribute, parent_name=parent_name)
 
     @classmethod
     def CreateSimple(
         cls, name: str, label: str, all_options: Sequence[po.SelectParameterOption], *, include_all: bool = True, 
-        order_matters: bool = False, is_hidden: bool = False
+        order_matters: bool = False, is_hidden: bool = False, **kwargs
     ) -> None:
         """
         Method for creating the configurations for a Parameter that doesn't involve user attributes or parent parameters
@@ -277,7 +299,7 @@ class MultiSelectParameter(_SelectionParameter):
             is_hidden: Whether the parameter is hidden in the parameters API response. Default is False
         """
         cls.Create(name, label, all_options, include_all=include_all, order_matters=order_matters, is_hidden=is_hidden)
-    
+
     def has_non_empty_selection(self) -> bool:
         """
         Returns True if more than zero options were selected. False otherwise.
@@ -290,8 +312,9 @@ class MultiSelectParameter(_SelectionParameter):
         """
         return len(self._selected_ids) > 0
 
-    def get_selected_list(self, field: Optional[str] = None, *, default_field: Optional[str] = None,
-                          default: Any = None) -> Sequence[Union[po.SelectParameterOption, Any]]:
+    def get_selected_list(
+        self, field: Optional[str] = None, *, default_field: Optional[str] = None, default: Any = None, **kwargs
+    ) -> Sequence[Union[po.SelectParameterOption, Any]]:
         """
         Gets the sequence of the selected option(s) or a sequence of selected custom fields
 
@@ -316,7 +339,7 @@ class MultiSelectParameter(_SelectionParameter):
         
         return tuple(selected_list)
 
-    def get_selected_ids_as_list(self) -> Sequence[str]:
+    def get_selected_ids_as_list(self, **kwargs) -> Sequence[str]:
         """
         Gets the sequence of ID(s) of the selected option(s)
 
@@ -325,7 +348,7 @@ class MultiSelectParameter(_SelectionParameter):
         """
         return tuple(x._identifier for x in self.get_selected_list())
     
-    def get_selected_ids_joined(self) -> str:
+    def get_selected_ids_joined(self, **kwargs) -> str:
         """
         Gets the ID(s) of the selected option(s) joined by comma
 
@@ -334,7 +357,7 @@ class MultiSelectParameter(_SelectionParameter):
         """
         return ','.join(self.get_selected_ids_as_list())
     
-    def get_selected_ids_quoted_as_list(self) -> Sequence[str]:
+    def get_selected_ids_quoted_as_list(self, **kwargs) -> Sequence[str]:
         """
         Gets the sequence of ID(s) of the selected option(s) surrounded by single quotes
 
@@ -343,7 +366,7 @@ class MultiSelectParameter(_SelectionParameter):
         """
         return tuple(self._enquote(x) for x in self.get_selected_ids_as_list())
     
-    def get_selected_ids_quoted_joined(self) -> str:
+    def get_selected_ids_quoted_joined(self, **kwargs) -> str:
         """
         Gets the ID(s) of the selected option(s) surrounded by single quotes and joined by comma
 
@@ -352,7 +375,7 @@ class MultiSelectParameter(_SelectionParameter):
         """
         return ','.join(self.get_selected_ids_quoted_as_list())
     
-    def get_selected_labels_as_list(self) -> Sequence[str]:
+    def get_selected_labels_as_list(self, **kwargs) -> Sequence[str]:
         """
         Gets the sequence of label(s) of the selected option(s)
 
@@ -361,7 +384,7 @@ class MultiSelectParameter(_SelectionParameter):
         """
         return tuple(x._label for x in self.get_selected_list())
     
-    def get_selected_labels_joined(self) -> str:
+    def get_selected_labels_joined(self, **kwargs) -> str:
         """
         Gets the label(s) of the selected option(s) joined by comma
 
@@ -370,7 +393,7 @@ class MultiSelectParameter(_SelectionParameter):
         """
         return ','.join(self.get_selected_labels_as_list())
     
-    def get_selected_labels_quoted_as_list(self) -> Sequence[str]:
+    def get_selected_labels_quoted_as_list(self, **kwargs) -> Sequence[str]:
         """
         Gets the sequence of label(s) of the selected option(s) surrounded by single quotes
 
@@ -379,7 +402,7 @@ class MultiSelectParameter(_SelectionParameter):
         """
         return tuple(self._enquote(x) for x in self.get_selected_labels_as_list())
     
-    def get_selected_labels_quoted_joined(self) -> str:
+    def get_selected_labels_quoted_joined(self, **kwargs) -> str:
         """
         Gets the label(s) of the selected option(s) surrounded by single quotes and joined by comma
 
@@ -388,17 +411,17 @@ class MultiSelectParameter(_SelectionParameter):
         """
         return ','.join(self.get_selected_labels_quoted_as_list())
 
-    def _get_selected_ids_as_list(self) -> Sequence[str]:
+    def _get_selected_ids_as_list(self, **kwargs) -> Sequence[str]:
         return self.get_selected_ids_as_list()
     
-    def to_json_dict(self):
+    def to_json_dict0(self):
         """
         Converts this parameter as a JSON object for the parameters API response
 
         Returns:
             A dictionary for the JSON object
         """
-        output = super().to_json_dict()
+        output = super().to_json_dict0()
         output['selected_ids'] = list(self._selected_ids)
         return output
 
@@ -414,34 +437,18 @@ class DateParameter(Parameter):
         selected_date: The selected date
     """
     _curr_option: po.DateParameterOption
-    _selected_date: Union[datetime, str]
+    _selected_date: Union[date, str]
 
     def __post_init__(self):
-        self._selected_date: datetime = self._validate_date(self._selected_date)
+        self._selected_date: date = self._validate_date(self._selected_date)
     
     @staticmethod
-    def Create(
-        name: str, label: str, all_options: Sequence[po.DateParameterOption], *, is_hidden: bool = False, 
-        user_attribute: Optional[str] = None, parent_name: Optional[str] = None
-    ) -> None:
-        """
-        Method for creating the configurations for a Parameter that may include user attribute or parent
-
-        Parameters:
-            name: The name of the parameter
-            label: The display label for the parameter
-            all_options: All options associated to this parameter regardless of the user group or parent parameter option they depend on
-            is_hidden: Whether the parameter is hidden in the parameters API response. Default is False
-            user_attribute: The user attribute that may cascade the options for this parameter. Default is None
-            parent_name: Name of parent parameter that may cascade the options for this parameter. Default is None (no parent)
-        """
-        param_config = pc.DateParameterConfig(name, label, all_options, is_hidden=is_hidden, user_attribute=user_attribute, 
-                                              parent_name=parent_name)
-        ps.ParameterConfigsSetIO.obj.add(param_config)
+    def _ParameterConfigType():
+        return pc.DateParameterConfig
 
     @classmethod
     def CreateSimple(
-        cls, name: str, label: str, default_date: Union[str, datetime], *, date_format: str = '%Y-%m-%d', is_hidden: bool = False
+        cls, name: str, label: str, default_date: Union[str, date], *, date_format: str = '%Y-%m-%d', is_hidden: bool = False, **kwargs
     ) -> None:
         """
         Method for creating the configurations for a Parameter that doesn't involve user attributes or parent parameters
@@ -456,7 +463,7 @@ class DateParameter(Parameter):
         single_param_option = po.DateParameterOption(default_date, date_format=date_format)
         cls.Create(name, label, (single_param_option,), is_hidden=is_hidden)
     
-    def get_selected_date(self, date_format: str = None) -> str:
+    def get_selected_date(self, *, date_format: str = None, **kwargs) -> str:
         """
         Gets selected date as string
 
@@ -469,7 +476,7 @@ class DateParameter(Parameter):
         date_format = self._curr_option._date_format if date_format is None else date_format
         return self._selected_date.strftime(date_format)
 
-    def get_selected_date_quoted(self, date_format: str = None) -> str:
+    def get_selected_date_quoted(self, *, date_format: str = None, **kwargs) -> str:
         """
         Gets selected date as string surrounded by single quotes
 
@@ -479,9 +486,9 @@ class DateParameter(Parameter):
         Returns:
             A string
         """
-        return self._enquote(self.get_selected_date(date_format))
+        return self._enquote(self.get_selected_date(date_format=date_format))
     
-    def to_json_dict(self):
+    def to_json_dict0(self):
         """
         Converts this parameter as a JSON object for the parameters API response
 
@@ -490,9 +497,9 @@ class DateParameter(Parameter):
         Returns:
             A dictionary for the JSON object
         """
-        output = super().to_json_dict()
+        output = super().to_json_dict0()
         output.update(self._curr_option._to_json_dict())
-        output['selected_date'] = self.get_selected_date("%Y-%m-%d")
+        output['selected_date'] = self.get_selected_date(date_format="%Y-%m-%d")
         return output
 
 
@@ -508,37 +515,21 @@ class DateRangeParameter(Parameter):
         selected_end_date: The selected end date
     """
     _curr_option: po.DateRangeParameterOption
-    _selected_start_date: Union[datetime, str]
-    _selected_end_date: Union[datetime, str]
+    _selected_start_date: Union[date, str]
+    _selected_end_date: Union[date, str]
 
     def __post_init__(self):
-        self._selected_start_date: datetime = self._validate_date(self._selected_start_date)
-        self._selected_end_date: datetime = self._validate_date(self._selected_end_date)
+        self._selected_start_date: date = self._validate_date(self._selected_start_date)
+        self._selected_end_date: date = self._validate_date(self._selected_end_date)
     
     @staticmethod
-    def Create(
-        name: str, label: str, all_options: Sequence[po.DateRangeParameterOption], *, is_hidden: bool = False, 
-        user_attribute: Optional[str] = None, parent_name: Optional[str] = None
-    ) -> None:
-        """
-        Method for creating the configurations for a Parameter that may include user attribute or parent
-
-        Parameters:
-            name: The name of the parameter
-            label: The display label for the parameter
-            all_options: All options associated to this parameter regardless of the user group or parent parameter option they depend on
-            is_hidden: Whether the parameter is hidden in the parameters API response. Default is False
-            user_attribute: The user attribute that may cascade the options for this parameter. Default is None
-            parent_name: Name of parent parameter that may cascade the options for this parameter. Default is None (no parent)
-        """
-        param_config = pc.DateRangeParameterConfig(name, label, all_options, is_hidden=is_hidden, user_attribute=user_attribute, 
-                                                   parent_name=parent_name)
-        ps.ParameterConfigsSetIO.obj.add(param_config)
+    def _ParameterConfigType():
+        return pc.DateRangeParameterConfig
 
     @classmethod
     def CreateSimple(
-        cls, name: str, label: str, default_start_date: Union[str, datetime], default_end_date: Union[str, datetime], 
-        *, date_format: str = '%Y-%m-%d', is_hidden: bool = False
+        cls, name: str, label: str, default_start_date: Union[str, date], default_end_date: Union[str, date], 
+        *, date_format: str = '%Y-%m-%d', is_hidden: bool = False, **kwargs
     ) -> None:
         """
         Method for creating the configurations for a Parameter that doesn't involve user attributes or parent parameters
@@ -554,7 +545,7 @@ class DateRangeParameter(Parameter):
         single_param_option = po.DateRangeParameterOption(default_start_date, default_end_date, date_format=date_format)
         cls.Create(name, label, (single_param_option,), is_hidden=is_hidden)
     
-    def get_selected_start_date(self, date_format: str = None) -> str:
+    def get_selected_start_date(self, *, date_format: str = None, **kwargs) -> str:
         """
         Gets selected start date as string
 
@@ -567,7 +558,7 @@ class DateRangeParameter(Parameter):
         date_format = self._curr_option._date_format if date_format is None else date_format
         return self._selected_start_date.strftime(date_format)
 
-    def get_selected_start_date_quoted(self, date_format: str = None) -> str:
+    def get_selected_start_date_quoted(self, *, date_format: str = None, **kwargs) -> str:
         """
         Gets selected start date as string surrounded by single quotes
 
@@ -577,9 +568,9 @@ class DateRangeParameter(Parameter):
         Returns:
             A string
         """
-        return self._enquote(self.get_selected_start_date(date_format))
+        return self._enquote(self.get_selected_start_date(date_format=date_format))
     
-    def get_selected_end_date(self, date_format: str = None) -> str:
+    def get_selected_end_date(self, *, date_format: str = None, **kwargs) -> str:
         """
         Gets selected end date as string
 
@@ -592,7 +583,7 @@ class DateRangeParameter(Parameter):
         date_format = self._curr_option._date_format if date_format is None else date_format
         return self._selected_end_date.strftime(date_format)
 
-    def get_selected_end_date_quoted(self, date_format: str = None) -> str:
+    def get_selected_end_date_quoted(self, *, date_format: str = None, **kwargs) -> str:
         """
         Gets selected end date as string surrounded by single quotes
 
@@ -602,9 +593,9 @@ class DateRangeParameter(Parameter):
         Returns:
             A string
         """
-        return self._enquote(self.get_selected_end_date(date_format))
+        return self._enquote(self.get_selected_end_date(date_format=date_format))
     
-    def to_json_dict(self):
+    def to_json_dict0(self):
         """
         Converts this parameter as a JSON object for the parameters API response
 
@@ -613,10 +604,10 @@ class DateRangeParameter(Parameter):
         Returns:
             A dictionary for the JSON object
         """
-        output = super().to_json_dict()
+        output = super().to_json_dict0()
         output.update(self._curr_option._to_json_dict())
-        output['selected_start_date'] = self.get_selected_start_date("%Y-%m-%d")
-        output['selected_end_date'] = self.get_selected_end_date("%Y-%m-%d")
+        output['selected_start_date'] = self.get_selected_start_date(date_format="%Y-%m-%d")
+        output['selected_end_date'] = self.get_selected_end_date(date_format="%Y-%m-%d")
         return output
 
 
@@ -637,29 +628,13 @@ class NumberParameter(Parameter):
         self._selected_value: Decimal = self._validate_number(self._selected_value, self._curr_option)
     
     @staticmethod
-    def Create(
-        name: str, label: str, all_options: Sequence[po.NumberParameterOption], *, is_hidden: bool = False, 
-        user_attribute: Optional[str] = None, parent_name: Optional[str] = None
-    ) -> None:
-        """
-        Method for creating the configurations for a Parameter that may include user attribute or parent
-
-        Parameters:
-            name: The name of the parameter
-            label: The display label for the parameter
-            all_options: All options associated to this parameter regardless of the user group or parent parameter option they depend on
-            is_hidden: Whether the parameter is hidden in the parameters API response. Default is False
-            user_attribute: The user attribute that may cascade the options for this parameter. Default is None
-            parent_name: Name of parent parameter that may cascade the options for this parameter. Default is None (no parent)
-        """
-        param_config = pc.NumberParameterConfig(name, label, all_options, is_hidden=is_hidden, user_attribute=user_attribute, 
-                                                parent_name=parent_name)
-        ps.ParameterConfigsSetIO.obj.add(param_config)
+    def _ParameterConfigType():
+        return pc.NumberParameterConfig
 
     @classmethod
     def CreateSimple(
         cls, name: str, label: str, min_value: po.Number, max_value: po.Number, *, increment: po.Number = 1, 
-        default_value: Optional[po.Number] = None, is_hidden: bool = False
+        default_value: Optional[po.Number] = None, is_hidden: bool = False, **kwargs
     ) -> None:
         """
         Method for creating the configurations for a Parameter that doesn't involve user attributes or parent parameters
@@ -678,7 +653,7 @@ class NumberParameter(Parameter):
         single_param_option = po.NumberParameterOption(min_value, max_value, increment=increment, default_value=default_value)
         cls.Create(name, label, (single_param_option,), is_hidden=is_hidden)
     
-    def get_selected_value(self) -> str:
+    def get_selected_value(self, **kwargs) -> str:
         """
         Get the selected number
 
@@ -687,14 +662,14 @@ class NumberParameter(Parameter):
         """
         return str(self._selected_value)
         
-    def to_json_dict(self):
+    def to_json_dict0(self):
         """
         Converts this parameter as a JSON object for the parameters API response
 
         Returns:
             A dictionary for the JSON object
         """
-        output = super().to_json_dict()
+        output = super().to_json_dict0()
         output.update(self._curr_option._to_json_dict())
         output['selected_value'] = self.get_selected_value()
         return output
@@ -720,29 +695,13 @@ class NumRangeParameter(Parameter):
         self._selected_upper_value: Decimal = self._validate_number(self._selected_upper_value, self._curr_option)
     
     @staticmethod
-    def Create(
-        name: str, label: str, all_options: Sequence[po.NumRangeParameterOption], *, is_hidden: bool = False, 
-        user_attribute: Optional[str] = None, parent_name: Optional[str] = None
-    ) -> None:
-        """
-        Method for creating the configurations for a Parameter that may include user attribute or parent
-
-        Parameters:
-            name: The name of the parameter
-            label: The display label for the parameter
-            all_options: All options associated to this parameter regardless of the user group or parent parameter option they depend on
-            is_hidden: Whether the parameter is hidden in the parameters API response. Default is False
-            user_attribute: The user attribute that may cascade the options for this parameter. Default is None
-            parent_name: Name of parent parameter that may cascade the options for this parameter. Default is None (no parent)
-        """
-        param_config = pc.NumRangeParameterConfig(name, label, all_options, is_hidden=is_hidden, user_attribute=user_attribute, 
-                                                  parent_name=parent_name)
-        ps.ParameterConfigsSetIO.obj.add(param_config)
+    def _ParameterConfigType():
+        return pc.NumRangeParameterConfig
 
     @classmethod
     def CreateSimple(
         cls, name: str, label: str, min_value: po.Number, max_value: po.Number, *, increment: po.Number = 1, 
-        default_lower_value: Optional[po.Number] = None, default_upper_value: Optional[po.Number] = None, is_hidden: bool = False
+        default_lower_value: Optional[po.Number] = None, default_upper_value: Optional[po.Number] = None, is_hidden: bool = False, **kwargs
     ) -> None:
         """
         Method for creating the configurations for a Parameter that doesn't involve user attributes or parent parameters
@@ -764,7 +723,7 @@ class NumRangeParameter(Parameter):
                                                          default_upper_value=default_upper_value)
         cls.Create(name, label, (single_param_option,), is_hidden=is_hidden)
     
-    def get_selected_lower_value(self) -> str:
+    def get_selected_lower_value(self, **kwargs) -> str:
         """
         Get the selected lower value number
 
@@ -773,7 +732,7 @@ class NumRangeParameter(Parameter):
         """
         return str(self._selected_lower_value)
 
-    def get_selected_upper_value(self) -> str:
+    def get_selected_upper_value(self, **kwargs) -> str:
         """
         Get the selected upper value number
 
@@ -782,14 +741,14 @@ class NumRangeParameter(Parameter):
         """
         return str(self._selected_upper_value)
 
-    def to_json_dict(self):
+    def to_json_dict0(self):
         """
         Converts this parameter as a JSON object for the parameters API response
 
         Returns:
             A dictionary for the JSON object
         """
-        output = super().to_json_dict()
+        output = super().to_json_dict0()
         output.update(self._curr_option._to_json_dict())
         output['selected_lower_value'] = self.get_selected_lower_value()
         output['selected_upper_value'] = self.get_selected_upper_value()

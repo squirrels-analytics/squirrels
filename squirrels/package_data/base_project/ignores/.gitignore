@@ -1,0 +1,7 @@
+__pycache__
+/venv
+
+# squirrels
+environcfg.yaml
+/outputs
+/modules

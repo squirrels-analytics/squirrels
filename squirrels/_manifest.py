@@ -24,24 +24,33 @@ class _Manifest:
         except KeyError as e:
             raise u.ConfigurationError(f'Field "{key}" not found in squirrels.yaml') from e
     
-    def get_product(self) -> str:
+    def _get_required_proj_var(self, key) -> str:
         project_vars = self.get_proj_vars()
         try:
-            product = project_vars[c.PRODUCT_KEY]
+            product_name = project_vars[key]
         except KeyError as e:
-            raise u.ConfigurationError(f"The 'product' must be specified in project variables") from e
-        return product
+            raise u.ConfigurationError(f"The '{key}' must be specified in project variables") from e
+        return product_name
+
+    def get_product_name(self) -> str:
+        return self._get_required_proj_var(c.PRODUCT_NAME_KEY)
+    
+    def get_product_label(self) -> str:
+        product_name = self.get_product_name()
+        project_vars = self.get_proj_vars()
+        return project_vars.get(c.PRODUCT_LABEL_KEY, product_name)
     
     def get_major_version(self) -> str:
-        project_vars = self.get_proj_vars()
-        try:
-            major_version = project_vars[c.MAJOR_VERSION_KEY]
-        except KeyError as e:
-            raise u.ConfigurationError(f"The 'major_version' must be specified in project variables") from e
-        return major_version
+        return self._get_required_proj_var(c.MAJOR_VERSION_KEY)
+    
+    def get_minor_version(self) -> str:
+        return self._get_required_proj_var(c.MINOR_VERSION_KEY)
     
     def get_db_connections(self) -> Dict[str, Dict[str, str]]:
         return self._config.get(c.DB_CONNECTIONS_KEY, {})
+    
+    def get_parameters(self) -> List[Dict]:
+        return self._config.get(c.PARAMETERS_KEY, [])
 
     def _get_dataset_parms(self, dataset: str) -> Dict[str, Any]:
         try:
@@ -112,7 +121,7 @@ class _Manifest:
         return scope.strip().lower()
     
     def get_dataset_parameters(self, dataset: str) -> Optional[List[str]]:
-        dataset_params = self._get_dataset_parms(dataset).get(c.PARAMETERS_KEY)
+        dataset_params = self._get_dataset_parms(dataset).get(c.DATASET_PARAMETERS_KEY)
         return dataset_params
     
     def get_dataset_final_view_file(self, dataset: str) -> Union[str, Path]:

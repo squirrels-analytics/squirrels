@@ -1,8 +1,7 @@
 from __future__ import annotations
-from typing import Type, Optional, Sequence, Iterator, Dict
+from typing import Type, Optional, Union, Sequence, Iterator, Dict
 from dataclasses import dataclass, field
 from abc import ABCMeta, abstractmethod
-from datetime import datetime
 from copy import copy
 import pandas as pd
 
@@ -24,7 +23,7 @@ class ParameterConfigBase(metaclass=ABCMeta):
     @abstractmethod
     def __init__(
         self, widget_type: str, name: str, label: str, *, is_hidden: bool = False, user_attribute: Optional[str] = None, 
-        parent_name: Optional[str] = None
+        parent_name: Optional[str] = None, **kwargs
     ) -> None:
         self.widget_type = widget_type
         self.name = name
@@ -46,7 +45,7 @@ class ParameterConfigBase(metaclass=ABCMeta):
         """
         return copy(self)
 
-    def to_json_dict(self) -> Dict:
+    def to_json_dict0(self) -> Dict:
         return {
             'widget_type': self.widget_type,
             'name': self.name,
@@ -63,18 +62,34 @@ class ParameterConfig(ParameterConfigBase):
 
     @abstractmethod
     def __init__(
-        self, widget_type: str, name: str, label: str, all_options: Sequence[po.ParameterOption], *, is_hidden: bool = False, 
-        user_attribute: Optional[str] = None, parent_name: Optional[str] = None
+        self, widget_type: str, name: str, label: str, all_options: Sequence[Union[po.ParameterOption, Dict]], *, is_hidden: bool = False, 
+        user_attribute: Optional[str] = None, parent_name: Optional[str] = None, **kwargs
     ) -> None:
         super().__init__(widget_type, name, label, is_hidden=is_hidden, user_attribute=user_attribute, 
                          parent_name=parent_name)
-        self.all_options = tuple(all_options)
+        self.all_options = tuple(self.__to_param_option(x) for x in all_options)
+
+    def __to_param_option(self, option: Union[po.ParameterOption, Dict]) -> po.ParameterOption:
+        return self.__class__.ParameterOption(**option) if isinstance(option, Dict) else option
+
+    @staticmethod
+    @abstractmethod
+    def ParameterOption(*args, **kwargs) -> po.ParameterOption:
+        pass
+
+    @staticmethod
+    @abstractmethod
+    def DataSource(*args, **kwargs) -> d.DataSource:
+        pass
     
     def _raise_invalid_input_error(self, selection: str, more_details: str = '', e: Exception = None) -> None:
         raise u.InvalidInputError(f'Selected value "{selection}" is not valid for parameter "{self.name}". ' + more_details) from e
     
     @abstractmethod
-    def with_selection(self, selection: Optional[str], user: Optional[UserBase], parent_param: Optional[p._SelectionParameter]) -> p.Parameter:
+    def with_selection(
+        self, selection: Optional[str], user: Optional[UserBase], parent_param: Optional[p._SelectionParameter], 
+        *, request_version: Optional[int] = None
+    ) -> p.Parameter:
         pass
     
     def _get_options_iterator(self, user: Optional[UserBase], parent_param: Optional[p._SelectionParameter]) -> Iterator[po.ParameterOption]:
@@ -93,13 +108,17 @@ class SelectionParameterConfig(ParameterConfig):
 
     @abstractmethod
     def __init__(
-        self, widget_type: str, name: str, label: str, all_options: Sequence[po.SelectParameterOption], *, is_hidden: bool = False, 
-        user_attribute: Optional[str] = None, parent_name: Optional[str] = None
+        self, widget_type: str, name: str, label: str, all_options: Sequence[Union[po.SelectParameterOption, Dict]], *, is_hidden: bool = False, 
+        user_attribute: Optional[str] = None, parent_name: Optional[str] = None, **kwargs
     ) -> None:
         super().__init__(widget_type, name, label, all_options, is_hidden=is_hidden, user_attribute=user_attribute, 
                          parent_name=parent_name)
         self.children: Dict[str, ParameterConfigBase] = dict()
         self.trigger_refresh = False
+
+    @staticmethod
+    def ParameterOption(*args, **kwargs):
+        return po.SelectParameterOption(*args, **kwargs)
     
     def _add_child_mutate(self, child: ParameterConfigBase):
         self.children[child.name] = child
@@ -119,8 +138,8 @@ class SelectionParameterConfig(ParameterConfig):
         other.children = self.children.copy()
         return other
 
-    def to_json_dict(self) -> Dict:
-        output = super().to_json_dict()
+    def to_json_dict0(self) -> Dict:
+        output = super().to_json_dict0()
         output['trigger_refresh'] = self.trigger_refresh
         return output
 
@@ -132,14 +151,19 @@ class SingleSelectParameterConfig(SelectionParameterConfig):
     """
     
     def __init__(
-        self, name: str, label: str, all_options: Sequence[po.SelectParameterOption], *, is_hidden: bool = False, 
-        user_attribute: Optional[str] = None, parent_name: Optional[str] = None
+        self, name: str, label: str, all_options: Sequence[Union[po.SelectParameterOption, Dict]], *, is_hidden: bool = False, 
+        user_attribute: Optional[str] = None, parent_name: Optional[str] = None, **kwargs
     ) -> None:
         super().__init__("single_select", name, label, all_options, is_hidden=is_hidden, user_attribute=user_attribute, 
                          parent_name=parent_name)
+     
+    @staticmethod
+    def DataSource(*args, **kwargs):
+        return d.SingleSelectDataSource(*args, **kwargs)
     
     def with_selection(
-        self, selection: Optional[str], user: Optional[UserBase], parent_param: Optional[p._SelectionParameter]
+        self, selection: Optional[str], user: Optional[UserBase], parent_param: Optional[p._SelectionParameter],
+        *, request_version: Optional[int] = None
     ) -> p.SingleSelectParameter:
         options = self._get_options(user, parent_param)
         if selection is None:
@@ -160,16 +184,22 @@ class MultiSelectParameterConfig(SelectionParameterConfig):
     order_matters: bool # = field(default=False, kw_only=True)
 
     def __init__(
-        self, name: str, label: str, all_options: Sequence[po.SelectParameterOption], *, include_all: bool = True, 
-        order_matters: bool = False, is_hidden: bool = False, user_attribute: Optional[str] = None, parent_name: Optional[str] = None
+        self, name: str, label: str, all_options: Sequence[Union[po.SelectParameterOption, Dict]], *, include_all: bool = True, 
+        order_matters: bool = False, is_hidden: bool = False, user_attribute: Optional[str] = None, parent_name: Optional[str] = None, 
+        **kwargs
     ) -> None:
         super().__init__("multi_select", name, label, all_options, is_hidden=is_hidden, user_attribute=user_attribute, 
                          parent_name=parent_name)
         self.include_all = include_all
         self.order_matters = order_matters
     
+    @staticmethod
+    def DataSource(*args, **kwargs):
+        return d.MultiSelectDataSource(*args, **kwargs)
+    
     def with_selection(
-        self, selection: Optional[str], user: Optional[UserBase], parent_param: Optional[p._SelectionParameter]
+        self, selection: Optional[str], user: Optional[UserBase], parent_param: Optional[p._SelectionParameter],
+        *, request_version: Optional[int] = None
     ) -> p.MultiSelectParameter:
         options = self._get_options(user, parent_param)
         if selection is None:
@@ -178,8 +208,8 @@ class MultiSelectParameterConfig(SelectionParameterConfig):
             selected_ids = u.load_json_or_comma_delimited_str_as_list(selection)
         return p.MultiSelectParameter(self, options, selected_ids)
 
-    def to_json_dict(self) -> Dict:
-        output = super().to_json_dict()
+    def to_json_dict0(self) -> Dict:
+        output = super().to_json_dict0()
         output['include_all'] = self.include_all
         output['order_matters'] = self.order_matters
         return output
@@ -193,17 +223,11 @@ class _DateTypeParameterConfig(ParameterConfig):
 
     @abstractmethod
     def __init__(
-        self, widget_type: str, name: str, label: str, all_options: Sequence[po.ParameterOption], *, is_hidden: bool = False, 
-        user_attribute: Optional[str] = None, parent_name: Optional[str] = None
+        self, widget_type: str, name: str, label: str, all_options: Sequence[Union[po.ParameterOption, Dict]], *, is_hidden: bool = False, 
+        user_attribute: Optional[str] = None, parent_name: Optional[str] = None, **kwargs
     ) -> None:
         super().__init__(widget_type, name, label, all_options, is_hidden=is_hidden, user_attribute=user_attribute, 
                          parent_name=parent_name)
-    
-    def _get_datetime_from_str(self, input_str: str) -> datetime:
-        try:
-            return datetime.strptime(input_str.strip(), "%Y-%m-%d")
-        except ValueError as e:
-            self._raise_invalid_input_error(input_str, 'Invalid selection for date.', e)
 
 
 @dataclass
@@ -213,14 +237,23 @@ class DateParameterConfig(_DateTypeParameterConfig):
     """
     
     def __init__(
-        self, name: str, label: str, all_options: Sequence[po.DateParameterOption], *, is_hidden: bool = False, 
-        user_attribute: Optional[str] = None, parent_name: Optional[str] = None
+        self, name: str, label: str, all_options: Sequence[Union[po.DateParameterOption, Dict]], *, is_hidden: bool = False, 
+        user_attribute: Optional[str] = None, parent_name: Optional[str] = None, **kwargs
     ) -> None:
         super().__init__("date", name, label, all_options, is_hidden=is_hidden, user_attribute=user_attribute, 
                          parent_name=parent_name)
+
+    @staticmethod
+    def ParameterOption(*args, **kwargs):
+        return po.DateParameterOption(*args, **kwargs)
+    
+    @staticmethod
+    def DataSource(*args, **kwargs):
+        return d.DateDataSource(*args, **kwargs)
     
     def with_selection(
-        self, selection: Optional[str], user: Optional[UserBase], parent_param: Optional[p._SelectionParameter]
+        self, selection: Optional[str], user: Optional[UserBase], parent_param: Optional[p._SelectionParameter],
+        *, request_version: Optional[int] = None
     ) -> p.DateParameter:
         curr_option: po.DateParameterOption = next(self._get_options_iterator(user, parent_param))
         selected_date = curr_option._default_date if selection is None else selection
@@ -234,14 +267,23 @@ class DateRangeParameterConfig(_DateTypeParameterConfig):
     """
     
     def __init__(
-        self, name: str, label: str, all_options: Sequence[po.DateRangeParameterOption], *, is_hidden: bool = False, 
-        user_attribute: Optional[str] = None, parent_name: Optional[str] = None
+        self, name: str, label: str, all_options: Sequence[Union[po.DateRangeParameterOption, Dict]], *, is_hidden: bool = False, 
+        user_attribute: Optional[str] = None, parent_name: Optional[str] = None, **kwargs
     ) -> None:
         super().__init__("date_range", name, label, all_options, is_hidden=is_hidden, user_attribute=user_attribute, 
                          parent_name=parent_name)
+
+    @staticmethod
+    def ParameterOption(*args, **kwargs):
+        return po.DateRangeParameterOption(*args, **kwargs)
+    
+    @staticmethod
+    def DataSource(*args, **kwargs):
+        return d.DateRangeDataSource(*args, **kwargs)
     
     def with_selection(
-        self, selection: Optional[str], user: Optional[UserBase], parent_param: Optional[p._SelectionParameter]
+        self, selection: Optional[str], user: Optional[UserBase], parent_param: Optional[p._SelectionParameter],
+        *, request_version: Optional[int] = None
     ) -> p.DateParameter:
         curr_option: po.DateRangeParameterOption = next(self._get_options_iterator(user, parent_param))
         if selection is None:
@@ -249,7 +291,7 @@ class DateRangeParameterConfig(_DateTypeParameterConfig):
             selected_end_date = curr_option._default_end_date
         else:
             try:
-                selected_start_date, selected_end_date = selection.split(',')
+                selected_start_date, selected_end_date = u.load_json_or_comma_delimited_str_as_list(selection)
             except ValueError as e:
                 self._raise_invalid_input_error(selection, "Date range parameter selection must be two dates joined by comma.", e)
         return p.DateRangeParameter(self, curr_option, selected_start_date, selected_end_date)
@@ -263,8 +305,8 @@ class _NumericParameterConfig(ParameterConfig):
 
     @abstractmethod
     def __init__(
-        self, widget_type: str, name: str, label: str, all_options: Sequence[po.ParameterOption], *, is_hidden: bool = False, 
-        user_attribute: Optional[str] = None, parent_name: Optional[str] = None
+        self, widget_type: str, name: str, label: str, all_options: Sequence[Union[po.ParameterOption, Dict]], *, is_hidden: bool = False, 
+        user_attribute: Optional[str] = None, parent_name: Optional[str] = None, **kwargs
     ) -> None:
         super().__init__(widget_type, name, label, all_options, is_hidden=is_hidden, user_attribute=user_attribute, 
                          parent_name=parent_name)
@@ -277,14 +319,23 @@ class NumberParameterConfig(_NumericParameterConfig):
     """
     
     def __init__(
-        self, name: str, label: str, all_options: Sequence[po.NumberParameterOption], *, is_hidden: bool = False, 
-        user_attribute: Optional[str] = None, parent_name: Optional[str] = None
+        self, name: str, label: str, all_options: Sequence[Union[po.NumberParameterOption, Dict]], *, is_hidden: bool = False, 
+        user_attribute: Optional[str] = None, parent_name: Optional[str] = None, **kwargs
     ) -> None:
         super().__init__("number", name, label, all_options, is_hidden=is_hidden, user_attribute=user_attribute, 
                          parent_name=parent_name)
+
+    @staticmethod
+    def ParameterOption(*args, **kwargs):
+        return po.NumberParameterOption(*args, **kwargs)
+    
+    @staticmethod
+    def DataSource(*args, **kwargs):
+        return d.NumberDataSource(*args, **kwargs)
     
     def with_selection(
-        self, selection: Optional[str], user: Optional[UserBase], parent_param: Optional[p._SelectionParameter]
+        self, selection: Optional[str], user: Optional[UserBase], parent_param: Optional[p._SelectionParameter],
+        *, request_version: Optional[int] = None
     ) -> p.NumberParameter:
         curr_option: po.NumberParameterOption = next(self._get_options_iterator(user, parent_param))
         selected_value = curr_option._default_value if selection is None else selection
@@ -298,14 +349,23 @@ class NumRangeParameterConfig(_NumericParameterConfig):
     """
     
     def __init__(
-        self, name: str, label: str, all_options: Sequence[po.NumRangeParameterOption], *, is_hidden: bool = False, 
-        user_attribute: Optional[str] = None, parent_name: Optional[str] = None
+        self, name: str, label: str, all_options: Sequence[Union[po.NumRangeParameterOption, Dict]], *, is_hidden: bool = False, 
+        user_attribute: Optional[str] = None, parent_name: Optional[str] = None, **kwargs
     ) -> None:
         super().__init__("number_range", name, label, all_options, is_hidden=is_hidden, user_attribute=user_attribute, 
                          parent_name=parent_name)
+
+    @staticmethod
+    def ParameterOption(*args, **kwargs):
+        return po.NumRangeParameterOption(*args, **kwargs)
+    
+    @staticmethod
+    def DataSource(*args, **kwargs):
+        return d.NumRangeDataSource(*args, **kwargs)
     
     def with_selection(
-        self, selection: Optional[str], user: Optional[UserBase], parent_param: Optional[p._SelectionParameter]
+        self, selection: Optional[str], user: Optional[UserBase], parent_param: Optional[p._SelectionParameter],
+        *, request_version: Optional[int] = None
     ) -> p.NumRangeParameter:
         curr_option: po.NumRangeParameterOption = next(self._get_options_iterator(user, parent_param))
         if selection is None:
@@ -313,7 +373,7 @@ class NumRangeParameterConfig(_NumericParameterConfig):
             selected_upper_value = curr_option._default_upper_value
         else:
             try:
-                selected_lower_value, selected_upper_value = selection.split(',')
+                selected_lower_value, selected_upper_value = u.load_json_or_comma_delimited_str_as_list(selection)
             except ValueError as e:
                 self._raise_invalid_input_error(selection, "Number range parameter selection must be two numbers joined by comma.", e)
         return p.NumRangeParameter(self, curr_option, selected_lower_value, selected_upper_value)
@@ -324,15 +384,17 @@ class DataSourceParameterConfig(ParameterConfigBase):
     """
     Class to define configurations for parameter widgets whose options come from lookup tables
     """
-    parameter_class: Type[p.Parameter]
+    parameter_type: Type[ParameterConfig]
     data_source: d.DataSource
 
     def __init__(
-        self, parameter_class: Type[p.Parameter], name: str, label: str, data_source: d.DataSource, *, is_hidden: bool = False, 
-        user_attribute: Optional[str] = None, parent_name: Optional[str] = None
+        self, parameter_type: Type[ParameterConfig], name: str, label: str, data_source: Union[d.DataSource, Dict], *, 
+        is_hidden: bool = False, user_attribute: Optional[str] = None, parent_name: Optional[str] = None, **kwargs
     ) -> None:
         super().__init__("data_source", name, label, is_hidden=is_hidden, user_attribute=user_attribute, parent_name=parent_name)
-        self.parameter_class = parameter_class
+        self.parameter_type = parameter_type
+        if isinstance(data_source, Dict):
+            data_source = parameter_type.DataSource(**data_source)
         self.data_source = data_source
 
     def convert(self, df: pd.DataFrame) -> ParameterConfig:

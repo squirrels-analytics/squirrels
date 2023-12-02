@@ -1,6 +1,6 @@
-from typing import Sequence
+from typing import Sequence, Type
 from dataclasses import dataclass
-from datetime import datetime
+from datetime import date as Date, datetime
 from dateutil.relativedelta import relativedelta
 from abc import ABCMeta, abstractmethod
 from enum import Enum
@@ -38,7 +38,7 @@ class DateModifier(metaclass=ABCMeta):
     """
 
     @abstractmethod
-    def modify(self, date: datetime) -> datetime:
+    def modify(self, date: Date) -> Date:
         """
         Method to be overwritten, modifies the input date
 
@@ -49,6 +49,9 @@ class DateModifier(metaclass=ABCMeta):
             The modified date.
         """
         pass
+
+    def _get_date(self, datetype: Type, year: int, month: int, day: int) -> Date:
+        return datetype(year, month, day)
 
 
 class _DayIdxOfCalendarUnit(DateModifier):
@@ -84,11 +87,11 @@ class DayIdxOfMonthsCycle(_DayIdxOfCalendarUnit):
             raise u.ConfigurationError(f"Value X must fit evenly in 12")
         self.first_month_of_first_cycle = (self._first_month_of_cycle.value - 1) % self._num_months_in_cycle + 1
 
-    def modify(self, date: datetime) -> datetime:
+    def modify(self, date: Date) -> Date:
         current_cycle = (date.month - self.first_month_of_first_cycle) % 12 // self._num_months_in_cycle
         first_month_of_curr_cycle = current_cycle * self._num_months_in_cycle + self.first_month_of_first_cycle
         year = date.year if date.month >= first_month_of_curr_cycle else date.year - 1
-        first_day = datetime(year, first_month_of_curr_cycle, 1)
+        first_day = self._get_date(type(date), year, first_month_of_curr_cycle, 1)
         ref_date = first_day if self.idx > 0 else first_day + relativedelta(months=self._num_months_in_cycle)
         return ref_date + relativedelta(days=self.incr)
 
@@ -133,8 +136,8 @@ class DayIdxOfMonth(_DayIdxOfCalendarUnit):
     def __init__(self, idx: int) -> None:
         super().__init__(idx)
 
-    def modify(self, date: datetime) -> datetime:
-        first_day = datetime(date.year, date.month, 1)
+    def modify(self, date: Date) -> Date:
+        first_day = self._get_date(type(date), date.year, date.month, 1)
         ref_date = first_day if self.idx > 0 else first_day + relativedelta(months=1)
         return ref_date + relativedelta(days=self.incr)
 
@@ -155,7 +158,7 @@ class DayIdxOfWeek(_DayIdxOfCalendarUnit):
         self._first_day_of_week = first_day_of_week
         self.first_dow_num = self._first_day_of_week.value
     
-    def modify(self, date: datetime) -> datetime:
+    def modify(self, date: Date) -> Date:
         distance_from_first_day = (1 + date.weekday() - self.first_dow_num) % 7
         total_incr = -distance_from_first_day + (7 if self.idx < 0 else 0) + self.incr
         return date + relativedelta(days=total_incr)
@@ -182,7 +185,7 @@ class OffsetYears(_OffsetUnits):
     def __init__(self, offset: int) -> None:
         super().__init__(offset)
 
-    def modify(self, date: datetime) -> datetime:
+    def modify(self, date: Date) -> Date:
         return date + relativedelta(years=self.offset)
     
 
@@ -198,7 +201,7 @@ class OffsetMonths(_OffsetUnits):
     def __init__(self, offset: int) -> None:
         super().__init__(offset)
 
-    def modify(self, date: datetime) -> datetime:
+    def modify(self, date: Date) -> Date:
         return date + relativedelta(months=self.offset)
 
 
@@ -214,7 +217,7 @@ class OffsetWeeks(_OffsetUnits):
     def __init__(self, offset: int) -> None:
         super().__init__(offset)
 
-    def modify(self, date: datetime) -> datetime:
+    def modify(self, date: Date) -> Date:
         return date + relativedelta(weeks=self.offset)
 
 
@@ -230,7 +233,7 @@ class OffsetDays(_OffsetUnits):
     def __init__(self, offset: int) -> None:
         super().__init__(offset)
 
-    def modify(self, date: datetime) -> datetime:
+    def modify(self, date: Date) -> Date:
         return date + relativedelta(days=self.offset)
 
 
@@ -248,7 +251,7 @@ class DateModPipeline(DateModifier):
         super().__init__()
         self._date_modifiers = tuple(date_modifiers)
     
-    def modify(self, date: datetime) -> datetime:
+    def modify(self, date: Date) -> Date:
         for modifier in self._date_modifiers:
             date = modifier.modify(date)
         return date
@@ -280,7 +283,7 @@ class DateModPipeline(DateModifier):
         joined_modifiers = self.get_joined_modifiers(date_modifiers)
         return DateModPipeline(joined_modifiers)
     
-    def get_date_list(self, start_date: datetime, step: _OffsetUnits) -> Sequence[datetime]:
+    def get_date_list(self, start_date: Date, step: _OffsetUnits) -> Sequence[Date]:
         """
         This method modifies the input date, and returns all dates from the input date to the modified date, 
         incremented by a DateModifier step.
@@ -352,9 +355,9 @@ class DateStringModifier(_DateRepresentationModifier):
         joined_modifiers = self.date_modifier.get_joined_modifiers(date_modifiers)
         return DateStringModifier(joined_modifiers, self._date_format)
     
-    def _get_input_date_obj(self, date_str: str, input_format: str = None) -> datetime:
+    def _get_input_date_obj(self, date_str: str, input_format: str = None) -> Date:
         input_format = self._date_format if input_format is None else input_format
-        return datetime.strptime(date_str, input_format)
+        return datetime.strptime(date_str, input_format).date()
 
     def modify(self, date_str: str, input_format: str = None) -> str:
         """
@@ -431,7 +434,8 @@ class TimestampModifier(_DateRepresentationModifier):
             The resulting timestamp
         """
         date_obj = datetime.fromtimestamp(timestamp)
-        return self.date_modifier.modify(date_obj).timestamp()
+        modified_date: datetime = self.date_modifier.modify(date_obj)
+        return modified_date.timestamp()
     
     def get_date_list(self, start_timestamp: float, step: DateModifier) -> Sequence[float]:
         """
@@ -451,5 +455,5 @@ class TimestampModifier(_DateRepresentationModifier):
             A list of timestamp as floats
         """
         curr_date = datetime.fromtimestamp(start_timestamp)
-        output = self.date_modifier.get_date_list(curr_date, step)
+        output: Sequence[datetime] = self.date_modifier.get_date_list(curr_date, step)
         return [x.timestamp() for x in output]

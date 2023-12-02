@@ -5,11 +5,22 @@ from squirrels import UserBase, WrongPassword
 
 class User(UserBase):
     def with_attributes(self, organization: str, **kwargs) -> User:
+        """
+        Use this method to add custom attributes in the User model that don't exist in UserBase (username, is_internal, etc.)
+        """
         self.organization = organization
         return self
 
 
 def get_user_if_valid(username: str, password: str, **kwargs) -> Union[User, WrongPassword, None]:
+    """
+    This function allows the squirrels framework to know how to authenticate input username and password.
+
+    Return:
+        - User instance: if username and password are correct
+        - WrongPassword(username): if username exists but password is incorrect
+        - None: if the username doesn't exist (and continue username search among "fake users" in environcfg.yaml)
+    """
     mock_users_db = {
         "johndoe": {
             "username": "johndoe",

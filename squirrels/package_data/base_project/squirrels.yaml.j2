@@ -1,0 +1,38 @@
+project_variables:
+  product_name: sample
+  product_label: Sample Product
+  major_version: 1
+  minor_version: 0
+
+modules: []
+
+{{ connections -}}
+
+{{ parameters -}}
+
+datasets:
+  sample_dataset:
+    label: Sample Dataset
+    scope: public ## one of 'public', 'protected', or 'private'
+    parameters: ## if this field is not specified, then all parameters are used
+      - group_by
+      - start_date
+      - end_date
+      - category
+      - subcategory
+      - min_filter
+      - max_filter
+    database_views:
+      database_view1: 
+        file: {{ db_view_file }}
+        db_connection: default
+    final_view: {{ final_view_file }}
+
+settings: {}
+
+## Default values for settings:
+#   auth.token.expire.minutes: 30
+#   parameters.cache.size: 1024
+#   parameters.cache.ttl.minutes: 0
+#   results.cache.size: 128
+#   results.cache.ttl.minutes: 0

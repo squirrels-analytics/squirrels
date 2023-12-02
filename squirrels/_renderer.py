@@ -25,16 +25,20 @@ class Renderer:
         self.raw_query_by_db_view = raw_query_by_db_view
         self.raw_final_view_query = raw_final_view_query
     
-    def apply_selections(self, selections: Dict[str, str], user: Optional[UserBase], *, updates_only: bool = False) -> ParameterSet:
+    def apply_selections(
+        self, user: Optional[UserBase], selections: Dict[str, str], *, updates_only: bool = False, request_version: Optional[int] = None
+    ) -> ParameterSet:
         start = time.time()
         dataset_params = ManifestIO.obj.get_dataset_parameters(self.dataset)
-        parameter_set = ParameterConfigsSetIO.obj.apply_selections(dataset_params, selections, user, updates_only=updates_only)
+        parameter_set = ParameterConfigsSetIO.obj.apply_selections(dataset_params, selections, user, updates_only=updates_only, 
+                                                                   request_version=request_version)
         timer.add_activity_time(f"applying selections - dataset {self.dataset}", start)
         return parameter_set
 
     def _render_context(self, context_func: ContextFunc, user: Optional[UserBase], prms: Dict[str, Parameter]) -> Dict[str, Any]:
+        context = {}
         try:
-            context = context_func(user=user, prms=prms) if context_func is not None else {}
+            context_func(ctx=context, user=user, prms=prms)
         except Exception as e:
             raise u.ConfigurationError(f'Error in the {c.CONTEXT_FILE} function for dataset "{self.dataset}"') from e
         return context
@@ -93,11 +97,11 @@ class Renderer:
             return self._render_dataframe_from_py_func("final_view", final_view_query, df_by_db_views)
 
     def load_results(
-        self, user: Optional[UserBase], selections: Dict[str, str], *, run_query: bool = True
+        self, user: Optional[UserBase], selections: Dict[str, str], *, run_query: bool = True, request_version: Optional[int] = None
     ) -> Tuple[ParameterSet, Dict[str, Query], Query, Dict[str, pd.DataFrame], Optional[pd.DataFrame]]:
         
         # apply selections
-        param_set = self.apply_selections(selections, user)
+        param_set = self.apply_selections(user, selections, request_version=request_version)
 
         # render context
         start = time.time()
@@ -137,17 +141,15 @@ class Renderer:
 
 class RendererIOWrapper:
     def __init__(self, dataset: str):
-        dataset_folder = ManifestIO.obj.get_dataset_folder(dataset)
+        context_path = u.join_paths(c.PYCONFIG_FOLDER, c.CONTEXT_FILE)
         args = ManifestIO.obj.get_dataset_args(dataset)
-
-        context_path = u.join_paths(dataset_folder, c.CONTEXT_FILE)
         try:
             context_module = u.import_file_as_module(context_path)
             context_func = partial(context_module.main, args=args)
         except FileNotFoundError:
-            def default_context_func(*args, **kwargs):
-                return {}
-            context_func = default_context_func
+            def no_op(*args, **kwargs):
+                pass
+            context_func = no_op
         
         db_views = ManifestIO.obj.get_all_database_view_names(dataset)
         raw_query_by_db_view = {}
@@ -161,7 +163,7 @@ class RendererIOWrapper:
         else:
             raw_final_view_query = self._get_raw_query(final_view_path)
         
-        self.dataset_folder = dataset_folder
+        self.dataset_folder = ManifestIO.obj.get_dataset_folder(dataset)
         self.output_folder = u.join_paths(c.OUTPUTS_FOLDER, dataset)
         self.renderer = Renderer(dataset, context_func, raw_query_by_db_view, raw_final_view_query)
     
@@ -212,7 +214,7 @@ class RendererIOWrapper:
         param_set, query_by_db_view, final_view_query, df_by_db_views, final_view_df = result
         
         # write the parameters response
-        param_set_dict = param_set.to_json_dict()
+        param_set_dict = param_set.to_json_dict0()
         parameter_json_output_path = u.join_paths(self.output_folder, c.PARAMETERS_OUTPUT)
         with open(parameter_json_output_path, 'w') as f:
             json.dump(param_set_dict, f, indent=4)

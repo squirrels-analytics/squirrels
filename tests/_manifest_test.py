@@ -33,7 +33,7 @@ def minimal_manifest() -> _Manifest:
     parms = {
         'modules': [],
         'project_variables': {
-            'product': 'my_product',
+            'product_name': 'my_product',
             'major_version': 1,
             'minor_version': 0
         },
@@ -58,7 +58,7 @@ def basic_manifest() -> _Manifest:
     parms = {
         'modules': ['module1'],
         'project_variables': {
-            'product': 'my_product',
+            'product_name': 'my_product',
             'product_label': 'My Product',
             'major_version': 1,
             'minor_version': 0
@@ -66,6 +66,7 @@ def basic_manifest() -> _Manifest:
         'db_connections': {
             'default': {'url':  'sqlite://', 'credential_key': 'test_cred_key'}
         },
+        'parameters': [{'name': 'A'}, {'name': 'B'}],
         'datasets': {
             'dataset1': {
                 'label': 'Dataset',
@@ -89,9 +90,9 @@ def basic_manifest() -> _Manifest:
 def test_invalid_configurations(empty_manifest: _Manifest, empty_db_view_manifest: _Manifest, 
                                 minimal_manifest: _Manifest):
     with pytest.raises(ConfigurationError):
-        empty_manifest.get_product()
+        empty_manifest.get_product_name()
     with pytest.raises(ConfigurationError):
-        empty_db_view_manifest.get_product()
+        empty_db_view_manifest.get_product_name()
     with pytest.raises(ConfigurationError):
         empty_manifest.get_major_version()
     with pytest.raises(ConfigurationError):
@@ -106,8 +107,8 @@ def test_invalid_configurations(empty_manifest: _Manifest, empty_db_view_manifes
 
 @pytest.mark.parametrize('manifest_name,expected', [
     ('empty_manifest', {}),
-    ('minimal_manifest', {'product': 'my_product', 'major_version': 1, 'minor_version': 0}),
-    ('basic_manifest', {'product': 'my_product', 'product_label': 'My Product', 'major_version': 1, 'minor_version': 0})
+    ('minimal_manifest', {'product_name': 'my_product', 'major_version': 1, 'minor_version': 0}),
+    ('basic_manifest', {'product_name': 'my_product', 'product_label': 'My Product', 'major_version': 1, 'minor_version': 0})
 ])
 def test_get_proj_vars(manifest_name: str, expected: Dict[str, Any], request: pytest.FixtureRequest):
     manifest: _Manifest = request.getfixturevalue(manifest_name)
@@ -127,9 +128,18 @@ def test_get_modules(manifest_name: str, expected: List[str], request: pytest.Fi
 @pytest.mark.parametrize('manifest_name,expected', [
     ('minimal_manifest', 'my_product')
 ])
-def test_get_product(manifest_name: str, expected: str, request: pytest.FixtureRequest):
+def test_get_product_name(manifest_name: str, expected: str, request: pytest.FixtureRequest):
     manifest: _Manifest = request.getfixturevalue(manifest_name)
-    assert manifest.get_product() == expected
+    assert manifest.get_product_name() == expected
+
+
+@pytest.mark.parametrize('manifest_name,expected', [
+    ('minimal_manifest', 'my_product'),
+    ('basic_manifest', 'My Product')
+])
+def test_get_product_label(manifest_name: str, expected: str, request: pytest.FixtureRequest):
+    manifest: _Manifest = request.getfixturevalue(manifest_name)
+    assert manifest.get_product_label() == expected
 
 
 @pytest.mark.parametrize('manifest_name,expected', [
@@ -148,6 +158,15 @@ def test_get_major_version(manifest_name: str, expected: str, request: pytest.Fi
 def test_get_db_connections(manifest_name: str, expected: str, request: pytest.FixtureRequest):
     manifest: _Manifest = request.getfixturevalue(manifest_name)
     assert manifest.get_db_connections() == expected
+
+
+@pytest.mark.parametrize('manifest_name,expected', [
+    ('empty_manifest', []),
+    ('basic_manifest',  [{'name': 'A'}, {'name': 'B'}])
+])
+def test_get_parameters(manifest_name: str, expected: str, request: pytest.FixtureRequest):
+    manifest: _Manifest = request.getfixturevalue(manifest_name)
+    assert manifest.get_parameters() == expected
 
 
 def test_get_all_dataset_names():
@@ -183,11 +202,11 @@ def test_get_database_view_file(manifest_name: str, dataset: str, database_view:
 @pytest.mark.parametrize('manifest_name,dataset,database_view,expected', [
     ('empty_db_view_manifest', 'dataset1', 'db_view_1', {}),
     ('minimal_manifest', 'dataset1', 'db_view_1', 
-     {'product': 'my_product', 'major_version': 1, 'minor_version': 0}),
+     {'product_name': 'my_product', 'major_version': 1, 'minor_version': 0}),
     ('basic_manifest', 'dataset1', 'db_view_2', 
-     {'product': 'my_product', 'product_label': 'My Product', 'major_version': 1, 'minor_version': 0, 'arg2': 'val2', 'arg1': 'val1'}),
+     {'product_name': 'my_product', 'product_label': 'My Product', 'major_version': 1, 'minor_version': 0, 'arg2': 'val2', 'arg1': 'val1'}),
     ('basic_manifest', 'dataset1', None, 
-     {'product': 'my_product', 'product_label': 'My Product', 'major_version': 1, 'minor_version': 0, 'arg2': 'val2'})
+     {'product_name': 'my_product', 'product_label': 'My Product', 'major_version': 1, 'minor_version': 0, 'arg2': 'val2'})
 ])
 def test_get_view_args(manifest_name: str, dataset: str, database_view: str, expected: Dict[str, Any], 
                        request: pytest.FixtureRequest):

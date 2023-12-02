@@ -1,7 +1,7 @@
-# Note: You can copy this file to the .squirrels folder in your home directory to make 
-#   the configurations global for all squirrels projects on the current machine
+## Note: You can copy this file to the .squirrels folder in your home directory to make 
+##   the configurations global for all squirrels projects on the current machine
 
-# Fake users for local development testing
+## Fake users for local development testing
 users:
   johndoe:
     is_internal: True
@@ -14,16 +14,16 @@ users:
     full_name: Matt Doe
     organization: org2
 
-# Custom environment variables
+## Custom environment variables / secrets
 env_vars:
-  sqlite_conn_str: sqlite://${username}:${password}@/./database/sample_database.db
+  sqlite_conn_str: sqlite://{username}:{password}@/./database/expenses.db
 
-# Database credentials
+## Database credentials
 credentials:
-  sqlite_user:
-    username: Test
-    password: test1
+  db_user:
+    username: user1
+    password: pass1
 
-# Predefined secrets used by the squirrels framework
+## Predefined secrets used by the squirrels framework
 secrets:
-  jwt_signature: # generate a random 32 byte hex string here for jwt signatures. In bash, you can run "openssl rand -hex 32"
+  jwt_signature: ## generate a random 32 byte hex string here for jwt signatures. For instance, you can run "openssl rand -hex 32" in bash

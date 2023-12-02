@@ -1,5 +1,5 @@
 from copy import copy
-from datetime import datetime
+from datetime import date
 from decimal import Decimal
 import pytest
 
@@ -57,7 +57,7 @@ class TestSingleSelectParameter:
             "trigger_refresh": False,
             "selected_id": "ss0"
         }
-        assert param1.to_json_dict() == expected
+        assert param1.to_json_dict0() == expected
 
 
 class TestMultiSelectParameter:
@@ -130,7 +130,7 @@ class TestMultiSelectParameter:
             "order_matters": False,
             "selected_ids": ['ms1', 'ms2']
         }
-        assert param1.to_json_dict() == expected
+        assert param1.to_json_dict0() == expected
 
 
 class TestDateParameter:
@@ -138,7 +138,7 @@ class TestDateParameter:
     def param1(self) -> p.DateParameter:
         options = (po.DateParameterOption("2020-01-01"),)
         config = pc.DateParameterConfig("test", "Test", options)
-        return p.DateParameter(config, options[0], datetime(2021,1,1))
+        return p.DateParameter(config, options[0], date(2021,1,1))
     
     def test_get_selected1(self, param1: p.DateParameter):
         assert param1.get_selected_date() == "2021-01-01"
@@ -151,7 +151,7 @@ class TestDateParameter:
             "label": "Test",
             "selected_date": "2021-01-01"
         }
-        assert param1.to_json_dict() == expected
+        assert param1.to_json_dict0() == expected
 
 
 class TestDateRangeParameter:
@@ -175,7 +175,7 @@ class TestDateRangeParameter:
             "selected_start_date": "2022-06-14",
             "selected_end_date": "2023-03-15",
         }
-        assert param1.to_json_dict() == expected
+        assert param1.to_json_dict0() == expected
 
 
 class TestNumberParameter:
@@ -205,7 +205,7 @@ class TestNumberParameter:
             "increment": "0.5",
             "selected_value": "4.5"
         }
-        assert param1.to_json_dict() == expected
+        assert param1.to_json_dict0() == expected
 
 
 class TestNumRangeParameter:
@@ -237,4 +237,4 @@ class TestNumRangeParameter:
             "selected_lower_value": "2.5",
             "selected_upper_value": "6.5"
         }
-        assert param1.to_json_dict() == expected
+        assert param1.to_json_dict0() == expected

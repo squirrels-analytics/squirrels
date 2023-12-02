@@ -1,5 +1,5 @@
 from typing import Optional
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from jose import JWTError, jwt
 import secrets
 
@@ -12,8 +12,9 @@ class Authenticator:
     
     @classmethod
     def get_auth_helper(cls):
+        auth_module_path = u.join_paths(c.PYCONFIG_FOLDER, c.AUTH_FILE)
         try:
-            return u.import_file_as_module(c.AUTH_FILE) 
+            return u.import_file_as_module(auth_module_path)
         except FileNotFoundError:
             return None
 
@@ -47,7 +48,7 @@ class Authenticator:
         return None
     
     def create_access_token(self, user: UserBase) -> str:
-        expire = datetime.utcnow() + timedelta(minutes=self.token_expiry_minutes)
+        expire = datetime.now(timezone.utc) + timedelta(minutes=self.token_expiry_minutes)
         to_encode = {**vars(user), "exp": expire}
         encoded_jwt = jwt.encode(to_encode, self.secret_key, algorithm=self.algorithm)
         return encoded_jwt, expire

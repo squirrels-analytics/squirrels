@@ -5,21 +5,52 @@ from importlib.machinery import SourceFileLoader
 from pandas.api import types as pd_types
 import json, jinja2 as j2, pandas as pd
 
+from . import _constants as c
+
 FilePath = Union[str, Path]
 
 
 # Custom Exceptions
 class InvalidInputError(Exception):
+    """
+    Use this exception when the error is due to providing invalid inputs to the REST API
+    """
     pass
 
 class ConfigurationError(Exception):
+    """
+    Use this exception when the server error is due to errors in the squirrels project instead of the squirrels framework/library
+    """
     pass
 
 
 # Utility functions/variables
+def join_paths(*paths: FilePath) -> Path:
+    """
+    Joins paths together.
+
+    Parameters:
+        paths: The paths to join.
+
+    Returns:
+        The joined path.
+    """
+    return Path(*paths)
+
+
 _j2_env = j2.Environment(loader=j2.FileSystemLoader('.'))
 
-def render_string(raw_str: str, kwargs: Dict):
+def render_string(raw_str: str, kwargs: Dict) -> str:
+    """
+    Given a template string, render it with the given keyword arguments
+
+    Parameters:
+        raw_str: The template string
+        kwargs: The keyword arguments
+
+    Returns:
+        The rendered string
+    """
     template = _j2_env.from_string(raw_str)
     return template.render(kwargs)
 
@@ -38,30 +69,24 @@ def import_file_as_module(filepath: Optional[FilePath]) -> Optional[ModuleType]:
     return SourceFileLoader(filepath, filepath).load_module() if filepath is not None else None
 
 
-def run_module_main(filepath: Optional[FilePath], kwargs: Dict[str, Any]) -> Optional[ModuleType]:
+def run_pyconfig_main(filepath: FilePath, kwargs: Dict[str, Any]) -> None:
+    """
+    Given a python file in the 'pyconfigs' folder, run its main function
+    
+    Parameters:
+        filepath: The path to the file to run main function
+        kwargs: Dictionary of the main function arguments
+    """
+    filepath = join_paths(c.PYCONFIG_FOLDER, filepath)
     try:
         module = import_file_as_module(filepath)
     except FileNotFoundError:
-        module = None
+        return
     
-    if module is not None:
-        try:
-            return module.main(**kwargs)
-        except Exception as e:
-            raise ConfigurationError(f'Error in the {filepath} file') from e
-
-
-def join_paths(*paths: FilePath) -> Path:
-    """
-    Joins paths together.
-
-    Parameters:
-        paths: The paths to join.
-
-    Returns:
-        The joined path.
-    """
-    return Path(*paths)
+    try:
+        module.main(**kwargs)
+    except Exception as e:
+        raise ConfigurationError(f'Error in the {filepath} file') from e
 
 
 def normalize_name(name: str) -> str:
@@ -90,7 +115,7 @@ def normalize_name_for_api(name: str) -> str:
     return name.replace('_', '-')
 
 
-def df_to_json(df: pd.DataFrame, dimensions: List[str] = None) -> Dict[str, Any]:
+def df_to_json0(df: pd.DataFrame, dimensions: List[str] = None) -> Dict[str, Any]:
     """
     Convert a pandas DataFrame to the same JSON format that the dataset result API of Squirrels outputs.
 
@@ -114,7 +139,7 @@ def df_to_json(df: pd.DataFrame, dimensions: List[str] = None) -> Dict[str, Any]
     
     out_dimensions = non_numeric_fields if dimensions is None else dimensions
     out_schema = {"fields": out_fields, "dimensions": out_dimensions}
-    return {"response_version": 0, "schema": out_schema, "data": in_df_json["data"]}
+    return {"schema": out_schema, "data": in_df_json["data"]}
 
 
 def load_json_or_comma_delimited_str_as_list(input_str: str) -> List[str]:
@@ -135,8 +160,10 @@ def load_json_or_comma_delimited_str_as_list(input_str: str) -> List[str]:
     
     if isinstance(output, list):
         return output
+    elif input_str == "":
+        return []
     else:
-        return [] if input_str == "" else input_str.split(",")
+        return [x.strip() for x in input_str.split(",")]
 
 
 X, Y = TypeVar('X'), TypeVar('Y')

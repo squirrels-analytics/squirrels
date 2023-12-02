@@ -4,7 +4,7 @@ from dataclasses import dataclass, field
 from abc import ABCMeta, abstractmethod
 import pandas as pd
 
-from . import _parameter_configs as pc, parameter_options as po, parameters as p, _constants as c, _utils as u
+from . import _parameter_configs as pc, parameter_options as po, _utils as u
 
 
 @dataclass
@@ -13,15 +13,15 @@ class DataSource(metaclass=ABCMeta):
     Abstract class for lookup tables coming from a database
     """
     _table_or_query: str
-    _id_col: str
+    _id_col: Optional[str]
     _user_group_col: Optional[str] # = field(default=None, kw_only=True)
     _parent_id_col: Optional[str] # = field(default=None, kw_only=True)
-    _connection_name: str # = field(default=c.DEFAULT_DB_CONN, kw_only=True)
+    _connection_name: str # = field(default="default", kw_only=True)
 
     @abstractmethod
     def __init__(
-        self, table_or_query: str, id_col: str, *, user_group_col: Optional[str] = None, parent_id_col: Optional[str] = None,
-        connection_name: str = c.DEFAULT_DB_CONN
+        self, table_or_query: str, *, id_col: Optional[str] = None, user_group_col: Optional[str] = None, 
+        parent_id_col: Optional[str] = None, connection_name: str = "default", **kwargs
     ) -> None:
         self._table_or_query = table_or_query
         self._id_col = id_col
@@ -49,11 +49,11 @@ class DataSource(metaclass=ABCMeta):
         """
         pass
     
-    def _validate_parameter_class(self, ds_param: pc.DataSourceParameterConfig, target_parameter_class: Type[p.Parameter]) -> None:
-        if ds_param.parameter_class != target_parameter_class:
-            parameter_class_name = ds_param.parameter_class.__name__
-            datasource_class_name = self.__class__.__name__
-            raise u.ConfigurationError(f'Invalid widget type "{parameter_class_name}" for {datasource_class_name}')
+    def _validate_parameter_type(self, ds_param: pc.DataSourceParameterConfig, target_parameter_type: Type[pc.ParameterConfig]) -> None:
+        if ds_param.parameter_type != target_parameter_type:
+            parameter_type_name = ds_param.parameter_type.__name__
+            datasource_type_name = self.__class__.__name__
+            raise u.ConfigurationError(f'Invalid widget type "{parameter_type_name}" for {datasource_type_name}')
     
     def _get_aggregated_df(self, df: pd.DataFrame, columns_to_include: Iterable[str]) -> pd.DataFrame:
         agg_rules = {}
@@ -65,8 +65,9 @@ class DataSource(metaclass=ABCMeta):
         if self._parent_id_col is not None:
             agg_rules[self._parent_id_col] = list
 
+        groupby_dim = self._id_col if self._id_col is not None else df.index
         try:
-            df_agg = df.groupby(self._id_col).agg(agg_rules)
+            df_agg = df.groupby(groupby_dim).agg(agg_rules)
         except KeyError as e:
             raise u.ConfigurationError(e)
         
@@ -94,9 +95,10 @@ class _SelectionDataSource(DataSource):
     def __init__(
         self, table_or_query: str, id_col: str, options_col: str, *, order_by_col: Optional[str] = None, 
         is_default_col: Optional[str] = None, custom_cols: Dict[str, str] = {}, user_group_col: Optional[str] = None, 
-        parent_id_col: Optional[str] = None, connection_name: str = c.DEFAULT_DB_CONN
+        parent_id_col: Optional[str] = None, connection_name: str = "default", **kwargs
     ) -> None:
-        super().__init__(table_or_query, id_col, user_group_col=user_group_col, parent_id_col=parent_id_col, connection_name=connection_name)
+        super().__init__(table_or_query, id_col=id_col, user_group_col=user_group_col, parent_id_col=parent_id_col, 
+                         connection_name=connection_name)
         self._options_col = options_col
         self._order_by_col = order_by_col
         self._is_default_col = is_default_col
@@ -150,7 +152,7 @@ class SingleSelectDataSource(_SelectionDataSource):
     def __init__(
             self, table_or_query: str, id_col: str, options_col: str, *, order_by_col: Optional[str] = None, 
             is_default_col: Optional[str] = None, custom_cols: Dict[str, str] = {}, user_group_col: Optional[str] = None, 
-            parent_id_col: Optional[str] = None, connection_name: str = c.DEFAULT_DB_CONN
+            parent_id_col: Optional[str] = None, connection_name: str = "default", **kwargs
         ) -> None:
         """
         Constructor for SingleSelectDataSource
@@ -173,7 +175,7 @@ class SingleSelectDataSource(_SelectionDataSource):
         Returns:
             The converted parameter
         """
-        self._validate_parameter_class(ds_param, p.SingleSelectParameter)
+        self._validate_parameter_type(ds_param, pc.SingleSelectParameterConfig)
         all_options = self._get_all_options(df)
         return pc.SingleSelectParameterConfig(ds_param.name, ds_param.label, all_options, is_hidden=ds_param.is_hidden, 
                                               user_attribute=ds_param.user_attribute, parent_name=ds_param.parent_name)
@@ -203,7 +205,7 @@ class MultiSelectDataSource(_SelectionDataSource):
     def __init__(
             self, table_or_query: str, id_col: str, options_col: str, *, order_by_col: Optional[str] = None, 
             is_default_col: Optional[str] = None, custom_cols: Dict[str, str] = {}, include_all: bool = True, order_matters: bool = False, 
-            user_group_col: Optional[str] = None, parent_id_col: Optional[str] = None, connection_name: str = c.DEFAULT_DB_CONN
+            user_group_col: Optional[str] = None, parent_id_col: Optional[str] = None, connection_name: str = "default", **kwargs
         ) -> None:
         """
         Constructor for SingleSelectDataSource
@@ -228,7 +230,7 @@ class MultiSelectDataSource(_SelectionDataSource):
         Returns:
             The converted parameter
         """
-        self._validate_parameter_class(ds_param, p.MultiSelectParameter)
+        self._validate_parameter_type(ds_param, pc.MultiSelectParameterConfig)
         all_options = self._get_all_options(df)
         return pc.MultiSelectParameterConfig(ds_param.name, ds_param.label, all_options, include_all=self._include_all, 
                                              order_matters=self._order_matters, is_hidden=ds_param.is_hidden, 
@@ -253,8 +255,8 @@ class DateDataSource(DataSource):
     _date_format: str # = field(default="%Y-%m-%d", kw_only=True)
 
     def __init__(
-        self, table_or_query: str, id_col: str, default_date_col: str, *, date_format: str = '%Y-%m-%d', 
-        user_group_col: Optional[str] = None, parent_id_col: Optional[str] = None, connection_name: str = c.DEFAULT_DB_CONN
+        self, table_or_query: str, default_date_col: str, *, date_format: str = '%Y-%m-%d', id_col: Optional[str] = None, 
+        user_group_col: Optional[str] = None, parent_id_col: Optional[str] = None, connection_name: str = "default", **kwargs
     ) -> None:
         """
         Constructor for DateDataSource
@@ -262,7 +264,7 @@ class DateDataSource(DataSource):
         Parameters:
             ...see Attributes of DateDataSource
         """
-        super().__init__(table_or_query, id_col, user_group_col=user_group_col, parent_id_col=parent_id_col, 
+        super().__init__(table_or_query, id_col=id_col, user_group_col=user_group_col, parent_id_col=parent_id_col, 
                          connection_name=connection_name)
         self._default_date_col = default_date_col
         self._date_format = date_format
@@ -278,7 +280,7 @@ class DateDataSource(DataSource):
         Returns:
             The converted parameter
         """
-        self._validate_parameter_class(ds_param, p.DateParameter)
+        self._validate_parameter_type(ds_param, pc.DateParameterConfig)
 
         columns = [self._default_date_col]
         df_agg = self._get_aggregated_df(df, columns)
@@ -313,16 +315,18 @@ class DateRangeDataSource(DataSource):
     _default_end_date_col: str
     _date_format: str # = field(default="%Y-%m-%d", kw_only=True)
 
-    def __init__(self, table_or_query: str, id_col: str, default_start_date_col: str, default_end_date_col: str, *, 
-                 date_format: str = '%Y-%m-%d', user_group_col: Optional[str] = None, parent_id_col: Optional[str] = None, 
-                 connection_name: str = c.DEFAULT_DB_CONN) -> None:
+    def __init__(
+        self, table_or_query: str, default_start_date_col: str, default_end_date_col: str, *, date_format: str = '%Y-%m-%d',
+        id_col: Optional[str] = None, user_group_col: Optional[str] = None, parent_id_col: Optional[str] = None, 
+        connection_name: str = "default", **kwargs
+    ) -> None:
         """
         Constructor for DateRangeDataSource
 
         Parameters:
             ...see Attributes of DateRangeDataSource
         """
-        super().__init__(table_or_query, id_col, user_group_col=user_group_col, parent_id_col=parent_id_col, 
+        super().__init__(table_or_query, id_col=id_col, user_group_col=user_group_col, parent_id_col=parent_id_col, 
                          connection_name=connection_name)
         self._default_start_date_col = default_start_date_col
         self._default_end_date_col = default_end_date_col
@@ -339,7 +343,7 @@ class DateRangeDataSource(DataSource):
         Returns:
             The converted parameter
         """
-        self._validate_parameter_class(ds_param, p.DateRangeParameter)
+        self._validate_parameter_type(ds_param, pc.DateRangeParameterConfig)
 
         columns = [self._default_start_date_col, self._default_end_date_col]
         df_agg = self._get_aggregated_df(df, columns)
@@ -366,9 +370,12 @@ class _NumericDataSource(DataSource):
     _increment_col: Optional[str] # = field(default=None, kw_only=True)
     
     @abstractmethod
-    def __init__(self, table_or_query: str, id_col: str, min_value_col: str, max_value_col: str, *, increment_col: Optional[str] = None, 
-                 user_group_col: Optional[str] = None, parent_id_col: Optional[str] = None, connection_name: str = c.DEFAULT_DB_CONN) -> None:
-        super().__init__(table_or_query, id_col, user_group_col=user_group_col, parent_id_col=parent_id_col, connection_name=connection_name)
+    def __init__(
+        self, table_or_query: str, min_value_col: str, max_value_col: str, *, increment_col: Optional[str] = None, 
+        id_col: Optional[str] = None, user_group_col: Optional[str] = None, parent_id_col: Optional[str] = None, 
+        connection_name: str = "default", **kwargs
+    ) -> None:
+        super().__init__(table_or_query, id_col=id_col, user_group_col=user_group_col, parent_id_col=parent_id_col, connection_name=connection_name)
         self._min_value_col = min_value_col
         self._max_value_col = max_value_col
         self._increment_col = increment_col
@@ -392,17 +399,19 @@ class NumberDataSource(_NumericDataSource):
     """
     _default_value_col: Optional[str] # = field(default=None, kw_only=True)
 
-    def __init__(self, table_or_query: str, id_col: str, min_value_col: str, max_value_col: str, *, increment_col: Optional[str] = None,
-                 default_value_col: Optional[str] = None, user_group_col: Optional[str] = None, parent_id_col: Optional[str] = None, 
-                 connection_name: str = c.DEFAULT_DB_CONN) -> None:
+    def __init__(
+        self, table_or_query: str, min_value_col: str, max_value_col: str, *, increment_col: Optional[str] = None,
+        default_value_col: Optional[str] = None, id_col: Optional[str] = None, user_group_col: Optional[str] = None, 
+        parent_id_col: Optional[str] = None, connection_name: str = "default", **kwargs
+    ) -> None:
         """
         Constructor for NumberDataSource
 
         Parameters:
             ...see Attributes of NumberDataSource
         """
-        super().__init__(table_or_query, id_col, min_value_col, max_value_col, increment_col=increment_col, user_group_col=user_group_col, 
-                         parent_id_col=parent_id_col, connection_name=connection_name)
+        super().__init__(table_or_query, min_value_col, max_value_col, increment_col=increment_col, id_col=id_col, 
+                         user_group_col=user_group_col, parent_id_col=parent_id_col, connection_name=connection_name)
         self._default_value_col = default_value_col
 
     def _convert(self, ds_param: pc.DataSourceParameterConfig, df: pd.DataFrame) -> pc.NumberParameterConfig:
@@ -416,7 +425,7 @@ class NumberDataSource(_NumericDataSource):
         Returns:
             The converted parameter
         """
-        self._validate_parameter_class(ds_param, p.NumberParameter)
+        self._validate_parameter_type(ds_param, pc.NumberParameterConfig)
 
         columns = [self._min_value_col, self._max_value_col, self._increment_col, self._default_value_col]
         df_agg = self._get_aggregated_df(df, columns)
@@ -454,17 +463,19 @@ class NumRangeDataSource(_NumericDataSource):
     _default_lower_value_col: Optional[str] # = field(default=None, kw_only=True)
     _default_upper_value_col: Optional[str] # = field(default=None, kw_only=True)
 
-    def __init__(self, table_or_query: str, id_col: str, min_value_col: str, max_value_col: str, *, increment_col: Optional[str] = None,
-                 default_lower_value_col: Optional[str] = None, default_upper_value_col: Optional[str] = None, user_group_col: Optional[str] = None,
-                 parent_id_col: Optional[str] = None, connection_name: str = c.DEFAULT_DB_CONN) -> None:
+    def __init__(
+        self, table_or_query: str, min_value_col: str, max_value_col: str, *, increment_col: Optional[str] = None,
+        default_lower_value_col: Optional[str] = None, default_upper_value_col: Optional[str] = None, id_col: Optional[str] = None, 
+        user_group_col: Optional[str] = None, parent_id_col: Optional[str] = None, connection_name: str = "default", **kwargs
+    ) -> None:
         """
         Constructor for NumRangeDataSource
 
         Parameters:
             ...see Attributes of NumRangeDataSource
         """
-        super().__init__(table_or_query, id_col, min_value_col, max_value_col, increment_col=increment_col, user_group_col=user_group_col, 
-                         parent_id_col=parent_id_col, connection_name=connection_name)
+        super().__init__(table_or_query, min_value_col, max_value_col, increment_col=increment_col, id_col=id_col, 
+                         user_group_col=user_group_col, parent_id_col=parent_id_col, connection_name=connection_name)
         self._default_lower_value_col = default_lower_value_col
         self._default_upper_value_col = default_upper_value_col
 
@@ -479,7 +490,7 @@ class NumRangeDataSource(_NumericDataSource):
         Returns:
             The converted parameter
         """
-        self._validate_parameter_class(ds_param, p.NumRangeParameter)
+        self._validate_parameter_type(ds_param, pc.NumRangeParameterConfig)
 
         columns = [self._min_value_col, self._max_value_col, self._increment_col, self._default_lower_value_col, self._default_upper_value_col]
         df_agg = self._get_aggregated_df(df, columns)

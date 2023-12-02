@@ -86,25 +86,29 @@ def param_configs_set2(
 
     ms_datasource = d.MultiSelectDataSource("ms_table", "my_id", "my_label", is_default_col="my_default_flag", 
                                             user_group_col="my_user_group")
-    ms_ds_param = pc.DataSourceParameterConfig(p.MultiSelectParameter, ms_config_basic.name, ms_config_basic.label, ms_datasource,
+    ms_ds_param = pc.DataSourceParameterConfig(pc.MultiSelectParameterConfig, ms_config_basic.name, ms_config_basic.label, ms_datasource,
                                                user_attribute=ms_config_basic.user_attribute)
     config_set.add(ms_ds_param)
 
-    data_datasource = d.DateDataSource("date_table", "my_id", "my_default", user_group_col="my_user_group", parent_id_col="my_parent_id")
-    date_ds_param = pc.DataSourceParameterConfig(p.DateParameter, date_config_with_parent.name, date_config_with_parent.label, data_datasource,
-                                                 user_attribute=date_config_with_parent.user_attribute, parent_name=ss_config_with_ms_parent.name)
+    data_datasource = d.DateDataSource("date_table", "my_default", id_col="my_id", user_group_col="my_user_group", 
+                                       parent_id_col="my_parent_id")
+    date_ds_param = pc.DataSourceParameterConfig(pc.DateParameterConfig, date_config_with_parent.name, date_config_with_parent.label, 
+                                                 data_datasource, user_attribute=date_config_with_parent.user_attribute, 
+                                                 parent_name=ss_config_with_ms_parent.name)
     config_set.add(date_ds_param)
 
     df_dict = {}
 
     def make_ms_option(x: po.SelectParameterOption, user_group: str):
         return {"my_id": x._identifier, "my_label": x._label, "my_default_flag": int(x._is_default), "my_user_group": user_group}
+    
     ms_data = [make_ms_option(x, user_group) for x in ms_config_basic.all_options for user_group in x._user_groups]
     df_dict[ms_ds_param.name] = pd.DataFrame(ms_data)
 
     def make_date_option(x: po.DateParameterOption, user_group: str, parent_id: str):
         default_date = x._default_date.strftime("%Y-%m-%d")
         return {"my_id": 'id'+default_date, "my_default": default_date, "my_user_group": user_group, "my_parent_id": parent_id}
+    
     date_data = [
         make_date_option(x, user_group, parent_id)
         for x in date_config_with_parent.all_options for user_group in x._user_groups for parent_id in x._parent_option_ids
@@ -118,7 +122,6 @@ def param_configs_set2(
 def test_parameter_set_to_json_dict(parameter_set1: ps.ParameterSet):
     expected_params = []
     expected = {
-        "response_version": 0, 
         "parameters": expected_params
     }
 
@@ -137,7 +140,7 @@ def test_parameter_set_to_json_dict(parameter_set1: ps.ParameterSet):
     }
     expected_params.append(ms_param_json)
 
-    assert parameter_set1.to_json_dict() == expected
+    assert parameter_set1.to_json_dict0() == expected
 
     ss_param_json = {
         "widget_type": "single_select",
@@ -153,7 +156,7 @@ def test_parameter_set_to_json_dict(parameter_set1: ps.ParameterSet):
     }
     expected_params.insert(0, ss_param_json)
 
-    assert parameter_set1.to_json_dict(debug=True) == expected
+    assert parameter_set1.to_json_dict0(debug=True) == expected
 
 
 def test_invalid_non_select_parent():

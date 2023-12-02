@@ -1,7 +1,7 @@
 from typing import Set, Iterable, Optional, Union, Dict, Any
 from dataclasses import dataclass, field
 from decimal import Decimal, InvalidOperation as InvalidDecimalConversion
-from datetime import datetime
+from datetime import datetime, date
 from abc import ABCMeta, abstractmethod
 
 from ._utils import ConfigurationError
@@ -19,13 +19,13 @@ class ParameterOption(metaclass=ABCMeta):
 
     @abstractmethod
     def __init__(
-        self, *, user_groups: Union[Iterable[str], str] = frozenset(), parent_option_ids: Union[Iterable[str], str] = frozenset()
+        self, *, user_groups: Union[Iterable[str], str] = frozenset(), parent_option_ids: Union[Iterable[str], str] = frozenset(), **kwargs
     ) -> None:
         self._user_groups = frozenset({user_groups} if isinstance(user_groups, str) else user_groups)
         self._parent_option_ids = frozenset({parent_option_ids} if isinstance(parent_option_ids, str) else parent_option_ids)
 
-    def _validate_lower_upper_values(self, lower_label: str, lower_value: Union[Decimal, datetime], 
-                                     upper_label: str, upper_value: Union[Decimal, datetime]):
+    def _validate_lower_upper_values(self, lower_label: str, lower_value: Union[Decimal, date], 
+                                     upper_label: str, upper_value: Union[Decimal, date]):
         if lower_value > upper_value:
             raise ConfigurationError(f'The {lower_label} "{lower_value}" must be less than or equal to the {upper_label} "{upper_value}"')
 
@@ -74,7 +74,7 @@ class SelectParameterOption(ParameterOption):
     custom_fields: Dict[str, Any] # = field(default_factory=False, kw_only=True)
 
     def __init__(
-        self, identifier: str, label: str, *, is_default: bool = False, user_groups: Union[Iterable[str], str] = frozenset(), 
+        self, id: str, label: str, *, is_default: bool = False, user_groups: Union[Iterable[str], str] = frozenset(), 
         parent_option_ids: Union[Iterable[str], str] = frozenset(), custom_fields: Dict[str, Any] = {}, **kwargs
     ) -> None:
         """
@@ -85,14 +85,14 @@ class SelectParameterOption(ParameterOption):
             **kwargs: Any additional keyword arguments specified (except the ones above) gets included into custom_fields as well
         """
         super().__init__(user_groups=user_groups, parent_option_ids=parent_option_ids)
-        self._identifier = identifier
+        self._identifier = id
         self._label = label
         self._is_default = is_default
         self.custom_fields = {
             **kwargs, **custom_fields, **self._to_json_dict()
         }
 
-    def get_custom_field(self, field: str, *, default_field: Optional[str] = None, default: Any = None) -> Any:
+    def get_custom_field(self, field: str, *, default_field: Optional[str] = None, default: Any = None, **kwargs) -> Any:
         """
         Get field value from the custom_fields attribute
 
@@ -132,14 +132,14 @@ class _DateTypeParameterOption(ParameterOption):
     @abstractmethod
     def __init__(
         self, *, date_format: str = '%Y-%m-%d', user_groups: Union[Iterable[str], str] = frozenset(), 
-        parent_option_ids: Union[Iterable[str], str] = frozenset()
+        parent_option_ids: Union[Iterable[str], str] = frozenset(), **kwargs
     ) -> None:
         super().__init__(user_groups=user_groups, parent_option_ids=parent_option_ids)
         self._date_format = date_format
     
-    def _validate_date(self, date_str: Union[str, datetime]) -> datetime:
+    def _validate_date(self, date_str: Union[str, date]) -> date:
         try:
-            return datetime.strptime(date_str, self._date_format) if isinstance(date_str, str) else date_str
+            return datetime.strptime(date_str, self._date_format).date() if isinstance(date_str, str) else date_str
         except ValueError as e:
             raise ConfigurationError(f'Invalid format for date "{date_str}".') from e
     
@@ -158,11 +158,11 @@ class DateParameterOption(_DateTypeParameterOption):
         user_groups: The user groups this parameter option would show for if "user_group_attr" is specified in the Parameter object
         parent_option_ids: Set of parent option ids this parameter option would show for if "parent" is specified in the Parameter object
     """
-    _default_date: datetime
+    _default_date: date
 
     def __init__(
-        self, default_date: Union[str, datetime], *, date_format: str = '%Y-%m-%d', user_groups: Union[Iterable[str], str] = frozenset(), 
-        parent_option_ids: Union[Iterable[str], str] = frozenset()
+        self, default_date: Union[str, date], *, date_format: str = '%Y-%m-%d', user_groups: Union[Iterable[str], str] = frozenset(), 
+        parent_option_ids: Union[Iterable[str], str] = frozenset(), **kwargs
     ) -> None:
         """
         Constructor for DateParameterOption
@@ -186,12 +186,12 @@ class DateRangeParameterOption(_DateTypeParameterOption):
         user_groups: The user groups this parameter option would show for if "user_group_attr" is specified in the Parameter object
         parent_option_ids: Set of parent option ids this parameter option would show for if "parent" is specified in the Parameter object
     """
-    _default_start_date: datetime
-    _default_end_date: datetime
+    _default_start_date: date
+    _default_end_date: date
 
     def __init__(
-        self, default_start_date: Union[str, datetime], default_end_date: Union[str, datetime], *, date_format: str = '%Y-%m-%d', 
-        user_groups: Union[Iterable[str], str] = frozenset(), parent_option_ids: Union[Iterable[str], str] = frozenset()
+        self, default_start_date: Union[str, date], default_end_date: Union[str, date], *, date_format: str = '%Y-%m-%d', 
+        user_groups: Union[Iterable[str], str] = frozenset(), parent_option_ids: Union[Iterable[str], str] = frozenset(), **kwargs
     ) -> None:
         """
         Constructor for DateRangeParameterOption
@@ -217,7 +217,7 @@ class _NumericParameterOption(ParameterOption):
     @abstractmethod
     def __init__(
         self, min_value: Number, max_value: Number, *, increment: Number = 1, user_groups: Union[Iterable[str], str] = frozenset(), 
-        parent_option_ids: Union[Iterable[str], str] = frozenset()
+        parent_option_ids: Union[Iterable[str], str] = frozenset(), **kwargs
     ) -> None:
         super().__init__(user_groups=user_groups, parent_option_ids=parent_option_ids)
         try:
@@ -279,7 +279,7 @@ class NumberParameterOption(_NumericParameterOption):
 
     def __init__(
         self, min_value: Number, max_value: Number, *, increment: Number = 1, default_value: Optional[Number] = None,
-        user_groups: Union[Iterable[str], str] = frozenset(), parent_option_ids: Union[Iterable[str], str] = frozenset()
+        user_groups: Union[Iterable[str], str] = frozenset(), parent_option_ids: Union[Iterable[str], str] = frozenset(), **kwargs
     ) -> None:
         """
         Constructor for NumberParameterOption
@@ -314,7 +314,7 @@ class NumRangeParameterOption(_NumericParameterOption):
     def __init__(
         self, min_value: Number, max_value: Number, *, increment: Number = 1, default_lower_value: Optional[Number] = None, 
         default_upper_value: Optional[Number] = None, user_groups: Union[Iterable[str], str] = frozenset(), 
-        parent_option_ids: Union[Iterable[str], str] = frozenset()
+        parent_option_ids: Union[Iterable[str], str] = frozenset(), **kwargs
     ) -> None:
         """
         Constructor for NumRangeParameterOption

@@ -19,7 +19,7 @@ class ConnectionSet:
     """
     _conn_pools: Dict[str, Union[Engine, Pool]]
     
-    def get_connection_pool(self, conn_name: str = "default") -> Union[Engine, Pool]:
+    def get_connection_pool(self, conn_name: str) -> Union[Engine, Pool]:
         try:
             connection_pool = self._conn_pools[conn_name]
         except KeyError as e:
@@ -73,14 +73,14 @@ class ConnectionSetIO:
         for key, config in connection_configs.items():
             cred_key = config.get(c.DB_CREDENTIALS_KEY)
             username, password = EnvironConfigIO.obj.get_credential(cred_key)
-            url = config[c.URL_KEY].replace("${username}", username).replace("${password}", password)
+            if c.URL_KEY not in config or config[c.URL_KEY] is None:
+                raise u.ConfigurationError(f"The db_connection '{key}' is missing attribute '{c.URL_KEY}'")
+            url = config[c.URL_KEY].format(username=username, password=password)
             connections[key] = create_engine(url)
         
         proj_vars = ManifestIO.obj.get_proj_vars()
-        conn_from_py_file = u.run_module_main(c.CONNECTIONS_FILE, {"proj": proj_vars})
-        if conn_from_py_file is None:
-            conn_from_py_file = {}
-        cls.obj = ConnectionSet({**connections, **conn_from_py_file})
+        u.run_pyconfig_main(c.CONNECTIONS_FILE, {"connections": connections, "proj": proj_vars})
+        cls.obj = ConnectionSet(connections)
         timer.add_activity_time("creating sqlalchemy engines or pools", start)
 
     @classmethod

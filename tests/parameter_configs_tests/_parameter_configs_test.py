@@ -1,5 +1,5 @@
 from copy import copy
-from datetime import datetime
+from datetime import date
 from decimal import Decimal
 import pytest
 
@@ -55,7 +55,7 @@ class TestMultiSelectParameterConfig:
             "include_all": True,
             "order_matters": False
         }
-        assert ms_config_basic.to_json_dict() == expected
+        assert ms_config_basic.to_json_dict0() == expected
 
 
 class TestSingleSelectParameterConfig:
@@ -95,7 +95,7 @@ class TestSingleSelectParameterConfig:
             "label": "Single With Parent 1",
             "trigger_refresh": False
         }
-        assert ss_config_with_ms_parent.to_json_dict() == expected
+        assert ss_config_with_ms_parent.to_json_dict0() == expected
 
 
 class TestDateParameterConfig:
@@ -103,7 +103,7 @@ class TestDateParameterConfig:
         self, user: UserBase, ss_param_with_ms_parent: p.SingleSelectParameter, date_config_with_parent: pc.DateParameterConfig
     ):
         curr_option = date_config_with_parent.all_options[1]
-        expected = p.DateParameter(date_config_with_parent, curr_option, datetime(2023, 2, 1))
+        expected = p.DateParameter(date_config_with_parent, curr_option, date(2023, 2, 1))
         param = date_config_with_parent.with_selection(None, user, ss_param_with_ms_parent)
         assert param == expected
 
@@ -111,14 +111,14 @@ class TestDateParameterConfig:
         self, user: UserBase, ss_param_with_ms_parent: p.SingleSelectParameter, date_config_with_parent: pc.DateParameterConfig
     ):
         curr_option = date_config_with_parent.all_options[1]
-        expected = p.DateParameter(date_config_with_parent, curr_option, datetime(2023, 5, 1))
+        expected = p.DateParameter(date_config_with_parent, curr_option, date(2023, 5, 1))
         param = date_config_with_parent.with_selection("2023-05-01", user, ss_param_with_ms_parent)
         assert param == expected
     
     def test_with_selection3(self, user: UserBase):
         all_options = [po.DateParameterOption("2022-01-01"), po.DateParameterOption("2022-02-01")]
         date_config = pc.DateParameterConfig("date_param", "Date Parameter", all_options)
-        expected = p.DateParameter(date_config, all_options[0], datetime(2022, 1, 1)) # only first option used
+        expected = p.DateParameter(date_config, all_options[0], date(2022, 1, 1)) # only first option used
         param = date_config.with_selection(None, user, None)
         assert param == expected
     
@@ -132,13 +132,13 @@ class TestDateParameterConfig:
 class TestDateRangeParameterConfig:
     def test_with_selection1(self, user: UserBase, date_range_config: pc.DateRangeParameterConfig):
         curr_option = date_range_config.all_options[0]
-        expected = p.DateRangeParameter(date_range_config, curr_option, datetime(2023,1,1), datetime(2023,12,31))
+        expected = p.DateRangeParameter(date_range_config, curr_option, date(2023,1,1), date(2023,12,31))
         param = date_range_config.with_selection(None, user, None)
         assert param == expected
         
     def test_with_selection2(self, date_range_config: pc.DateRangeParameterConfig):
         curr_option = date_range_config.all_options[0]
-        expected = p.DateRangeParameter(date_range_config, curr_option, datetime(2023,2,1), datetime(2023,10,31))
+        expected = p.DateRangeParameter(date_range_config, curr_option, date(2023,2,1), date(2023,10,31))
         param = date_range_config.with_selection("2023-02-01,2023-10-31", None, None)
         assert param == expected
 

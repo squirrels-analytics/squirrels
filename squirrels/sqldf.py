@@ -2,7 +2,7 @@ from typing import Dict
 import sqlite3, pandas as pd
 
 
-def sqldf(query: str, df_by_db_views: Dict[str, pd.DataFrame]) -> pd.DataFrame:
+def sqldf(query: str, df_by_db_views: Dict[str, pd.DataFrame], **kwargs) -> pd.DataFrame:
     """
     Uses a dictionary of dataframes to execute a SQL query in an in-memory sqlite database
 
