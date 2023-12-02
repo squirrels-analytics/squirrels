@@ -108,7 +108,7 @@ class SelectionParameterConfig(ParameterConfig):
 
     @abstractmethod
     def __init__(
-        self, widget_type: str, name: str, label: str, all_options: Sequence[po.SelectParameterOption], *, is_hidden: bool = False, 
+        self, widget_type: str, name: str, label: str, all_options: Sequence[Union[po.SelectParameterOption, Dict]], *, is_hidden: bool = False, 
         user_attribute: Optional[str] = None, parent_name: Optional[str] = None, **kwargs
     ) -> None:
         super().__init__(widget_type, name, label, all_options, is_hidden=is_hidden, user_attribute=user_attribute, 
@@ -151,7 +151,7 @@ class SingleSelectParameterConfig(SelectionParameterConfig):
     """
     
     def __init__(
-        self, name: str, label: str, all_options: Sequence[po.SelectParameterOption], *, is_hidden: bool = False, 
+        self, name: str, label: str, all_options: Sequence[Union[po.SelectParameterOption, Dict]], *, is_hidden: bool = False, 
         user_attribute: Optional[str] = None, parent_name: Optional[str] = None, **kwargs
     ) -> None:
         super().__init__("single_select", name, label, all_options, is_hidden=is_hidden, user_attribute=user_attribute, 
@@ -184,7 +184,7 @@ class MultiSelectParameterConfig(SelectionParameterConfig):
     order_matters: bool # = field(default=False, kw_only=True)
 
     def __init__(
-        self, name: str, label: str, all_options: Sequence[po.SelectParameterOption], *, include_all: bool = True, 
+        self, name: str, label: str, all_options: Sequence[Union[po.SelectParameterOption, Dict]], *, include_all: bool = True, 
         order_matters: bool = False, is_hidden: bool = False, user_attribute: Optional[str] = None, parent_name: Optional[str] = None, 
         **kwargs
     ) -> None:
@@ -223,7 +223,7 @@ class _DateTypeParameterConfig(ParameterConfig):
 
     @abstractmethod
     def __init__(
-        self, widget_type: str, name: str, label: str, all_options: Sequence[po.ParameterOption], *, is_hidden: bool = False, 
+        self, widget_type: str, name: str, label: str, all_options: Sequence[Union[po.ParameterOption, Dict]], *, is_hidden: bool = False, 
         user_attribute: Optional[str] = None, parent_name: Optional[str] = None, **kwargs
     ) -> None:
         super().__init__(widget_type, name, label, all_options, is_hidden=is_hidden, user_attribute=user_attribute, 
@@ -237,7 +237,7 @@ class DateParameterConfig(_DateTypeParameterConfig):
     """
     
     def __init__(
-        self, name: str, label: str, all_options: Sequence[po.DateParameterOption], *, is_hidden: bool = False, 
+        self, name: str, label: str, all_options: Sequence[Union[po.DateParameterOption, Dict]], *, is_hidden: bool = False, 
         user_attribute: Optional[str] = None, parent_name: Optional[str] = None, **kwargs
     ) -> None:
         super().__init__("date", name, label, all_options, is_hidden=is_hidden, user_attribute=user_attribute, 
@@ -267,7 +267,7 @@ class DateRangeParameterConfig(_DateTypeParameterConfig):
     """
     
     def __init__(
-        self, name: str, label: str, all_options: Sequence[po.DateRangeParameterOption], *, is_hidden: bool = False, 
+        self, name: str, label: str, all_options: Sequence[Union[po.DateRangeParameterOption, Dict]], *, is_hidden: bool = False, 
         user_attribute: Optional[str] = None, parent_name: Optional[str] = None, **kwargs
     ) -> None:
         super().__init__("date_range", name, label, all_options, is_hidden=is_hidden, user_attribute=user_attribute, 
@@ -305,7 +305,7 @@ class _NumericParameterConfig(ParameterConfig):
 
     @abstractmethod
     def __init__(
-        self, widget_type: str, name: str, label: str, all_options: Sequence[po.ParameterOption], *, is_hidden: bool = False, 
+        self, widget_type: str, name: str, label: str, all_options: Sequence[Union[po.ParameterOption, Dict]], *, is_hidden: bool = False, 
         user_attribute: Optional[str] = None, parent_name: Optional[str] = None, **kwargs
     ) -> None:
         super().__init__(widget_type, name, label, all_options, is_hidden=is_hidden, user_attribute=user_attribute, 
@@ -319,7 +319,7 @@ class NumberParameterConfig(_NumericParameterConfig):
     """
     
     def __init__(
-        self, name: str, label: str, all_options: Sequence[po.NumberParameterOption], *, is_hidden: bool = False, 
+        self, name: str, label: str, all_options: Sequence[Union[po.NumberParameterOption, Dict]], *, is_hidden: bool = False, 
         user_attribute: Optional[str] = None, parent_name: Optional[str] = None, **kwargs
     ) -> None:
         super().__init__("number", name, label, all_options, is_hidden=is_hidden, user_attribute=user_attribute, 
@@ -349,7 +349,7 @@ class NumRangeParameterConfig(_NumericParameterConfig):
     """
     
     def __init__(
-        self, name: str, label: str, all_options: Sequence[po.NumRangeParameterOption], *, is_hidden: bool = False, 
+        self, name: str, label: str, all_options: Sequence[Union[po.NumRangeParameterOption, Dict]], *, is_hidden: bool = False, 
         user_attribute: Optional[str] = None, parent_name: Optional[str] = None, **kwargs
     ) -> None:
         super().__init__("number_range", name, label, all_options, is_hidden=is_hidden, user_attribute=user_attribute, 

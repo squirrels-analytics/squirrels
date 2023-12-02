@@ -21,7 +21,7 @@ class Parameter(metaclass=ABCMeta):
         pass
     
     @classmethod
-    def Create( # TOTEST all_options: Sequence[Dict]
+    def Create(
         cls, name: str, label: str, all_options: Sequence[Union[po.ParameterOption, Dict]], *, is_hidden: bool = False, 
         user_attribute: Optional[str] = None, parent_name: Optional[str] = None, **kwargs
     ) -> None:
@@ -47,7 +47,7 @@ class Parameter(metaclass=ABCMeta):
         pass
     
     @classmethod
-    def CreateFromSource( # TOTEST data_source: Dict
+    def CreateFromSource(
         cls, name: str, label: str, data_source: Union[d.DataSource , Dict], *, is_hidden: bool = False, 
         user_attribute: Optional[str] = None, parent_name: Optional[str] = None, **kwargs
     ) -> None:

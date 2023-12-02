@@ -51,7 +51,7 @@ class ApiServer:
         app.add_middleware(CORSMiddleware, allow_origins=["*"], allow_credentials=True, allow_methods=["*"], allow_headers=["*"])
 
         squirrels_version_path = f'/squirrels-v{sq_major_version}'
-        partial_base_path = f'/{ManifestIO.obj.get_product()}/v{ManifestIO.obj.get_major_version()}'
+        partial_base_path = f'/{ManifestIO.obj.get_product_name()}/v{ManifestIO.obj.get_major_version()}'
         base_path = squirrels_version_path + u.normalize_name_for_api(partial_base_path)
 
         static_dir = u.join_paths(os.path.dirname(__file__), c.PACKAGE_DATA_FOLDER, c.STATIC_FOLDER)
@@ -242,16 +242,13 @@ class ApiServer:
                         'first_minor_version': 0
                     })
             
-            project_vars = ManifestIO.obj.get_proj_vars()
-            product_name = project_vars[c.PRODUCT_KEY]
-            product_label = project_vars.get(c.PRODUCT_LABEL_KEY, product_name)
             return {
                 'products': [{
-                    'name': product_name,
-                    'label': product_label,
+                    'name': ManifestIO.obj.get_product_name(),
+                    'label': ManifestIO.obj.get_product_label(),
                     'versions': [{
-                        'major_version': project_vars[c.MAJOR_VERSION_KEY],
-                        'latest_minor_version': project_vars[c.MINOR_VERSION_KEY],
+                        'major_version': ManifestIO.obj.get_major_version(),
+                        'latest_minor_version': ManifestIO.obj.get_minor_version(),
                         'datasets': datasets_info
                     }]
                 }]

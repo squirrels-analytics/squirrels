@@ -1,8 +1,6 @@
-from typing import List
 import pytest
 
 from squirrels import _parameter_configs as pc, parameters as p, parameter_options as po
-from squirrels.user_base import UserBase
 
 
 @pytest.fixture(scope="module")
@@ -106,17 +104,3 @@ def num_range_config() -> pc.NumRangeParameterConfig:
         po.NumRangeParameterOption("10.5", "15.3", increment="0.4", user_groups="org1")
     ]
     return pc.NumRangeParameterConfig("num_range_param", "Number Range Param", param_options, user_attribute="organization")
-
-
-# @pytest.fixture(scope="package")
-# def param_configs_set(request: pytest.FixtureRequest) -> ps._ParameterConfigsSet:
-#     param_configs: List[pc.ParameterConfig] = [
-#         "ms_config_basic", "ss_config_with_ms_parent", "ms_config_with_ms_parent", "ss_config_with_ss_parent", "ms_config_with_ss_parent", 
-#         "date_config_with_parent", "date_range_config", "num_config_with_parent", "num_range_config"
-#     ]
-#     configs_set = ps._ParameterConfigsSet()
-#     for x in param_configs:
-#         config = request.getfixturevalue(x)
-#         configs_set.add(config)
-#     configs_set._post_process_params({})
-#     return configs_set

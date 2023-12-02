@@ -48,18 +48,6 @@ class _ParameterConfigsSet:
         if isinstance(param_config, pc.DataSourceParameterConfig):
             self._data_source_params[param_config.name] = param_config
     
-    def _add_from_dict(self, param_as_dict: Dict) -> None: # TOTEST
-        try:
-            name, ptype_str = param_as_dict["name"], param_as_dict["type"]
-            factory_str, arguments = param_as_dict["factory"], param_as_dict["arguments"]
-        except KeyError as e:
-            raise u.ConfigurationError(f"Each parameter in {c.MANIFEST_FILE} must have 'name', 'type', 'factory', and 'arguments'.")
-        
-        arguments["name"] = name
-        ptype = getattr(p, ptype_str)
-        factory = getattr(ptype, factory_str)
-        factory(**arguments)
-    
     def _get_all_ds_param_configs(self) -> Sequence[pc.DataSourceParameterConfig]:
         return list(self._data_source_params.values())
 
@@ -173,12 +161,25 @@ class ParameterConfigsSetIO:
         return df_dict
     
     @classmethod
+    def _AddFromDict(cls, param_as_dict: Dict) -> None: # TOTEST
+        try:
+            name, ptype_str = param_as_dict["name"], param_as_dict["type"]
+            factory_str, arguments = param_as_dict["factory"], param_as_dict["arguments"]
+        except KeyError as e:
+            raise u.ConfigurationError(f"Each parameter in {c.MANIFEST_FILE} must have 'name', 'type', 'factory', and 'arguments'.") from e
+        
+        arguments["name"] = name
+        ptype = getattr(p, ptype_str)
+        factory = getattr(ptype, factory_str)
+        factory(**arguments)
+    
+    @classmethod
     def LoadFromFile(cls, *, excel_file_name: Optional[str] = None) -> None:
         start = time.time()
 
         parameters_from_manifest = ManifestIO.obj.get_parameters()
         for param_as_dict in parameters_from_manifest:
-            cls.obj._add_from_dict(param_as_dict)
+            cls._AddFromDict(param_as_dict)
         
         proj_vars = ManifestIO.obj.get_proj_vars()
         u.run_pyconfig_main(c.PARAMETERS_FILE, {"proj": proj_vars})

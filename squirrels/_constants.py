@@ -28,7 +28,7 @@ PROTECTED_SCOPE = 'protected'
 PRIVATE_SCOPE = 'private'
 
 # Project variable keys
-PRODUCT_KEY = 'product'
+PRODUCT_NAME_KEY = 'product_name'
 PRODUCT_LABEL_KEY = 'product_label'
 MAJOR_VERSION_KEY = 'major_version'
 MINOR_VERSION_KEY = 'minor_version'
