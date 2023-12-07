@@ -118,8 +118,7 @@ class Initializer:
                         return ""
                     
                     yaml_path = u.join_paths(base_proj_dir, file_name)
-                    with open(yaml_path, "r") as f:
-                        return f.read()
+                    return u.read_file(yaml_path)
                 
                 file_name_dict = {
                     "parameters": c.PARAMETERS_YML_FILE if parameters_use_yaml else None, 

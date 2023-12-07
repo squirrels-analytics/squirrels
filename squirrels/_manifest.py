@@ -154,9 +154,7 @@ class ManifestIO:
         EnvironConfigIO.LoadFromFile()
         
         start = time.time()
-        with open(c.MANIFEST_FILE, 'r') as f:
-            raw_content = f.read()
-        
+        raw_content = u.read_file(c.MANIFEST_FILE)
         env_config = EnvironConfigIO.obj.get_all_env_vars()
         content = u.render_string(raw_content, env_config)
         proj_config = yaml.safe_load(content)

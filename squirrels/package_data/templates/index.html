@@ -11,54 +11,64 @@
         <script src="{{ url_for('static', path='/script.js?version=3') }}" defer></script>
     </head>
     <body onload="callJsonAPI(catalog_path, renderDatasetsSelection)">
-        <div id="main-container" class="horizontal-container">
-            <div id="parameter-container">
-                <label for="product-select">Select a Product:</label>
-                <select id="product-select"></select>
-                <label for="dataset-select">Select a Dataset:</label>
-                <select id="dataset-select" onchange="changeDatasetSelection()"></select>
-                <div id="generated-parameters"></div>
-                <input type="submit" value="Apply" onclick="getDatasetResults()">
-            </div>
-            <div id="right-container">
-                <div id="header-container">
-                    <div class="horizontal-container">
-                        <button onclick="copyTable()">Copy Table</button>
+        <div id="root">
+            <div id="main-container" class="horizontal-container">
+                <div id="parameter-container">
+                    <div>
+                        <label for="product-select">Select a Product:</label>
+                        <select id="product-select"></select>
+                        <label for="dataset-select">Select a Dataset:</label>
+                        <select id="dataset-select" onchange="changeDatasetSelection()"></select>
                     </div>
-                    <div class="horizontal-container">
-                        <div style="vertical-align: middle;">Logged in as <span id="username-txt">guest</span></div>
-                        <button onclick="openLoginModal()">Authenticate</button>
+                    <div id="generated-parameters"></div>
+                    <input type="submit" class="blue-button" value="Apply" onclick="getDatasetResults()">
+                </div>
+                <div id="right-container">
+                    <div id="header-container">
+                        <div class="horizontal-container">
+                            <button class="white-button" onclick="copyTable()">Copy Table</button>
+                        </div>
+                        <div class="horizontal-container">
+                            <div style="margin-right: 10px;">
+                                Logged in as <span id="username-txt">guest</span>
+                            </div>
+                            <button class="white-button" onclick="openLoginModal()">Authenticate</button>
+                        </div>
+                    </div>
+                    <div id="table-container">
+                        <table id="result-table">
+                            <thead id="table-header"></thead>
+                            <tbody id="table-body"></tbody>
+                        </table>
                     </div>
                 </div>
-                <div id="table-container">
-                    <table id="result-table">
-                        <thead id="table-header"></thead>
-                        <tbody id="table-body"></tbody>
-                    </table>
-                </div>
             </div>
-        </div>
-        <div id="loading-indicator">
-            <div>
-                <div class="spinner"></div>
-                <div>Loading...</div>
-            </div>
-        </div>
-        <div id="login-modal">
-            <form id="login-form" class="modal-content">
-              <div class="container">
-                <label for="username"><b>Username</b></label>
-                <input type="text" placeholder="Enter Username" name="username" required>
-          
-                <label for="password"><b>Password</b></label>
-                <input type="password" placeholder="Enter Password" name="password" required>
-                
-                <div id="incorrectpwd">Incorrect username or password. Please try again</div>
 
-                <button type="submit">Login</button>
-                <button type="reset">Cancel</button>
-              </div>
-            </form>
-          </div>
+            <div id="loading-indicator">
+                <div>
+                    <div class="spinner"></div>
+                    <div>Loading...</div>
+                </div>
+            </div>
+
+            <div id="login-modal" class="modal-background">
+                <form id="login-form" class="modal-content">
+                    <label for="username"><b>Username</b></label>
+                    <input type="text" placeholder="Enter Username" name="username" required>
+            
+                    <label for="password"><b>Password</b></label>
+                    <input type="password" placeholder="Enter Password" name="password" required>
+                    
+                    <div id="incorrectpwd" style="display: none;">
+                        Incorrect username or password. Please try again
+                    </div>
+
+                    <div style="margin-top: 5px;">
+                        <button type="submit" class="blue-button">Login</button>
+                        <button type="reset" class="blue-button">Cancel</button>
+                    </div>
+                </form>
+            </div>
+        </div>
     </body>
 </html>

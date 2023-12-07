@@ -169,11 +169,9 @@ class RendererIOWrapper:
     
     def _get_raw_query(self, template_path: str) -> Dict[str, Query]:
         if template_path.endswith(".py"):
-            return u.import_file_as_module(template_path).main
+            return u.get_py_main(template_path, is_required=True)
         else:
-            with open(template_path, 'r') as f:
-                sql_template = f.read()
-            return sql_template
+            return u.read_file(template_path)
 
     def _get_selections(self, selection_cfg_file: Optional[str]) -> Dict[str, str]:
         user_attributes, parameter_selections = {}, {}

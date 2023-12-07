@@ -55,7 +55,33 @@ def render_string(raw_str: str, kwargs: Dict) -> str:
     return template.render(kwargs)
 
 
-def import_file_as_module(filepath: Optional[FilePath]) -> Optional[ModuleType]:
+T = TypeVar('T')
+def __process_file_handler(file_handler: Callable[[FilePath], T], filepath: FilePath, is_required: bool) -> Optional[T]:
+    try:
+        return file_handler(filepath)
+    except FileNotFoundError as e:
+        if is_required:
+            raise ConfigurationError(f"Required file not found: '{str(filepath)}'") from e
+
+
+def read_file(filepath: FilePath, *, is_required: bool = True) -> Optional[str]:
+    """
+    Reads a file and return its content if required
+
+    Parameters:
+        filepath: The path to the file to read
+        is_required: If true, throw error if file doesn't exist
+
+    Returns:
+        Content of the file, or None if doesn't exist and not required
+    """
+    def file_handler(filepath: FilePath):
+        with open(filepath, 'r') as f:
+            return f.read()
+    return __process_file_handler(file_handler, filepath, is_required)
+
+
+def import_file_as_module(filepath: FilePath) -> ModuleType:
     """
     Imports a python file as a module.
 
@@ -65,28 +91,49 @@ def import_file_as_module(filepath: Optional[FilePath]) -> Optional[ModuleType]:
     Returns:
         The imported module.
     """
-    filepath = str(filepath) if filepath is not None else None
-    return SourceFileLoader(filepath, filepath).load_module() if filepath is not None else None
+    filepath = str(filepath)
+    return SourceFileLoader(filepath, filepath).load_module()
 
 
-def run_pyconfig_main(filepath: FilePath, kwargs: Dict[str, Any]) -> None:
+def get_py_main(filepath: FilePath, *, is_required: bool = False) -> Optional[Callable]:
+    """
+    Given the full path to a python file, get its main function
+    
+    Parameters:
+        filepath: The path to the python file with main function
+        is_required: If true, throw error if file doesn't exist
+    
+    Returns:
+        The main function of the python file
+    """
+    try:
+        module = import_file_as_module(filepath)
+    except FileNotFoundError as e:
+        if is_required:
+            raise ConfigurationError(f"Required file not found: '{str(filepath)}'") from e
+        return
+    
+    try:
+        return module.main
+    except AttributeError as e:
+        raise ConfigurationError(f"Python file missing main function: '{str(filepath)}'") from e
+
+
+def run_pyconfig_main(filename: str, kwargs: Dict[str, Any] = {}) -> None:
     """
     Given a python file in the 'pyconfigs' folder, run its main function
     
     Parameters:
-        filepath: The path to the file to run main function
+        filename: The name of the file to run main function
         kwargs: Dictionary of the main function arguments
     """
-    filepath = join_paths(c.PYCONFIG_FOLDER, filepath)
-    try:
-        module = import_file_as_module(filepath)
-    except FileNotFoundError:
-        return
-    
-    try:
-        module.main(**kwargs)
-    except Exception as e:
-        raise ConfigurationError(f'Error in the {filepath} file') from e
+    filepath = join_paths(c.PYCONFIG_FOLDER, filename)
+    main_function = get_py_main(filepath)
+    if main_function:
+        try:
+            main_function(**kwargs)
+        except Exception as e:
+            raise ConfigurationError(f'Error in the python file: "{filepath}"\n  See above for more details') from e
 
 
 def normalize_name(name: str) -> str:
