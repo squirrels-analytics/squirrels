@@ -1,4 +1,4 @@
-from typing import Set, Iterable, Optional, Union, Dict, Any
+from typing import Set, Iterable, Optional, Union, Any
 from dataclasses import dataclass, field
 from decimal import Decimal, InvalidOperation as InvalidDecimalConversion
 from datetime import datetime, date
@@ -71,11 +71,11 @@ class SelectParameterOption(ParameterOption):
     _identifier: str
     _label: str
     _is_default: bool # = field(default=False, kw_only=True)
-    custom_fields: Dict[str, Any] # = field(default_factory=False, kw_only=True)
+    custom_fields: dict[str, Any] # = field(default_factory=False, kw_only=True)
 
     def __init__(
         self, id: str, label: str, *, is_default: bool = False, user_groups: Union[Iterable[str], str] = frozenset(), 
-        parent_option_ids: Union[Iterable[str], str] = frozenset(), custom_fields: Dict[str, Any] = {}, **kwargs
+        parent_option_ids: Union[Iterable[str], str] = frozenset(), custom_fields: dict[str, Any] = {}, **kwargs
     ) -> None:
         """
         Constructor for SelectParameterOption
@@ -294,7 +294,7 @@ class NumberParameterOption(_NumericParameterOption):
 
 
 @dataclass
-class NumRangeParameterOption(_NumericParameterOption):
+class NumberRangeParameterOption(_NumericParameterOption):
     """
     Parameter option for default numeric ranges if it varies based on selection of another parameter
     

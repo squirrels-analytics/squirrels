@@ -1,45 +1,74 @@
 # Squirrels CLI commands
 INIT_CMD = 'init'
-LOAD_MODULES_CMD = 'load-modules'
-TEST_CMD = 'test'
+DEPS_CMD = 'deps'
+COMPILE_CMD = 'compile'
 RUN_CMD = 'run'
 
 # Manifest file keys
 PROJ_VARS_KEY = 'project_variables'
-MODULES_KEY = 'modules'
-SETTINGS_KEY = 'settings'
-PARAMETERS_KEY = 'parameters'
+PROJECT_NAME_KEY = 'name'
+PROJECT_LABEL_KEY = 'label'
+MAJOR_VERSION_KEY = 'major_version'
+MINOR_VERSION_KEY = 'minor_version'
+
+PACKAGES_KEY = 'packages'
+PACKAGE_GIT_KEY = 'git'
+PACKAGE_DIRECTORY_KEY = 'directory'
+PACKAGE_REVISION_KEY = 'revision'
 
 DB_CONNECTIONS_KEY = 'db_connections'
-DB_CREDENTIALS_KEY = 'credential_key'
-URL_KEY = 'url'
+DB_CONN_NAME_KEY = 'connection_name'
+DB_CONN_CRED_KEY = 'credential_key'
+DB_CONN_URL_KEY = 'url'
+
+DBVIEWS_KEY = 'dbviews'
+DBVIEW_NAME_KEY = 'name'
+DBVIEW_CONN_KEY = 'connection_name'
+DEFAULT_DB_CONN = 'default'
+
+FEDERATES_KEY = 'federates'
+FEDERATE_NAME_KEY = 'name'
+MATERIALIZATION_KEY = 'materialization'
+DEFAULT_TABLE_MATERIALIZE = 'table'
+
+PARAMETERS_KEY = 'parameters'
+PARAMETER_NAME_KEY = 'name'
+PARAMETER_TYPE_KEY = 'type'
+PARAMETER_FACTORY_KEY = 'factory'
+PARAMETER_ARGS_KEY = 'arguments'
+
+TEST_SETS_KEY = 'selection_test_sets'
+TEST_SET_NAME_KEY = 'name'
+TEST_SET_DEFAULT_NAME = 'default'
+TEST_SET_USER_ATTR_KEY = 'user_attributes'
+TEST_SET_PARAMETERS_KEY = 'parameters'
 
 DATASETS_KEY = 'datasets'
+DATASET_NAME_KEY = 'name'
 DATASET_LABEL_KEY = 'label'
+DATASET_MODEL_KEY = 'model'
 DATASET_PARAMETERS_KEY = 'parameters'
+DATASET_ARGS_KEY = 'args'
+
+# deprecate these later
 DATABASE_VIEWS_KEY = 'database_views'
 FILE_KEY = 'file'
 DB_CONNECTION_KEY = 'db_connection'
 FINAL_VIEW_KEY = 'final_view'
 
-SCOPE_KEY = 'scope'
+DATASET_SCOPE_KEY = 'scope'
 PUBLIC_SCOPE = 'public'
 PROTECTED_SCOPE = 'protected'
 PRIVATE_SCOPE = 'private'
 
-# Project variable keys
-PRODUCT_NAME_KEY = 'product_name'
-PRODUCT_LABEL_KEY = 'product_label'
-MAJOR_VERSION_KEY = 'major_version'
-MINOR_VERSION_KEY = 'minor_version'
+SETTINGS_KEY = 'settings'
 
-# Environment config keys keys
+# Environment config keys
 CREDENTIALS_KEY = 'credentials'
 USERNAME_KEY = 'username'
 PASSWORD_KEY = 'password'
 USER_NAME_KEY = 'username'
 USER_PWD_KEY = 'password'
-DEFAULT_DB_CONN = 'default'
 SECRETS_KEY = 'secrets'
 JWT_SECRET_KEY = 'jwt_secret'
 
@@ -49,29 +78,32 @@ BASE_PROJECT_FOLDER = 'base_project'
 STATIC_FOLDER = 'static'
 TEMPLATES_FOLDER = 'templates'
 
-ENVIRON_CONFIG_FILE = 'environcfg.yaml'
-MANIFEST_JINJA_FILE = 'squirrels.yaml.j2'
-CONNECTIONS_YML_FILE = 'connections.yaml'
-PARAMETERS_YML_FILE = 'parameters.yaml'
-MANIFEST_FILE = 'squirrels.yaml'
+ENVIRON_CONFIG_FILE = 'environcfg.yml'
+MANIFEST_JINJA_FILE = 'squirrels.yml.j2'
+CONNECTIONS_YML_FILE = 'connections.yml'
+PARAMETERS_YML_FILE = 'parameters.yml'
+MANIFEST_FILE = 'squirrels.yml'
 LU_DATA_FILE = 'lu_data.xlsx'
 
 DATABASE_FOLDER = 'database'
-MODULES_FOLDER = 'modules'
+PACKAGES_FOLDER = 'sqrl_packages'
 
-DATASETS_FOLDER = 'datasets'
-DATABASE_VIEW_STEM = 'database_view1'
-DATABASE_VIEW_SQL_FILE = DATABASE_VIEW_STEM+'.sql.j2'
-DATABASE_VIEW_PY_FILE = DATABASE_VIEW_STEM+'.py'
-FINAL_VIEW_SQL_NAME = 'final_view.sql.j2'
-FINAL_VIEW_PY_NAME = 'final_view.py'
-SELECTIONS_CFG_FILE = 'selections.cfg'
+MODELS_FOLDER = 'models'
+DBVIEWS_FOLDER = 'dbviews'
+DATABASE_VIEW_SQL_FILE = 'database_view1.sql'
+DATABASE_VIEW_PY_FILE = 'database_view1.py'
+FEDERATES_FOLDER = 'federates'
+FEDERATE_SQL_NAME = 'dataset_example.sql'
+FEDERATE_PY_NAME = 'dataset_example.py'
 
 PYCONFIG_FOLDER = 'pyconfigs'
 AUTH_FILE = 'auth.py'
 CONNECTIONS_FILE = 'connections.py'
 CONTEXT_FILE = 'context.py'
 PARAMETERS_FILE = 'parameters.py'
+
+TARGET_FOLDER = 'target'
+COMPILE_FOLDER = 'compile'
 
 OUTPUTS_FOLDER = 'outputs'
 PARAMETERS_OUTPUT = 'parameters.json'
@@ -93,12 +125,12 @@ SQL_FILE_TYPE = 'sql'
 PYTHON_FILE_TYPE = 'py'
 FILE_TYPE_CHOICES = [SQL_FILE_TYPE, PYTHON_FILE_TYPE]
 
-YAML_FORMAT = 'yaml'
+YML_FORMAT = 'yml'
 PYTHON_FORMAT = 'py'
-CONF_FORMAT_CHOICES = [YAML_FORMAT, PYTHON_FORMAT]
+CONF_FORMAT_CHOICES = [YML_FORMAT, PYTHON_FORMAT]
 
 PYTHON_FORMAT2 = 'py (recommended)'
-CONF_FORMAT_CHOICES2 = [(PYTHON_FORMAT2, PYTHON_FORMAT), YAML_FORMAT]
+CONF_FORMAT_CHOICES2 = [(PYTHON_FORMAT2, PYTHON_FORMAT), YML_FORMAT]
 
 EXPENSES_DB_NAME = 'expenses'
 WEATHER_DB_NAME = 'seattle-weather'

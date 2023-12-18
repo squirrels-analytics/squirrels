@@ -1,4 +1,4 @@
-const productSelect = document.getElementById('product-select');
+const projectSelect = document.getElementById('project-select');
 const datasetSelect = document.getElementById('dataset-select');
 const generatedParamsDiv = document.getElementById('generated-parameters');
 
@@ -86,14 +86,14 @@ async function changeDatasetSelection() {
 }
 
 async function renderDatasetsSelection(data) {
-    productSelect.innerHTML = "";
+    projectSelect.innerHTML = "";
     datasetSelect.innerHTML = "";
 
     const product = data.products[0];
     const option = document.createElement('option');
     option.value = product.name;
     option.textContent = product.label;
-    productSelect.appendChild(option);
+    projectSelect.appendChild(option);
 
     const datasets = product.versions[0].datasets;
     datasets.forEach(resource => {

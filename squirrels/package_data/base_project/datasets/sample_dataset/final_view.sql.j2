@@ -1,7 +1,0 @@
-{# The comments show how Jinja expressions can be condensed by leveraging "context.py" -#}
-SELECT *
-FROM database_view1
-ORDER BY {# {{ ctx["order_by_cols"] }} #}
-{%- for col in prms["group_by"].get_selected("columns") %}
-    {{col}} DESC{% if not loop.last %},{% endif %}
-{%- endfor %}

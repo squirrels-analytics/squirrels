@@ -174,12 +174,12 @@ class TestNumberDataSource:
 
 class TestNumRangeDataSource:
     @pytest.fixture(scope="class")
-    def data_source(self) -> d.NumRangeDataSource:
-        return d.NumRangeDataSource('table', 'test_min', 'test_max', increment_col='test_increment', 
+    def data_source(self) -> d.NumberRangeDataSource:
+        return d.NumberRangeDataSource('table', 'test_min', 'test_max', increment_col='test_increment', 
                                     default_lower_value_col='test_default_lower', default_upper_value_col='test_default_upper',
                                     id_col='test_id', parent_id_col='test_parent_id', user_group_col='test_user_group')
 
-    def test_convert(self, data_source: d.NumRangeDataSource):
+    def test_convert(self, data_source: d.NumberRangeDataSource):
         df = pd.DataFrame([
             { 
                 'test_id': 0, 'test_min': 0, 'test_max': 10, 'test_increment': 2, 'test_default_lower': 4, 'test_default_upper': 8,
@@ -191,11 +191,11 @@ class TestNumRangeDataSource:
             }
         ])
 
-        ds_param = pc.DataSourceParameterConfig(pc.NumRangeParameterConfig, 'name', 'Label', data_source)
-        param: pc.NumRangeParameterConfig = ds_param.convert(df)
+        ds_param = pc.DataSourceParameterConfig(pc.NumberRangeParameterConfig, 'name', 'Label', data_source)
+        param: pc.NumberRangeParameterConfig = ds_param.convert(df)
         param_options = [
-            po.NumRangeParameterOption(0, 10, increment=2, default_lower_value=4, default_upper_value=8, 
+            po.NumberRangeParameterOption(0, 10, increment=2, default_lower_value=4, default_upper_value=8, 
                                        parent_option_ids=['5', '6'], user_groups=['org1', 'org2'])
         ]
-        expected = pc.NumRangeParameterConfig('name', 'Label', param_options)
+        expected = pc.NumberRangeParameterConfig('name', 'Label', param_options)
         assert param == expected

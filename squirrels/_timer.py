@@ -1,10 +1,9 @@
-from typing import Dict, List
 import time
 
 
 class Timer:
     def __init__(self, verbose: bool = False):
-        self.times: Dict[str, List[float]] = dict()
+        self.times: dict[str, list[float]] = dict()
         self.verbose = verbose
     
     def add_activity_time(self, activity: str, start: float):

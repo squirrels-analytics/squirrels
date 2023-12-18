@@ -3,7 +3,7 @@ from functools import partial
 import sqlite3, pandas as pd
 import pytest
 
-from squirrels import _connection_set as cs, _utils as u, sqldf
+from squirrels import _connection_set as cs, _utils as u
 
 
 @pytest.fixture(scope="module")
@@ -37,26 +37,6 @@ def connection_set() -> cs.ConnectionSet:
 
     yield connection_set
     connection_set._dispose()
-
-
-def test_sqldf():
-    df1 = pd.DataFrame({
-        "name": ["test1", "test2"],
-        "number": [10, 20]
-    })
-    df2 = pd.DataFrame({
-        "name": ["test1", "test2"],
-        "number": [30, 40]
-    })
-
-    query = "SELECT a.name, a.number as num1, b.number as num2 FROM df1 a JOIN df2 b ON a.name = b.name"
-    df = sqldf(query, {'df1': df1, 'df2': df2})
-    expected_df = pd.DataFrame({
-        "name": ["test1", "test2"],
-        "num1": [10, 20],
-        "num2": [30, 40]
-    })
-    assert df.equals(expected_df)
 
 
 def test_get_connection_pool(connection_set: cs.ConnectionSet):

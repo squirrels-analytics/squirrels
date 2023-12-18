@@ -1,9 +1,9 @@
-from typing import Dict, Any
+from typing import Any
 from dataclasses import dataclass
 
 
 @dataclass
-class UserBase:
+class User:
     """
     Base class for extending the custom User model class
 
@@ -16,10 +16,10 @@ class UserBase:
 
     def __init__(self, username: str, *, is_internal: bool = False, **kwargs):
         """
-        Constructor for the UserBase class
+        Constructor for the User base class
 
         Parameters:
-            ...see Attributes of UserBase
+            ...see Attributes of User
         """
         self.username = username
         self.is_internal = is_internal
@@ -27,11 +27,18 @@ class UserBase:
     def __hash__(self) -> int:
         return hash(self.username)
     
-    def with_attributes(self, **kwargs):
+    def set_attributes(self, user_dict: dict[str, Any]) -> None:
+        """
+        Can be overwritten in "auth.py" to introduce custom attributes. Does nothing by default
+        """
+        pass
+    
+    def with_attributes(self, user_dict: dict[str, Any]):
+        self.set_attributes(user_dict)
         return self
     
     @classmethod
-    def _FromDict(cls, user_dict: Dict[str, Any]):
+    def _FromDict(cls, user_dict: dict[str, Any]):
         user = cls(username="TBA")
         for key, val in user_dict.items():
             setattr(user, key, val)
@@ -43,7 +50,7 @@ class WrongPassword:
     """
     Return this object if the username was found but the password was incorrect
 
-    This ensures that if the username exists as a real user, we won't continue to use the environcfg.yaml file to authenticate
+    This ensures that if the username exists as a real user, we won't continue to use the environcfg.yml file to authenticate
 
     Attributes:
         username: The identifier for the user

@@ -1,4 +1,4 @@
-from typing import List, Optional
+from typing import Optional
 import pytest, pandas as pd
 
 from squirrels import _utils as u
@@ -8,7 +8,7 @@ from squirrels import _utils as u
     (None, ["B"]),
     (["A", "B"], ["A", "B"])
 ])
-def test_df_to_json(in_dimensions: Optional[List[str]], out_dimensions: List[str]):
+def test_df_to_json(in_dimensions: Optional[list[str]], out_dimensions: list[str]):
     df = pd.DataFrame({'A': [1.0, 2.0], 'B': ['a', 'b'], 'C': [1, 2]})
     result = u.df_to_json0(df, in_dimensions)
     expected = {

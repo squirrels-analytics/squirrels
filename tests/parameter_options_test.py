@@ -1,4 +1,3 @@
-from typing import List
 import pytest
 
 from squirrels import parameter_options as po, _utils as u
@@ -30,7 +29,7 @@ def select_option_parents2() -> po.SelectParameterOption:
     ('select_option_parents1', [True, False]),
     ('select_option_parents2', [False, False])
 ])
-def test_is_valid(select_option_name: str, expected: List[bool], request: pytest.FixtureRequest):
+def test_is_valid(select_option_name: str, expected: list[bool], request: pytest.FixtureRequest):
     param_opt: po.SelectParameterOption = request.getfixturevalue(select_option_name)
     assert param_opt._is_valid(None, None)
     assert param_opt._is_valid(None, []) == False
@@ -79,16 +78,16 @@ def test_invalid_number_parameter_options():
 
 def test_invalid_numrange_parameter_options():
     with pytest.raises(u.ConfigurationError):
-        po.NumRangeParameterOption(2, 8, default_lower_value=0)
+        po.NumberRangeParameterOption(2, 8, default_lower_value=0)
     with pytest.raises(u.ConfigurationError):
-        po.NumRangeParameterOption(2, 8, default_lower_value=10)
+        po.NumberRangeParameterOption(2, 8, default_lower_value=10)
     with pytest.raises(u.ConfigurationError):
-        po.NumRangeParameterOption(2, 8, default_upper_value=0)
+        po.NumberRangeParameterOption(2, 8, default_upper_value=0)
     with pytest.raises(u.ConfigurationError):
-        po.NumRangeParameterOption(2, 8, default_upper_value=10)
+        po.NumberRangeParameterOption(2, 8, default_upper_value=10)
     with pytest.raises(u.ConfigurationError):
-        po.NumRangeParameterOption(2, 8, default_lower_value=6, default_upper_value=4)
+        po.NumberRangeParameterOption(2, 8, default_lower_value=6, default_upper_value=4)
     with pytest.raises(u.ConfigurationError):
-        po.NumRangeParameterOption(2, 8, default_lower_value=6, increment=3)
+        po.NumberRangeParameterOption(2, 8, default_lower_value=6, increment=3)
     with pytest.raises(u.ConfigurationError):
-        po.NumRangeParameterOption(2, 8, default_upper_value=6, increment=3)
+        po.NumberRangeParameterOption(2, 8, default_upper_value=6, increment=3)

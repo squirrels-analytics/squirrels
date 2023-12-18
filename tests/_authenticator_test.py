@@ -1,40 +1,40 @@
 from __future__ import annotations
-from typing import Optional
+from typing import Optional, Any
 import pytest
 
-from squirrels._authenticator import Authenticator, UserBase, WrongPassword
+from squirrels._authenticator import Authenticator, User, WrongPassword
 from squirrels import _constants as c
 
 
 class AuthHelper:
-    class User(UserBase):
-        def with_attributes(self, is_admin: bool, email: str, **kwargs) -> AuthHelper.User:
-            self.is_internal = is_admin
-            self.email = email
+    class User(User):
+        def with_attributes(self, user_dict: dict[str, Any]) -> AuthHelper.User:
+            self.email = user_dict["email"]
             return self
         
         def __eq__(self, other) -> bool:
             return type(other) is self.__class__ and self.__dict__ == other.__dict__
     
-    def get_user_if_valid(self, username: str, password: str) -> Optional[UserBase]:
+    def get_user_if_valid(self, username: str, password: str) -> Optional[User]:
         mock_db = {
             "johndoe": {
                 "username": "johndoe",
                 "email": "john.doe@email.com",
                 "is_admin": True,
-                "password": str(hash("secret"))
+                "hashed_password": str(hash("secret"))
             },
             "mattdoe": {
                 "username": "mattdoe",
                 "email": "matt.doe@email.com",
                 "is_admin": False,
-                "password": str(hash("secret"))
+                "hashed_password": str(hash("secret"))
             }
         }
         if username in mock_db:
-            record = mock_db[username]
-            if str(hash(password)) == record["password"]:
-                return self.User(username).with_attributes(**record)
+            user_dict = mock_db[username]
+            if str(hash(password)) == user_dict["hashed_password"]:
+                is_admin = user_dict["is_admin"]
+                return self.User(username, is_internal=is_admin).with_attributes(user_dict)
             else:
                 return WrongPassword(username)
 
@@ -46,17 +46,20 @@ def auth() -> Authenticator:
 
 @pytest.fixture(scope="module")
 def john_doe_user() -> AuthHelper.User:
-    return AuthHelper.User("johndoe").with_attributes(True, "john.doe@email.com")
+    custom_user_attributes = {"email": "john.doe@email.com"}
+    return AuthHelper.User("johndoe", is_internal=True).with_attributes(custom_user_attributes)
 
 
 @pytest.fixture(scope="module")
 def matt_doe_user() -> AuthHelper.User:
-    return AuthHelper.User("mattdoe").with_attributes(False, "matt.doe@email.com")
+    custom_user_attributes = {"email": "matt.doe@email.com"}
+    return AuthHelper.User("mattdoe", is_internal=False).with_attributes(custom_user_attributes)
 
 
 @pytest.fixture(scope="module")
 def lisa_doe_user() -> AuthHelper.User:
-    return AuthHelper.User("lisadoe").with_attributes(True, "lisadoe@org2.com")
+    custom_user_attributes = {"email": "lisadoe@org2.com"}
+    return AuthHelper.User("lisadoe", is_internal=True).with_attributes(custom_user_attributes)
 
 
 @pytest.mark.parametrize('username,password,expected', [

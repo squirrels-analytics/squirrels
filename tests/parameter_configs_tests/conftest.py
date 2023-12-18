@@ -98,9 +98,9 @@ def num_config_with_parent() -> pc.NumberParameterConfig:
 
 
 @pytest.fixture(scope="module")
-def num_range_config() -> pc.NumRangeParameterConfig:
+def num_range_config() -> pc.NumberRangeParameterConfig:
     param_options = [
-        po.NumRangeParameterOption(0, 5, user_groups="org0"),
-        po.NumRangeParameterOption("10.5", "15.3", increment="0.4", user_groups="org1")
+        po.NumberRangeParameterOption(0, 5, user_groups="org0"),
+        po.NumberRangeParameterOption("10.5", "15.3", increment="0.4", user_groups="org1")
     ]
-    return pc.NumRangeParameterConfig("num_range_param", "Number Range Param", param_options, user_attribute="organization")
+    return pc.NumberRangeParameterConfig("num_range_param", "Number Range Param", param_options, user_attribute="organization")

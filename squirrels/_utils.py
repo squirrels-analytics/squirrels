@@ -1,16 +1,13 @@
-from typing import List, Dict, Optional, Union, Any, TypeVar, Callable
-from types import ModuleType
+from typing import Sequence, Optional, Union, Any, TypeVar, Callable
 from pathlib import Path
-from importlib.machinery import SourceFileLoader
 from pandas.api import types as pd_types
 import json, jinja2 as j2, pandas as pd
-
-from . import _constants as c
 
 FilePath = Union[str, Path]
 
 
-# Custom Exceptions
+## Custom Exceptions
+
 class InvalidInputError(Exception):
     """
     Use this exception when the error is due to providing invalid inputs to the REST API
@@ -24,23 +21,22 @@ class ConfigurationError(Exception):
     pass
 
 
-# Utility functions/variables
+## Utility functions/variables
+
 def join_paths(*paths: FilePath) -> Path:
     """
     Joins paths together.
 
     Parameters:
-        paths: The paths to join.
+        paths (str | pathlib.Path): The paths to join.
 
     Returns:
-        The joined path.
+        (pathlib.Path) The joined path.
     """
     return Path(*paths)
 
 
-_j2_env = j2.Environment(loader=j2.FileSystemLoader('.'))
-
-def render_string(raw_str: str, kwargs: Dict) -> str:
+def render_string(raw_str: str, kwargs: dict) -> str:
     """
     Given a template string, render it with the given keyword arguments
 
@@ -51,7 +47,8 @@ def render_string(raw_str: str, kwargs: Dict) -> str:
     Returns:
         The rendered string
     """
-    template = _j2_env.from_string(raw_str)
+    j2_env = j2.Environment(loader=j2.FileSystemLoader('.'))
+    template = j2_env.from_string(raw_str)
     return template.render(kwargs)
 
 
@@ -69,7 +66,7 @@ def read_file(filepath: FilePath, *, is_required: bool = True) -> Optional[str]:
     Reads a file and return its content if required
 
     Parameters:
-        filepath: The path to the file to read
+        filepath (str | pathlib.Path): The path to the file to read
         is_required: If true, throw error if file doesn't exist
 
     Returns:
@@ -79,61 +76,6 @@ def read_file(filepath: FilePath, *, is_required: bool = True) -> Optional[str]:
         with open(filepath, 'r') as f:
             return f.read()
     return __process_file_handler(file_handler, filepath, is_required)
-
-
-def import_file_as_module(filepath: FilePath) -> ModuleType:
-    """
-    Imports a python file as a module.
-
-    Parameters:
-        filepath: The path to the file to import.
-
-    Returns:
-        The imported module.
-    """
-    filepath = str(filepath)
-    return SourceFileLoader(filepath, filepath).load_module()
-
-
-def get_py_main(filepath: FilePath, *, is_required: bool = False) -> Optional[Callable]:
-    """
-    Given the full path to a python file, get its main function
-    
-    Parameters:
-        filepath: The path to the python file with main function
-        is_required: If true, throw error if file doesn't exist
-    
-    Returns:
-        The main function of the python file
-    """
-    try:
-        module = import_file_as_module(filepath)
-    except FileNotFoundError as e:
-        if is_required:
-            raise ConfigurationError(f"Required file not found: '{str(filepath)}'") from e
-        return
-    
-    try:
-        return module.main
-    except AttributeError as e:
-        raise ConfigurationError(f"Python file missing main function: '{str(filepath)}'") from e
-
-
-def run_pyconfig_main(filename: str, kwargs: Dict[str, Any] = {}) -> None:
-    """
-    Given a python file in the 'pyconfigs' folder, run its main function
-    
-    Parameters:
-        filename: The name of the file to run main function
-        kwargs: Dictionary of the main function arguments
-    """
-    filepath = join_paths(c.PYCONFIG_FOLDER, filename)
-    main_function = get_py_main(filepath)
-    if main_function:
-        try:
-            main_function(**kwargs)
-        except Exception as e:
-            raise ConfigurationError(f'Error in the python file: "{filepath}"\n  See above for more details') from e
 
 
 def normalize_name(name: str) -> str:
@@ -162,7 +104,7 @@ def normalize_name_for_api(name: str) -> str:
     return name.replace('_', '-')
 
 
-def df_to_json0(df: pd.DataFrame, dimensions: List[str] = None) -> Dict[str, Any]:
+def df_to_json0(df: pd.DataFrame, dimensions: list[str] = None) -> dict[str, Any]:
     """
     Convert a pandas DataFrame to the same JSON format that the dataset result API of Squirrels outputs.
 
@@ -189,7 +131,7 @@ def df_to_json0(df: pd.DataFrame, dimensions: List[str] = None) -> Dict[str, Any
     return {"schema": out_schema, "data": in_df_json["data"]}
 
 
-def load_json_or_comma_delimited_str_as_list(input_str: str) -> List[str]:
+def load_json_or_comma_delimited_str_as_list(input_str: Union[str, Sequence]) -> Sequence[str]:
     """
     Given a string, load it as a list either by json string or comma delimited value
 
@@ -199,6 +141,9 @@ def load_json_or_comma_delimited_str_as_list(input_str: str) -> List[str]:
     Returns:
         The list representation of the input string
     """
+    if not isinstance(input_str, str):
+        return (input_str)
+    
     output = None
     try:
         output = json.loads(input_str)

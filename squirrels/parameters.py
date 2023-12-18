@@ -1,5 +1,5 @@
 from __future__ import annotations
-from typing import Type, Dict, Sequence, Optional, Union, Any
+from typing import Type, Sequence, Optional, Union, Any
 from dataclasses import dataclass
 from datetime import datetime, date
 from decimal import Decimal
@@ -22,7 +22,7 @@ class Parameter(metaclass=ABCMeta):
     
     @classmethod
     def Create(
-        cls, name: str, label: str, all_options: Sequence[Union[po.ParameterOption, Dict]], *, is_hidden: bool = False, 
+        cls, name: str, label: str, all_options: Sequence[Union[po.ParameterOption, dict]], *, is_hidden: bool = False, 
         user_attribute: Optional[str] = None, parent_name: Optional[str] = None, **kwargs
     ) -> None:
         """
@@ -48,7 +48,7 @@ class Parameter(metaclass=ABCMeta):
     
     @classmethod
     def CreateFromSource(
-        cls, name: str, label: str, data_source: Union[d.DataSource , Dict], *, is_hidden: bool = False, 
+        cls, name: str, label: str, data_source: Union[d.DataSource , dict], *, is_hidden: bool = False, 
         user_attribute: Optional[str] = None, parent_name: Optional[str] = None, **kwargs
     ) -> None:
         """
@@ -83,7 +83,7 @@ class Parameter(metaclass=ABCMeta):
             self._config._raise_invalid_input_error(input_number, 'Invalid selection for number.', e)
     
     @abstractmethod
-    def to_json_dict0(self) -> Dict:
+    def to_json_dict0(self) -> dict:
         """
         Helper method to convert the derived Parameter class into a JSON dictionary
         """
@@ -225,7 +225,7 @@ class SingleSelectParameter(_SelectionParameter):
         else:
             return tuple()
     
-    def to_json_dict0(self) -> Dict:
+    def to_json_dict0(self) -> dict:
         """
         Converts this parameter as a JSON object for the parameters API response
 
@@ -262,7 +262,7 @@ class MultiSelectParameter(_SelectionParameter):
     
     @classmethod
     def Create(
-        cls, name: str, label: str, all_options: Sequence[Union[po.SelectParameterOption, Dict]], *, include_all: bool = True, 
+        cls, name: str, label: str, all_options: Sequence[Union[po.SelectParameterOption, dict]], *, include_all: bool = True, 
         order_matters: bool = False, is_hidden: bool = False, user_attribute: Optional[str] = None, parent_name: Optional[str] = None, 
         **kwargs
     ) -> None:
@@ -676,7 +676,7 @@ class NumberParameter(Parameter):
 
 
 @dataclass
-class NumRangeParameter(Parameter):
+class NumberRangeParameter(Parameter):
     """
     Class for number range parameter widgets.
 
@@ -686,7 +686,7 @@ class NumRangeParameter(Parameter):
         selected_lower_value: The selected lower integer or decimal number
         selected_upper_value: The selected upper integer or decimal number
     """
-    _curr_option: po.NumRangeParameterOption
+    _curr_option: po.NumberRangeParameterOption
     _selected_lower_value: po.Number
     _selected_upper_value: po.Number
 
@@ -696,7 +696,7 @@ class NumRangeParameter(Parameter):
     
     @staticmethod
     def _ParameterConfigType():
-        return pc.NumRangeParameterConfig
+        return pc.NumberRangeParameterConfig
 
     @classmethod
     def CreateSimple(
@@ -719,7 +719,7 @@ class NumRangeParameter(Parameter):
                     Must also be greater than default_lower_value
             is_hidden: Whether the parameter is hidden in the parameters API response. Default is False
         """
-        single_param_option = po.NumRangeParameterOption(min_value, max_value, increment=increment, default_lower_value=default_lower_value, 
+        single_param_option = po.NumberRangeParameterOption(min_value, max_value, increment=increment, default_lower_value=default_lower_value, 
                                                          default_upper_value=default_upper_value)
         cls.Create(name, label, (single_param_option,), is_hidden=is_hidden)
     

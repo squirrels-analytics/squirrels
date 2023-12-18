@@ -1,6 +1,7 @@
-from typing import List, Dict, Any, Optional, Union
+from typing import Optional, Union, Any
 from dataclasses import dataclass
 from pathlib import Path
+from enum import Enum
 import yaml
 
 from . import _constants as c, _utils as u
@@ -9,145 +10,186 @@ from ._timer import timer, time
 
 
 @dataclass
-class _Manifest:
-    _config: Dict
-    
-    def get_proj_vars(self) -> Dict[str, Any]:
-        return self._config.get(c.PROJ_VARS_KEY, dict())
-    
-    def get_modules(self) -> List[str]:
-        return self._config.get(c.MODULES_KEY, list())
-    
-    def _get_required_field(self, key: str) -> Any:
-        try:
-            return self._config[key]
-        except KeyError as e:
-            raise u.ConfigurationError(f'Field "{key}" not found in squirrels.yaml') from e
-    
-    def _get_required_proj_var(self, key) -> str:
-        project_vars = self.get_proj_vars()
-        try:
-            product_name = project_vars[key]
-        except KeyError as e:
-            raise u.ConfigurationError(f"The '{key}' must be specified in project variables") from e
-        return product_name
+class ManifestComponentConfig:
+    @classmethod
+    def validate_required(cls, data: dict, required_keys: list[str], section: str):
+        for key in required_keys:
+            if key not in data:
+                raise u.ConfigurationError(f'Required field missing from {section}: {key}')
 
-    def get_product_name(self) -> str:
-        return self._get_required_proj_var(c.PRODUCT_NAME_KEY)
-    
-    def get_product_label(self) -> str:
-        product_name = self.get_product_name()
-        project_vars = self.get_proj_vars()
-        return project_vars.get(c.PRODUCT_LABEL_KEY, product_name)
-    
-    def get_major_version(self) -> str:
-        return self._get_required_proj_var(c.MAJOR_VERSION_KEY)
-    
-    def get_minor_version(self) -> str:
-        return self._get_required_proj_var(c.MINOR_VERSION_KEY)
-    
-    def get_db_connections(self) -> Dict[str, Dict[str, str]]:
-        return self._config.get(c.DB_CONNECTIONS_KEY, {})
-    
-    def get_parameters(self) -> List[Dict]:
-        return self._config.get(c.PARAMETERS_KEY, [])
 
-    def _get_dataset_parms(self, dataset: str) -> Dict[str, Any]:
-        try:
-            return self._get_required_field(c.DATASETS_KEY)[dataset]
-        except KeyError as e:
-            raise u.InvalidInputError(f'No such dataset named "{dataset}" exists') from e
+@dataclass
+class ProjectVarsConfig(ManifestComponentConfig):
+    data: dict
+
+    def __post_init__(self):
+        required_keys = [c.PROJECT_NAME_KEY, c.MAJOR_VERSION_KEY, c.MINOR_VERSION_KEY]
+        self.validate_required(self.data, required_keys, c.PROJ_VARS_KEY)
         
-    def _get_required_field_from_dataset_parms(self, dataset: str, key: str):
-        try:
-            return self._get_dataset_parms(dataset)[key]
-        except KeyError as e:
-            raise u.ConfigurationError(f'The "{key}" field is not defined for dataset "{dataset}"') from e
+        integer_keys = [c.MAJOR_VERSION_KEY, c.MINOR_VERSION_KEY]
+        for key in integer_keys:
+            if key in self.data and not isinstance(self.data[key], int):
+                raise u.ConfigurationError(f'Project variable "{key}" must be an integer')
     
-    def _get_all_database_view_parms(self, dataset: str) -> Dict[str, Dict[str, str]]:
-        return self._get_required_field_from_dataset_parms(dataset, c.DATABASE_VIEWS_KEY)
+    def get_name(self) -> str:
+        return str(self.data[c.PROJECT_NAME_KEY])
     
-    def get_all_dataset_names(self) -> str:
-        datasets: Dict[str, Any] = self._get_required_field(c.DATASETS_KEY)
-        return list(datasets.keys())
+    def get_label(self) -> str:
+        return str(self.data.get(c.PROJECT_LABEL_KEY, self.get_name()))
     
-    def get_dataset_folder(self, dataset: str) -> Path:
-        return u.join_paths(c.DATASETS_FOLDER, dataset)
-        
-    def get_dataset_args(self, dataset: str) -> Dict[str, Any]:
-        dataset_args = self._get_dataset_parms(dataset).get("args", {})
-        full_args = {**self.get_proj_vars(), **dataset_args}
-        return full_args
+    def get_major_version(self) -> int:
+        return self.data[c.MAJOR_VERSION_KEY]
     
-    def get_all_database_view_names(self, dataset: str) -> List[str]:
-        all_database_views = self._get_all_database_view_parms(dataset)
-        return list(all_database_views.keys())
-    
-    def get_database_view_file(self, dataset: str, database_view: str) -> Path:
-        database_view_parms = self._get_all_database_view_parms(dataset)[database_view]
-        if isinstance(database_view_parms, str):
-            db_view_file = database_view_parms
-        else:
-            try:
-                db_view_file = database_view_parms[c.FILE_KEY]
-            except KeyError as e:
-                raise u.ConfigurationError(f'The "{c.FILE_KEY}" field is not defined for "{database_view}" in dataset "{dataset}"') from e
-        dataset_folder = self.get_dataset_folder(dataset)
-        return u.join_paths(dataset_folder, db_view_file)
-    
-    def get_view_args(self, dataset: str, database_view: str = None) -> Dict[str, Any]:
-        dataset_args = self.get_dataset_args(dataset)
-        if database_view is None:
-            view_parms: Dict[str, Any] = self._get_required_field_from_dataset_parms(dataset, c.FINAL_VIEW_KEY)
-        else:
-            view_parms: Dict[str, Any] = self._get_all_database_view_parms(dataset)[database_view]
-        view_args: Dict[str, Any] = {} if isinstance(view_parms, str) else view_parms.get("args", {})
-        full_args = {**dataset_args, **view_args}
-        return full_args
+    def get_minor_version(self) -> int:
+        return self.data[c.MINOR_VERSION_KEY]
 
-    def get_database_view_db_connection(self, dataset: str, database_view: str) -> Optional[str]:
-        database_view_parms = self._get_all_database_view_parms(dataset)[database_view]
-        if isinstance(database_view_parms, str):
-            db_connection = c.DEFAULT_DB_CONN 
-        else: 
-            db_connection = database_view_parms.get(c.DB_CONNECTION_KEY, c.DEFAULT_DB_CONN)
-        return db_connection
-    
-    def get_dataset_label(self, dataset: str) -> str:
-        return self._get_required_field_from_dataset_parms(dataset, c.DATASET_LABEL_KEY)
-    
-    def get_dataset_scope(self, dataset: str) -> str:
-        scope: str = self._get_dataset_parms(dataset).get(c.SCOPE_KEY, c.PUBLIC_SCOPE)
-        return scope.strip().lower()
-    
-    def get_dataset_parameters(self, dataset: str) -> Optional[List[str]]:
-        dataset_params = self._get_dataset_parms(dataset).get(c.DATASET_PARAMETERS_KEY)
-        return dataset_params
-    
-    def get_dataset_final_view_file(self, dataset: str) -> Union[str, Path]:
-        final_view_parms: Dict[str, Any] = self._get_required_field_from_dataset_parms(dataset, c.FINAL_VIEW_KEY)
-        if isinstance(final_view_parms, str):
-            final_view_file = final_view_parms
-        else:
-            try:
-                final_view_file = final_view_parms[c.FILE_KEY]
-            except KeyError as e:
-                raise u.ConfigurationError(f'The "{c.FILE_KEY}" field is not defined for the final view') from e
-        
-        database_views = self.get_all_database_view_names(dataset)
-        if final_view_file in database_views:
-            return final_view_file
-        else:
-            dataset_path = self.get_dataset_folder(dataset)
-            return u.join_paths(dataset_path, final_view_file)
 
-    def get_setting(self, key: str, default: Any) -> Any:
-        settings: Dict[str, Any] = self._config.get(c.SETTINGS_KEY, dict())
-        return settings.get(key, default)
+@dataclass
+class PackageConfig(ManifestComponentConfig):
+    git_url: str
+    directory: str
+    revision: str
+
+    @classmethod
+    def from_dict(cls, kwargs: dict):
+        cls.validate_required(kwargs, [c.PACKAGE_GIT_KEY, c.PACKAGE_REVISION_KEY], c.PACKAGES_KEY)
+        git_url = str(kwargs[c.PACKAGE_GIT_KEY])
+        directory_raw = kwargs.get(c.PACKAGE_DIRECTORY_KEY)
+        directory = git_url.split('/')[-1].removesuffix('.git') if directory_raw is None else str(directory_raw)
+        revision = str(kwargs[c.PACKAGE_REVISION_KEY])
+        return cls(git_url, directory, revision)
+
+
+@dataclass
+class DbConnConfig(ManifestComponentConfig):
+    connection_name: str
+    url: str
+
+    @classmethod
+    def from_dict(cls, kwargs: dict):
+        cls.validate_required(kwargs, [c.DB_CONN_NAME_KEY, c.DB_CONN_URL_KEY], c.DB_CONNECTIONS_KEY)
+        connection_name = str(kwargs[c.DB_CONN_NAME_KEY])
+        credential_key = kwargs.get(c.CREDENTIALS_KEY)
+        username, password = EnvironConfigIO.obj.get_credential(credential_key)
+        url = str(kwargs[c.DB_CONN_URL_KEY]).format(username=username, password=password)
+        return cls(connection_name, url)
+
+
+@dataclass
+class ParametersConfig(ManifestComponentConfig):
+    name: str
+    type: str
+    factory: str
+    arguments: dict
+
+    @classmethod
+    def from_dict(cls, kwargs: dict):
+        all_keys = [c.PARAMETER_NAME_KEY, c.PARAMETER_TYPE_KEY, c.PARAMETER_FACTORY_KEY, c.PARAMETER_ARGS_KEY]
+        cls.validate_required(kwargs, all_keys, c.PARAMETERS_KEY)
+        args = {key: kwargs[key] for key in all_keys}
+        return cls(**args)
+
+
+@dataclass
+class TestSetsConfig(ManifestComponentConfig):
+    name: str
+    user_attributes: dict
+    parameters: dict
+
+    @classmethod
+    def from_dict(cls, kwargs: dict):
+        cls.validate_required(kwargs, [c.TEST_SET_NAME_KEY], c.TEST_SETS_KEY)
+        name = str(kwargs[c.TEST_SET_NAME_KEY])
+        user_attributes = kwargs.get(c.TEST_SET_USER_ATTR_KEY, {})
+        parameters = kwargs.get(c.TEST_SET_PARAMETERS_KEY, {})
+        return cls(name, user_attributes, parameters)
+
+
+@dataclass
+class DbviewConfig(ManifestComponentConfig):
+    name: str
+    connection_name: str
+
+    @classmethod
+    def from_dict(cls, kwargs: dict):
+        cls.validate_required(kwargs, [c.DBVIEW_NAME_KEY], c.DBVIEWS_KEY)
+        name = str(kwargs[c.DBVIEW_NAME_KEY])
+        connection_name = str(kwargs.get(c.DBVIEW_CONN_KEY, c.DEFAULT_DB_CONN))
+        return cls(name, connection_name)
+
+
+@dataclass
+class FederateConfig(ManifestComponentConfig):
+    name: str
+    materialization: str
+
+    @classmethod
+    def from_dict(cls, kwargs: dict):
+        cls.validate_required(kwargs, [c.FEDERATE_NAME_KEY], c.FEDERATES_KEY)
+        name = str(kwargs[c.FEDERATE_NAME_KEY])
+        materialization = str(kwargs.get(c.MATERIALIZATION_KEY, c.DEFAULT_TABLE_MATERIALIZE))
+        return cls(name, materialization)
+
+
+class DatasetScope(Enum):
+    PUBLIC = 0
+    PROTECTED = 1
+    PRIVATE = 2
+
+@dataclass
+class DatasetsConfig(ManifestComponentConfig):
+    name: str
+    label: str
+    model: str
+    scope: DatasetScope
+    parameters: Optional[list[str]]
+    args: dict
+
+    @classmethod
+    def from_dict(cls, kwargs: dict):
+        cls.validate_required(kwargs, [c.DATASET_NAME_KEY], c.DATASETS_KEY)
+        name = str(kwargs[c.DATASET_NAME_KEY])
+        label = str(kwargs.get(c.DATASET_LABEL_KEY, name))
+        model = str(kwargs.get(c.DATASET_MODEL_KEY, name))
+        scope_raw = kwargs.get(c.DATASET_SCOPE_KEY)
+        if scope_raw is None:
+            scope = DatasetScope.PUBLIC
+        else:
+            scope = DatasetScope[str(scope_raw).upper()]
+        parameters = kwargs.get(c.DATASET_PARAMETERS_KEY)
+        args = kwargs.get(c.DATASET_ARGS_KEY, {})
+        return cls(name, label, model, scope, parameters, args)
+
+
+@dataclass
+class _ManifestConfig:
+    project_variables: ProjectVarsConfig
+    packages: list[PackageConfig]
+    db_connections: list[DbConnConfig]
+    parameters: list[ParametersConfig]
+    selection_test_sets: dict[str, TestSetsConfig]
+    dbviews: dict[str, DbviewConfig]
+    federates: dict[str, FederateConfig]
+    datasets: dict[str, DatasetsConfig]
+    settings: dict
+
+    @classmethod
+    def from_dict(cls, kwargs: dict):
+        proj_vars = ProjectVarsConfig(kwargs[c.PROJ_VARS_KEY])
+        packages = [PackageConfig.from_dict(x) for x in kwargs.get(c.PACKAGES_KEY, [])]
+        db_conns = [DbConnConfig.from_dict(x) for x in kwargs.get(c.DB_CONNECTIONS_KEY, [])]
+        params = [ParametersConfig.from_dict(x) for x in kwargs.get(c.PARAMETERS_KEY, [])]
+        test_sets = {x[c.TEST_SET_NAME_KEY]: TestSetsConfig.from_dict(x) for x in kwargs.get(c.TEST_SETS_KEY, [])}
+        dbviews = {x[c.DBVIEW_NAME_KEY]: DbviewConfig.from_dict(x) for x in kwargs.get(c.DBVIEWS_KEY, [])}
+        federates = {x[c.FEDERATE_NAME_KEY]: FederateConfig.from_dict(x) for x in kwargs.get(c.FEDERATES_KEY, [])}
+        datasets = {x[c.DATASET_NAME_KEY]: DatasetsConfig.from_dict(x) for x in kwargs.get(c.DATASETS_KEY, [])}
+        settings = kwargs.get(c.SETTINGS_KEY, {})
+        test_sets.setdefault(c.TEST_SET_DEFAULT_NAME, TestSetsConfig.from_dict({c.TEST_SET_NAME_KEY: c.TEST_SET_DEFAULT_NAME}))
+        return cls(proj_vars, packages, db_conns, params, test_sets, dbviews, federates, datasets, settings)
 
 
 class ManifestIO:
-    obj: _Manifest
+    obj: _ManifestConfig
 
     @classmethod
     def LoadFromFile(cls) -> None:
@@ -158,5 +200,5 @@ class ManifestIO:
         env_config = EnvironConfigIO.obj.get_all_env_vars()
         content = u.render_string(raw_content, env_config)
         proj_config = yaml.safe_load(content)
-        cls.obj = _Manifest(proj_config)
-        timer.add_activity_time("loading squirrels.yaml file", start)
+        cls.obj = _ManifestConfig.from_dict(proj_config)
+        timer.add_activity_time(f"loading {c.MANIFEST_FILE} file", start)

@@ -1,5 +1,5 @@
 from argparse import ArgumentParser
-import sys, time
+import sys, time, asyncio
 sys.path.append('.')
 
 from . import _constants as c
@@ -20,33 +20,31 @@ def main():
     init_parser = subparsers.add_parser(c.INIT_CMD, help='Initialize a squirrels project', add_help=False)
     init_parser.add_argument('-h', '--help', action="help", help="Show this help message and exit")
     init_parser.add_argument('-o', '--overwrite', action='store_true', help="Overwrite files that already exist")
-    init_parser.add_argument('--core', action='store_true', help='Include all core files (squirrels.yaml, environcfg.yaml, parameters.py, database view, etc.)')
+    init_parser.add_argument('--core', action='store_true', help='Include all core files')
     init_parser.add_argument('--connections', type=str, choices=c.CONF_FORMAT_CHOICES, help=f'Configure database connections as yaml (default) or python. Ignored if "--core" is not specified')
     init_parser.add_argument('--parameters', type=str, choices=c.CONF_FORMAT_CHOICES, help=f'Configure parameters as python (default) or yaml. Ignored if "--core" is not specified')
-    init_parser.add_argument('--db-view', type=str, choices=c.FILE_TYPE_CHOICES, help='Create database view as sql (default) or python file. Ignored if "--core" is not specified')
-    init_parser.add_argument('--environcfg', action='store_true', help=f'Include the {c.ENVIRON_CONFIG_FILE} file')
-    init_parser.add_argument('--context', action='store_true', help=f'Include the {c.CONTEXT_FILE} file')
-    init_parser.add_argument('--final-view', type=str, choices=c.FILE_TYPE_CHOICES, help='Include final view as sql or python file')
+    init_parser.add_argument('--dbview', type=str, choices=c.FILE_TYPE_CHOICES, help='Create database view model as sql (default) or python file. Ignored if "--core" is not specified')
+    init_parser.add_argument('--federate', type=str, choices=c.FILE_TYPE_CHOICES, help='Create federated model as sql (default) or python file. Ignored if "--core" is not specified')
     init_parser.add_argument('--auth', action='store_true', help=f'Include the {c.AUTH_FILE} file')
-    init_parser.add_argument('--selections-cfg', action='store_true', help=f'Include the {c.SELECTIONS_CFG_FILE} and {c.LU_DATA_FILE} files')
     init_parser.add_argument('--sample-db', type=str, choices=c.DATABASE_CHOICES, help='Sample sqlite database to include')
 
-    module_parser = subparsers.add_parser(c.LOAD_MODULES_CMD, help='Load all modules in squirrels.yaml from git', add_help=False)
+    module_parser = subparsers.add_parser(c.DEPS_CMD, help='Load all packages specified in squirrels.yml (from git)', add_help=False)
     module_parser.add_argument('-h', '--help', action="help", help="Show this help message and exit")
 
-    test_parser = subparsers.add_parser(c.TEST_CMD, help='Create output files for rendered sql queries', add_help=False)
-    test_parser.add_argument('-h', '--help', action="help", help="Show this help message and exit")
-    test_parser.add_argument('dataset', type=str, help='Name of dataset (provided in squirrels.yaml) to test. Results are written in an "outputs" folder')
-    test_parser.add_argument('-c', '--cfg', type=str, help="Configuration file for parameter selections. Path is relative to the dataset's folder")
-    test_parser.add_argument('-d', '--data', type=str, help="Excel file with lookup data to avoid making a database connection. Path is relative to project root")
-    test_parser.add_argument('-r', '--runquery', action='store_true', help='Runs all database queries and final view, and produce the results as csv files')
+    compile_parser = subparsers.add_parser(c.COMPILE_CMD, help='Create files for rendered sql queries in the "target/compile" folder', add_help=False)
+    compile_parser.add_argument('-h', '--help', action="help", help="Show this help message and exit")
+    compile_parser.add_argument('-d', '--dataset', type=str, help="Select dataset to use for dataset args. If not specified, all models for all datasets are compiled")
+    compile_parser.add_argument('-a', '--all-test-sets', action="store_true", help="Compile models for all test sets")
+    compile_parser.add_argument('-t', '--test-set', type=str, default="default", help="The selection test set to use. Default selections are used if not specified. Ignored if using --all-test-sets")
+    compile_parser.add_argument('-s', '--select', type=str, help="Select single model to compile. If not specified, all models for the dataset are compiled. Also, ignored if --dataset is not specified")
+    compile_parser.add_argument('-r', '--runquery', action='store_true', help='Runs all target models, and produce the results as csv files')
 
     run_parser = subparsers.add_parser(c.RUN_CMD, help='Run the builtin API server', add_help=False)
     run_parser.add_argument('-h', '--help', action="help", help="Show this help message and exit")
     run_parser.add_argument('--no-cache', action='store_true', help='Do not cache any api results')
     run_parser.add_argument('--debug', action='store_true', help='Show all "hidden parameters" in the parameters response')
-    run_parser.add_argument('--host', type=str, help="The host to run on", default='127.0.0.1')
-    run_parser.add_argument('--port', type=int, help="The port to run on", default=4465)
+    run_parser.add_argument('--host', type=str, default='127.0.0.1', help="The host to run on")
+    run_parser.add_argument('--port', type=int, default=4465, help="The port to run on")
 
     args, _ = parser.parse_known_args()
     timer.verbose = args.verbose
@@ -54,10 +52,10 @@ def main():
     
     from . import __version__
     from ._api_server import ApiServer
-    from ._renderer import RendererIOWrapper
+    from ._models import ModelsIO
     from ._initializer import Initializer
     from ._manifest import ManifestIO
-    from ._module_loader import ModuleLoaderIO
+    from ._package_loader import PackageLoaderIO
     from ._connection_set import ConnectionSetIO
     from ._parameter_sets import ParameterConfigsSetIO
 
@@ -65,22 +63,23 @@ def main():
         print(__version__)
     elif args.command == c.INIT_CMD:
         Initializer(args.overwrite).init_project(args)
-    elif args.command == c.LOAD_MODULES_CMD:
+    elif args.command == c.DEPS_CMD:
         ManifestIO.LoadFromFile()
-        ModuleLoaderIO.LoadModules()
-    elif args.command in [c.RUN_CMD, c.TEST_CMD]:
+        PackageLoaderIO.LoadPackages(reload=True)
+    elif args.command in [c.RUN_CMD, c.COMPILE_CMD]:
         ManifestIO.LoadFromFile()
+        PackageLoaderIO.LoadPackages()
         ConnectionSetIO.LoadFromFile()
-        
-        excel_name = args.data if args.command == c.TEST_CMD else None
-        ParameterConfigsSetIO.LoadFromFile(excel_file_name=excel_name)
+        ParameterConfigsSetIO.LoadFromFile()
+        ModelsIO.LoadFiles()
         
         if args.command == c.RUN_CMD:
             server = ApiServer(args.no_cache, args.debug)
             server.run(args)
-        elif args.command == c.TEST_CMD:
-            rendererIO = RendererIOWrapper(args.dataset)
-            rendererIO.write_outputs(args.cfg, args.runquery)
+            pass
+        elif args.command == c.COMPILE_CMD:
+            task = ModelsIO.WriteOutputs(args.dataset, args.select, args.all_test_sets, args.test_set, args.runquery)
+            asyncio.run(task)
         
         ConnectionSetIO.Dispose()
     elif args.command is None:

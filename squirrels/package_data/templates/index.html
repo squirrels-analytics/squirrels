@@ -3,20 +3,20 @@
     <head>
         <title>Squirrels UI</title>
         <link id="favicon" rel="icon" type="image/x-icon" href="static/favicon.ico">
-        <link href="{{ url_for('static', path='/style.css?version=1') }}" rel="stylesheet">
+        <link href="{{ url_for('static', path='/style.css?version=0.2.0') }}" rel="stylesheet">
         <script>
             const token_path = '{{ token_path }}';
             const catalog_path = '{{ catalog_path }}';
         </script>
-        <script src="{{ url_for('static', path='/script.js?version=3') }}" defer></script>
+        <script src="{{ url_for('static', path='/script.js?version=0.2.0') }}" defer></script>
     </head>
     <body onload="callJsonAPI(catalog_path, renderDatasetsSelection)">
         <div id="root">
             <div id="main-container" class="horizontal-container">
                 <div id="parameter-container">
                     <div>
-                        <label for="product-select">Select a Product:</label>
-                        <select id="product-select"></select>
+                        <label for="project-select">Select a Project:</label>
+                        <select id="project-select"></select>
                         <label for="dataset-select">Select a Dataset:</label>
                         <select id="dataset-select" onchange="changeDatasetSelection()"></select>
                     </div>
