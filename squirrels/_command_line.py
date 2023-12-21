@@ -70,24 +70,25 @@ def main():
         ManifestIO.LoadFromFile()
         PackageLoaderIO.LoadPackages()
         ConnectionSetIO.LoadFromFile()
-        ParameterConfigsSetIO.LoadFromFile()
-        ModelsIO.LoadFiles()
-        
-        if args.command == c.RUN_CMD:
-            server = ApiServer(args.no_cache, args.debug)
-            server.run(args)
-            pass
-        elif args.command == c.COMPILE_CMD:
-            task = ModelsIO.WriteOutputs(args.dataset, args.select, args.all_test_sets, args.test_set, args.runquery)
-            asyncio.run(task)
-        
-        ConnectionSetIO.Dispose()
+        try:
+            ParameterConfigsSetIO.LoadFromFile()
+            ModelsIO.LoadFiles()
+            
+            if args.command == c.RUN_CMD:
+                server = ApiServer(args.no_cache, args.debug)
+                server.run(args)
+                pass
+            elif args.command == c.COMPILE_CMD:
+                task = ModelsIO.WriteOutputs(args.dataset, args.select, args.all_test_sets, args.test_set, args.runquery)
+                asyncio.run(task)
+        finally:
+            ConnectionSetIO.Dispose()
     elif args.command is None:
         print(f'Command is missing. Enter "squirrels -h" for help.')
     else:
         print(f'Error: No such command "{args.command}". Enter "squirrels -h" for help.')
     
-    timer.report_times()
+    # timer.report_times()
 
 
 if __name__ == '__main__':

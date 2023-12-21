@@ -284,5 +284,5 @@ class ApiServer:
         
         # Run API server
         import uvicorn
-        timer.add_activity_time("starting api server", start)
+        timer.add_activity_time("creating app for api server", start)
         uvicorn.run(app, host=uvicorn_args.host, port=uvicorn_args.port)

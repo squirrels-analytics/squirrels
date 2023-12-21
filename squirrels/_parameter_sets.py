@@ -149,7 +149,10 @@ class ParameterConfigsSetIO:
     def _GetDfDict(cls) -> dict[str, pd.DataFrame]:
         def get_dataframe_from_query(ds_param_config: pc.DataSourceParameterConfig) -> pd.DataFrame:
             key, datasource = ds_param_config.name, ds_param_config.data_source
-            df = ConnectionSetIO.obj.run_sql_query_from_conn_name(datasource._get_query(), datasource._connection_name)
+            try:
+                df = ConnectionSetIO.obj.run_sql_query_from_conn_name(datasource._get_query(), datasource._connection_name)
+            except u.ConfigurationError as e:
+                raise u.ConfigurationError(f'Error executing query for datasource parameter "{key}"') from e
             return key, df
         
         ds_param_configs = cls.obj._get_all_ds_param_configs()

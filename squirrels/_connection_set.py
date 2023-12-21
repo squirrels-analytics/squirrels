@@ -40,7 +40,10 @@ class ConnectionSet:
         
         try:
             cur = conn.cursor()
-            cur.execute(query)
+            try:
+                cur.execute(query)
+            except Exception as e:
+                raise u.ConfigurationError(e)
             df = pd.DataFrame(data=cur.fetchall(), columns=[x[0] for x in cur.description])
         finally:
             conn.close()

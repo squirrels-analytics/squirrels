@@ -1,6 +1,5 @@
-from typing import Optional, Union, Any
+from typing import Optional
 from dataclasses import dataclass
-from pathlib import Path
 from enum import Enum
 import yaml
 
@@ -121,14 +120,14 @@ class DbviewConfig(ManifestComponentConfig):
 @dataclass
 class FederateConfig(ManifestComponentConfig):
     name: str
-    materialization: str
+    materialized: str
 
     @classmethod
     def from_dict(cls, kwargs: dict):
         cls.validate_required(kwargs, [c.FEDERATE_NAME_KEY], c.FEDERATES_KEY)
         name = str(kwargs[c.FEDERATE_NAME_KEY])
-        materialization = str(kwargs.get(c.MATERIALIZATION_KEY, c.DEFAULT_TABLE_MATERIALIZE))
-        return cls(name, materialization)
+        materialized = str(kwargs.get(c.MATERIALIZED_KEY, c.DEFAULT_TABLE_MATERIALIZE))
+        return cls(name, materialized)
 
 
 class DatasetScope(Enum):

@@ -7,6 +7,7 @@ from . import _utils as u, _constants as c
 from ._py_module import PyModule
 from .user_base import User, WrongPassword
 from ._environcfg import EnvironConfigIO
+from ._manifest import DatasetScope
 
 
 class Authenticator:
@@ -29,7 +30,11 @@ class Authenticator:
     def authenticate_user(self, username: str, password: str) -> Optional[User]:
         if self.auth_helper:
             user_cls = self.auth_helper.get_func_or_class("User", default_attr=User)
-            real_user = self.auth_helper.get_func_or_class("get_user_if_valid")(username, password)
+            get_user = self.auth_helper.get_func_or_class(c.GET_USER_FUNC)
+            try:
+                real_user = get_user(username, password)
+            except Exception as e:
+                raise u.FileExecutionError(f'Failed to run "{c.GET_USER_FUNC}" in {c.AUTH_FILE}', e)
         else:
             user_cls = User
             real_user = None
@@ -41,7 +46,11 @@ class Authenticator:
             fake_users = EnvironConfigIO.obj.get_users()
             if username in fake_users and secrets.compare_digest(fake_users[username][c.USER_PWD_KEY], password):
                 is_internal = fake_users[username].get("is_internal", False)
-                return user_cls(username, is_internal=is_internal).with_attributes(fake_users[username])
+                user = user_cls(username, is_internal=is_internal)
+                try:
+                    return user.with_attributes(fake_users[username])
+                except Exception as e:
+                    raise u.FileExecutionError(f'Failed to create user from User model in {c.AUTH_FILE}', e)
         
         return None
     
@@ -64,7 +73,12 @@ class Authenticator:
             except JWTError:
                 return None
 
-    def can_user_access_scope(self, user: Optional[User], scope: str) -> bool:
-        user_level = 0 if user is None else (1 if not user.is_internal else 2)
-        scope_level = 2 if scope == c.PRIVATE_SCOPE else (1 if scope == c.PROTECTED_SCOPE else 0)
-        return user_level >= scope_level
+    def can_user_access_scope(self, user: Optional[User], scope: DatasetScope) -> bool:
+        if user is None:
+            user_level = DatasetScope.PUBLIC
+        elif not user.is_internal:
+            user_level = DatasetScope.PROTECTED
+        else:
+            user_level = DatasetScope.PRIVATE
+        
+        return user_level.value >= scope.value

@@ -28,7 +28,7 @@ DEFAULT_DB_CONN = 'default'
 
 FEDERATES_KEY = 'federates'
 FEDERATE_NAME_KEY = 'name'
-MATERIALIZATION_KEY = 'materialization'
+MATERIALIZED_KEY = 'materialized'
 DEFAULT_TABLE_MATERIALIZE = 'table'
 
 PARAMETERS_KEY = 'parameters'
@@ -135,3 +135,8 @@ CONF_FORMAT_CHOICES2 = [(PYTHON_FORMAT2, PYTHON_FORMAT), YML_FORMAT]
 EXPENSES_DB_NAME = 'expenses'
 WEATHER_DB_NAME = 'seattle-weather'
 DATABASE_CHOICES = [EXPENSES_DB_NAME, WEATHER_DB_NAME]
+
+# Function names
+GET_USER_FUNC = "get_user_if_valid"
+DEP_FUNC = "dependencies"
+MAIN_FUNC = "main"

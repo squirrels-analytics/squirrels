@@ -52,9 +52,9 @@ def run_pyconfig_main(filename: str, kwargs: dict[str, Any] = {}) -> None:
     """
     filepath = u.join_paths(c.PYCONFIG_FOLDER, filename)
     module = PyModule(filepath)
-    main_function = module.get_func_or_class("main", is_required=False)
+    main_function = module.get_func_or_class(c.MAIN_FUNC, is_required=False)
     if main_function:
         try:
             main_function(**kwargs)
         except Exception as e:
-            raise u.ConfigurationError(f'Error in the python file: "{filepath}"\n  See above for more details') from e
+            raise u.FileExecutionError(f'Failed to run python file "{filepath}"', e)
