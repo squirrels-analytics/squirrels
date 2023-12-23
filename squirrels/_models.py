@@ -2,12 +2,11 @@ from __future__ import annotations
 from typing import Optional, Callable, Iterable, Any
 from dataclasses import dataclass, field
 from enum import Enum
-from functools import partial
 from pathlib import Path
 import sqlite3, pandas as pd, asyncio, os, shutil
 
 from . import _constants as c, _utils as u, _py_module as pm
-from .arguments.run_time_args import ContextArgs, DbviewModelArgs, FederateModelArgs
+from .arguments.run_time_args import ContextArgs, ModelDepsArgs, ModelArgs
 from ._authenticator import User
 from ._connection_set import ConnectionSetIO
 from ._manifest import ManifestIO, DatasetsConfig
@@ -58,15 +57,15 @@ class SqlModelConfig:
 ContextFunc = Callable[[dict[str, Any], ContextArgs], None]
 
 
-@dataclass
+@dataclass(frozen=True)
 class RawQuery:
     pass
 
-@dataclass
+@dataclass(frozen=True)
 class RawSqlQuery(RawQuery):
     query: str
 
-@dataclass
+@dataclass(frozen=True)
 class RawPyQuery(RawQuery):
     query: Callable[[Any], pd.DataFrame]
     dependencies_func: Callable[[Any], Iterable]
@@ -115,7 +114,7 @@ class Model:
 
     confirmed_no_cycles: bool = field(default=False, init=False)
 
-    def add_upstream(self, other: Model) -> None:
+    def _add_upstream(self, other: Model) -> None:
         self.upstreams[other.name] = other
         other.downstreams[self.name] = self
         
@@ -126,11 +125,16 @@ class Model:
 
     def _get_dbview_conn_name(self) -> str:
         dbview_config = ManifestIO.obj.dbviews.get(self.name)
-        return dbview_config.connection_name if dbview_config is not None else c.DEFAULT_DB_CONN
+        if dbview_config is None or dbview_config.connection_name is None:
+            return ManifestIO.obj.settings.get(c.DB_CONN_DEFAULT_USED_SETTING, c.DEFAULT_DB_CONN)
+        return dbview_config.connection_name
 
     def _get_materialized(self) -> str:
         federate_config = ManifestIO.obj.federates.get(self.name)
-        materialized = federate_config.materialized if federate_config is not None else c.DEFAULT_TABLE_MATERIALIZE
+        if federate_config is None or federate_config.materialized is None:
+            materialized = ManifestIO.obj.settings.get(c.DEFAULT_MATERIALIZE_SETTING, c.DEFAULT_TABLE_MATERIALIZE)
+        else:
+            materialized = federate_config.materialized
         return Materialization[materialized.upper()]
     
     async def _compile_sql_model(self, ctx: dict[str, Any], ctx_args: ContextArgs) -> tuple[SqlModelQuery, set]:
@@ -162,24 +166,25 @@ class Model:
     
     async def _compile_python_model(self, ctx: dict[str, Any], ctx_args: ContextArgs) -> tuple[PyModelQuery, set]:
         assert(isinstance(self.query_file.raw_query, RawPyQuery))
-        dependencies = set()
-        if self.query_file.model_type == ModelType.DBVIEW:
-            dbview_conn_name = self._get_dbview_conn_name()
-            connections = ConnectionSetIO.obj.get_connections_as_dict()
-            sqrl_args = DbviewModelArgs(ctx_args.proj_vars, ctx_args.env_vars, ctx_args.user, ctx_args.prms, ctx_args.args,
-                                        ctx, dbview_conn_name, connections)
-        elif self.query_file.model_type == ModelType.FEDERATE:
-            sqrl_args = FederateModelArgs(ctx_args.proj_vars, ctx_args.env_vars, ctx_args.user, ctx_args.prms, ctx_args.args, 
-                                          ctx, None, None)
-            try:
-                dependencies = await asyncio.to_thread(self.query_file.raw_query.dependencies_func, sqrl_args)
-            except Exception as e:
-                raise u.FileExecutionError(f'Failed to run "{c.DEP_FUNC}" function for python model "{self.name}"', e)
-            sqrl_args.dependencies = set(dependencies)
-            sqrl_args.ref = lambda x: self.upstreams[x].result
+        sqrl_args = ModelDepsArgs(ctx_args.proj_vars, ctx_args.env_vars, ctx_args.user, ctx_args.prms, ctx_args.args, ctx)
+        try:
+            dependencies = await asyncio.to_thread(self.query_file.raw_query.dependencies_func, sqrl_args)
+        except Exception as e:
+            raise u.FileExecutionError(f'Failed to run "{c.DEP_FUNC}" function for python model "{self.name}"', e)
+        
+        dbview_conn_name = self._get_dbview_conn_name()
+        connections = ConnectionSetIO.obj.get_connections_as_dict()
+        ref = lambda x: self.upstreams[x].result
+        sqrl_args = ModelArgs(ctx_args.proj_vars, ctx_args.env_vars, ctx_args.user, ctx_args.prms, ctx_args.args, 
+                              ctx, dbview_conn_name, connections, ref, set(dependencies))
             
-        compiled_query = PyModelQuery(partial(self.query_file.raw_query.query, sqrl=sqrl_args))
-        return compiled_query, dependencies
+        def compiled_query():
+            try:
+                return self.query_file.raw_query.query(sqrl=sqrl_args)
+            except Exception as e:
+                raise u.FileExecutionError(f'Failed to run "{c.MAIN_FUNC}" function for python model "{self.name}"', e)
+        
+        return PyModelQuery(compiled_query), dependencies
 
     async def compile(self, ctx: dict[str, Any], ctx_args: ContextArgs, models_dict: dict[str, Model], recurse: bool) -> None:
         if self.compiled_query is not None:
@@ -205,28 +210,30 @@ class Model:
         dep_models = [models_dict[x] for x in dependencies]
         coroutines = []
         for dep_model in dep_models:
-            self.add_upstream(dep_model)
+            self._add_upstream(dep_model)
             coro = dep_model.compile(ctx, ctx_args, models_dict, recurse)
             coroutines.append(coro)
         await asyncio.gather(*coroutines)
     
-    def validate_no_cycles(self, depencency_path: set[str], terminal_nodes: set[str]) -> None:
+    def validate_no_cycles(self, depencency_path: set[str]) -> set[str]:
         if self.confirmed_no_cycles:
             return
         
         if self.name in depencency_path:
             raise u.ConfigurationError(f'Cycle found in model dependency graph')
 
+        terminal_nodes = set()
         if len(self.upstreams) == 0:
             terminal_nodes.add(self.name)
-            self.wait_count = 1
         else:
             new_path = set(depencency_path)
             new_path.add(self.name)
             for dep_model in self.upstreams.values():
-                dep_model.validate_no_cycles(new_path, terminal_nodes)
+                terminal_nodes_under_dep = dep_model.validate_no_cycles(new_path)
+                terminal_nodes = terminal_nodes.union(terminal_nodes_under_dep)
         
         self.confirmed_no_cycles = True
+        return terminal_nodes
 
     async def _run_sql_model(self, conn: sqlite3.Connection) -> None:
         assert(isinstance(self.compiled_query, SqlModelQuery))
@@ -237,12 +244,12 @@ class Model:
             def run_sql_query():
                 try:
                     return ConnectionSetIO.obj.run_sql_query_from_conn_name(query, config.connection_name)
-                except u.ConfigurationError as e:
+                except RuntimeError as e:
                     raise u.FileExecutionError(f'Failed to run dbview sql model "{self.name}"', e)
             
             df = await asyncio.to_thread(run_sql_query)
             await asyncio.to_thread(df.to_sql, self.name, conn, index=False)
-            if self.needs_pandas:
+            if self.needs_pandas or self.is_target:
                 self.result = df
         elif self.query_file.model_type == ModelType.FEDERATE:
             def create_table():
@@ -253,16 +260,17 @@ class Model:
                     raise u.FileExecutionError(f'Failed to run federate sql model "{self.name}"', e)
             
             await asyncio.to_thread(create_table)
-            if self.needs_pandas:
+            if self.needs_pandas or self.is_target:
                 query = f"SELECT * FROM {self.name}"
                 self.result = await asyncio.to_thread(pd.read_sql, query, conn)
     
     async def _run_python_model(self, conn: sqlite3.Connection) -> None:
         assert(isinstance(self.compiled_query, PyModelQuery))
+
         df = await asyncio.to_thread(self.compiled_query.query)
         if self.needs_sql_table:
             await asyncio.to_thread(df.to_sql, self.name, conn, index=False)
-        if self.needs_pandas:
+        if self.needs_pandas or self.is_target:
             self.result = df
     
     async def run_model(self, conn: sqlite3.Connection) -> None:
@@ -319,8 +327,7 @@ class DAG:
     
     def _validate_no_cycles(self) -> set[str]:
         start = time.time()
-        terminal_nodes = set()
-        self.target_model.validate_no_cycles(set(), terminal_nodes)
+        terminal_nodes = self.target_model.validate_no_cycles(set())
         timer.add_activity_time(f"validating no cycles in models dependencies", start)
         return terminal_nodes
 
@@ -330,7 +337,7 @@ class DAG:
             coroutines = []
             for model_name in terminal_nodes:
                 model = self.models_dict[model_name]
-                coroutines.append(model.trigger(conn))
+                coroutines.append(model.run_model(conn))
             await asyncio.gather(*coroutines)
         finally:
             conn.close()
@@ -401,12 +408,13 @@ class ModelsIO:
 
     @classmethod
     def GenerateDAG(cls, dataset: str, *, target_model_name: Optional[str] = None, always_pandas: bool = False) -> DAG:
+        models_dict = {key: Model(key, val, needs_pandas=always_pandas) for key, val in cls.raw_queries_by_model.items()}
+        
         dataset_config = ManifestIO.obj.datasets[dataset]
         target_model_name = dataset_config.model if target_model_name is None else target_model_name
-        models_dict = {key: Model(key, val, needs_pandas=always_pandas) for key, val in cls.raw_queries_by_model.items()}
         target_model = models_dict[target_model_name]
         target_model.is_target = True
-        target_model.needs_pandas = True
+        
         return DAG(dataset_config, target_model, models_dict)
     
     @classmethod
@@ -423,26 +431,40 @@ class ModelsIO:
         if os.path.exists(output_folder):
             shutil.rmtree(output_folder)
         
-        target_model = dag.models_dict[select]
-        for name, model in dag.models_dict.items(): # TODO: iterate only dependent models instead of all models
+        def write_model_outputs(model: Model) -> None:
             subfolder = c.DBVIEWS_FOLDER if model.query_file.model_type == ModelType.DBVIEW else c.FEDERATES_FOLDER
             subpath = u.join_paths(output_folder, subfolder)
             os.makedirs(subpath)
             if isinstance(model.compiled_query, SqlModelQuery):
-                output_filepath = u.join_paths(subpath, name+'.sql')
+                output_filepath = u.join_paths(subpath, model.name+'.sql')
                 query = model.compiled_query.query
                 with open(output_filepath, 'w') as f:
                     f.write(query)
             if runquery and isinstance(model.result, pd.DataFrame):
-                output_filepath = u.join_paths(subpath, name+'.csv')
+                output_filepath = u.join_paths(subpath, model.name+'.csv')
                 model.result.to_csv(output_filepath, index=False)
-        
+
+        target_model = dag.models_dict[select]
+        stack = [target_model]
+        all_model_names = set()
+        while stack:
+            curr_model = stack.pop()
+            all_model_names.add(curr_model.name)
+            for dep_model in curr_model.downstreams.values():
+                if dep_model.name not in all_model_names:
+                    stack.append(dep_model.name)
+
+        coroutines = [asyncio.to_thread(write_model_outputs, dag.models_dict[name]) for name in all_model_names]
+        await asyncio.gather(*coroutines)
         return target_model.compiled_query.query
 
     @classmethod
     async def WriteOutputs(
-        cls, dataset: Optional[str], select: Optional[str], all_test_sets: bool, test_set: str, runquery: bool
+        cls, dataset: Optional[str], select: Optional[str], all_test_sets: bool, test_set: Optional[str], runquery: bool
     ) -> None:
+        if test_set is None:
+            test_set = ManifestIO.obj.settings.get(c.TEST_SET_DEFAULT_USED_SETTING, c.DEFAULT_TEST_SET_NAME)
+
         if all_test_sets:
             test_sets = ManifestIO.obj.selection_test_sets.keys()
         else:

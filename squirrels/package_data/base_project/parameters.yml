@@ -96,7 +96,7 @@ parameters:
         default_value_col: max_value  ## optional, default is null
         id_col: null                  ## optional, default, required for SingleSelect and MultiSelect, optional for all others
   - name: between_filter
-    type: NumRangeParameter
+    type: NumberRangeParameter
     factory: Create
     arguments:
       label: Amounts Between

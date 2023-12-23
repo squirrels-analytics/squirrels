@@ -30,36 +30,34 @@ class ConnectionSet:
             raise u.ConfigurationError(f'Connection name "{conn_name}" was not configured') from e
         return connection_pool
     
-    def _run_sql_query(self, query: str, connection_pool: Union[Engine, Pool]):
+    def run_sql_query_from_conn_name(self, query: str, conn_name: str) -> pd.DataFrame:
+        connection_pool = self.get_connection_pool(conn_name)
         if isinstance(connection_pool, Pool):
             conn = connection_pool.connect()
         elif isinstance(connection_pool, Engine):
             conn = connection_pool.raw_connection()
         else:
-            raise TypeError(f'Type of connection_pool not supported')
+            raise u.ConfigurationError(f'Value type not supported for connection name "{conn_name}". Must be sqlalchemy engine or pool')
         
         try:
             cur = conn.cursor()
             try:
                 cur.execute(query)
             except Exception as e:
-                raise u.ConfigurationError(e)
+                raise RuntimeError(e)
             df = pd.DataFrame(data=cur.fetchall(), columns=[x[0] for x in cur.description])
         finally:
             conn.close()
 
         return df
-    
-    def run_sql_query_from_conn_name(self, query: str, conn_name: str) -> pd.DataFrame:
-        connector = self.get_connection_pool(conn_name)
-        return self._run_sql_query(query, connector)
 
     def _dispose(self) -> None:
         """
         Disposes of all the connection pools in this ConnectionSet
         """
         for pool in self._conn_pools.values():
-            pool.dispose()
+            if isinstance(pool, (Engine, Pool)):
+                pool.dispose()
 
 
 class ConnectionSetIO:
@@ -76,16 +74,21 @@ class ConnectionSetIO:
             A ConnectionSet with the DB connections from both squirrels.yml and connections.py
         """
         start = time.time()
-        connections = {}
-        for config in ManifestIO.obj.db_connections:
-            connections[config.connection_name] = create_engine(config.url)
-        
-        proj_vars = ManifestIO.obj.project_variables
-        env_vars = EnvironConfigIO.obj.get_all_env_vars()
-        get_credential = EnvironConfigIO.obj.get_credential
-        cls.args = ConnectionsArgs(proj_vars, env_vars, get_credential)
-        pm.run_pyconfig_main(c.CONNECTIONS_FILE, {"connections": connections, "sqrl": cls.args})
+        connections: dict[str, Union[Engine, Pool]] = {}
         cls.obj = ConnectionSet(connections)
+        try:
+            for config in ManifestIO.obj.db_connections:
+                connections[config.connection_name] = create_engine(config.url)
+            
+            proj_vars = ManifestIO.obj.project_variables
+            env_vars = EnvironConfigIO.obj.get_all_env_vars()
+            get_credential = EnvironConfigIO.obj.get_credential
+            cls.args = ConnectionsArgs(proj_vars, env_vars, get_credential)
+            pm.run_pyconfig_main(c.CONNECTIONS_FILE, {"connections": connections, "sqrl": cls.args})
+        except Exception as e:
+            cls.Dispose()
+            raise e
+        
         timer.add_activity_time("creating sqlalchemy engines or pools", start)
 
     @classmethod

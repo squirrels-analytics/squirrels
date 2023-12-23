@@ -165,7 +165,7 @@ class TestNumberParameterConfig:
             num_config_with_parent.with_selection("2.3", None, ss_param_with_ms_parent) # not in increment
 
 
-class TestNumRangeParameterConfig:
+class TestNumberRangeParameterConfig:
     def test_with_selection1(self, user: User, num_range_config: pc.NumberRangeParameterConfig):
         curr_option = num_range_config.all_options[1]
         expected = p.NumberRangeParameter(num_range_config, curr_option, Decimal("10.9"), Decimal("12.1"))

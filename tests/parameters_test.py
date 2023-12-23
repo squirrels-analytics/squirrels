@@ -208,7 +208,7 @@ class TestNumberParameter:
         assert param1.to_json_dict0() == expected
 
 
-class TestNumRangeParameter:
+class TestNumberRangeParameter:
     @pytest.fixture(scope="class")
     def config1(self) -> pc.NumberRangeParameterConfig:
         options = (po.NumberRangeParameterOption(0, 10, increment="0.5"),)

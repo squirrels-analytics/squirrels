@@ -39,7 +39,7 @@ PARAMETER_ARGS_KEY = 'arguments'
 
 TEST_SETS_KEY = 'selection_test_sets'
 TEST_SET_NAME_KEY = 'name'
-TEST_SET_DEFAULT_NAME = 'default'
+DEFAULT_TEST_SET_NAME = 'default'
 TEST_SET_USER_ATTR_KEY = 'user_attributes'
 TEST_SET_PARAMETERS_KEY = 'parameters'
 
@@ -115,6 +115,9 @@ PARAMETERS_CACHE_SIZE_SETTING = 'parameters.cache.size'
 PARAMETERS_CACHE_TTL_SETTING = 'parameters.cache.ttl.minutes'
 RESULTS_CACHE_SIZE_SETTING = 'results.cache.size'
 RESULTS_CACHE_TTL_SETTING = 'results.cache.ttl.minutes'
+TEST_SET_DEFAULT_USED_SETTING = 'selection_test_sets.default_name_used'
+DB_CONN_DEFAULT_USED_SETTING = 'db_connections.default_name_used'
+DEFAULT_MATERIALIZE_SETTING = 'defaults.federates.materialized'
 
 # Selection cfg sections
 USER_ATTRIBUTES_SECTION = 'user_attributes'

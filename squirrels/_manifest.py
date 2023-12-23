@@ -11,10 +11,10 @@ from ._timer import timer, time
 @dataclass
 class ManifestComponentConfig:
     @classmethod
-    def validate_required(cls, data: dict, required_keys: list[str], section: str):
+    def _validate_required(cls, data: dict, required_keys: list[str], section: str):
         for key in required_keys:
             if key not in data:
-                raise u.ConfigurationError(f'Required field missing from {section}: {key}')
+                raise u.ConfigurationError(f'In {c.MANIFEST_FILE}, required field missing in {section}: {key}')
 
 
 @dataclass
@@ -23,7 +23,7 @@ class ProjectVarsConfig(ManifestComponentConfig):
 
     def __post_init__(self):
         required_keys = [c.PROJECT_NAME_KEY, c.MAJOR_VERSION_KEY, c.MINOR_VERSION_KEY]
-        self.validate_required(self.data, required_keys, c.PROJ_VARS_KEY)
+        self._validate_required(self.data, required_keys, c.PROJ_VARS_KEY)
         
         integer_keys = [c.MAJOR_VERSION_KEY, c.MINOR_VERSION_KEY]
         for key in integer_keys:
@@ -51,7 +51,7 @@ class PackageConfig(ManifestComponentConfig):
 
     @classmethod
     def from_dict(cls, kwargs: dict):
-        cls.validate_required(kwargs, [c.PACKAGE_GIT_KEY, c.PACKAGE_REVISION_KEY], c.PACKAGES_KEY)
+        cls._validate_required(kwargs, [c.PACKAGE_GIT_KEY, c.PACKAGE_REVISION_KEY], c.PACKAGES_KEY)
         git_url = str(kwargs[c.PACKAGE_GIT_KEY])
         directory_raw = kwargs.get(c.PACKAGE_DIRECTORY_KEY)
         directory = git_url.split('/')[-1].removesuffix('.git') if directory_raw is None else str(directory_raw)
@@ -66,7 +66,7 @@ class DbConnConfig(ManifestComponentConfig):
 
     @classmethod
     def from_dict(cls, kwargs: dict):
-        cls.validate_required(kwargs, [c.DB_CONN_NAME_KEY, c.DB_CONN_URL_KEY], c.DB_CONNECTIONS_KEY)
+        cls._validate_required(kwargs, [c.DB_CONN_NAME_KEY, c.DB_CONN_URL_KEY], c.DB_CONNECTIONS_KEY)
         connection_name = str(kwargs[c.DB_CONN_NAME_KEY])
         credential_key = kwargs.get(c.CREDENTIALS_KEY)
         username, password = EnvironConfigIO.obj.get_credential(credential_key)
@@ -84,7 +84,7 @@ class ParametersConfig(ManifestComponentConfig):
     @classmethod
     def from_dict(cls, kwargs: dict):
         all_keys = [c.PARAMETER_NAME_KEY, c.PARAMETER_TYPE_KEY, c.PARAMETER_FACTORY_KEY, c.PARAMETER_ARGS_KEY]
-        cls.validate_required(kwargs, all_keys, c.PARAMETERS_KEY)
+        cls._validate_required(kwargs, all_keys, c.PARAMETERS_KEY)
         args = {key: kwargs[key] for key in all_keys}
         return cls(**args)
 
@@ -97,7 +97,7 @@ class TestSetsConfig(ManifestComponentConfig):
 
     @classmethod
     def from_dict(cls, kwargs: dict):
-        cls.validate_required(kwargs, [c.TEST_SET_NAME_KEY], c.TEST_SETS_KEY)
+        cls._validate_required(kwargs, [c.TEST_SET_NAME_KEY], c.TEST_SETS_KEY)
         name = str(kwargs[c.TEST_SET_NAME_KEY])
         user_attributes = kwargs.get(c.TEST_SET_USER_ATTR_KEY, {})
         parameters = kwargs.get(c.TEST_SET_PARAMETERS_KEY, {})
@@ -107,26 +107,26 @@ class TestSetsConfig(ManifestComponentConfig):
 @dataclass
 class DbviewConfig(ManifestComponentConfig):
     name: str
-    connection_name: str
+    connection_name: Optional[str]
 
     @classmethod
     def from_dict(cls, kwargs: dict):
-        cls.validate_required(kwargs, [c.DBVIEW_NAME_KEY], c.DBVIEWS_KEY)
+        cls._validate_required(kwargs, [c.DBVIEW_NAME_KEY], c.DBVIEWS_KEY)
         name = str(kwargs[c.DBVIEW_NAME_KEY])
-        connection_name = str(kwargs.get(c.DBVIEW_CONN_KEY, c.DEFAULT_DB_CONN))
+        connection_name = str(kwargs.get(c.DBVIEW_CONN_KEY))
         return cls(name, connection_name)
 
 
 @dataclass
 class FederateConfig(ManifestComponentConfig):
     name: str
-    materialized: str
+    materialized: Optional[str]
 
     @classmethod
     def from_dict(cls, kwargs: dict):
-        cls.validate_required(kwargs, [c.FEDERATE_NAME_KEY], c.FEDERATES_KEY)
+        cls._validate_required(kwargs, [c.FEDERATE_NAME_KEY], c.FEDERATES_KEY)
         name = str(kwargs[c.FEDERATE_NAME_KEY])
-        materialized = str(kwargs.get(c.MATERIALIZED_KEY, c.DEFAULT_TABLE_MATERIALIZE))
+        materialized = str(kwargs.get(c.MATERIALIZED_KEY))
         return cls(name, materialized)
 
 
@@ -146,15 +146,17 @@ class DatasetsConfig(ManifestComponentConfig):
 
     @classmethod
     def from_dict(cls, kwargs: dict):
-        cls.validate_required(kwargs, [c.DATASET_NAME_KEY], c.DATASETS_KEY)
+        cls._validate_required(kwargs, [c.DATASET_NAME_KEY], c.DATASETS_KEY)
         name = str(kwargs[c.DATASET_NAME_KEY])
         label = str(kwargs.get(c.DATASET_LABEL_KEY, name))
         model = str(kwargs.get(c.DATASET_MODEL_KEY, name))
         scope_raw = kwargs.get(c.DATASET_SCOPE_KEY)
-        if scope_raw is None:
-            scope = DatasetScope.PUBLIC
-        else:
-            scope = DatasetScope[str(scope_raw).upper()]
+        try:
+            scope = DatasetScope[str(scope_raw).upper()] if scope_raw is not None else DatasetScope.PUBLIC
+        except KeyError as e:
+            scope_list = [scope.name.lower() for scope in DatasetScope]
+            raise u.ConfigurationError(f'Scope not found for dataset "{name}". Scope must be one of {scope_list}') from e
+        
         parameters = kwargs.get(c.DATASET_PARAMETERS_KEY)
         args = kwargs.get(c.DATASET_ARGS_KEY, {})
         return cls(name, label, model, scope, parameters, args)
@@ -174,16 +176,25 @@ class _ManifestConfig:
 
     @classmethod
     def from_dict(cls, kwargs: dict):
-        proj_vars = ProjectVarsConfig(kwargs[c.PROJ_VARS_KEY])
+        settings: dict = kwargs.get(c.SETTINGS_KEY, {})
+
+        try:
+            proj_vars = ProjectVarsConfig(kwargs[c.PROJ_VARS_KEY])
+        except KeyError as e:
+            raise u.ConfigurationError(f'In {c.MANIFEST_FILE}, section for {c.PROJ_VARS_KEY} is required') from e
+        
         packages = [PackageConfig.from_dict(x) for x in kwargs.get(c.PACKAGES_KEY, [])]
         db_conns = [DbConnConfig.from_dict(x) for x in kwargs.get(c.DB_CONNECTIONS_KEY, [])]
         params = [ParametersConfig.from_dict(x) for x in kwargs.get(c.PARAMETERS_KEY, [])]
+
         test_sets = {x[c.TEST_SET_NAME_KEY]: TestSetsConfig.from_dict(x) for x in kwargs.get(c.TEST_SETS_KEY, [])}
+        default_test_set: str = settings.get(c.TEST_SET_DEFAULT_USED_SETTING, c.DEFAULT_TEST_SET_NAME)
+        test_sets.setdefault(default_test_set, TestSetsConfig.from_dict({c.TEST_SET_NAME_KEY: default_test_set}))
+
         dbviews = {x[c.DBVIEW_NAME_KEY]: DbviewConfig.from_dict(x) for x in kwargs.get(c.DBVIEWS_KEY, [])}
         federates = {x[c.FEDERATE_NAME_KEY]: FederateConfig.from_dict(x) for x in kwargs.get(c.FEDERATES_KEY, [])}
         datasets = {x[c.DATASET_NAME_KEY]: DatasetsConfig.from_dict(x) for x in kwargs.get(c.DATASETS_KEY, [])}
-        settings = kwargs.get(c.SETTINGS_KEY, {})
-        test_sets.setdefault(c.TEST_SET_DEFAULT_NAME, TestSetsConfig.from_dict({c.TEST_SET_NAME_KEY: c.TEST_SET_DEFAULT_NAME}))
+
         return cls(proj_vars, packages, db_conns, params, test_sets, dbviews, federates, datasets, settings)
 
 

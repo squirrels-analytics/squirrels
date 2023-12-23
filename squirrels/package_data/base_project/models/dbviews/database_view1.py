@@ -2,10 +2,10 @@ from textwrap import dedent
 import pandas as pd, squirrels as sr
 
 
-def main(sqrl: sr.DbviewModelArgs) -> pd.DataFrame:
+def main(sqrl: sr.ModelArgs) -> pd.DataFrame:
     """
     Create a database view model in Python by sending an external query to a database or API, and return a 
-    pandas dataframe of the result in this function. Since the result is loaded into server memory, be mindful of 
+    pandas DataFrame of the result in this function. Since the result is loaded into server memory, be mindful of 
     the size of the results coming from the external query.
     """
 

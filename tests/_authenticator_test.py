@@ -3,6 +3,7 @@ from typing import Optional, Any
 import pytest
 
 from squirrels._authenticator import Authenticator, User, WrongPassword
+from squirrels._manifest import DatasetScope
 from squirrels import _constants as c
 
 
@@ -93,6 +94,6 @@ def test_get_user_from_token(user_fixture: str, auth: Authenticator, request: py
 def test_can_user_access_scope(user_fixture: str, public: bool, protected: bool, private: bool,
                                auth: Authenticator, request: pytest.FixtureRequest):
     input_user = request.getfixturevalue(user_fixture) if user_fixture is not None else None
-    assert auth.can_user_access_scope(input_user, c.PUBLIC_SCOPE) == public
-    assert auth.can_user_access_scope(input_user, c.PROTECTED_SCOPE) == protected
-    assert auth.can_user_access_scope(input_user, c.PRIVATE_SCOPE) == private
+    assert auth.can_user_access_scope(input_user, DatasetScope.PUBLIC) == public
+    assert auth.can_user_access_scope(input_user, DatasetScope.PROTECTED) == protected
+    assert auth.can_user_access_scope(input_user, DatasetScope.PRIVATE) == private

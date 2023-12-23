@@ -28,14 +28,14 @@ def main():
     init_parser.add_argument('--auth', action='store_true', help=f'Include the {c.AUTH_FILE} file')
     init_parser.add_argument('--sample-db', type=str, choices=c.DATABASE_CHOICES, help='Sample sqlite database to include')
 
-    module_parser = subparsers.add_parser(c.DEPS_CMD, help='Load all packages specified in squirrels.yml (from git)', add_help=False)
+    module_parser = subparsers.add_parser(c.DEPS_CMD, help=f'Load all packages specified in {c.MANIFEST_FILE} (from git)', add_help=False)
     module_parser.add_argument('-h', '--help', action="help", help="Show this help message and exit")
 
     compile_parser = subparsers.add_parser(c.COMPILE_CMD, help='Create files for rendered sql queries in the "target/compile" folder', add_help=False)
     compile_parser.add_argument('-h', '--help', action="help", help="Show this help message and exit")
     compile_parser.add_argument('-d', '--dataset', type=str, help="Select dataset to use for dataset args. If not specified, all models for all datasets are compiled")
     compile_parser.add_argument('-a', '--all-test-sets', action="store_true", help="Compile models for all test sets")
-    compile_parser.add_argument('-t', '--test-set', type=str, default="default", help="The selection test set to use. Default selections are used if not specified. Ignored if using --all-test-sets")
+    compile_parser.add_argument('-t', '--test-set', type=str, help="The selection test set to use. Default selections are used if not specified. Ignored if using --all-test-sets")
     compile_parser.add_argument('-s', '--select', type=str, help="Select single model to compile. If not specified, all models for the dataset are compiled. Also, ignored if --dataset is not specified")
     compile_parser.add_argument('-r', '--runquery', action='store_true', help='Runs all target models, and produce the results as csv files')
 

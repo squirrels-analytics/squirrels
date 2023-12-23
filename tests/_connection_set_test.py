@@ -44,7 +44,7 @@ def test_get_connection_pool(connection_set: cs.ConnectionSet):
         connection_set.get_connection_pool('does_not_exist')
 
 
-def test_get_dataframe_from_query(connection_set: cs.ConnectionSet):
+def test_run_sql_query_from_conn_name(connection_set: cs.ConnectionSet):
     df: pd.DataFrame = connection_set.run_sql_query_from_conn_name("SELECT id, name FROM test WHERE id < 0", "db2")
     expected_df = pd.DataFrame(columns=["id", "name"]) # empty dataframe
     assert df.equals(expected_df)

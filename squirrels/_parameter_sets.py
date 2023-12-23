@@ -6,7 +6,7 @@ import concurrent.futures, pandas as pd
 
 from . import _utils as u, _constants as c, parameters as p, _parameter_configs as pc, _py_module as pm
 from .arguments.init_time_args import ParametersArgs
-from ._manifest import ManifestIO
+from ._manifest import ManifestIO, ParametersConfig
 from ._connection_set import ConnectionSetIO
 from ._authenticator import User
 from ._timer import timer, time
@@ -150,8 +150,9 @@ class ParameterConfigsSetIO:
         def get_dataframe_from_query(ds_param_config: pc.DataSourceParameterConfig) -> pd.DataFrame:
             key, datasource = ds_param_config.name, ds_param_config.data_source
             try:
-                df = ConnectionSetIO.obj.run_sql_query_from_conn_name(datasource._get_query(), datasource._connection_name)
-            except u.ConfigurationError as e:
+                query, conn_name = datasource._get_query(), datasource._get_connection_name()
+                df = ConnectionSetIO.obj.run_sql_query_from_conn_name(query, conn_name)
+            except RuntimeError as e:
                 raise u.ConfigurationError(f'Error executing query for datasource parameter "{key}"') from e
             return key, df
         
@@ -162,17 +163,11 @@ class ParameterConfigsSetIO:
         return df_dict
     
     @classmethod
-    def _AddFromDict(cls, param_as_dict: dict) -> None: # TOTEST
-        try:
-            name, ptype_str = param_as_dict["name"], param_as_dict["type"]
-            factory_str, arguments = param_as_dict["factory"], param_as_dict["arguments"]
-        except KeyError as e:
-            raise u.ConfigurationError(f"Each parameter in {c.MANIFEST_FILE} must have 'name', 'type', 'factory', and 'arguments'.") from e
-        
-        arguments["name"] = name
-        ptype = getattr(p, ptype_str)
-        factory = getattr(ptype, factory_str)
-        factory(**arguments)
+    def _AddFromDict(cls, param_config: ParametersConfig) -> None:
+        param_config.arguments["name"] = param_config.name
+        ptype = getattr(p, param_config.type)
+        factory = getattr(ptype, param_config.factory)
+        factory(**param_config.arguments)
     
     @classmethod
     def LoadFromFile(cls) -> None:

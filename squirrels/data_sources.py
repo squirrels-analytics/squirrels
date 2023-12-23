@@ -4,7 +4,8 @@ from dataclasses import dataclass, field
 from abc import ABCMeta, abstractmethod
 import pandas as pd
 
-from . import _parameter_configs as pc, parameter_options as po, _utils as u
+from . import _parameter_configs as pc, parameter_options as po, _utils as u, _constants as c
+from ._manifest import ManifestIO
 
 
 @dataclass
@@ -16,18 +17,23 @@ class DataSource(metaclass=ABCMeta):
     _id_col: Optional[str]
     _user_group_col: Optional[str] # = field(default=None, kw_only=True)
     _parent_id_col: Optional[str] # = field(default=None, kw_only=True)
-    _connection_name: str # = field(default="default", kw_only=True)
+    _connection_name: Optional[str] # = field(default=None, kw_only=True)
 
     @abstractmethod
     def __init__(
         self, table_or_query: str, *, id_col: Optional[str] = None, user_group_col: Optional[str] = None, 
-        parent_id_col: Optional[str] = None, connection_name: str = "default", **kwargs
+        parent_id_col: Optional[str] = None, connection_name: Optional[str] = None, **kwargs
     ) -> None:
         self._table_or_query = table_or_query
         self._id_col = id_col
         self._user_group_col = user_group_col
         self._parent_id_col = parent_id_col
         self._connection_name = connection_name
+    
+    def _get_connection_name(self) -> str:
+        if self._connection_name is None:
+            return ManifestIO.obj.settings.get(c.DB_CONN_DEFAULT_USED_SETTING, c.DEFAULT_DB_CONN)
+        return self._connection_name
 
     def _get_query(self) -> str:
         """
@@ -95,7 +101,7 @@ class _SelectionDataSource(DataSource):
     def __init__(
         self, table_or_query: str, id_col: str, options_col: str, *, order_by_col: Optional[str] = None, 
         is_default_col: Optional[str] = None, custom_cols: dict[str, str] = {}, user_group_col: Optional[str] = None, 
-        parent_id_col: Optional[str] = None, connection_name: str = "default", **kwargs
+        parent_id_col: Optional[str] = None, connection_name: Optional[str] = None, **kwargs
     ) -> None:
         super().__init__(table_or_query, id_col=id_col, user_group_col=user_group_col, parent_id_col=parent_id_col, 
                          connection_name=connection_name)
@@ -152,7 +158,7 @@ class SingleSelectDataSource(_SelectionDataSource):
     def __init__(
             self, table_or_query: str, id_col: str, options_col: str, *, order_by_col: Optional[str] = None, 
             is_default_col: Optional[str] = None, custom_cols: dict[str, str] = {}, user_group_col: Optional[str] = None, 
-            parent_id_col: Optional[str] = None, connection_name: str = "default", **kwargs
+            parent_id_col: Optional[str] = None, connection_name: Optional[str] = None, **kwargs
         ) -> None:
         """
         Constructor for SingleSelectDataSource
@@ -205,7 +211,7 @@ class MultiSelectDataSource(_SelectionDataSource):
     def __init__(
             self, table_or_query: str, id_col: str, options_col: str, *, order_by_col: Optional[str] = None, 
             is_default_col: Optional[str] = None, custom_cols: dict[str, str] = {}, include_all: bool = True, order_matters: bool = False, 
-            user_group_col: Optional[str] = None, parent_id_col: Optional[str] = None, connection_name: str = "default", **kwargs
+            user_group_col: Optional[str] = None, parent_id_col: Optional[str] = None, connection_name: Optional[str] = None, **kwargs
         ) -> None:
         """
         Constructor for SingleSelectDataSource
@@ -256,7 +262,7 @@ class DateDataSource(DataSource):
 
     def __init__(
         self, table_or_query: str, default_date_col: str, *, date_format: str = '%Y-%m-%d', id_col: Optional[str] = None, 
-        user_group_col: Optional[str] = None, parent_id_col: Optional[str] = None, connection_name: str = "default", **kwargs
+        user_group_col: Optional[str] = None, parent_id_col: Optional[str] = None, connection_name: Optional[str] = None, **kwargs
     ) -> None:
         """
         Constructor for DateDataSource
@@ -318,7 +324,7 @@ class DateRangeDataSource(DataSource):
     def __init__(
         self, table_or_query: str, default_start_date_col: str, default_end_date_col: str, *, date_format: str = '%Y-%m-%d',
         id_col: Optional[str] = None, user_group_col: Optional[str] = None, parent_id_col: Optional[str] = None, 
-        connection_name: str = "default", **kwargs
+        connection_name: Optional[str] = None, **kwargs
     ) -> None:
         """
         Constructor for DateRangeDataSource
@@ -373,7 +379,7 @@ class _NumericDataSource(DataSource):
     def __init__(
         self, table_or_query: str, min_value_col: str, max_value_col: str, *, increment_col: Optional[str] = None, 
         id_col: Optional[str] = None, user_group_col: Optional[str] = None, parent_id_col: Optional[str] = None, 
-        connection_name: str = "default", **kwargs
+        connection_name: Optional[str] = None, **kwargs
     ) -> None:
         super().__init__(table_or_query, id_col=id_col, user_group_col=user_group_col, parent_id_col=parent_id_col, connection_name=connection_name)
         self._min_value_col = min_value_col
@@ -402,7 +408,7 @@ class NumberDataSource(_NumericDataSource):
     def __init__(
         self, table_or_query: str, min_value_col: str, max_value_col: str, *, increment_col: Optional[str] = None,
         default_value_col: Optional[str] = None, id_col: Optional[str] = None, user_group_col: Optional[str] = None, 
-        parent_id_col: Optional[str] = None, connection_name: str = "default", **kwargs
+        parent_id_col: Optional[str] = None, connection_name: Optional[str] = None, **kwargs
     ) -> None:
         """
         Constructor for NumberDataSource
@@ -466,7 +472,7 @@ class NumberRangeDataSource(_NumericDataSource):
     def __init__(
         self, table_or_query: str, min_value_col: str, max_value_col: str, *, increment_col: Optional[str] = None,
         default_lower_value_col: Optional[str] = None, default_upper_value_col: Optional[str] = None, id_col: Optional[str] = None, 
-        user_group_col: Optional[str] = None, parent_id_col: Optional[str] = None, connection_name: str = "default", **kwargs
+        user_group_col: Optional[str] = None, parent_id_col: Optional[str] = None, connection_name: Optional[str] = None, **kwargs
     ) -> None:
         """
         Constructor for NumRangeDataSource
@@ -481,7 +487,7 @@ class NumberRangeDataSource(_NumericDataSource):
 
     def _convert(self, ds_param: pc.DataSourceParameterConfig, df: pd.DataFrame) -> pc.NumberRangeParameterConfig:
         """
-        Method to convert the associated DataSourceParameter into a NumRangeParameterConfig
+        Method to convert the associated DataSourceParameter into a NumberRangeParameterConfig
 
         Parameters:
             ds_param: The parameter to convert
