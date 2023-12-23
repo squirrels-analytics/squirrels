@@ -1,8 +1,8 @@
 __pycache__
-/venv
+venv/
 .git
 
-# squirrels
-environcfg.yaml
-/outputs
-/modules
+# squirrels files to ignore
+environcfg.yml
+target/
+sqrl_packages/

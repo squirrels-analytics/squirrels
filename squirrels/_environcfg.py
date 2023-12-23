@@ -1,4 +1,4 @@
-from typing import Dict, Tuple, Any, Optional, Callable
+from typing import Any, Optional, Callable
 from dataclasses import dataclass
 import os, yaml
 
@@ -10,34 +10,28 @@ _GLOBAL_SQUIRRELS_CFG_FILE = u.join_paths(os.path.expanduser('~'), '.squirrels',
 
 @dataclass
 class _EnvironConfig:
-    _users: Dict[str, Dict[str, Any]]
-    _env_vars: Dict[str, str]
-    _credentials: Dict[str, Dict[str, str]]
-    _secrets: Dict[str, str]
+    _users: dict[str, dict[str, Any]]
+    _env_vars: dict[str, str]
+    _credentials: dict[str, dict[str, str]]
+    _secrets: dict[str, str]
     
     def __post_init__(self):
         for username, user in self._users.items():
             user[c.USER_NAME_KEY] = username
             if c.USER_PWD_KEY not in user:
-                raise u.ConfigurationError(f"All users must have password in environcfg.yaml")
+                raise u.ConfigurationError(f"All users must have password in environcfg.yml")
         
         for key, cred in self._credentials.items():
             if c.USERNAME_KEY not in cred or c.PASSWORD_KEY not in cred:
                 raise u.ConfigurationError(f'Either "{c.USERNAME_KEY}" or "{c.PASSWORD_KEY}" was not specified for credential "{key}"')
     
-    def get_users(self) -> Dict[str, Dict[str, Any]]:
+    def get_users(self) -> dict[str, dict[str, Any]]:
         return self._users.copy()
     
-    def get_all_env_vars(self) -> Dict[str, str]:
+    def get_all_env_vars(self) -> dict[str, str]:
         return self._env_vars.copy()
-
-    def get_env_var(self, key: str) -> str:
-        try:
-            return self._env_vars[key]
-        except KeyError as e:
-            raise u.ConfigurationError(f'No environment variable configured for "{key}"') from e
     
-    def get_credential(self, key: Optional[str]) -> Tuple[str, str]:
+    def get_credential(self, key: Optional[str]) -> tuple[str, str]:
         if not key:
             return "", ""
 
@@ -60,7 +54,7 @@ class EnvironConfigIO:
     @classmethod
     def LoadFromFile(cls):
         start = time.time()
-        def load_yaml(filename: str) -> Dict[str, Dict]:
+        def load_yaml(filename: str) -> dict[str, dict]:
             try:
                 with open(filename, 'r') as f:
                     return yaml.safe_load(f)
@@ -80,4 +74,4 @@ class EnvironConfigIO:
         secrets = config1.get("secrets", {})
 
         cls.obj = _EnvironConfig(users, env_vars, credentials, secrets)
-        timer.add_activity_time("loading environcfg.yaml file", start)
+        timer.add_activity_time(f"loading {c.ENVIRON_CONFIG_FILE} file", start)

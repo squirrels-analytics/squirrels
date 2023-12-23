@@ -1,4 +1,4 @@
-const productSelect = document.getElementById('product-select');
+const projectSelect = document.getElementById('project-select');
 const datasetSelect = document.getElementById('dataset-select');
 const generatedParamsDiv = document.getElementById('generated-parameters');
 
@@ -19,27 +19,25 @@ const usernameTxt = document.getElementById('username-txt');
 const datasetsMap = new Map();
 const parametersMap = new Map();
 
-function loginEvent(event) {
+async function loginEvent(event) {
     event.preventDefault();
     const formData = new FormData(loginForm);
-    fetch(token_path, {
+    const response = await fetch(token_path, {
         method: 'POST',
         body: formData
     })
-    .then(response => {
-        if (response.status === 401) {
-            incorrectPwdMessage.style.display = 'block'
-        } else {
-            response.json()
-            .then(data => {
-                sessionStorage.setItem("jwt_token", data.access_token);
-                sessionStorage.setItem("username", `"${data.username}"`);
-                callJsonAPI(catalog_path, renderDatasetsSelection);
-                updateUsername();
-                closeLoginModal();
-            })
-        }
-    })
+
+    if (response.status === 401) {
+        incorrectPwdMessage.style.display = 'block'
+    } 
+    else {
+        const data = await response.json();
+        sessionStorage.setItem("jwt_token", data.access_token);
+        sessionStorage.setItem("username", `"${data.username}"`);
+        callJsonAPI(catalog_path, renderDatasetsSelection);
+        updateUsername();
+        closeLoginModal();
+    }
 }
 
 async function updateUsername() {
@@ -47,12 +45,12 @@ async function updateUsername() {
     usernameTxt.innerHTML = (username === null) ? "guest" : username;
 }
 
-function openLoginModal() {
+async function openLoginModal() {
     loginModal.style.display = 'flex';
     loadingIndicator.style.display = 'none';
 }
 
-function closeLoginModal() {
+async function closeLoginModal() {
     loginForm.reset()
     loginModal.style.display = 'none';
     incorrectPwdMessage.style.display = 'none';
@@ -69,32 +67,33 @@ async function callJsonAPI(path, func) {
 
     if (response.status === 401) {
         alert("Unauthorized action. Please try to 'Authorize' first");
-    } else if (response.status === 200) {
+    } 
+    else if (response.status === 200) {
         const data = await response.json();
         func(data);
-    } else {
+    } 
+    else {
         const error = `Unexpected response status: ${response.status}`;
         alert(error);
-        console.log(error);
     }
     loadingIndicator.style.display = 'none';
 }
 
-function changeDatasetSelection() {
+async function changeDatasetSelection() {
     tableContainers.style.display = 'none';
     parametersMap.clear()
     refreshParameters();
 }
 
-function renderDatasetsSelection(data) {
-    productSelect.innerHTML = "";
+async function renderDatasetsSelection(data) {
+    projectSelect.innerHTML = "";
     datasetSelect.innerHTML = "";
 
     const product = data.products[0];
     const option = document.createElement('option');
     option.value = product.name;
     option.textContent = product.label;
-    productSelect.appendChild(option);
+    projectSelect.appendChild(option);
 
     const datasets = product.versions[0].datasets;
     datasets.forEach(resource => {
@@ -107,20 +106,20 @@ function renderDatasetsSelection(data) {
     
     if (datasets.length === 0) {
         alert("No datasets available! Authentication may be required to access.");
-    } else {
+    } 
+    else {
         changeDatasetSelection();
     }
 }
 
-function refreshParameters(provoker = null) {
+async function refreshParameters(provoker = null) {
     const selectedDatasetValue = datasetSelect.value;
     const parametersPath = datasetsMap.get(selectedDatasetValue).parameters_path;
-    const queryParameters = getQueryParams(provoker)
+    const queryParameters = await getQueryParams(provoker)
     const parametersRequest = parametersPath + '?' + queryParameters
-    console.log('Parameters request:', parametersRequest)
 
     callJsonAPI(parametersRequest, (jsonResponse) => {
-        jsonResponse.parameters.forEach(function(param) {
+        jsonResponse.parameters.forEach(param => {
             parametersMap.set(param.name, param);
         })
         generatedParamsDiv.innerHTML = "";
@@ -141,9 +140,12 @@ function refreshParameters(provoker = null) {
                 dateInput.value = param.selected_date
                 dateInput.onchange = updateParameter
                 newDiv.appendChild(dateInput)
-            } else if (param.widget_type === "date_range") {
+            } 
+            else if (param.widget_type === "date_range") {
                 // TODO
-            } else if (param.widget_type === "number") {
+                addLabel()
+            } 
+            else if (param.widget_type === "number") {
                 addLabel()
                 const sliderInput = document.createElement('input')
                 sliderInput.type = 'range'
@@ -165,13 +167,16 @@ function refreshParameters(provoker = null) {
 
                 newDiv.appendChild(sliderInput)
                 newDiv.appendChild(sliderValue)
-            } else if (param.widget_type === "number_range") {
+            } 
+            else if (param.widget_type === "number_range") {
                 // TODO
-            } else if (param.widget_type === "single_select" && param.options.length > 0) {
+                addLabel()
+            } 
+            else if (param.widget_type === "single_select" && param.options.length > 0) {
                 addLabel()
                 const singleSelect = document.createElement('select');
                 singleSelect.id = param.name;
-                param.options.forEach(function(option) {
+                param.options.forEach(option => {
                     const selectOption = document.createElement('option');
                     selectOption.value = option.id;
                     if (option.id === param.selected_id) {
@@ -182,12 +187,13 @@ function refreshParameters(provoker = null) {
                 });
                 singleSelect.onchange = updateParameter
                 newDiv.appendChild(singleSelect);
-            } else if (param.widget_type === "multi_select" && param.options.length > 0) {
+            } 
+            else if (param.widget_type === "multi_select" && param.options.length > 0) {
                 addLabel()
                 const multiSelect = document.createElement('select');
                 multiSelect.id = param.name;
                 multiSelect.multiple = true;
-                param.options.forEach(function(option) {
+                param.options.forEach(option => {
                     const selectOption = document.createElement('option');
                     selectOption.value = option.id;
                     if (param.selected_ids.includes(option.id)) {
@@ -204,19 +210,24 @@ function refreshParameters(provoker = null) {
     });
 }
 
-function updateParameter() {
+async function updateParameter() {
     const param = parametersMap.get(this.id)
     if (param.widget_type === "date") {
         param.selected_date = this.value
-    } else if (param.widget_type === "date_range") {
+    } 
+    else if (param.widget_type === "date_range") {
         // TODO
-    } else if (param.widget_type === "number") {
+    } 
+    else if (param.widget_type === "number") {
         param.selected_value = this.value
-    } else if (param.widget_type === "number_range") {
+    } 
+    else if (param.widget_type === "number_range") {
         // TODO
-    } else if (param.widget_type === "single_select") {
+    } 
+    else if (param.widget_type === "single_select") {
         param.selected_id = this.options[this.selectedIndex].value
-    } else if (param.widget_type === "multi_select") {
+    } 
+    else if (param.widget_type === "multi_select") {
         param.selected_ids = [...this.selectedOptions].map(option => option.value)
     }
     
@@ -225,19 +236,26 @@ function updateParameter() {
     }
 }
 
-function getQueryParams(provoker = null) {
+async function getQueryParams(provoker = null) {
     const queryParams = {}
-    function addToQueryParams(key, value) {
-        if (value.widget_type === "date") {
-            queryParams[key] = value.selected_date
-        } else if (value.widget_type === "number") {
-            queryParams[key] = value.selected_value
-        } else if (value.widget_type === "number_range") {
-            // TODO
-        } else if (value.widget_type === "single_select") {
-            queryParams[key] = value.selected_id
-        } else if (value.widget_type === "multi_select") {
-            result = JSON.stringify(value.selected_ids)
+    function addToQueryParams(key, param) {
+        if (param.widget_type === "date") {
+            queryParams[key] = param.selected_date
+        } 
+        else if (param.widget_type === "date_range") {
+            queryParams[key] = param.selected_start_date + ',' + param.selected_end_date
+        } 
+        else if (param.widget_type === "number") {
+            queryParams[key] = param.selected_value
+        } 
+        else if (param.widget_type === "number_range") {
+            queryParams[key] = param.selected_lower_value + ',' + param.selected_upper_value
+        } 
+        else if (param.widget_type === "single_select") {
+            queryParams[key] = param.selected_id
+        } 
+        else if (param.widget_type === "multi_select") {
+            const result = JSON.stringify(param.selected_ids)
             if (result !== '') queryParams[key] = result
         }
     }
@@ -245,19 +263,18 @@ function getQueryParams(provoker = null) {
         addToQueryParams(provoker.name, provoker)
     }
     else {
-        for (const [key, value] of parametersMap.entries()) {
-            addToQueryParams(key, value)
+        for (const [key, param] of parametersMap.entries()) {
+            addToQueryParams(key, param)
         }
     }
-    console.log(queryParams)
     return new URLSearchParams(queryParams)
 }
 
-function getDatasetResults() {
+async function getDatasetResults() {
     const selectedDatasetValue = datasetSelect.value;
     const resultPath = datasetsMap.get(selectedDatasetValue).result_path;
-    const resultRequest = resultPath + '?' + getQueryParams()
-    console.log('Result request:', resultRequest)
+    const queryParams = await getQueryParams();
+    const resultRequest = resultPath + '?' + queryParams
 
     callJsonAPI(resultRequest, (jsonResponse) => {
         tableHeader.innerHTML = ''
@@ -287,21 +304,24 @@ function getDatasetResults() {
     });
 }
 
-function copyTable() {
+async function copyTable() {
     let text = "";
 
     for (let i = 0; i < resultTable.rows.length; i++) {
-      for (let j = 0; j < resultTable.rows[i].cells.length; j++) {
-        text += resultTable.rows[i].cells[j].innerHTML + "\t";
-      }
-      text += "\n";
+        for (let j = 0; j < resultTable.rows[i].cells.length; j++) {
+            text += resultTable.rows[i].cells[j].innerHTML + "\t";
+        }
+        text += "\n";
     }
 
-    navigator.clipboard.writeText(text).then(function() {
-      alert("Table copied to clipboard!");
-    }, function() {
-      alert("Copying failed.");
-    });
+    navigator.clipboard.writeText(text).then(
+        () => {
+            alert("Table copied to clipboard!");
+        }, 
+        () => {
+            alert("Copying failed.");
+        }
+    );
 }
 
 

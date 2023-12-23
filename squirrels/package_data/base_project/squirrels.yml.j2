@@ -1,0 +1,57 @@
+project_variables:
+  name: sample
+  label: Sample Product
+  major_version: 1
+  minor_version: 0
+
+
+packages: []
+
+## Example value for packages:
+#  - git: https://.../myrepo.git
+#    revision: v0.1.0
+#    directory: custom_name ## optional
+
+
+{{ connections -}}
+
+
+{{ parameters -}}
+
+
+selection_test_sets:
+  - name: sample_test_set
+    user_attributes:     ## optional unless there are user attributes used by parameters or models
+      organization: org1
+    parameters:          ## optional - for unspecified parameters, default value is used
+      group_by: g3
+      start_date: 2023-02-01
+      end_date: 2023-12-01
+      category: ["1"]
+
+
+datasets:
+  - name: dataset_example  ## model with same name is used unless "model" field is specified for dataset
+    label: Dataset Example
+    scope: public          ## optional - one of 'public' (default), 'protected', or 'private'
+    parameters:            ## optional - if not specified, then all parameters are used
+      - group_by
+      - start_date
+      - end_date
+      - category
+      - subcategory
+      - min_filter
+      - max_filter
+    args: {} ## optional
+
+
+settings: {}
+
+## Default values for settings:
+#   auth.token.expire.minutes: 30
+#   parameters.cache.size: 1024
+#   parameters.cache.ttl.minutes: 0
+#   results.cache.size: 128
+#   results.cache.ttl.minutes: 0
+#   defaults.dbviews.connection_name: default
+#   defaults.federates.materialized: table

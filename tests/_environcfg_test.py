@@ -1,4 +1,3 @@
-from typing import Dict
 import pytest
 
 from squirrels._environcfg import _EnvironConfig
@@ -27,7 +26,7 @@ def test_wrong_environcfg():
 
 
 @pytest.fixture(scope="module")
-def basic_users() -> Dict:
+def basic_users() -> dict:
     return {
         "user1": {
             "password": "secret1",
@@ -41,7 +40,7 @@ def basic_users() -> Dict:
 
 
 @pytest.fixture(scope="module")
-def basic_env_vars() -> Dict:
+def basic_env_vars() -> dict:
     return {
         "key1": "value1",
         "key2": "value2"
@@ -49,7 +48,7 @@ def basic_env_vars() -> Dict:
 
 
 @pytest.fixture(scope="module")
-def basic_environcfg(basic_users: Dict, basic_env_vars: Dict) -> _EnvironConfig:
+def basic_environcfg(basic_users: dict, basic_env_vars: dict) -> _EnvironConfig:
     credentials = {
         "credkey1": {
             "username": "test1",
@@ -60,18 +59,12 @@ def basic_environcfg(basic_users: Dict, basic_env_vars: Dict) -> _EnvironConfig:
     return _EnvironConfig(basic_users, basic_env_vars, credentials, secrets)
 
 
-def test_get_users(basic_environcfg: _EnvironConfig, basic_users: Dict):
+def test_get_users(basic_environcfg: _EnvironConfig, basic_users: dict):
     assert basic_environcfg.get_users() == basic_users.copy()
 
 
-def test_get_all_env_vars(basic_environcfg: _EnvironConfig, basic_env_vars: Dict):
+def test_get_all_env_vars(basic_environcfg: _EnvironConfig, basic_env_vars: dict):
     assert basic_environcfg.get_all_env_vars() == basic_env_vars.copy()
-
-
-def test_get_env_var(basic_environcfg: _EnvironConfig):
-    assert basic_environcfg.get_env_var("key1") == "value1"
-    with pytest.raises(u.ConfigurationError):
-        basic_environcfg.get_env_var("key5")
 
 
 def test_get_credential(basic_environcfg: _EnvironConfig):

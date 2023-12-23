@@ -208,25 +208,25 @@ class TestNumberParameter:
         assert param1.to_json_dict0() == expected
 
 
-class TestNumRangeParameter:
+class TestNumberRangeParameter:
     @pytest.fixture(scope="class")
-    def config1(self) -> pc.NumRangeParameterConfig:
-        options = (po.NumRangeParameterOption(0, 10, increment="0.5"),)
-        return pc.NumRangeParameterConfig("test", "Test", options)
+    def config1(self) -> pc.NumberRangeParameterConfig:
+        options = (po.NumberRangeParameterOption(0, 10, increment="0.5"),)
+        return pc.NumberRangeParameterConfig("test", "Test", options)
     
     @pytest.fixture(scope="class")
-    def param1(self, config1: pc.NumRangeParameterConfig) -> p.NumRangeParameter:
-        return p.NumRangeParameter(config1, config1.all_options[0], "2.5", "6.5")
+    def param1(self, config1: pc.NumberRangeParameterConfig) -> p.NumberRangeParameter:
+        return p.NumberRangeParameter(config1, config1.all_options[0], "2.5", "6.5")
 
-    def test_invalid_init(self, config1: pc.NumRangeParameterConfig):
+    def test_invalid_init(self, config1: pc.NumberRangeParameterConfig):
         with pytest.raises(u.InvalidInputError):
-            p.NumRangeParameter(config1, config1.all_options[0], "2.5", "6.7")
+            p.NumberRangeParameter(config1, config1.all_options[0], "2.5", "6.7")
     
-    def test_get_selected(self, param1: p.NumRangeParameter):
+    def test_get_selected(self, param1: p.NumberRangeParameter):
         assert param1.get_selected_lower_value() == "2.5"
         assert param1.get_selected_upper_value() == "6.5"
 
-    def test_to_json_dict(self, param1: p.NumRangeParameter):
+    def test_to_json_dict(self, param1: p.NumberRangeParameter):
         expected = {
             "widget_type": "number_range",
             "name": "test",

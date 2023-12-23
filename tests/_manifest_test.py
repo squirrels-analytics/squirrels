@@ -1,267 +1,311 @@
-from typing import List, Dict, Any
-from pathlib import Path
+from typing import Optional
 import pytest
 
-from squirrels._manifest import _Manifest
-from squirrels._utils import ConfigurationError, InvalidInputError
-from squirrels import _constants as c
+from squirrels import _manifest as m, _utils as u
+
+
+## Project variables config
+
+@pytest.mark.parametrize("data", [
+    {"major_version": 1, "minor_version": 3},
+    {"name": "my_name", "major_version": "1", "minor_version": 3},
+    {"name": "my_name", "minor_version": 3},
+    {"name": "my_name", "major_version": 1, "minor_version": "3"},
+    {"name": "my_name", "major_version": 1}
+])
+def test_invalid_proj_vars(data: dict):
+    with pytest.raises(u.ConfigurationError):
+        m.ProjectVarsConfig(data)
 
 
 @pytest.fixture(scope="module")
-def empty_manifest() -> _Manifest:
-    return _Manifest({})
+def proj_vars1() -> m.ProjectVarsConfig:
+    data = {"name": "my_name", "major_version": 1, "minor_version": 3}
+    return m.ProjectVarsConfig(data)
 
 
 @pytest.fixture(scope="module")
-def empty_db_view_manifest() -> _Manifest:
-    parms = {
-        'modules': [],
-        'project_variables': {},
-        'datasets': {
-            'dataset1': {
-                'label': 'Dataset',
-                'database_views': {'db_view_1': {}},
-                'final_view': 'db_view_1'
-            }
-        }
+def proj_vars2() -> m.ProjectVarsConfig:
+    data = {"name": "my_name", "label": "my_label", "major_version": 1, "minor_version": 3}
+    return m.ProjectVarsConfig(data)
+
+
+@pytest.mark.parametrize("fixture,expected", [
+    ("proj_vars1", "my_name"),
+    ("proj_vars2", "my_label")
+])
+def test_proj_vars_get_label(fixture: str, expected: str, request: pytest.FixtureRequest):
+    proj_vars: m.ProjectVarsConfig = request.getfixturevalue(fixture)
+    assert proj_vars.get_label() == expected
+
+
+## Package config
+
+@pytest.mark.parametrize("data", [
+    {"git": "test.git", "directory": "test"},
+    {"directory": "test", "revision": "0.1.0"}
+])
+def test_invalid_package_config(data: dict):
+    with pytest.raises(u.ConfigurationError):
+        m.PackageConfig.from_dict(data)
+
+
+@pytest.fixture(scope="module")
+def package_config1() -> m.PackageConfig:
+    data = {"git": "path/test.git", "revision": "0.1.0"}
+    return m.PackageConfig.from_dict(data)
+
+
+@pytest.fixture(scope="module")
+def package_config2() -> m.PackageConfig:
+    data = {"git": "my.git.test", "revision": "0.1.0"}
+    return m.PackageConfig.from_dict(data)
+
+
+@pytest.fixture(scope="module")
+def package_config3() -> m.PackageConfig:
+    data = {"git": "path/test.git", "directory": "mytest", "revision": "0.1.0"}
+    return m.PackageConfig.from_dict(data)
+
+
+@pytest.mark.parametrize("fixture,expected", [
+    ("package_config1", "test"),
+    ("package_config2", "my.git.test"),
+    ("package_config3", "mytest")
+])
+def test_package_directory(fixture: str, expected: str, request: pytest.FixtureRequest):
+    package: m.PackageConfig = request.getfixturevalue(fixture)
+    assert package.directory == expected
+
+
+## DB connection config
+
+@pytest.mark.parametrize("data", [
+    {"connection_name": "default"},
+    {"url": "my/url"}
+])
+def test_invalid_db_conn_config(data: dict):
+    with pytest.raises(u.ConfigurationError):
+        m.DbConnConfig.from_dict(data)
+
+
+@pytest.fixture(scope="module")
+def db_conn_config1() -> m.DbConnConfig:
+    data = {"connection_name": "default", "credentials": "test_cred_key", "url": "{username}:{password}/my/url"}
+    return m.DbConnConfig.from_dict(data)
+
+
+@pytest.mark.parametrize("fixture,expected", [
+    ("db_conn_config1", "user1:pass1/my/url")
+])
+def test_db_conn_url(fixture: str, expected: str, request: pytest.FixtureRequest):
+    db_conn: m.DbConnConfig = request.getfixturevalue(fixture)
+    assert db_conn.url == expected
+
+
+## Parameters config
+
+@pytest.mark.parametrize("data", [
+    {"name": "my_name", "type": "SingleSelectParameter", "factory": "Create"},
+    {"name": "my_name", "type": "SingleSelectParameter", "args": {}},
+    {"name": "my_name", "factory": "Create", "args": {}},
+    {"type": "SingleSelectParameter", "factory": "Create", "args": {}}
+])
+def test_invalid_db_conn_config(data: dict):
+    with pytest.raises(u.ConfigurationError):
+        m.DbConnConfig.from_dict(data)
+
+
+## Test sets config
+
+@pytest.mark.parametrize("data", [
+    {"user_attributes": {}, "parameters": {}}
+])
+def test_invalid_test_sets_config(data: dict):
+    with pytest.raises(u.ConfigurationError):
+        m.TestSetsConfig.from_dict(data)
+
+
+## Dbview config
+
+@pytest.mark.parametrize("data", [
+    {"connection_name": "default"}
+])
+def test_invalid_dbview_config(data: dict):
+    with pytest.raises(u.ConfigurationError):
+        m.DbviewConfig.from_dict(data)
+
+
+## Federate config
+
+@pytest.mark.parametrize("data", [
+    {"materialized": "table"}
+])
+def test_invalid_federate_config(data: dict):
+    with pytest.raises(u.ConfigurationError):
+        m.FederateConfig.from_dict(data)
+
+
+## Dataset config
+
+@pytest.mark.parametrize("data", [
+    {"label": "My Dataset", "scope": "public"},
+    {"name": "my_dataset", "label": "My Dataset", "scope": "not_exist"}
+])
+def test_invalid_dataset_config(data: dict):
+    with pytest.raises(u.ConfigurationError):
+        m.DatasetsConfig.from_dict(data)
+
+
+@pytest.fixture(scope="module")
+def dataset_config1() -> m.DatasetsConfig:
+    data = {"name": "my_dataset"}
+    return m.DatasetsConfig.from_dict(data)
+
+
+@pytest.fixture(scope="module")
+def dataset_config2() -> m.DatasetsConfig:
+    data = {
+        "name": "my_dataset", "label": "My Dataset", "model": "my_model", "scope": "protected", 
+        "parameters": [], "args": {"key": "value"}
     }
-    return _Manifest(parms)
+    return m.DatasetsConfig.from_dict(data)
+
+
+@pytest.mark.parametrize("fixture,expected", [
+    ("dataset_config1", "my_dataset"),
+    ("dataset_config2", "My Dataset")
+])
+def test_dataset_label(fixture: str, expected: str, request: pytest.FixtureRequest):
+    dataset: m.DatasetsConfig = request.getfixturevalue(fixture)
+    assert dataset.label == expected
+
+
+@pytest.mark.parametrize("fixture,expected", [
+    ("dataset_config1", "my_dataset"),
+    ("dataset_config2", "my_model")
+])
+def test_dataset_model(fixture: str, expected: str, request: pytest.FixtureRequest):
+    dataset: m.DatasetsConfig = request.getfixturevalue(fixture)
+    assert dataset.model == expected
+
+
+@pytest.mark.parametrize("fixture,expected", [
+    ("dataset_config1", m.DatasetScope.PUBLIC),
+    ("dataset_config2", m.DatasetScope.PROTECTED)
+])
+def test_dataset_scope(fixture: str, expected: m.DatasetScope, request: pytest.FixtureRequest):
+    dataset: m.DatasetsConfig = request.getfixturevalue(fixture)
+    assert dataset.scope == expected
+
+
+@pytest.mark.parametrize("fixture,expected", [
+    ("dataset_config1", None),
+    ("dataset_config2", [])
+])
+def test_dataset_parameters(fixture: str, expected: Optional[list], request: pytest.FixtureRequest):
+    dataset: m.DatasetsConfig = request.getfixturevalue(fixture)
+    assert dataset.parameters == expected
+
+
+@pytest.mark.parametrize("fixture,expected", [
+    ("dataset_config1", {}),
+    ("dataset_config2", {"key": "value"})
+])
+def test_dataset_args(fixture: str, expected: dict, request: pytest.FixtureRequest):
+    dataset: m.DatasetsConfig = request.getfixturevalue(fixture)
+    assert dataset.args == expected
+
+
+## Full manifest config
+
+@pytest.mark.parametrize("data", [
+    {}
+])
+def test_invalid_manifest_config(data: dict):
+    with pytest.raises(u.ConfigurationError):
+        m._ManifestConfig.from_dict(data)
 
 
 @pytest.fixture(scope="module")
-def minimal_manifest() -> _Manifest:
-    parms = {
-        'modules': [],
-        'project_variables': {
-            'product_name': 'my_product',
-            'major_version': 1,
-            'minor_version': 0
-        },
-        'db_connections': {
-            'default': {'url': 'sqlite://'}
-        },
-        'datasets': {
-            'dataset1': {
-                'label': 'Dataset',
-                'database_views': {
-                    'db_view_1': 'db_view1.py'
-                },
-                'final_view': {'file': 'db_view_1'}
-            }
-        }
-    }
-    return _Manifest(parms)
+def manifest_config1() -> m._ManifestConfig:
+    data = {"project_variables": {"name": "", "major_version": 0, "minor_version": 1}}
+    return m._ManifestConfig.from_dict(data)
 
 
 @pytest.fixture(scope="module")
-def basic_manifest() -> _Manifest:
-    parms = {
-        'modules': ['module1'],
-        'project_variables': {
-            'product_name': 'my_product',
-            'product_label': 'My Product',
-            'major_version': 1,
-            'minor_version': 0
-        },
-        'db_connections': {
-            'default': {'url':  'sqlite://', 'credential_key': 'test_cred_key'}
-        },
-        'parameters': [{'name': 'A'}, {'name': 'B'}],
-        'datasets': {
-            'dataset1': {
-                'label': 'Dataset',
-                'scope': 'PrOtectEd ',
-                'parameters': ['param1', 'param2'],
-                'database_views': {
-                    'db_view_1': {'file': 'db_view1.sql.j2', 'db_connection': 'my_other_db'},
-                    'db_view_2': {'file': 'db_view2.sql.j2', 'args': {'arg1': 'val1'}}
-                },
-                'final_view': 'final_view.sql.j2',
-                'args': {'arg2': 'val2'}
-            }
-        },
-        'settings': {
-            'results.cache.size': 128
-        }
+def manifest_config2() -> m._ManifestConfig:
+    data = {
+        "project_variables": {"name": "", "major_version": 0, "minor_version": 1}, 
+        "packages": [{"git": "path/test.git", "revision": "0.1.0"}],
+        "db_connections": [],
+        "parameters": [],
+        "selection_test_sets": [],
+        "dbviews": [],
+        "federates": [],
+        "datasets": []
     }
-    return _Manifest(parms)
+    return m._ManifestConfig.from_dict(data)
 
 
-def test_invalid_configurations(empty_manifest: _Manifest, empty_db_view_manifest: _Manifest, 
-                                minimal_manifest: _Manifest):
-    with pytest.raises(ConfigurationError):
-        empty_manifest.get_product_name()
-    with pytest.raises(ConfigurationError):
-        empty_db_view_manifest.get_product_name()
-    with pytest.raises(ConfigurationError):
-        empty_manifest.get_major_version()
-    with pytest.raises(ConfigurationError):
-        empty_db_view_manifest.get_major_version()
-    with pytest.raises(ConfigurationError):
-        empty_manifest.get_dataset_label('dataset_test')
-    with pytest.raises(InvalidInputError):
-        minimal_manifest.get_dataset_label('wrong_name')
-    with pytest.raises(ConfigurationError):
-        empty_db_view_manifest.get_database_view_file('dataset1', 'db_view_1')
-
-
-@pytest.mark.parametrize('manifest_name,expected', [
-    ('empty_manifest', {}),
-    ('minimal_manifest', {'product_name': 'my_product', 'major_version': 1, 'minor_version': 0}),
-    ('basic_manifest', {'product_name': 'my_product', 'product_label': 'My Product', 'major_version': 1, 'minor_version': 0})
+@pytest.mark.parametrize("fixture,expected", [
+    ("manifest_config1", []),
+    ("manifest_config2", [m.PackageConfig(git_url="path/test.git", directory="test", revision="0.1.0")])
 ])
-def test_get_proj_vars(manifest_name: str, expected: Dict[str, Any], request: pytest.FixtureRequest):
-    manifest: _Manifest = request.getfixturevalue(manifest_name)
-    assert manifest.get_proj_vars() == expected
+def test_manifest_packages(fixture: str, expected: list, request: pytest.FixtureRequest):
+    manifest: m._ManifestConfig = request.getfixturevalue(fixture)
+    assert manifest.packages == expected
 
 
-@pytest.mark.parametrize('manifest_name,expected', [
-    ('empty_manifest', []),
-    ('minimal_manifest', []),
-    ('basic_manifest', ['module1'])
+@pytest.mark.parametrize("fixture,expected", [
+    ("manifest_config1", []),
+    ("manifest_config2", [])
 ])
-def test_get_modules(manifest_name: str, expected: List[str], request: pytest.FixtureRequest):
-    manifest: _Manifest = request.getfixturevalue(manifest_name)
-    assert manifest.get_modules() == expected
+def test_manifest_db_connections(fixture: str, expected: list, request: pytest.FixtureRequest):
+    manifest: m._ManifestConfig = request.getfixturevalue(fixture)
+    assert manifest.db_connections == expected
 
 
-@pytest.mark.parametrize('manifest_name,expected', [
-    ('minimal_manifest', 'my_product')
+@pytest.mark.parametrize("fixture,expected", [
+    ("manifest_config1", []),
+    ("manifest_config2", [])
 ])
-def test_get_product_name(manifest_name: str, expected: str, request: pytest.FixtureRequest):
-    manifest: _Manifest = request.getfixturevalue(manifest_name)
-    assert manifest.get_product_name() == expected
+def test_manifest_parameters(fixture: str, expected: list, request: pytest.FixtureRequest):
+    manifest: m._ManifestConfig = request.getfixturevalue(fixture)
+    assert manifest.parameters == expected
 
 
-@pytest.mark.parametrize('manifest_name,expected', [
-    ('minimal_manifest', 'my_product'),
-    ('basic_manifest', 'My Product')
+@pytest.mark.parametrize("fixture,expected", [
+    ("manifest_config1", {'default': m.TestSetsConfig(name='default', user_attributes={}, parameters={})}),
+    ("manifest_config2", {'default': m.TestSetsConfig(name='default', user_attributes={}, parameters={})})
 ])
-def test_get_product_label(manifest_name: str, expected: str, request: pytest.FixtureRequest):
-    manifest: _Manifest = request.getfixturevalue(manifest_name)
-    assert manifest.get_product_label() == expected
+def test_manifest_test_sets(fixture: str, expected: dict, request: pytest.FixtureRequest):
+    manifest: m._ManifestConfig = request.getfixturevalue(fixture)
+    assert manifest.selection_test_sets == expected
 
 
-@pytest.mark.parametrize('manifest_name,expected', [
-    ('minimal_manifest', 1)
+@pytest.mark.parametrize("fixture,expected", [
+    ("manifest_config1", {}),
+    ("manifest_config2", {})
 ])
-def test_get_major_version(manifest_name: str, expected: str, request: pytest.FixtureRequest):
-    manifest: _Manifest = request.getfixturevalue(manifest_name)
-    assert manifest.get_major_version() == expected
+def test_manifest_dbviews(fixture: str, expected: dict, request: pytest.FixtureRequest):
+    manifest: m._ManifestConfig = request.getfixturevalue(fixture)
+    assert manifest.dbviews == expected
 
 
-@pytest.mark.parametrize('manifest_name,expected', [
-    ('empty_manifest', {}),
-    ('minimal_manifest', {'default': {'url': 'sqlite://'}}),
-    ('basic_manifest', {'default': {'url':  'sqlite://', 'credential_key': 'test_cred_key'}})
+@pytest.mark.parametrize("fixture,expected", [
+    ("manifest_config1", {}),
+    ("manifest_config2", {})
 ])
-def test_get_db_connections(manifest_name: str, expected: str, request: pytest.FixtureRequest):
-    manifest: _Manifest = request.getfixturevalue(manifest_name)
-    assert manifest.get_db_connections() == expected
+def test_manifest_federates(fixture: str, expected: dict, request: pytest.FixtureRequest):
+    manifest: m._ManifestConfig = request.getfixturevalue(fixture)
+    assert manifest.federates == expected
 
 
-@pytest.mark.parametrize('manifest_name,expected', [
-    ('empty_manifest', []),
-    ('basic_manifest',  [{'name': 'A'}, {'name': 'B'}])
+@pytest.mark.parametrize("fixture,expected", [
+    ("manifest_config1", {}),
+    ("manifest_config2", {})
 ])
-def test_get_parameters(manifest_name: str, expected: str, request: pytest.FixtureRequest):
-    manifest: _Manifest = request.getfixturevalue(manifest_name)
-    assert manifest.get_parameters() == expected
-
-
-def test_get_all_dataset_names():
-    parms = {'datasets': {'dataset1': {}, 'dataset2': {}}}
-    manifest = _Manifest(parms)
-    assert manifest.get_all_dataset_names() == ['dataset1', 'dataset2']
-    
-    manifest2 = _Manifest({})
-    with pytest.raises(ConfigurationError):
-        manifest2.get_all_dataset_names()
-
-
-@pytest.mark.parametrize('manifest_name,dataset,expected',[
-    ('minimal_manifest', 'dataset1', ['db_view_1']),
-    ('basic_manifest', 'dataset1', ['db_view_1', 'db_view_2'])
-])
-def test_get_all_database_view_names(manifest_name: str, dataset: str, expected: str, 
-                                     request: pytest.FixtureRequest):
-    manifest: _Manifest = request.getfixturevalue(manifest_name)
-    assert manifest.get_all_database_view_names(dataset) == expected
-
-
-@pytest.mark.parametrize('manifest_name,dataset,database_view,expected', [
-    ('minimal_manifest', 'dataset1', 'db_view_1', 'datasets/dataset1/db_view1.py'),
-    ('basic_manifest', 'dataset1', 'db_view_2', 'datasets/dataset1/db_view2.sql.j2')
-])
-def test_get_database_view_file(manifest_name: str, dataset: str, database_view: str, expected: str, 
-                                request: pytest.FixtureRequest):
-    manifest: _Manifest = request.getfixturevalue(manifest_name)
-    assert manifest.get_database_view_file(dataset, database_view) == Path(expected)
-
-
-@pytest.mark.parametrize('manifest_name,dataset,database_view,expected', [
-    ('empty_db_view_manifest', 'dataset1', 'db_view_1', {}),
-    ('minimal_manifest', 'dataset1', 'db_view_1', 
-     {'product_name': 'my_product', 'major_version': 1, 'minor_version': 0}),
-    ('basic_manifest', 'dataset1', 'db_view_2', 
-     {'product_name': 'my_product', 'product_label': 'My Product', 'major_version': 1, 'minor_version': 0, 'arg2': 'val2', 'arg1': 'val1'}),
-    ('basic_manifest', 'dataset1', None, 
-     {'product_name': 'my_product', 'product_label': 'My Product', 'major_version': 1, 'minor_version': 0, 'arg2': 'val2'})
-])
-def test_get_view_args(manifest_name: str, dataset: str, database_view: str, expected: Dict[str, Any], 
-                       request: pytest.FixtureRequest):
-    manifest: _Manifest = request.getfixturevalue(manifest_name)
-    assert manifest.get_view_args(dataset, database_view) == expected
-
-
-@pytest.mark.parametrize('manifest_name,dataset,database_view,expected', [
-    ('minimal_manifest', 'dataset1', 'db_view_1', 'default'),
-    ('basic_manifest', 'dataset1', 'db_view_1', 'my_other_db'),
-    ('basic_manifest', 'dataset1', 'db_view_2', 'default')
-])
-def test_get_database_view_db_connection(manifest_name: str, dataset: str, database_view: str, 
-                                         expected: str, request: pytest.FixtureRequest):
-    manifest: _Manifest = request.getfixturevalue(manifest_name)
-    assert manifest.get_database_view_db_connection(dataset, database_view) == expected
-
-
-@pytest.mark.parametrize('manifest_name,dataset,expected', [
-    ('minimal_manifest', 'dataset1', c.PUBLIC_SCOPE),
-    ('basic_manifest', 'dataset1', c.PROTECTED_SCOPE)
-])
-def test_get_dataset_scope(manifest_name: str, dataset: str, expected: str, 
-                           request: pytest.FixtureRequest):
-    manifest: _Manifest = request.getfixturevalue(manifest_name)
-    assert manifest.get_dataset_scope(dataset) == expected
-
-
-@pytest.mark.parametrize('manifest_name,dataset,expected', [
-    ('minimal_manifest', 'dataset1', None),
-    ('basic_manifest', 'dataset1', ['param1', 'param2'])
-])
-def test_get_dataset_parameters(manifest_name: str, dataset: str, expected: str, 
-                           request: pytest.FixtureRequest):
-    manifest: _Manifest = request.getfixturevalue(manifest_name)
-    assert manifest.get_dataset_parameters(dataset) == expected
-
-
-@pytest.mark.parametrize('manifest_name,dataset,expected,type', [
-    ('minimal_manifest', 'dataset1', 'db_view_1', 'str'),
-    ('basic_manifest', 'dataset1', 'datasets/dataset1/final_view.sql.j2', 'path')
-])
-def test_get_dataset_final_view_file(manifest_name: str, dataset: str, expected: str, 
-                                     type: str, request: pytest.FixtureRequest):
-    manifest: _Manifest = request.getfixturevalue(manifest_name)
-    if type == 'path':
-        expected = Path(expected)
-    assert manifest.get_dataset_final_view_file(dataset) == expected
-
-
-@pytest.mark.parametrize('manifest_name,key,expected', [
-    ('minimal_manifest', 'results.cache.size', 1000),
-    ('basic_manifest', 'results.cache.size', 128),
-    ('basic_manifest', 'parameters.cache.size', 1000)
-])
-def test_get_setting(manifest_name: str, key: str, expected: str, request: pytest.FixtureRequest):
-    manifest: _Manifest = request.getfixturevalue(manifest_name)
-    assert manifest.get_setting(key, 1000) == expected
+def test_manifest_datasets(fixture: str, expected: dict, request: pytest.FixtureRequest):
+    manifest: m._ManifestConfig = request.getfixturevalue(fixture)
+    assert manifest.datasets == expected

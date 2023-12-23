@@ -1,20 +1,20 @@
-from typing import Dict, List, Tuple, Iterable, Optional, Mapping, Callable, TypeVar
+from typing import Iterable, Optional, Mapping, Callable, Coroutine, TypeVar, Any
 from fastapi import Depends, FastAPI, Request, HTTPException, status
 from fastapi.responses import HTMLResponse, JSONResponse
 from fastapi.templating import Jinja2Templates
 from fastapi.staticfiles import StaticFiles
 from fastapi.security import OAuth2PasswordBearer, OAuth2PasswordRequestForm
 from fastapi.middleware.cors import CORSMiddleware
-from cachetools.func import ttl_cache
-import os, traceback, json, pandas as pd
+from cachetools import TTLCache
+import os, traceback, pandas as pd
 
 from . import _constants as c, _utils as u
 from ._version import sq_major_version
 from ._manifest import ManifestIO
-from ._renderer import RendererIOWrapper, Renderer
-from ._authenticator import UserBase, Authenticator
+from ._authenticator import User, Authenticator
 from ._timer import timer, time
 from ._parameter_sets import ParameterSet
+from ._models import ModelsIO
 
 
 class ApiServer:
@@ -28,22 +28,17 @@ class ApiServer:
         """
         self.no_cache = no_cache
         self.debug = debug
+        self.dataset_configs = ManifestIO.obj.datasets
         
-        self.datasets = ManifestIO.obj.get_all_dataset_names()
-        self.renderers: Dict[str, Renderer] = {}
-        for dataset in self.datasets:
-            rendererIO = RendererIOWrapper(dataset)
-            self.renderers[dataset] = rendererIO.renderer
-        
-        token_expiry_minutes = ManifestIO.obj.get_setting(c.AUTH_TOKEN_EXPIRE_SETTING, 30)
+        token_expiry_minutes = ManifestIO.obj.settings.get(c.AUTH_TOKEN_EXPIRE_SETTING, 30)
         self.authenticator = Authenticator(token_expiry_minutes)
     
-    def run(self, uvicorn_args: List[str]) -> None:
+    def run(self, uvicorn_args: list[str]) -> None:
         """
         Runs the API server with uvicorn for CLI "squirrels run"
 
         Parameters:
-            uvicorn_args (List[str]): List of arguments to pass to uvicorn.run. Currently only supports "host" and "port"
+            uvicorn_args: List of arguments to pass to uvicorn.run. Currently only supports "host" and "port"
         """
         start = time.time()
         app = FastAPI()
@@ -51,7 +46,7 @@ class ApiServer:
         app.add_middleware(CORSMiddleware, allow_origins=["*"], allow_credentials=True, allow_methods=["*"], allow_headers=["*"])
 
         squirrels_version_path = f'/squirrels-v{sq_major_version}'
-        partial_base_path = f'/{ManifestIO.obj.get_product_name()}/v{ManifestIO.obj.get_major_version()}'
+        partial_base_path = f'/{ManifestIO.obj.project_variables.get_name()}/v{ManifestIO.obj.project_variables.get_major_version()}'
         base_path = squirrels_version_path + u.normalize_name_for_api(partial_base_path)
 
         static_dir = u.join_paths(os.path.dirname(__file__), c.PACKAGE_DATA_FOLDER, c.STATIC_FOLDER)
@@ -80,6 +75,8 @@ class ApiServer:
                                 content={"message": f"Not implemented error: {str(exc)}"})
         
         # Helpers
+        T = TypeVar('T')
+        
         def get_versioning_request_header(headers: Mapping, header_key: str):
             header_value = headers.get(header_key)
             if header_value is None:
@@ -95,20 +92,24 @@ class ApiServer:
             
             return result
 
+        REQUEST_VERSION_REQUEST_HEADER = "squirrels-request-version"
         def get_request_version_header(headers: Mapping):
-            return get_versioning_request_header(headers, "squirrels-request-version")
+            return get_versioning_request_header(headers, REQUEST_VERSION_REQUEST_HEADER)
         
-        def get_response_version_header(headers: Mapping):
-            return get_versioning_request_header(headers, "squirrels-response-version")
+        RESPONSE_VERSION_REQUEST_HEADER = "squirrels-response-version"
+        def process_based_on_response_version_header(headers: Mapping, processes: dict[str, Callable[[], T]]) -> T:
+            response_version = get_versioning_request_header(headers, RESPONSE_VERSION_REQUEST_HEADER)
+            if response_version is None or response_version >= 0:
+                return processes[0]()
+            else:
+                raise u.InvalidInputError(f'Invalid value for "{RESPONSE_VERSION_REQUEST_HEADER}" header: {response_version}')
         
-        def can_user_access_dataset(user: Optional[UserBase], dataset: str):
-            dataset_scope = ManifestIO.obj.get_dataset_scope(dataset)
+        def can_user_access_dataset(user: Optional[User], dataset: str):
+            dataset_scope = self.dataset_configs[dataset].scope
             return self.authenticator.can_user_access_scope(user, dataset_scope)
 
-        T = TypeVar('T')
-        
-        def apply_dataset_api_function(
-            api_function: Callable[..., T], user: Optional[UserBase], dataset: str, headers: Mapping, params: Mapping
+        async def apply_dataset_api_function(
+            api_function: Callable[..., Coroutine[Any, Any, T]], user: Optional[User], dataset: str, headers: Mapping, params: Mapping
         ) -> T:
             dataset_normalized = u.normalize_name(dataset)
             if not can_user_access_dataset(user, dataset_normalized):
@@ -117,14 +118,16 @@ class ApiServer:
                                     headers={"WWW-Authenticate": "Bearer"})
             
             request_version = get_request_version_header(headers)
+            
+            # Changing selections into a cachable "frozenset" that will later be converted to dictionary
             selections = set()
             for key, val in params.items():
                 if not isinstance(val, str):
-                    val = json.dumps(val)
+                    val = tuple(val)
                 selections.add((u.normalize_name(key), val))
             selections = frozenset(selections)
             
-            return api_function(user, dataset_normalized, selections, request_version)
+            return await api_function(user, dataset_normalized, selections, request_version)
 
         # Login
         token_path = base_path + '/token'
@@ -133,7 +136,7 @@ class ApiServer:
 
         @app.post(token_path)
         async def login_for_access_token(form_data: OAuth2PasswordRequestForm = Depends()):
-            user: Optional[UserBase] = self.authenticator.authenticate_user(form_data.username, form_data.password)
+            user: Optional[User] = self.authenticator.authenticate_user(form_data.username, form_data.password)
             if not user:
                 raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, 
                                     detail="Incorrect username or password",
@@ -146,97 +149,109 @@ class ApiServer:
                 "expiry_time": expiry
             }
         
-        async def get_current_user(token: str = Depends(oauth2_scheme)) -> Optional[UserBase]:
+        async def get_current_user(token: str = Depends(oauth2_scheme)) -> Optional[User]:
             user = self.authenticator.get_user_from_token(token)
             return user
+
+        async def do_cachable_action(cache: TTLCache, action: Callable[..., Coroutine[Any, Any, T]], *args) -> T:
+            cache_key = tuple(args)
+            result = cache.get(cache_key)
+            if result is None:
+                result = await action(*args)
+                cache[cache_key] = result
+            return result
 
         # Parameters API
         parameters_path = base_path + '/{dataset}/parameters'
         
-        parameters_cache_size = ManifestIO.obj.get_setting(c.PARAMETERS_CACHE_SIZE_SETTING, 1024)
-        parameters_cache_ttl = ManifestIO.obj.get_setting(c.PARAMETERS_CACHE_TTL_SETTING, 0)
+        parameters_cache_size = ManifestIO.obj.settings.get(c.PARAMETERS_CACHE_SIZE_SETTING, 1024)
+        parameters_cache_ttl = ManifestIO.obj.settings.get(c.PARAMETERS_CACHE_TTL_SETTING, 0)
     
-        def get_parameters_helper(
-            user: Optional[UserBase], dataset: str, selections: Iterable[Tuple[str, str]], request_version: Optional[int]
+        async def get_parameters_helper(
+            user: Optional[User], dataset: str, selections: Iterable[tuple[str, str]], request_version: Optional[int]
         ) -> ParameterSet:
             if len(selections) > 1:
-                raise u.InvalidInputError(f"The /parameters endpoint takes at most 1 query parameter. Got {selections}")
-            renderer = self.renderers[dataset]
-            parameters = renderer.apply_selections(user, dict(selections), request_version=request_version, updates_only = True)
-            return parameters
+                raise u.InvalidInputError(f"The /parameters endpoint takes at most 1 query parameter. Got {dict(selections)}")
+            dag = ModelsIO.GenerateDAG(dataset)
+            dag.apply_selections(user, dict(selections), request_version=request_version)
+            return dag.parameter_set
 
-        @ttl_cache(maxsize=parameters_cache_size, ttl=parameters_cache_ttl*60)
-        def get_parameters_cachable(*args):
-            return get_parameters_helper(*args)
+        params_cache = TTLCache(maxsize=parameters_cache_size, ttl=parameters_cache_ttl*60)
+
+        async def get_parameters_cachable(*args) -> T:
+            return await do_cachable_action(params_cache, get_parameters_helper, *args)
         
-        def get_parameters_definition(dataset: str, user: Optional[UserBase], headers: Mapping, params: Mapping):
+        async def get_parameters_definition(dataset: str, user: Optional[User], headers: Mapping, params: Mapping):
             api_function = get_parameters_helper if self.no_cache else get_parameters_cachable
-            result = apply_dataset_api_function(api_function, user, dataset, headers, params)
-            response_version = get_response_version_header(headers)
-            return result.to_json_dict0()
+            result = await apply_dataset_api_function(api_function, user, dataset, headers, params)
+            return process_based_on_response_version_header(headers, {
+                0: result.to_json_dict0
+            })
         
         @app.get(parameters_path, response_class=JSONResponse)
-        async def get_parameters(dataset: str, request: Request, user: Optional[UserBase] = Depends(get_current_user)):
+        async def get_parameters(dataset: str, request: Request, user: Optional[User] = Depends(get_current_user)):
             start = time.time()
-            result = get_parameters_definition(dataset, user, request.headers, request.query_params)
+            result = await get_parameters_definition(dataset, user, request.headers, request.query_params)
             timer.add_activity_time("GET REQUEST total time for PARAMETERS", start)
             return result
 
         @app.post(parameters_path, response_class=JSONResponse)
-        async def get_parameters_with_post(dataset: str, request: Request, user: Optional[UserBase] = Depends(get_current_user)):
+        async def get_parameters_with_post(dataset: str, request: Request, user: Optional[User] = Depends(get_current_user)):
             start = time.time()
             request_body = await request.json()
-            result = get_parameters_definition(dataset, user, request.headers, request_body)
+            result = await get_parameters_definition(dataset, user, request.headers, request_body)
             timer.add_activity_time("POST REQUEST total time for PARAMETERS", start)
             return result
 
         # Results API
         results_path = base_path + '/{dataset}'
 
-        results_cache_size = ManifestIO.obj.get_setting(c.RESULTS_CACHE_SIZE_SETTING, 128)
-        results_cache_ttl = ManifestIO.obj.get_setting(c.RESULTS_CACHE_TTL_SETTING, 0)
+        results_cache_size = ManifestIO.obj.settings.get(c.RESULTS_CACHE_SIZE_SETTING, 128)
+        results_cache_ttl = ManifestIO.obj.settings.get(c.RESULTS_CACHE_TTL_SETTING, 0)
     
-        def get_results_helper(
-            user: Optional[UserBase], dataset: str, selections: Iterable[Tuple[str, str]], request_version: Optional[int]
+        async def get_results_helper(
+            user: Optional[User], dataset: str, selections: Iterable[tuple[str, str]], request_version: Optional[int]
         ) -> pd.DataFrame:
-            renderer = self.renderers[dataset]
-            _, _, _, _, df = renderer.load_results(user, dict(selections), request_version=request_version)
-            return df
+            dag = ModelsIO.GenerateDAG(dataset)
+            await dag.execute(ModelsIO.context_func, user, dict(selections), request_version=request_version)
+            return dag.target_model.result
 
-        @ttl_cache(maxsize=results_cache_size, ttl=results_cache_ttl*60)
-        def get_results_cachable(*args):
-            return get_results_helper(*args)
+        results_cache = TTLCache(maxsize=results_cache_size, ttl=results_cache_ttl*60)
+
+        async def get_results_cachable(*args):
+            return await do_cachable_action(results_cache, get_results_helper, *args)
         
-        def get_results_definition(dataset: str, user: Optional[UserBase], headers: Mapping, params: Mapping):
+        async def get_results_definition(dataset: str, user: Optional[User], headers: Mapping, params: Mapping):
             api_function = get_results_helper if self.no_cache else get_results_cachable
-            result = apply_dataset_api_function(api_function, user, dataset, headers, params)
-            response_version = get_response_version_header(headers)
-            return u.df_to_json0(result)
+            result = await apply_dataset_api_function(api_function, user, dataset, headers, params)
+            return process_based_on_response_version_header(headers, {
+                0: lambda: u.df_to_json0(result)
+            })
         
         @app.get(results_path, response_class=JSONResponse)
-        async def get_results(dataset: str, request: Request, user: Optional[UserBase] = Depends(get_current_user)):
+        async def get_results(dataset: str, request: Request, user: Optional[User] = Depends(get_current_user)):
             start = time.time()
-            result = get_results_definition(dataset, user, request.headers, request.query_params)
+            result = await get_results_definition(dataset, user, request.headers, request.query_params)
             timer.add_activity_time("GET REQUEST total time for DATASET", start)
             return result
         
         @app.post(results_path, response_class=JSONResponse)
-        async def get_results_with_post(dataset: str, request: Request, user: Optional[UserBase] = Depends(get_current_user)):
+        async def get_results_with_post(dataset: str, request: Request, user: Optional[User] = Depends(get_current_user)):
             start = time.time()
             request_body = await request.json()
-            result = get_results_definition(dataset, user, request.headers, request_body)
+            result = await get_results_definition(dataset, user, request.headers, request_body)
             timer.add_activity_time("POST REQUEST total time for DATASET", start)
             return result
         
         # Catalog API
-        def get_catalog0(user: Optional[UserBase]):
+        def get_catalog0(user: Optional[User]):
             datasets_info = []
-            for dataset in ManifestIO.obj.get_all_dataset_names():
-                if can_user_access_dataset(user, dataset):
-                    dataset_normalized = u.normalize_name_for_api(dataset)
+            for dataset_name, dataset_config in self.dataset_configs.items():
+                if can_user_access_dataset(user, dataset_name):
+                    dataset_normalized = u.normalize_name_for_api(dataset_name)
                     datasets_info.append({
-                        'name': dataset,
-                        'label': ManifestIO.obj.get_dataset_label(dataset),
+                        'name': dataset_name,
+                        'label': dataset_config.label,
                         'parameters_path': parameters_path.format(dataset=dataset_normalized),
                         'result_path': results_path.format(dataset=dataset_normalized),
                         'first_minor_version': 0
@@ -244,20 +259,21 @@ class ApiServer:
             
             return {
                 'products': [{
-                    'name': ManifestIO.obj.get_product_name(),
-                    'label': ManifestIO.obj.get_product_label(),
+                    'name': ManifestIO.obj.project_variables.get_name(),
+                    'label': ManifestIO.obj.project_variables.get_label(),
                     'versions': [{
-                        'major_version': ManifestIO.obj.get_major_version(),
-                        'latest_minor_version': ManifestIO.obj.get_minor_version(),
+                        'major_version': ManifestIO.obj.project_variables.get_major_version(),
+                        'latest_minor_version': ManifestIO.obj.project_variables.get_minor_version(),
                         'datasets': datasets_info
                     }]
                 }]
             }
         
         @app.get(squirrels_version_path, response_class=JSONResponse)
-        async def get_catalog(request: Request, user: Optional[UserBase] = Depends(get_current_user)):
-            response_version = get_response_version_header(request.headers)
-            return get_catalog0(user)
+        async def get_catalog(request: Request, user: Optional[User] = Depends(get_current_user)):
+            return process_based_on_response_version_header(request.headers, {
+                0: lambda: get_catalog0(user)
+            })
         
         # Squirrels UI
         @app.get('/', response_class=HTMLResponse)
@@ -268,5 +284,5 @@ class ApiServer:
         
         # Run API server
         import uvicorn
-        timer.add_activity_time("starting api server", start)
+        timer.add_activity_time("creating app for api server", start)
         uvicorn.run(app, host=uvicorn_args.host, port=uvicorn_args.port)

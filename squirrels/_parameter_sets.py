@@ -1,13 +1,14 @@
 from __future__ import annotations
-from typing import Dict, Optional, Sequence
+from typing import Optional, Sequence
 from dataclasses import dataclass, field
 from collections import OrderedDict
 import concurrent.futures, pandas as pd
 
-from . import _parameter_configs as pc, _utils as u, _constants as c, parameters as p
-from ._manifest import ManifestIO
+from . import _utils as u, _constants as c, parameters as p, _parameter_configs as pc, _py_module as pm
+from .arguments.init_time_args import ParametersArgs
+from ._manifest import ManifestIO, ParametersConfig
 from ._connection_set import ConnectionSetIO
-from ._authenticator import UserBase
+from ._authenticator import User
 from ._timer import timer, time
 
 
@@ -18,10 +19,10 @@ class ParameterSet:
     """
     _parameters_dict: OrderedDict[str, p.Parameter]
 
-    def get_parameters_as_dict(self) -> Dict[str, p.Parameter]:
+    def get_parameters_as_dict(self) -> dict[str, p.Parameter]:
         return self._parameters_dict.copy()
 
-    def to_json_dict0(self, *, debug: bool = False) -> Dict:
+    def to_json_dict0(self, *, debug: bool = False) -> dict:
         parameters = []
         for x in self._parameters_dict.values():
             if not x._config.is_hidden or debug:
@@ -34,8 +35,8 @@ class _ParameterConfigsSet:
     """
     Pool of parameter configs, can create multiple for unit testing purposes
     """
-    _data: Dict[str, pc.ParameterConfig] = field(default_factory=OrderedDict)
-    _data_source_params: Dict[str, pc.DataSourceParameterConfig] = field(default_factory=dict)
+    _data: dict[str, pc.ParameterConfig] = field(default_factory=OrderedDict)
+    _data_source_params: dict[str, pc.DataSourceParameterConfig] = field(default_factory=dict)
         
     def get(self, name: Optional[str]) -> Optional[pc.ParameterConfig]:
         try:
@@ -51,7 +52,7 @@ class _ParameterConfigsSet:
     def _get_all_ds_param_configs(self) -> Sequence[pc.DataSourceParameterConfig]:
         return list(self._data_source_params.values())
 
-    def __convert_datasource_params(self, df_dict: Dict[str, pd.DataFrame]) -> None:
+    def __convert_datasource_params(self, df_dict: dict[str, pd.DataFrame]) -> None:
         done = set()
         for curr_name in self._data_source_params:
             stack = [curr_name] # Note: parents must be converted first before children
@@ -97,18 +98,18 @@ class _ParameterConfigsSet:
                 
                 parent._add_child_mutate(param_config)
     
-    def _post_process_params(self, df_dict: Dict[str, pd.DataFrame]) -> None:
+    def _post_process_params(self, df_dict: dict[str, pd.DataFrame]) -> None:
         self.__convert_datasource_params(df_dict)
         self.__validate_param_relationships()
     
     def apply_selections(
-        self, dataset_params: Optional[Sequence[str]], selections: Dict[str, str], user: Optional[UserBase], 
+        self, dataset_params: Optional[Sequence[str]], selections: dict[str, str], user: Optional[User], 
         *, updates_only: bool = False, request_version: Optional[int] = None
     ) -> ParameterSet:
         if dataset_params is None:
             dataset_params = self._data.keys()
         
-        parameters_by_name: Dict[str, p.Parameter] = {}
+        parameters_by_name: dict[str, p.Parameter] = {}
         params_to_process = selections.keys() if selections and updates_only else dataset_params
         params_to_process_set = set(params_to_process)
         for some_name in params_to_process:
@@ -141,50 +142,47 @@ class ParameterConfigsSetIO:
     """
     Static class for the singleton object of __ParameterConfigsPoolData
     """
-    obj = _ParameterConfigsSet()
+    args: ParametersArgs
+    obj: _ParameterConfigsSet
     
     @classmethod
-    def _GetDfDict(cls, excel_file_name: Optional[str]) -> Dict[str, pd.DataFrame]:
-        if excel_file_name:
-            excel_file = pd.ExcelFile(excel_file_name)
-            df_dict = pd.read_excel(excel_file, None)
-        else:
-            def get_dataframe_from_query(ds_param_config: pc.DataSourceParameterConfig) -> pd.DataFrame:
-                key, datasource = ds_param_config.name, ds_param_config.data_source
-                df = ConnectionSetIO.obj.run_sql_query_from_conn_name(datasource._get_query(), datasource._connection_name)
-                return key, df
-            
-            ds_param_configs = cls.obj._get_all_ds_param_configs()
-            with concurrent.futures.ThreadPoolExecutor() as executor:
-                df_dict = dict(executor.map(get_dataframe_from_query, ds_param_configs))
+    def _GetDfDict(cls) -> dict[str, pd.DataFrame]:
+        def get_dataframe_from_query(ds_param_config: pc.DataSourceParameterConfig) -> pd.DataFrame:
+            key, datasource = ds_param_config.name, ds_param_config.data_source
+            try:
+                query, conn_name = datasource._get_query(), datasource._get_connection_name()
+                df = ConnectionSetIO.obj.run_sql_query_from_conn_name(query, conn_name)
+            except RuntimeError as e:
+                raise u.ConfigurationError(f'Error executing query for datasource parameter "{key}"') from e
+            return key, df
+        
+        ds_param_configs = cls.obj._get_all_ds_param_configs()
+        with concurrent.futures.ThreadPoolExecutor() as executor:
+            df_dict = dict(executor.map(get_dataframe_from_query, ds_param_configs))
         
         return df_dict
     
     @classmethod
-    def _AddFromDict(cls, param_as_dict: Dict) -> None: # TOTEST
-        try:
-            name, ptype_str = param_as_dict["name"], param_as_dict["type"]
-            factory_str, arguments = param_as_dict["factory"], param_as_dict["arguments"]
-        except KeyError as e:
-            raise u.ConfigurationError(f"Each parameter in {c.MANIFEST_FILE} must have 'name', 'type', 'factory', and 'arguments'.") from e
-        
-        arguments["name"] = name
-        ptype = getattr(p, ptype_str)
-        factory = getattr(ptype, factory_str)
-        factory(**arguments)
+    def _AddFromDict(cls, param_config: ParametersConfig) -> None:
+        param_config.arguments["name"] = param_config.name
+        ptype = getattr(p, param_config.type)
+        factory = getattr(ptype, param_config.factory)
+        factory(**param_config.arguments)
     
     @classmethod
-    def LoadFromFile(cls, *, excel_file_name: Optional[str] = None) -> None:
+    def LoadFromFile(cls) -> None:
         start = time.time()
+        cls.obj = _ParameterConfigsSet()
 
-        parameters_from_manifest = ManifestIO.obj.get_parameters()
+        parameters_from_manifest = ManifestIO.obj.parameters
         for param_as_dict in parameters_from_manifest:
             cls._AddFromDict(param_as_dict)
         
-        proj_vars = ManifestIO.obj.get_proj_vars()
-        u.run_pyconfig_main(c.PARAMETERS_FILE, {"proj": proj_vars})
+        conn_args = ConnectionSetIO.args
+        cls.args = ParametersArgs(conn_args.proj_vars, conn_args.env_vars)
+        pm.run_pyconfig_main(c.PARAMETERS_FILE, {"sqrl": cls.args})
         
-        df_dict = cls._GetDfDict(excel_file_name)
+        df_dict = cls._GetDfDict()
         cls.obj._post_process_params(df_dict)
         
         timer.add_activity_time("loading parameters", start)

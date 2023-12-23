@@ -1,3 +1,4 @@
+/* Generic styling */
 table {
     border-collapse: collapse;
     width: 100%;
@@ -34,18 +35,48 @@ input[type="range"] {
 }
 
 input[type=submit] {
-    background-color: #4285f4;
-    color: white;
     padding: 12px 20px;
-    border: none;
-    border-radius: 4px;
     cursor: pointer;
 }
 
-input[type=submit]:hover {
+button {
+    cursor: pointer;
+    border-radius: 5px;
+    padding: 10px;
+}
+
+.white-button {
+    background-color: white;
+    color: blue;
+}
+
+.white-button:hover {
+    background-color: #d4dae1;
+}
+
+.blue-button {
+    background-color: #4285f4;
+    color: white;
+    border: none;
+}
+
+.blue-button:hover {
     background-color: #3076c5;
 }
 
+.horizontal-container {
+    display: flex;
+}
+
+.slider-value {
+    display: inline-block;
+    position: relative;
+    left: 10px;
+    bottom: 14px;
+    font-size: 18px;
+}
+
+/* Specific styling */
 #main-container {
     height: 97vh;
     width: 99vw;
@@ -85,31 +116,6 @@ input[type=submit]:hover {
     margin: 5px 0px;
 }
 
-button {
-    background-color: white;
-    color: blue;
-    border-radius: 5px;
-    padding: 10px;
-    margin-left: 10px;
-    font-size: 12px;
-}
-
-button:hover {
-    background-color: #d4dae1;
-}
-
-.horizontal-container {
-    display: flex;
-}
-
-.slider-value {
-    display: inline-block;
-    position: relative;
-    left: 10px;
-    bottom: 14px;
-    font-size: 18px;
-}
-
 /* Loading section */
 #loading-indicator {
     display: none;
@@ -145,12 +151,8 @@ button:hover {
     }
 }
 
-.container {
-    padding: 16px;
-}
-
-/* The Modal (background) */
-#login-modal {
+/* The Modal */
+.modal-background {
     display: none;
     position: fixed;
     z-index: 1;
@@ -162,16 +164,11 @@ button:hover {
     background-color: rgba(0,0,0,0.4);
     padding-top: 60px;
 }
-  
-/* Modal Content/Box */
+
 .modal-content {
     background-color: #fefefe;
+    padding: 16px;
     margin: 5px auto auto auto;
     border: 1px solid #888;
     width: 40%;
-}
-
-/* Warning for incorrect username/password */
-#incorrectpwd {
-    display: none;
 }

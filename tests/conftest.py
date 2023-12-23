@@ -1,19 +1,21 @@
 import pytest
 
 from squirrels._environcfg import EnvironConfigIO, _EnvironConfig
+from squirrels._connection_set import ConnectionSetIO, ConnectionSet
+from squirrels import _manifest as m
 
 @pytest.fixture(scope="session", autouse=True)
 def my_initial_code():
     users = {
         "johndoe": {
             "password": "qwerty",
-            "is_admin": True,
+            "is_internal": True,
             "email": "johndoe@org1.com",
             "organization": "org1"
         },
         "lisadoe": {
             "password": "abcd1234",
-            "is_admin": True,
+            "is_internal": True,
             "email": "lisadoe@org2.com",
             "organization": "org2"
         }
@@ -24,5 +26,18 @@ def my_initial_code():
             "password": "pass1"
         }
     }
-    config = _EnvironConfig(users, {}, credentials, {})
-    EnvironConfigIO.obj = config
+    EnvironConfigIO.obj = _EnvironConfig(users, {}, credentials, {})
+
+    m.ManifestIO.obj = m._ManifestConfig(
+        project_variables=m.ProjectVarsConfig({"name":"", "major_version": 0, "minor_version": 0}),
+        packages=[],
+        db_connections=[],
+        parameters=[],
+        selection_test_sets={},
+        dbviews={},
+        federates={},
+        datasets={},
+        settings={}
+    )
+
+    ConnectionSetIO.obj = ConnectionSet({})
