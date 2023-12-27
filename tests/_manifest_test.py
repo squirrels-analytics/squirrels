@@ -263,7 +263,7 @@ def test_manifest_packages(fixture: str, expected: list, request: pytest.Fixture
 ])
 def test_manifest_connections(fixture: str, expected: list, request: pytest.FixtureRequest):
     manifest: m._ManifestConfig = request.getfixturevalue(fixture)
-    assert manifest.connections == expected
+    assert list(manifest.connections.values()) == expected
 
 
 @pytest.mark.parametrize("fixture,expected", [
@@ -272,7 +272,7 @@ def test_manifest_connections(fixture: str, expected: list, request: pytest.Fixt
 ])
 def test_manifest_parameters(fixture: str, expected: list, request: pytest.FixtureRequest):
     manifest: m._ManifestConfig = request.getfixturevalue(fixture)
-    assert manifest.parameters == expected
+    assert list(manifest.parameters.values()) == expected
 
 
 @pytest.mark.parametrize("fixture,expected", [

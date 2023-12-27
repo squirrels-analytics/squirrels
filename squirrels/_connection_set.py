@@ -59,7 +59,7 @@ class ConnectionSetIO:
         engines: dict[str, Engine] = {}
         cls.obj = ConnectionSet(engines)
         try:
-            for config in ManifestIO.obj.connections:
+            for config in ManifestIO.obj.connections.values():
                 engines[config.name] = create_engine(config.url)
             
             proj_vars = ManifestIO.obj.project_variables

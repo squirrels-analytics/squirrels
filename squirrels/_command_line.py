@@ -68,7 +68,6 @@ def main():
         PackageLoaderIO.LoadPackages(reload=True)
     elif args.command in [c.RUN_CMD, c.COMPILE_CMD]:
         ManifestIO.LoadFromFile()
-        PackageLoaderIO.LoadPackages()
         ConnectionSetIO.LoadFromFile()
         try:
             ParameterConfigsSetIO.LoadFromFile()
@@ -87,8 +86,6 @@ def main():
         print(f'Command is missing. Enter "squirrels -h" for help.')
     else:
         print(f'Error: No such command "{args.command}". Enter "squirrels -h" for help.')
-    
-    # timer.report_times()
 
 
 if __name__ == '__main__':

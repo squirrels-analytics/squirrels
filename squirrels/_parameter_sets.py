@@ -174,7 +174,7 @@ class ParameterConfigsSetIO:
         start = time.time()
         cls.obj = _ParameterConfigsSet()
 
-        parameters_from_manifest = ManifestIO.obj.parameters
+        parameters_from_manifest = ManifestIO.obj.parameters.values()
         for param_as_dict in parameters_from_manifest:
             cls._AddFromDict(param_as_dict)
         

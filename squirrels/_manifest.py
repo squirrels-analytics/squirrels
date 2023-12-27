@@ -15,6 +15,10 @@ class ManifestComponentConfig:
         for key in required_keys:
             if key not in data:
                 raise u.ConfigurationError(f'In {c.MANIFEST_FILE}, required field missing in {section}: {key}')
+    
+    @classmethod
+    def from_dict(cls, kwargs: dict):
+        return cls()
 
 
 @dataclass
@@ -29,6 +33,10 @@ class ProjectVarsConfig(ManifestComponentConfig):
         for key in integer_keys:
             if key in self.data and not isinstance(self.data[key], int):
                 raise u.ConfigurationError(f'Project variable "{key}" must be an integer')
+    
+    @classmethod
+    def from_dict(cls, kwargs: dict):
+        return cls(kwargs)
     
     def get_name(self) -> str:
         return str(self.data[c.PROJECT_NAME_KEY])
@@ -67,11 +75,11 @@ class DbConnConfig(ManifestComponentConfig):
     @classmethod
     def from_dict(cls, kwargs: dict):
         cls._validate_required(kwargs, [c.DB_CONN_NAME_KEY, c.DB_CONN_URL_KEY], c.DB_CONNECTIONS_KEY)
-        connection_name = str(kwargs[c.DB_CONN_NAME_KEY])
+        name = str(kwargs[c.DB_CONN_NAME_KEY])
         credential_key = kwargs.get(c.DB_CONN_CRED_KEY)
         username, password = EnvironConfigIO.obj.get_credential(credential_key)
         url = str(kwargs[c.DB_CONN_URL_KEY]).format(username=username, password=password)
-        return cls(connection_name, url)
+        return cls(name, url)
 
 
 @dataclass
@@ -166,13 +174,23 @@ class DatasetsConfig(ManifestComponentConfig):
 class _ManifestConfig:
     project_variables: ProjectVarsConfig
     packages: list[PackageConfig]
-    connections: list[DbConnConfig]
-    parameters: list[ParametersConfig]
+    connections: dict[str, DbConnConfig]
+    parameters: dict[str, ParametersConfig]
     selection_test_sets: dict[str, TestSetsConfig]
     dbviews: dict[str, DbviewConfig]
     federates: dict[str, FederateConfig]
     datasets: dict[str, DatasetsConfig]
     settings: dict
+
+    @classmethod
+    def _create_configs_as_dict(cls, config_cls: ManifestComponentConfig, kwargs: dict, section_key: str, name_key: str) -> dict:
+        configs_dict = {}
+        for x in kwargs.get(section_key, []):
+            name = x[name_key]
+            if name in configs_dict:
+                raise u.ConfigurationError(f'In the "{section_key}" section of {c.MANIFEST_FILE}, the name/identifier "{name}" was specified multiple times')
+            configs_dict[name] = config_cls.from_dict(x)
+        return configs_dict
 
     @classmethod
     def from_dict(cls, kwargs: dict):
@@ -184,16 +202,22 @@ class _ManifestConfig:
             raise u.ConfigurationError(f'In {c.MANIFEST_FILE}, section for {c.PROJ_VARS_KEY} is required') from e
         
         packages = [PackageConfig.from_dict(x) for x in kwargs.get(c.PACKAGES_KEY, [])]
-        db_conns = [DbConnConfig.from_dict(x) for x in kwargs.get(c.DB_CONNECTIONS_KEY, [])]
-        params = [ParametersConfig.from_dict(x) for x in kwargs.get(c.PARAMETERS_KEY, [])]
+        all_package_dirs = set()
+        for package in packages:
+            if package.directory in all_package_dirs:
+                raise u.ConfigurationError(f'In the "{c.PACKAGES_KEY}" section of {c.MANIFEST_FILE}, multiple target directories found for "{package.directory}"')
+            all_package_dirs.add(package.directory)
 
-        test_sets = {x[c.TEST_SET_NAME_KEY]: TestSetsConfig.from_dict(x) for x in kwargs.get(c.TEST_SETS_KEY, [])}
+        db_conns = cls._create_configs_as_dict(DbConnConfig, kwargs, c.DB_CONNECTIONS_KEY, c.DB_CONN_NAME_KEY)
+        params = cls._create_configs_as_dict(ParametersConfig, kwargs, c.PARAMETERS_KEY, c.PARAMETER_NAME_KEY)
+
+        test_sets = cls._create_configs_as_dict(TestSetsConfig, kwargs, c.TEST_SETS_KEY, c.TEST_SET_NAME_KEY)
         default_test_set: str = settings.get(c.TEST_SET_DEFAULT_USED_SETTING, c.DEFAULT_TEST_SET_NAME)
         test_sets.setdefault(default_test_set, TestSetsConfig.from_dict({c.TEST_SET_NAME_KEY: default_test_set}))
 
-        dbviews = {x[c.DBVIEW_NAME_KEY]: DbviewConfig.from_dict(x) for x in kwargs.get(c.DBVIEWS_KEY, [])}
-        federates = {x[c.FEDERATE_NAME_KEY]: FederateConfig.from_dict(x) for x in kwargs.get(c.FEDERATES_KEY, [])}
-        datasets = {x[c.DATASET_NAME_KEY]: DatasetsConfig.from_dict(x) for x in kwargs.get(c.DATASETS_KEY, [])}
+        dbviews = cls._create_configs_as_dict(DbviewConfig, kwargs, c.DBVIEWS_KEY, c.DBVIEW_NAME_KEY)
+        federates = cls._create_configs_as_dict(FederateConfig, kwargs, c.FEDERATES_KEY, c.FEDERATE_NAME_KEY)
+        datasets = cls._create_configs_as_dict(DatasetsConfig, kwargs, c.DATASETS_KEY, c.DATASET_NAME_KEY)
 
         return cls(proj_vars, packages, db_conns, params, test_sets, dbviews, federates, datasets, settings)
 

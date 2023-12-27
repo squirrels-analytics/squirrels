@@ -158,6 +158,11 @@ def test_cycles_produces_error(compiled_dag_with_cycle: m.DAG):
         compiled_dag_with_cycle._validate_no_cycles()
 
 
+def test_get_all_model_names(compiled_dag: m.DAG):
+    model_names = compiled_dag.get_all_model_names()
+    assert model_names == {"modelA", "modelB1", "modelB2", "modelC1", "modelC2"}
+
+
 def test_run_models(compiled_dag: m.DAG):
     terminal_nodes = compiled_dag._validate_no_cycles()
     modelA = compiled_dag.models_dict["modelA"]
@@ -167,8 +172,3 @@ def test_run_models(compiled_dag: m.DAG):
     end = time.time()
     assert (end - start) < 1.5
     assert modelA.result.equals(pd.DataFrame({"row_id": ["a", "b", "c"], "valB": [1, 2, 3], "valC": [10, 20, 30]}))
-
-
-def test_get_all_model_names(compiled_dag: m.DAG):
-    model_names = compiled_dag.get_all_model_names()
-    assert model_names == {"modelA", "modelB1", "modelB2", "modelC1", "modelC2"}
