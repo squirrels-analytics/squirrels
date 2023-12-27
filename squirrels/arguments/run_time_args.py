@@ -1,6 +1,6 @@
-from typing import Union, Callable, Any
+from typing import Callable, Any
 from dataclasses import dataclass
-from sqlalchemy import Engine, Pool
+from sqlalchemy import Engine
 import pandas as pd, sqlite3
 
 from .init_time_args import ParametersArgs
@@ -24,7 +24,7 @@ class ModelDepsArgs(ContextArgs):
 @dataclass
 class ModelArgs(ModelDepsArgs):
     connection_name: str
-    connections: dict[str, Union[Engine, Pool]]
+    connections: dict[str, Engine]
     _ref: Callable[[str], pd.DataFrame]
     dependencies: set[str]
 

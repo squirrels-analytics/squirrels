@@ -7,19 +7,19 @@ parameters:
       all_options:
         - id: g0
           label: Transaction
-          columns: [ID, Date]     ## custom field
+          columns: [id, date]     ## custom field
           is_default: false       ## optional, default, exists for SingleSelect or MultiSelect options only
           user_groups: []         ## optional, default, exists for all parameter options
           parent_option_ids: []   ## optional, default, exists for all parameter options
         - id: g1
           label: Date
-          columns: [Date]
+          columns: [date]
         - id: g2
           label: Category
-          columns: [Category]
+          columns: [category]
         - id: g3
           label: Subcategory
-          columns: [Category, Subcategory]
+          columns: [category, subcategory]
       is_hidden: false            ## optional, default, exists for all parameter types
       user_attribute: null        ## optional, default, exists for all parameter types
       parent_name: null           ## optional, default, exists for all parameter types
@@ -53,8 +53,8 @@ parameters:
       label: Category Filter
       data_source:
         table_or_query: categories
-        id_col: Category_ID
-        options_col: Category
+        id_col: category_id
+        options_col: category
         order_by_col: null        ## optional, default, exists for SingleSelect and MultiSelect
         is_default_col: null      ## optional, default, exists for SingleSelect and MultiSelect
         custom_cols: {}           ## optional, default, exists for SingleSelect and MultiSelect
@@ -69,9 +69,9 @@ parameters:
       label: Subcategory Filter
       data_source:
         table_or_query: subcategories
-        id_col: Subcategory_ID
-        options_col: Subcategory
-        parent_id_col: Category_ID  ## optional, default is null, exists for all parameter types
+        id_col: subcategory_id
+        options_col: subcategory
+        parent_id_col: category_id  ## optional, default is null, exists for all parameter types
       parent_name: category
   - name: min_filter
     type: NumberParameter
@@ -89,7 +89,7 @@ parameters:
     arguments:
       label: Amounts Less Than
       data_source:
-        table_or_query: "SELECT 0 as min_value, max(-Amount) as max_value, 10 as increment FROM transactions WHERE Category <> 'Income'"
+        table_or_query: "SELECT 0 as min_value, max(-amount) as max_value, 10 as increment FROM transactions WHERE category <> 'Income'"
         min_value_col: min_value
         max_value_col: max_value
         increment_col: increment      ## optional, default is null

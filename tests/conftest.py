@@ -31,7 +31,7 @@ def my_initial_code():
     m.ManifestIO.obj = m._ManifestConfig(
         project_variables=m.ProjectVarsConfig({"name":"", "major_version": 0, "minor_version": 0}),
         packages=[],
-        db_connections=[],
+        connections=[],
         parameters=[],
         selection_test_sets={},
         dbviews={},

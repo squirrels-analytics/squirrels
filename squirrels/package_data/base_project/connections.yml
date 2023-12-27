@@ -1,7 +1,7 @@
 ## Uses SQLAlchemy URLs. More details here: https://docs.sqlalchemy.org/en/latest/core/engines.html
-db_connections:
+connections:
   - connection_name: default
-    credential_key: null
-    url: "sqlite://{username}:{password}@/./database/expenses.db" ## or use {{ sqlite_conn_str }} with the environcfg.yml file
+    credential: null
+    url: {{ sqlite_conn_str }} ## using Jinja to substitute environment variable from environcfg.yml
 
 

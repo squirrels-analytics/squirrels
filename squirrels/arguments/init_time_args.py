@@ -1,4 +1,4 @@
-from typing import Callable, Any
+from typing import Optional, Callable, Any
 from dataclasses import dataclass
 
 
@@ -15,15 +15,17 @@ class ConnectionsArgs(BaseArguments):
     def __post_init__(self):
         self.get_credential = self._get_credential
 
-    def get_credential(self, key: str) -> tuple[str, str]:
+    def get_credential(self, key: Optional[str]) -> tuple[str, str]:
         """
         Return (username, password) tuple configured for credentials key in environcfg.yaml
+
+        If key is None, returns tuple of empty strings ("", "")
 
         Parameters:
             key: The credentials key
         
         Returns:
-            A tuple of strings of size 2
+            A tuple of 2 strings
         """
 
 

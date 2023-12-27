@@ -41,7 +41,7 @@ def connection_set() -> cs.ConnectionSet:
 
 def test_get_connection_pool(connection_set: cs.ConnectionSet):
     with pytest.raises(u.ConfigurationError):
-        connection_set.get_connection_pool('does_not_exist')
+        connection_set._get_engine('does_not_exist')
 
 
 def test_run_sql_query_from_conn_name(connection_set: cs.ConnectionSet):

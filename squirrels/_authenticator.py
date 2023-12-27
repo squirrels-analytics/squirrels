@@ -28,16 +28,12 @@ class Authenticator:
         return secret_key
 
     def authenticate_user(self, username: str, password: str) -> Optional[User]:
-        if self.auth_helper:
-            user_cls = self.auth_helper.get_func_or_class("User", default_attr=User)
-            get_user = self.auth_helper.get_func_or_class(c.GET_USER_FUNC)
-            try:
-                real_user = get_user(username, password)
-            except Exception as e:
-                raise u.FileExecutionError(f'Failed to run "{c.GET_USER_FUNC}" in {c.AUTH_FILE}', e)
-        else:
-            user_cls = User
-            real_user = None
+        user_cls = self.auth_helper.get_func_or_class("User", default_attr=User)
+        get_user = self.auth_helper.get_func_or_class(c.GET_USER_FUNC, is_required=False)
+        try:
+            real_user = get_user(username, password) if get_user is not None else None
+        except Exception as e:
+            raise u.FileExecutionError(f'Failed to run "{c.GET_USER_FUNC}" in {c.AUTH_FILE}', e)
         
         if isinstance(real_user, User):
             return real_user
@@ -46,7 +42,7 @@ class Authenticator:
             fake_users = EnvironConfigIO.obj.get_users()
             if username in fake_users and secrets.compare_digest(fake_users[username][c.USER_PWD_KEY], password):
                 is_internal = fake_users[username].get("is_internal", False)
-                user = user_cls(username, is_internal=is_internal)
+                user: User = user_cls(username, is_internal=is_internal)
                 try:
                     return user.with_attributes(fake_users[username])
                 except Exception as e:
@@ -65,11 +61,8 @@ class Authenticator:
             try:
                 payload = jwt.decode(token, self.secret_key, algorithms=[self.algorithm])
                 payload.pop("exp")
-                if self.auth_helper is not None:
-                    user_cls: User = self.auth_helper.get_func_or_class("User", default_attr=User)
-                    return user_cls._FromDict(payload)
-                else:
-                    return User._FromDict(payload)
+                user_cls: User = self.auth_helper.get_func_or_class("User", default_attr=User)
+                return user_cls._FromDict(payload)
             except JWTError:
                 return None
 

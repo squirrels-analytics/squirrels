@@ -173,7 +173,7 @@ class ApiServer:
             if len(selections) > 1:
                 raise u.InvalidInputError(f"The /parameters endpoint takes at most 1 query parameter. Got {dict(selections)}")
             dag = ModelsIO.GenerateDAG(dataset)
-            dag.apply_selections(user, dict(selections), request_version=request_version)
+            dag.apply_selections(user, dict(selections), updates_only=True, request_version=request_version)
             return dag.parameter_set
 
         params_cache = TTLCache(maxsize=parameters_cache_size, ttl=parameters_cache_ttl*60)

@@ -6,7 +6,7 @@ def main(sqrl: sr.ParametersArgs) -> None:
     Create all widget parameters in this file. If two or more datasets use a different set of parameters, define them all
     here, and specify the subset of parameters used for each dataset in the "squirrels.yml" file.
 
-    Parameters are created by a factory method associated to some parameters class. For example:
+    Parameters are created by a factory method associated to some parameters class. For example (note the "Create"):
     > sr.SingleSelectParameter.Create(...)
 
     The parameter classes available are:
@@ -18,10 +18,10 @@ def main(sqrl: sr.ParametersArgs) -> None:
 
     """ Example of creating SingleSelectParameter and specifying each option by code """
     group_by_options = [
-        sr.SelectParameterOption("g0", "Transaction", columns=["ID", "Date"]),
-        sr.SelectParameterOption("g1", "Date", columns=["Date"]),
-        sr.SelectParameterOption("g2", "Category", columns=["Category"]),
-        sr.SelectParameterOption("g3", "Subcategory", columns=["Category", "Subcategory"]),
+        sr.SelectParameterOption("g0", "Transaction", columns=["id", "date"]),
+        sr.SelectParameterOption("g1", "Date", columns=["date"]),
+        sr.SelectParameterOption("g2", "Category", columns=["category"]),
+        sr.SelectParameterOption("g3", "Subcategory", columns=["category", "subcategory"]),
     ]
     sr.SingleSelectParameter.Create("group_by", "Group By", group_by_options)
 
@@ -36,18 +36,18 @@ def main(sqrl: sr.ParametersArgs) -> None:
     sr.DateRangeParameter.CreateSimple("date_range", "Date Range", "2023-01-01", "2023-12-31")
 
     """ Example of creating MultiSelectParameter from lookup query/table """
-    category_ds = sr.MultiSelectDataSource("categories", "Category_ID", "Category")
+    category_ds = sr.MultiSelectDataSource("categories", "category_id", "category")
     sr.MultiSelectParameter.CreateFromSource("category", "Category Filter", category_ds)
 
     """ Example of creating MultiSelectParameter with parent from lookup query/table """
-    subcategory_ds = sr.MultiSelectDataSource("subcategories", "Subcategory_ID", "Subcategory", parent_id_col="Category_ID")
+    subcategory_ds = sr.MultiSelectDataSource("subcategories", "subcategory_id", "subcategory", parent_id_col="category_id")
     sr.MultiSelectParameter.CreateFromSource("subcategory", "Subcategory Filter", subcategory_ds, parent_name="category")
 
     """ Example of creating NumberParameter """
     sr.NumberParameter.CreateSimple("min_filter", "Amounts Greater Than", min_value=0, max_value=500, increment=10)
     
     """ Example of creating NumberParameter from lookup query/table """
-    query = "SELECT 0 as min_value, max(-Amount) as max_value, 10 as increment FROM transactions WHERE Category <> 'Income'"
+    query = "SELECT 0 as min_value, max(-amount) as max_value, 10 as increment FROM transactions WHERE category <> 'Income'"
     max_amount_ds = sr.NumberDataSource(query, "min_value", "max_value", increment_col="increment", default_value_col="max_value")
     sr.NumberParameter.CreateFromSource("max_filter", "Amounts Less Than", max_amount_ds)
 

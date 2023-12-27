@@ -119,26 +119,26 @@ def modelC2(modelC2_query_file):
 
 
 @pytest.fixture(scope="function")
-def compiled_models(modelA: m.Model, modelB1, modelB2, modelC1a, modelC2, context_args):
+def compiled_dag(modelA: m.Model, modelB1, modelB2, modelC1a, modelC2, context_args):
     models: list[m.Model] = [modelA, modelB1, modelB2, modelC1a, modelC2]
     models_dict = {mod.name: mod for mod in models}
     asyncio.run(modelA.compile({}, context_args, models_dict, True))
-    return models_dict
+    return m.DAG(None, modelA, models_dict)
 
 
 @pytest.fixture(scope="function")
-def compiled_models_with_cycle(modelA: m.Model, modelB1, modelB2, modelC1b, modelC2, context_args):
+def compiled_dag_with_cycle(modelA: m.Model, modelB1, modelB2, modelC1b, modelC2, context_args):
     models: list[m.Model] = [modelA, modelB1, modelB2, modelC1b, modelC2]
     models_dict = {mod.name: mod for mod in models}
     asyncio.run(modelA.compile({}, context_args, models_dict, True))
-    return models_dict
+    return m.DAG(None, modelA, models_dict)
 
 
-def test_compile(compiled_models: dict[str, m.Model]):
-    modelA = compiled_models["modelA"]
-    modelB1 = compiled_models["modelB1"]
-    modelB2 = compiled_models["modelB2"]
-    modelC2 = compiled_models["modelC2"]
+def test_compile(compiled_dag: m.DAG):
+    modelA = compiled_dag.models_dict["modelA"]
+    modelB1 = compiled_dag.models_dict["modelB1"]
+    modelB2 = compiled_dag.models_dict["modelB2"]
+    modelC2 = compiled_dag.models_dict["modelC2"]
     assert modelA.compiled_query.query == "SELECT * FROM modelB1 JOIN modelB2 USING (row_id)"
     assert modelA.upstreams == {"modelB1": modelB1, "modelB2": modelB2}
     assert modelA.downstreams == {}
@@ -153,19 +153,22 @@ def test_compile(compiled_models: dict[str, m.Model]):
     assert modelA.confirmed_no_cycles
 
 
-def test_cycles_produces_error(compiled_models_with_cycle: dict[str, m.Model]):
-    modelA = compiled_models_with_cycle["modelA"]
+def test_cycles_produces_error(compiled_dag_with_cycle: m.DAG):
     with pytest.raises(u.ConfigurationError):
-        modelA.validate_no_cycles(set())
+        compiled_dag_with_cycle._validate_no_cycles()
 
 
-def test_run_models(compiled_models: dict[str, m.Model]):
-    modelA = compiled_models["modelA"]
-    terminal_nodes = modelA.validate_no_cycles(set())
-    dag = m.DAG(None, modelA, compiled_models)
+def test_run_models(compiled_dag: m.DAG):
+    terminal_nodes = compiled_dag._validate_no_cycles()
+    modelA = compiled_dag.models_dict["modelA"]
     
     start = time.time()
-    asyncio.run(dag._run_models(terminal_nodes))
+    asyncio.run(compiled_dag._run_models(terminal_nodes))
     end = time.time()
     assert (end - start) < 1.5
     assert modelA.result.equals(pd.DataFrame({"row_id": ["a", "b", "c"], "valB": [1, 2, 3], "valC": [10, 20, 30]}))
+
+
+def test_get_all_model_names(compiled_dag: m.DAG):
+    model_names = compiled_dag.get_all_model_names()
+    assert model_names == {"modelA", "modelB1", "modelB2", "modelC1", "modelC2"}

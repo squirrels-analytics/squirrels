@@ -238,7 +238,7 @@ def manifest_config2() -> m._ManifestConfig:
     data = {
         "project_variables": {"name": "", "major_version": 0, "minor_version": 1}, 
         "packages": [{"git": "path/test.git", "revision": "0.1.0"}],
-        "db_connections": [],
+        "connections": [],
         "parameters": [],
         "selection_test_sets": [],
         "dbviews": [],
@@ -261,9 +261,9 @@ def test_manifest_packages(fixture: str, expected: list, request: pytest.Fixture
     ("manifest_config1", []),
     ("manifest_config2", [])
 ])
-def test_manifest_db_connections(fixture: str, expected: list, request: pytest.FixtureRequest):
+def test_manifest_connections(fixture: str, expected: list, request: pytest.FixtureRequest):
     manifest: m._ManifestConfig = request.getfixturevalue(fixture)
-    assert manifest.db_connections == expected
+    assert manifest.connections == expected
 
 
 @pytest.mark.parametrize("fixture,expected", [

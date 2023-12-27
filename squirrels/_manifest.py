@@ -61,14 +61,14 @@ class PackageConfig(ManifestComponentConfig):
 
 @dataclass
 class DbConnConfig(ManifestComponentConfig):
-    connection_name: str
+    name: str
     url: str
 
     @classmethod
     def from_dict(cls, kwargs: dict):
         cls._validate_required(kwargs, [c.DB_CONN_NAME_KEY, c.DB_CONN_URL_KEY], c.DB_CONNECTIONS_KEY)
         connection_name = str(kwargs[c.DB_CONN_NAME_KEY])
-        credential_key = kwargs.get(c.CREDENTIALS_KEY)
+        credential_key = kwargs.get(c.DB_CONN_CRED_KEY)
         username, password = EnvironConfigIO.obj.get_credential(credential_key)
         url = str(kwargs[c.DB_CONN_URL_KEY]).format(username=username, password=password)
         return cls(connection_name, url)
@@ -166,7 +166,7 @@ class DatasetsConfig(ManifestComponentConfig):
 class _ManifestConfig:
     project_variables: ProjectVarsConfig
     packages: list[PackageConfig]
-    db_connections: list[DbConnConfig]
+    connections: list[DbConnConfig]
     parameters: list[ParametersConfig]
     selection_test_sets: dict[str, TestSetsConfig]
     dbviews: dict[str, DbviewConfig]
