@@ -81,7 +81,7 @@ def test_package_directory(fixture: str, expected: str, request: pytest.FixtureR
 ## DB connection config
 
 @pytest.mark.parametrize("data", [
-    {"connection_name": "default"},
+    {"name": "default"},
     {"url": "my/url"}
 ])
 def test_invalid_db_conn_config(data: dict):
@@ -91,7 +91,7 @@ def test_invalid_db_conn_config(data: dict):
 
 @pytest.fixture(scope="module")
 def db_conn_config1() -> m.DbConnConfig:
-    data = {"connection_name": "default", "credentials": "test_cred_key", "url": "{username}:{password}/my/url"}
+    data = {"name": "default", "credential": "test_cred_key", "url": "{username}:{password}/my/url"}
     return m.DbConnConfig.from_dict(data)
 
 
