@@ -74,7 +74,7 @@ JWT_SECRET_KEY = 'jwt_secret'
 # Folder/File names
 PACKAGE_DATA_FOLDER = 'package_data'
 BASE_PROJECT_FOLDER = 'base_project'
-STATIC_FOLDER = 'static'
+ASSETS_FOLDER = 'assets'
 TEMPLATES_FOLDER = 'templates'
 
 ENVIRON_CONFIG_FILE = 'environcfg.yml'
