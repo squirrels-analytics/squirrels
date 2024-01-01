@@ -81,7 +81,7 @@ def test_package_directory(fixture: str, expected: str, request: pytest.FixtureR
 ## DB connection config
 
 @pytest.mark.parametrize("data", [
-    {"connection_name": "default"},
+    {"name": "default"},
     {"url": "my/url"}
 ])
 def test_invalid_db_conn_config(data: dict):
@@ -91,7 +91,7 @@ def test_invalid_db_conn_config(data: dict):
 
 @pytest.fixture(scope="module")
 def db_conn_config1() -> m.DbConnConfig:
-    data = {"connection_name": "default", "credentials": "test_cred_key", "url": "{username}:{password}/my/url"}
+    data = {"name": "default", "credential": "test_cred_key", "url": "{username}:{password}/my/url"}
     return m.DbConnConfig.from_dict(data)
 
 
@@ -238,7 +238,7 @@ def manifest_config2() -> m._ManifestConfig:
     data = {
         "project_variables": {"name": "", "major_version": 0, "minor_version": 1}, 
         "packages": [{"git": "path/test.git", "revision": "0.1.0"}],
-        "db_connections": [],
+        "connections": [],
         "parameters": [],
         "selection_test_sets": [],
         "dbviews": [],
@@ -261,9 +261,9 @@ def test_manifest_packages(fixture: str, expected: list, request: pytest.Fixture
     ("manifest_config1", []),
     ("manifest_config2", [])
 ])
-def test_manifest_db_connections(fixture: str, expected: list, request: pytest.FixtureRequest):
+def test_manifest_connections(fixture: str, expected: list, request: pytest.FixtureRequest):
     manifest: m._ManifestConfig = request.getfixturevalue(fixture)
-    assert manifest.db_connections == expected
+    assert list(manifest.connections.values()) == expected
 
 
 @pytest.mark.parametrize("fixture,expected", [
@@ -272,7 +272,7 @@ def test_manifest_db_connections(fixture: str, expected: list, request: pytest.F
 ])
 def test_manifest_parameters(fixture: str, expected: list, request: pytest.FixtureRequest):
     manifest: m._ManifestConfig = request.getfixturevalue(fixture)
-    assert manifest.parameters == expected
+    assert list(manifest.parameters.values()) == expected
 
 
 @pytest.mark.parametrize("fixture,expected", [

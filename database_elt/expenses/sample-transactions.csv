@@ -1,4 +1,4 @@
-﻿ID,Date,Category,Subcategory,Vendor,Amount,Balance,Description
+﻿id,date,category,subcategory,vendor,amount,balance,description
 1000,2023-01-01,Income,Salary,MyWorkplace,5000,30000,Regular pay from MyWorkplace
 1001,2023-01-01,Food,Dining Out,Cafe Sunshine,-30,29970,Dinner with friends
 1002,2023-01-03,Food,Groceries,ABC Supermarket,-50,29920,Weekly grocery shopping

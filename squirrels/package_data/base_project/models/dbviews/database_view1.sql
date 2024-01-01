@@ -1,15 +1,15 @@
 SELECT {{ ctx["group_by_cols"] }}
-    , sum(-Amount) as Total_Amount
+    , sum(-amount) as total_amount
 FROM transactions
 WHERE 1=1
 {%- if ctx["has_categories"] %}
-    AND Category IN ({{ ctx["categories"] }})
+    AND category IN ({{ ctx["categories"] }})
 {%- endif %}
 {%- if ctx["has_subcategories"] %}
-    AND Subcategory IN ({{ ctx["subcategories"] }})
+    AND subcategory IN ({{ ctx["subcategories"] }})
 {%- endif %}
-    AND "Date" >= {{ ctx["start_date"] }}
-    AND "Date" <= {{ ctx["end_date"] }}
-    AND -Amount >= {{ ctx["min_amount"] }}
-    AND -Amount <= {{ ctx["max_amount"] }}
+    AND date >= {{ ctx["start_date"] }}
+    AND date <= {{ ctx["end_date"] }}
+    AND -amount >= {{ ctx["min_amount"] }}
+    AND -amount <= {{ ctx["max_amount"] }}
 GROUP BY {{ ctx["group_by_cols"] }}

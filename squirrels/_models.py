@@ -173,7 +173,7 @@ class Model:
             raise u.FileExecutionError(f'Failed to run "{c.DEP_FUNC}" function for python model "{self.name}"', e)
         
         dbview_conn_name = self._get_dbview_conn_name()
-        connections = ConnectionSetIO.obj.get_connections_as_dict()
+        connections = ConnectionSetIO.obj.get_engines_as_dict()
         ref = lambda x: self.upstreams[x].result
         sqrl_args = ModelArgs(ctx_args.proj_vars, ctx_args.env_vars, ctx_args.user, ctx_args.prms, ctx_args.args, 
                               ctx, dbview_conn_name, connections, ref, set(dependencies))
@@ -290,6 +290,12 @@ class Model:
         self.wait_count -= 1
         if (self.wait_count == 0):
             await self.run_model(conn)
+    
+    def fill_dependent_model_names(self, dependent_model_names: set[str]) -> None:
+        if self.name not in dependent_model_names:
+            dependent_model_names.add(self.name)
+            for dep_model in self.upstreams.values():
+                dep_model.fill_dependent_model_names(dependent_model_names)
 
 
 @dataclass
@@ -358,6 +364,11 @@ class DAG:
 
         if runquery:
             await self._run_models(terminal_nodes)
+    
+    def get_all_model_names(self) -> set[str]:
+        all_model_names = set()
+        self.target_model.fill_dependent_model_names(all_model_names)
+        return all_model_names
 
 
 class ModelsIO:
@@ -444,19 +455,10 @@ class ModelsIO:
                 output_filepath = u.join_paths(subpath, model.name+'.csv')
                 model.result.to_csv(output_filepath, index=False)
 
-        target_model = dag.models_dict[select]
-        stack = [target_model]
-        all_model_names = set()
-        while stack:
-            curr_model = stack.pop()
-            all_model_names.add(curr_model.name)
-            for dep_model in curr_model.downstreams.values():
-                if dep_model.name not in all_model_names:
-                    stack.append(dep_model.name)
-
+        all_model_names = dag.get_all_model_names()
         coroutines = [asyncio.to_thread(write_model_outputs, dag.models_dict[name]) for name in all_model_names]
         await asyncio.gather(*coroutines)
-        return target_model.compiled_query.query
+        return dag.target_model.compiled_query.query
 
     @classmethod
     async def WriteOutputs(

@@ -68,10 +68,10 @@ class EnvironConfigIO:
             config1.setdefault(key, {})
             config1[key].update(config2[key])
         
-        users = config1.get("users", {})
-        env_vars = config1.get("env_vars", {})
-        credentials = config1.get("credentials", {})
-        secrets = config1.get("secrets", {})
+        users = config1.get(c.USERS_KEY, {})
+        env_vars = config1.get(c.ENV_VARS_KEY, {})
+        credentials = config1.get(c.CREDENTIALS_KEY, {})
+        secrets = config1.get(c.SECRETS_KEY, {})
 
         cls.obj = _EnvironConfig(users, env_vars, credentials, secrets)
         timer.add_activity_time(f"loading {c.ENVIRON_CONFIG_FILE} file", start)

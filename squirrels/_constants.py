@@ -16,9 +16,9 @@ PACKAGE_GIT_KEY = 'git'
 PACKAGE_DIRECTORY_KEY = 'directory'
 PACKAGE_REVISION_KEY = 'revision'
 
-DB_CONNECTIONS_KEY = 'db_connections'
-DB_CONN_NAME_KEY = 'connection_name'
-DB_CONN_CRED_KEY = 'credential_key'
+DB_CONNECTIONS_KEY = 'connections'
+DB_CONN_NAME_KEY = 'name'
+DB_CONN_CRED_KEY = 'credential'
 DB_CONN_URL_KEY = 'url'
 
 DBVIEWS_KEY = 'dbviews'
@@ -50,12 +50,6 @@ DATASET_MODEL_KEY = 'model'
 DATASET_PARAMETERS_KEY = 'parameters'
 DATASET_ARGS_KEY = 'args'
 
-# deprecate these later
-DATABASE_VIEWS_KEY = 'database_views'
-FILE_KEY = 'file'
-DB_CONNECTION_KEY = 'db_connection'
-FINAL_VIEW_KEY = 'final_view'
-
 DATASET_SCOPE_KEY = 'scope'
 PUBLIC_SCOPE = 'public'
 PROTECTED_SCOPE = 'protected'
@@ -64,18 +58,23 @@ PRIVATE_SCOPE = 'private'
 SETTINGS_KEY = 'settings'
 
 # Environment config keys
+USERS_KEY = 'users'
+USER_NAME_KEY = 'username'
+USER_PWD_KEY = 'password'
+
+ENV_VARS_KEY = 'env_vars'
+
 CREDENTIALS_KEY = 'credentials'
 USERNAME_KEY = 'username'
 PASSWORD_KEY = 'password'
-USER_NAME_KEY = 'username'
-USER_PWD_KEY = 'password'
+
 SECRETS_KEY = 'secrets'
 JWT_SECRET_KEY = 'jwt_secret'
 
 # Folder/File names
 PACKAGE_DATA_FOLDER = 'package_data'
 BASE_PROJECT_FOLDER = 'base_project'
-STATIC_FOLDER = 'static'
+ASSETS_FOLDER = 'assets'
 TEMPLATES_FOLDER = 'templates'
 
 ENVIRON_CONFIG_FILE = 'environcfg.yml'
@@ -116,7 +115,7 @@ PARAMETERS_CACHE_TTL_SETTING = 'parameters.cache.ttl.minutes'
 RESULTS_CACHE_SIZE_SETTING = 'results.cache.size'
 RESULTS_CACHE_TTL_SETTING = 'results.cache.ttl.minutes'
 TEST_SET_DEFAULT_USED_SETTING = 'selection_test_sets.default_name_used'
-DB_CONN_DEFAULT_USED_SETTING = 'db_connections.default_name_used'
+DB_CONN_DEFAULT_USED_SETTING = 'connections.default_name_used'
 DEFAULT_MATERIALIZE_SETTING = 'defaults.federates.materialized'
 
 # Selection cfg sections
@@ -136,7 +135,7 @@ PYTHON_FORMAT2 = 'py (recommended)'
 CONF_FORMAT_CHOICES2 = [(PYTHON_FORMAT2, PYTHON_FORMAT), YML_FORMAT]
 
 EXPENSES_DB_NAME = 'expenses'
-WEATHER_DB_NAME = 'seattle-weather'
+WEATHER_DB_NAME = 'weather'
 DATABASE_CHOICES = [EXPENSES_DB_NAME, WEATHER_DB_NAME]
 
 # Function names

@@ -6,7 +6,7 @@ from fastapi.staticfiles import StaticFiles
 from fastapi.security import OAuth2PasswordBearer, OAuth2PasswordRequestForm
 from fastapi.middleware.cors import CORSMiddleware
 from cachetools import TTLCache
-import os, traceback, pandas as pd
+import os, mimetypes, traceback, pandas as pd
 
 from . import _constants as c, _utils as u
 from ._version import sq_major_version
@@ -15,6 +15,8 @@ from ._authenticator import User, Authenticator
 from ._timer import timer, time
 from ._parameter_sets import ParameterSet
 from ._models import ModelsIO
+
+mimetypes.add_type('application/javascript', '.js')
 
 
 class ApiServer:
@@ -49,8 +51,8 @@ class ApiServer:
         partial_base_path = f'/{ManifestIO.obj.project_variables.get_name()}/v{ManifestIO.obj.project_variables.get_major_version()}'
         base_path = squirrels_version_path + u.normalize_name_for_api(partial_base_path)
 
-        static_dir = u.join_paths(os.path.dirname(__file__), c.PACKAGE_DATA_FOLDER, c.STATIC_FOLDER)
-        app.mount('/static', StaticFiles(directory=static_dir), name='static')
+        static_dir = u.join_paths(os.path.dirname(__file__), c.PACKAGE_DATA_FOLDER, c.ASSETS_FOLDER)
+        app.mount('/'+c.ASSETS_FOLDER, StaticFiles(directory=static_dir), name=c.ASSETS_FOLDER)
 
         templates_dir = u.join_paths(os.path.dirname(__file__), c.PACKAGE_DATA_FOLDER, c.TEMPLATES_FOLDER)
         templates = Jinja2Templates(directory=templates_dir)
@@ -105,7 +107,10 @@ class ApiServer:
                 raise u.InvalidInputError(f'Invalid value for "{RESPONSE_VERSION_REQUEST_HEADER}" header: {response_version}')
         
         def can_user_access_dataset(user: Optional[User], dataset: str):
-            dataset_scope = self.dataset_configs[dataset].scope
+            try:
+                dataset_scope = self.dataset_configs[dataset].scope
+            except KeyError as e:
+                raise u.InvalidInputError(f'Invalid dataset name: "{dataset}"')
             return self.authenticator.can_user_access_scope(user, dataset_scope)
 
         async def apply_dataset_api_function(
@@ -173,7 +178,7 @@ class ApiServer:
             if len(selections) > 1:
                 raise u.InvalidInputError(f"The /parameters endpoint takes at most 1 query parameter. Got {dict(selections)}")
             dag = ModelsIO.GenerateDAG(dataset)
-            dag.apply_selections(user, dict(selections), request_version=request_version)
+            dag.apply_selections(user, dict(selections), updates_only=True, request_version=request_version)
             return dag.parameter_set
 
         params_cache = TTLCache(maxsize=parameters_cache_size, ttl=parameters_cache_ttl*60)
@@ -258,12 +263,13 @@ class ApiServer:
                     })
             
             return {
-                'products': [{
+                'projects': [{
                     'name': ManifestIO.obj.project_variables.get_name(),
                     'label': ManifestIO.obj.project_variables.get_label(),
                     'versions': [{
                         'major_version': ManifestIO.obj.project_variables.get_major_version(),
                         'latest_minor_version': ManifestIO.obj.project_variables.get_minor_version(),
+                        'token_path': token_path,
                         'datasets': datasets_info
                     }]
                 }]

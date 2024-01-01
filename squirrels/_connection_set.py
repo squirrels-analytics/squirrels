@@ -1,6 +1,5 @@
-from typing import Union
 from dataclasses import dataclass
-from sqlalchemy import Engine, Pool, create_engine
+from sqlalchemy import Engine, create_engine
 import pandas as pd
 
 from . import _utils as u, _constants as c, _py_module as pm
@@ -13,51 +12,34 @@ from ._timer import timer, time
 @dataclass
 class ConnectionSet:
     """
-    A wrapper class around a collection of Connection Pools or Sqlalchemy Engines
+    A wrapper class around a collection of sqlalchemy engines
 
     Attributes:
-        conn_pools: A dictionary of connection pool name to the corresponding Pool or Engine from sqlalchemy
+        _engines: A dictionary of connection name to the corresponding sqlalchemy engine
     """
-    _conn_pools: dict[str, Union[Engine, Pool]]
+    _engines: dict[str, Engine]
 
-    def get_connections_as_dict(self):
-        return self._conn_pools
+    def get_engines_as_dict(self):
+        return self._engines.copy()
     
-    def get_connection_pool(self, conn_name: str) -> Union[Engine, Pool]:
+    def _get_engine(self, conn_name: str) -> Engine:
         try:
-            connection_pool = self._conn_pools[conn_name]
+            connection_pool = self._engines[conn_name]
         except KeyError as e:
             raise u.ConfigurationError(f'Connection name "{conn_name}" was not configured') from e
         return connection_pool
     
     def run_sql_query_from_conn_name(self, query: str, conn_name: str) -> pd.DataFrame:
-        connection_pool = self.get_connection_pool(conn_name)
-        if isinstance(connection_pool, Pool):
-            conn = connection_pool.connect()
-        elif isinstance(connection_pool, Engine):
-            conn = connection_pool.raw_connection()
-        else:
-            raise u.ConfigurationError(f'Value type not supported for connection name "{conn_name}". Must be sqlalchemy engine or pool')
-        
-        try:
-            cur = conn.cursor()
-            try:
-                cur.execute(query)
-            except Exception as e:
-                raise RuntimeError(e)
-            df = pd.DataFrame(data=cur.fetchall(), columns=[x[0] for x in cur.description])
-        finally:
-            conn.close()
-
+        engine = self._get_engine(conn_name)
+        df = pd.read_sql(query, engine)
         return df
 
     def _dispose(self) -> None:
         """
-        Disposes of all the connection pools in this ConnectionSet
+        Disposes of all the engines in this ConnectionSet
         """
-        for pool in self._conn_pools.values():
-            if isinstance(pool, (Engine, Pool)):
-                pool.dispose()
+        for pool in self._engines.values():
+            pool.dispose()
 
 
 class ConnectionSetIO:
@@ -67,29 +49,29 @@ class ConnectionSetIO:
     @classmethod
     def LoadFromFile(cls):
         """
-        Takes the DB Connections from both the squirrels.yml and connections.py files and merges them
+        Takes the DB connection engines from both the squirrels.yml and connections.py files and merges them
         into a single ConnectionSet
         
         Returns:
             A ConnectionSet with the DB connections from both squirrels.yml and connections.py
         """
         start = time.time()
-        connections: dict[str, Union[Engine, Pool]] = {}
-        cls.obj = ConnectionSet(connections)
+        engines: dict[str, Engine] = {}
+        cls.obj = ConnectionSet(engines)
         try:
-            for config in ManifestIO.obj.db_connections:
-                connections[config.connection_name] = create_engine(config.url)
+            for config in ManifestIO.obj.connections.values():
+                engines[config.name] = create_engine(config.url)
             
             proj_vars = ManifestIO.obj.project_variables
             env_vars = EnvironConfigIO.obj.get_all_env_vars()
             get_credential = EnvironConfigIO.obj.get_credential
             cls.args = ConnectionsArgs(proj_vars, env_vars, get_credential)
-            pm.run_pyconfig_main(c.CONNECTIONS_FILE, {"connections": connections, "sqrl": cls.args})
+            pm.run_pyconfig_main(c.CONNECTIONS_FILE, {"connections": engines, "sqrl": cls.args})
         except Exception as e:
             cls.Dispose()
             raise e
         
-        timer.add_activity_time("creating sqlalchemy engines or pools", start)
+        timer.add_activity_time("creating sqlalchemy engines", start)
 
     @classmethod
     def Dispose(cls):

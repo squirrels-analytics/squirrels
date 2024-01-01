@@ -9,24 +9,23 @@ def main(sqrl: sr.ModelArgs) -> pd.DataFrame:
     the size of the results coming from the external query.
     """
 
-    """ If working with sqlalchemy ORMs, use 'sqrl.connections' to get a connection pool / engine """
+    """ If working with sqlalchemy ORMs, use 'sqrl.connections' to get a sqlalchemy engine """
     # from typing import Union
-    # from sqlalchemy import Engine, Pool
-    # engine1: Union[Engine, Pool] = sqrl.connections[sqrl.connection_name] ## using the pre-assigned key
-    # engine2: Union[Engine, Pool] = sqrl.connections["my_connection_name"] ## or use any defined key
+    # engine1 = sqrl.connections[sqrl.connection_name] ## using the pre-assigned key
+    # engine2 = sqrl.connections["my_connection_name"] ## or use any defined key
     
     """ Example with building and running a sql query """
-    category_clause = f'AND Category IN ({sqrl.ctx["categories"]})\n' if sqrl.ctx["has_categories"] else ''
-    subcategory_clause = f'AND Subcategory IN ({sqrl.ctx["subcategories"]})\n' if sqrl.ctx["has_subcategories"] else ''
+    category_clause = f'AND category IN ({sqrl.ctx["categories"]})\n' if sqrl.ctx["has_categories"] else ''
+    subcategory_clause = f'AND subcategory IN ({sqrl.ctx["subcategories"]})\n' if sqrl.ctx["has_subcategories"] else ''
     query = dedent(f"""
         SELECT {sqrl.ctx["group_by_cols"]}
-            , sum(-Amount) as Total_Amount
+            , sum(-amount) as total_amount
         FROM transactions
         WHERE 1=1
-            {category_clause}{subcategory_clause}AND "Date" >= {sqrl.ctx["start_date"]}
-            AND "Date" <= {sqrl.ctx["end_date"]}
-            AND -Amount >= {sqrl.ctx["min_amount"]}
-            AND -Amount <= {sqrl.ctx["max_amount"]}
+            {category_clause}{subcategory_clause}AND date >= {sqrl.ctx["start_date"]}
+            AND date <= {sqrl.ctx["end_date"]}
+            AND -amount >= {sqrl.ctx["min_amount"]}
+            AND -amount <= {sqrl.ctx["max_amount"]}
         GROUP BY {sqrl.ctx["group_by_cols"]}
     """).strip()
 

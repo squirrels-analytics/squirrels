@@ -37,7 +37,7 @@ time_type_df = pd.DataFrame({
 
 
 # Connect to SQLite database
-conn = sqlite3.connect('seattle_weather.db')
+conn = sqlite3.connect('weather.db')
 try:
     df.to_sql('weather', conn, index=False, if_exists='replace')
     lookup_df.to_sql('time_lookup', conn, if_exists='replace')
