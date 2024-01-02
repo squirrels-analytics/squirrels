@@ -7,7 +7,7 @@ import sqlite3, pandas as pd, asyncio, os, shutil
 
 from . import _constants as c, _utils as u, _py_module as pm
 from .arguments.run_time_args import ContextArgs, ModelDepsArgs, ModelArgs
-from ._authenticator import User
+from .user_base import User
 from ._connection_set import ConnectionSetIO
 from ._manifest import ManifestIO, DatasetsConfig
 from ._parameter_sets import ParameterConfigsSetIO, ParameterSet
