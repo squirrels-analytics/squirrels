@@ -1,6 +1,6 @@
 from __future__ import annotations
 from typing import Union, Any
-from squirrels import User as UserBase, WrongPassword
+from squirrels import User as UserBase, AuthArgs, WrongPassword
 
 
 class User(UserBase):
@@ -11,14 +11,14 @@ class User(UserBase):
         self.organization = user_dict["organization"]
 
 
-def get_user_if_valid(username: str, password: str) -> Union[User, WrongPassword, None]:
+def get_user_if_valid(sqrl: AuthArgs) -> Union[User, WrongPassword, None]:
     """
     This function allows the squirrels framework to know how to authenticate input username and password.
 
     Return:
         - User instance - if username and password are correct
         - WrongPassword(username) - if username exists but password is incorrect
-        - None - if the username doesn't exist (and continue username search among "fake users" in environcfg.yml)
+        - None - if the username doesn't exist (and username search will continue among any "fake users" configured in environcfg.yml)
     """
     mock_users_db = {
         "johndoe": {
@@ -35,6 +35,7 @@ def get_user_if_valid(username: str, password: str) -> Union[User, WrongPassword
         }
     }
 
+    username, password = sqrl.username, sqrl.password
     if username in mock_users_db:
         user_dict = mock_users_db[username]
         hashed_pwd = user_dict["hashed_password"]

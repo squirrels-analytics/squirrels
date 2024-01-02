@@ -6,7 +6,7 @@ from copy import copy
 import pandas as pd
 
 from . import parameter_options as po, parameters as p, data_sources as d, _utils as u
-from ._authenticator import User
+from .user_base import User
 
 
 @dataclass
@@ -23,7 +23,7 @@ class ParameterConfigBase(metaclass=ABCMeta):
     @abstractmethod
     def __init__(
         self, widget_type: str, name: str, label: str, *, is_hidden: bool = False, user_attribute: Optional[str] = None, 
-        parent_name: Optional[str] = None, **kwargs
+        parent_name: Optional[str] = None
     ) -> None:
         self.widget_type = widget_type
         self.name = name
@@ -63,7 +63,7 @@ class ParameterConfig(ParameterConfigBase):
     @abstractmethod
     def __init__(
         self, widget_type: str, name: str, label: str, all_options: Sequence[Union[po.ParameterOption, dict]], *, is_hidden: bool = False, 
-        user_attribute: Optional[str] = None, parent_name: Optional[str] = None, **kwargs
+        user_attribute: Optional[str] = None, parent_name: Optional[str] = None
     ) -> None:
         super().__init__(widget_type, name, label, is_hidden=is_hidden, user_attribute=user_attribute, 
                          parent_name=parent_name)
@@ -109,7 +109,7 @@ class SelectionParameterConfig(ParameterConfig):
     @abstractmethod
     def __init__(
         self, widget_type: str, name: str, label: str, all_options: Sequence[Union[po.SelectParameterOption, dict]], *, is_hidden: bool = False, 
-        user_attribute: Optional[str] = None, parent_name: Optional[str] = None, **kwargs
+        user_attribute: Optional[str] = None, parent_name: Optional[str] = None
     ) -> None:
         super().__init__(widget_type, name, label, all_options, is_hidden=is_hidden, user_attribute=user_attribute, 
                          parent_name=parent_name)
@@ -152,7 +152,7 @@ class SingleSelectParameterConfig(SelectionParameterConfig):
     
     def __init__(
         self, name: str, label: str, all_options: Sequence[Union[po.SelectParameterOption, dict]], *, is_hidden: bool = False, 
-        user_attribute: Optional[str] = None, parent_name: Optional[str] = None, **kwargs
+        user_attribute: Optional[str] = None, parent_name: Optional[str] = None
     ) -> None:
         super().__init__("single_select", name, label, all_options, is_hidden=is_hidden, user_attribute=user_attribute, 
                          parent_name=parent_name)
@@ -180,18 +180,22 @@ class MultiSelectParameterConfig(SelectionParameterConfig):
     """
     Class to define configurations for multi-select parameter widgets.
     """
-    include_all: bool # = field(default=True, kw_only=True)
+    show_select_all: bool # = field(default=True, kw_only=True)
+    is_dropdown: bool # = field(default=True, kw_only=True)
     order_matters: bool # = field(default=False, kw_only=True)
+    none_is_all: bool # = field(default=True, kw_only=True)
 
     def __init__(
-        self, name: str, label: str, all_options: Sequence[Union[po.SelectParameterOption, dict]], *, include_all: bool = True, 
-        order_matters: bool = False, is_hidden: bool = False, user_attribute: Optional[str] = None, parent_name: Optional[str] = None, 
-        **kwargs
+        self, name: str, label: str, all_options: Sequence[Union[po.SelectParameterOption, dict]], *, show_select_all: bool = True, 
+        is_dropdown: bool = True, order_matters: bool = False, none_is_all: bool = True, is_hidden: bool = False, 
+        user_attribute: Optional[str] = None, parent_name: Optional[str] = None
     ) -> None:
         super().__init__("multi_select", name, label, all_options, is_hidden=is_hidden, user_attribute=user_attribute, 
                          parent_name=parent_name)
-        self.include_all = include_all
+        self.show_select_all = show_select_all
+        self.is_dropdown = is_dropdown
         self.order_matters = order_matters
+        self.none_is_all = none_is_all
     
     @staticmethod
     def DataSource(*args, **kwargs):
@@ -210,7 +214,8 @@ class MultiSelectParameterConfig(SelectionParameterConfig):
 
     def to_json_dict0(self) -> dict:
         output = super().to_json_dict0()
-        output['include_all'] = self.include_all
+        output['show_select_all'] = self.show_select_all
+        output['is_dropdown'] = self.is_dropdown
         output['order_matters'] = self.order_matters
         return output
 
@@ -224,7 +229,7 @@ class _DateTypeParameterConfig(ParameterConfig):
     @abstractmethod
     def __init__(
         self, widget_type: str, name: str, label: str, all_options: Sequence[Union[po.ParameterOption, dict]], *, is_hidden: bool = False, 
-        user_attribute: Optional[str] = None, parent_name: Optional[str] = None, **kwargs
+        user_attribute: Optional[str] = None, parent_name: Optional[str] = None
     ) -> None:
         super().__init__(widget_type, name, label, all_options, is_hidden=is_hidden, user_attribute=user_attribute, 
                          parent_name=parent_name)
@@ -238,7 +243,7 @@ class DateParameterConfig(_DateTypeParameterConfig):
     
     def __init__(
         self, name: str, label: str, all_options: Sequence[Union[po.DateParameterOption, dict]], *, is_hidden: bool = False, 
-        user_attribute: Optional[str] = None, parent_name: Optional[str] = None, **kwargs
+        user_attribute: Optional[str] = None, parent_name: Optional[str] = None
     ) -> None:
         super().__init__("date", name, label, all_options, is_hidden=is_hidden, user_attribute=user_attribute, 
                          parent_name=parent_name)
@@ -268,7 +273,7 @@ class DateRangeParameterConfig(_DateTypeParameterConfig):
     
     def __init__(
         self, name: str, label: str, all_options: Sequence[Union[po.DateRangeParameterOption, dict]], *, is_hidden: bool = False, 
-        user_attribute: Optional[str] = None, parent_name: Optional[str] = None, **kwargs
+        user_attribute: Optional[str] = None, parent_name: Optional[str] = None
     ) -> None:
         super().__init__("date_range", name, label, all_options, is_hidden=is_hidden, user_attribute=user_attribute, 
                          parent_name=parent_name)
@@ -306,7 +311,7 @@ class _NumericParameterConfig(ParameterConfig):
     @abstractmethod
     def __init__(
         self, widget_type: str, name: str, label: str, all_options: Sequence[Union[po.ParameterOption, dict]], *, is_hidden: bool = False, 
-        user_attribute: Optional[str] = None, parent_name: Optional[str] = None, **kwargs
+        user_attribute: Optional[str] = None, parent_name: Optional[str] = None
     ) -> None:
         super().__init__(widget_type, name, label, all_options, is_hidden=is_hidden, user_attribute=user_attribute, 
                          parent_name=parent_name)
@@ -320,7 +325,7 @@ class NumberParameterConfig(_NumericParameterConfig):
     
     def __init__(
         self, name: str, label: str, all_options: Sequence[Union[po.NumberParameterOption, dict]], *, is_hidden: bool = False, 
-        user_attribute: Optional[str] = None, parent_name: Optional[str] = None, **kwargs
+        user_attribute: Optional[str] = None, parent_name: Optional[str] = None
     ) -> None:
         super().__init__("number", name, label, all_options, is_hidden=is_hidden, user_attribute=user_attribute, 
                          parent_name=parent_name)
@@ -350,7 +355,7 @@ class NumberRangeParameterConfig(_NumericParameterConfig):
     
     def __init__(
         self, name: str, label: str, all_options: Sequence[Union[po.NumberRangeParameterOption, dict]], *, is_hidden: bool = False, 
-        user_attribute: Optional[str] = None, parent_name: Optional[str] = None, **kwargs
+        user_attribute: Optional[str] = None, parent_name: Optional[str] = None
     ) -> None:
         super().__init__("number_range", name, label, all_options, is_hidden=is_hidden, user_attribute=user_attribute, 
                          parent_name=parent_name)
@@ -389,7 +394,7 @@ class DataSourceParameterConfig(ParameterConfigBase):
 
     def __init__(
         self, parameter_type: Type[ParameterConfig], name: str, label: str, data_source: Union[d.DataSource, dict], *, 
-        is_hidden: bool = False, user_attribute: Optional[str] = None, parent_name: Optional[str] = None, **kwargs
+        is_hidden: bool = False, user_attribute: Optional[str] = None, parent_name: Optional[str] = None
     ) -> None:
         super().__init__("data_source", name, label, is_hidden=is_hidden, user_attribute=user_attribute, parent_name=parent_name)
         self.parameter_type = parameter_type

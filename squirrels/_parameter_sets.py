@@ -8,7 +8,7 @@ from . import _utils as u, _constants as c, parameters as p, _parameter_configs 
 from .arguments.init_time_args import ParametersArgs
 from ._manifest import ManifestIO, ParametersConfig
 from ._connection_set import ConnectionSetIO
-from ._authenticator import User
+from .user_base import User
 from ._timer import timer, time
 
 

@@ -2,9 +2,9 @@ from __future__ import annotations
 from typing import Optional, Any
 import pytest
 
+from squirrels import AuthArgs
 from squirrels._authenticator import Authenticator, User, WrongPassword
 from squirrels._manifest import DatasetScope
-from squirrels import _constants as c
 
 
 class AuthHelper:
@@ -16,7 +16,7 @@ class AuthHelper:
         def __eq__(self, other) -> bool:
             return type(other) is self.__class__ and self.__dict__ == other.__dict__
     
-    def get_user_if_valid(self, username: str, password: str) -> Optional[User]:
+    def get_user_if_valid(self, sqrl: AuthArgs) -> Optional[User]:
         mock_db = {
             "johndoe": {
                 "username": "johndoe",
@@ -31,6 +31,8 @@ class AuthHelper:
                 "hashed_password": str(hash("secret"))
             }
         }
+
+        username, password = sqrl.username, sqrl.password
         if username in mock_db:
             user_dict = mock_db[username]
             if str(hash(password)) == user_dict["hashed_password"]:

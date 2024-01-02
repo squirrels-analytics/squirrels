@@ -38,7 +38,7 @@ class Parameter(metaclass=ABCMeta):
         """
         param_config_type = cls._ParameterConfigType()
         param_config = param_config_type(name, label, all_options, is_hidden=is_hidden, user_attribute=user_attribute, 
-                                         parent_name=parent_name, **kwargs)
+                                         parent_name=parent_name)
         ps.ParameterConfigsSetIO.obj.add(param_config)
 
     @classmethod
@@ -262,9 +262,9 @@ class MultiSelectParameter(_SelectionParameter):
     
     @classmethod
     def Create(
-        cls, name: str, label: str, all_options: Sequence[Union[po.SelectParameterOption, dict]], *, include_all: bool = True, 
-        order_matters: bool = False, is_hidden: bool = False, user_attribute: Optional[str] = None, parent_name: Optional[str] = None, 
-        **kwargs
+        cls, name: str, label: str, all_options: Sequence[Union[po.SelectParameterOption, dict]], *, show_select_all: bool = True, 
+        is_dropdown: bool = True, order_matters: bool = False, none_is_all: bool = True, is_hidden: bool = False, 
+        user_attribute: Optional[str] = None, parent_name: Optional[str] = None, **kwargs
     ) -> None:
         """
         Method for creating the configurations for a Parameter that may include user attribute or parent
@@ -273,19 +273,25 @@ class MultiSelectParameter(_SelectionParameter):
             name: The name of the parameter
             label: The display label for the parameter
             all_options: All options associated to this parameter regardless of the user group or parent parameter option they depend on
-            include_all: Whether having no options selected is equivalent to all selectable options selected
-            order_matters: Whether the order of the selections made matter
+            show_select_all: Communicate to front-end whether to include a "select all" option
+            is_dropdown: Communicate to front-end whether the widget should be a dropdown with checkboxes
+            order_matters: Communicate to front-end whether the order of the selections made matter
+            none_is_all: Whether having no options selected is equivalent to all selectable options selected
             is_hidden: Whether the parameter is hidden in the parameters API response. Default is False
             user_attribute: The user attribute that may cascade the options for this parameter. Default is None
             parent_name: Name of parent parameter that may cascade the options for this parameter. Default is None (no parent)
         """
-        super(cls, cls).Create(name, label, all_options, include_all=include_all, order_matters=order_matters, is_hidden=is_hidden, 
-                               user_attribute=user_attribute, parent_name=parent_name)
+        param_config = pc.MultiSelectParameterConfig(
+            name, label, all_options, 
+            show_select_all=show_select_all, is_dropdown=is_dropdown, order_matters=order_matters, none_is_all=none_is_all, 
+            is_hidden=is_hidden, user_attribute=user_attribute, parent_name=parent_name
+        )
+        ps.ParameterConfigsSetIO.obj.add(param_config)
 
     @classmethod
     def CreateSimple(
-        cls, name: str, label: str, all_options: Sequence[po.SelectParameterOption], *, include_all: bool = True, 
-        order_matters: bool = False, is_hidden: bool = False, **kwargs
+        cls, name: str, label: str, all_options: Sequence[po.SelectParameterOption], *, show_select_all: bool = True, 
+        is_dropdown: bool = True, order_matters: bool = False, none_is_all: bool = True, is_hidden: bool = False, **kwargs
     ) -> None:
         """
         Method for creating the configurations for a Parameter that doesn't involve user attributes or parent parameters
@@ -294,11 +300,17 @@ class MultiSelectParameter(_SelectionParameter):
             name: The name of the parameter
             label: The display label for the parameter
             all_options: All options associated to this parameter regardless of the user group or parent parameter option they depend on
-            include_all: Whether having no options selected is equivalent to all selectable options selected
-            order_matters: Whether the order of the selections made matter
+            show_select_all: Communicate to front-end whether to include a "select all" option
+            is_dropdown: Communicate to front-end whether the widget should be a dropdown with checkboxes
+            order_matters: Communicate to front-end whether the order of the selections made matter
+            none_is_all: Whether having no options selected is equivalent to all selectable options selected
             is_hidden: Whether the parameter is hidden in the parameters API response. Default is False
         """
-        cls.Create(name, label, all_options, include_all=include_all, order_matters=order_matters, is_hidden=is_hidden)
+        cls.Create(
+            name, label, all_options, 
+            show_select_all=show_select_all, s_dropdown=is_dropdown, order_matters=order_matters, none_is_all=none_is_all, 
+            is_hidden=is_hidden
+        )
 
     def has_non_empty_selection(self) -> bool:
         """
@@ -329,7 +341,7 @@ class MultiSelectParameter(_SelectionParameter):
         Returns:
             A sequence of SelectParameterOption class objects or sequence of type of custom field
         """
-        if not self.has_non_empty_selection() and self._config.include_all:
+        if not self.has_non_empty_selection() and self._config.none_is_all:
             selected_list = self._options
         else:
             selected_list = (x for x in self._options if x._identifier in self._selected_ids)

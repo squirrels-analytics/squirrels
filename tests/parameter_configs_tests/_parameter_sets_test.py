@@ -133,7 +133,8 @@ def test_parameter_set_to_json_dict(parameter_set1: ps.ParameterSet):
             {"id": "ms2", "label": "Multi Option 3"}
         ],
         "trigger_refresh": True,
-        "include_all": True,
+        "show_select_all": True,
+        "is_dropdown": True,
         "order_matters": False,
         "selected_ids": []
     }

@@ -4,10 +4,12 @@ from jose import JWTError, jwt
 import secrets
 
 from . import _utils as u, _constants as c
+from .arguments.run_time_args import AuthArgs
 from ._py_module import PyModule
 from .user_base import User, WrongPassword
 from ._environcfg import EnvironConfigIO
 from ._manifest import DatasetScope
+from ._connection_set import ConnectionSetIO
 
 
 class Authenticator:
@@ -26,12 +28,16 @@ class Authenticator:
     def _get_secret_key(self):
         secret_key = EnvironConfigIO.obj.get_secret(c.JWT_SECRET_KEY, default_factory=lambda: secrets.token_hex(32))
         return secret_key
+    
+    def _get_auth_args(self, username: str, password: str):
+        conn_args, connections = ConnectionSetIO.args, ConnectionSetIO.obj.get_engines_as_dict()
+        return AuthArgs(conn_args.proj_vars, conn_args.env_vars, conn_args._get_credential, connections, username, password)
 
     def authenticate_user(self, username: str, password: str) -> Optional[User]:
         user_cls = self.auth_helper.get_func_or_class("User", default_attr=User)
         get_user = self.auth_helper.get_func_or_class(c.GET_USER_FUNC, is_required=False)
         try:
-            real_user = get_user(username, password) if get_user is not None else None
+            real_user = get_user(self._get_auth_args(username, password)) if get_user is not None else None
         except Exception as e:
             raise u.FileExecutionError(f'Failed to run "{c.GET_USER_FUNC}" in {c.AUTH_FILE}', e)
         

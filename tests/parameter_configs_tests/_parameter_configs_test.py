@@ -52,7 +52,8 @@ class TestMultiSelectParameterConfig:
             "name": "multi_select_basic",
             "label": "Multi Select Basic",
             "trigger_refresh": False,
-            "include_all": True,
+            "show_select_all": True,
+            "is_dropdown": True,
             "order_matters": False
         }
         assert ms_config_basic.to_json_dict0() == expected

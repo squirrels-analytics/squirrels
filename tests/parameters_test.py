@@ -81,7 +81,7 @@ class TestMultiSelectParameter:
     @pytest.fixture(scope="class")
     def param3(self, config1: pc.MultiSelectParameterConfig) -> p.MultiSelectParameter:
         config = copy(config1)
-        config.include_all = False
+        config.none_is_all = False
         return p.MultiSelectParameter(config, config.all_options, [])
     
     def test_invalid_init(self, config1: pc.MultiSelectParameterConfig):
@@ -126,7 +126,8 @@ class TestMultiSelectParameter:
                 {"id": "ms2", "label": "Option 3"}
             ],
             "trigger_refresh": False,
-            "include_all": True,
+            "show_select_all": True,
+            "is_dropdown": True,
             "order_matters": False,
             "selected_ids": ['ms1', 'ms2']
         }

@@ -205,13 +205,16 @@ class MultiSelectDataSource(_SelectionDataSource):
         parent_id_col: The column name of the parent option id that must be selected for this option to be valid
         connection_name: Name of the connection to use defined in connections.py
     """
-    _include_all: bool # = field(default=True, kw_only=True)
+    _show_select_all: bool # = field(default=True, kw_only=True)
+    _is_dropdown: bool # = field(default=True, kw_only=True)
     _order_matters: bool # = field(default=False, kw_only=True)
+    _none_is_all: bool # = field(default=True, kw_only=True)
 
     def __init__(
             self, table_or_query: str, id_col: str, options_col: str, *, order_by_col: Optional[str] = None, 
-            is_default_col: Optional[str] = None, custom_cols: dict[str, str] = {}, include_all: bool = True, order_matters: bool = False, 
-            user_group_col: Optional[str] = None, parent_id_col: Optional[str] = None, connection_name: Optional[str] = None, **kwargs
+            is_default_col: Optional[str] = None, custom_cols: dict[str, str] = {}, show_select_all: bool = True, 
+            is_dropdown: bool = True, order_matters: bool = False, none_is_all: bool = True, user_group_col: Optional[str] = None,
+            parent_id_col: Optional[str] = None, connection_name: Optional[str] = None, **kwargs
         ) -> None:
         """
         Constructor for SingleSelectDataSource
@@ -222,8 +225,10 @@ class MultiSelectDataSource(_SelectionDataSource):
         super().__init__(table_or_query, id_col, options_col, order_by_col=order_by_col, is_default_col=is_default_col,
                          custom_cols=custom_cols, user_group_col=user_group_col, parent_id_col=parent_id_col, 
                          connection_name=connection_name)
-        self._include_all = include_all
+        self._show_select_all = show_select_all
+        self._is_dropdown = is_dropdown
         self._order_matters = order_matters
+        self._none_is_all = none_is_all
     
     def _convert(self, ds_param: pc.DataSourceParameterConfig, df: pd.DataFrame) -> pc.MultiSelectParameterConfig:
         """
@@ -238,9 +243,11 @@ class MultiSelectDataSource(_SelectionDataSource):
         """
         self._validate_parameter_type(ds_param, pc.MultiSelectParameterConfig)
         all_options = self._get_all_options(df)
-        return pc.MultiSelectParameterConfig(ds_param.name, ds_param.label, all_options, include_all=self._include_all, 
-                                             order_matters=self._order_matters, is_hidden=ds_param.is_hidden, 
-                                             user_attribute=ds_param.user_attribute, parent_name=ds_param.parent_name)
+        return pc.MultiSelectParameterConfig(
+            ds_param.name, ds_param.label, all_options, show_select_all=self._show_select_all, is_dropdown=self._is_dropdown,
+            order_matters=self._order_matters, none_is_all=self._none_is_all, is_hidden=ds_param.is_hidden, 
+            user_attribute=ds_param.user_attribute, parent_name=ds_param.parent_name
+        )
 
 
 @dataclass

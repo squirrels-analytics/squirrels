@@ -1,5 +1,6 @@
 import pytest
 
+from squirrels.arguments.init_time_args import ConnectionsArgs
 from squirrels._environcfg import EnvironConfigIO, _EnvironConfig
 from squirrels._connection_set import ConnectionSetIO, ConnectionSet
 from squirrels import _manifest as m
@@ -40,4 +41,5 @@ def my_initial_code():
         settings={}
     )
 
+    ConnectionSetIO.args = ConnectionsArgs({}, {}, None)
     ConnectionSetIO.obj = ConnectionSet({})

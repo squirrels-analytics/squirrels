@@ -3,10 +3,17 @@ from dataclasses import dataclass
 from sqlalchemy import Engine
 import pandas as pd, sqlite3
 
-from .init_time_args import ParametersArgs
+from .init_time_args import ConnectionsArgs, ParametersArgs
 from ..user_base import User
 from ..parameters import Parameter
 from .._connection_set import ConnectionSetIO
+
+
+@dataclass
+class AuthArgs(ConnectionsArgs):
+    connections: dict[str, Engine]
+    username: str
+    password: str
 
 
 @dataclass
