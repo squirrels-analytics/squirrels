@@ -150,7 +150,7 @@ class DatasetsConfig(ManifestComponentConfig):
     model: str
     scope: DatasetScope
     parameters: Optional[list[str]]
-    args: dict
+    traits: dict
 
     @classmethod
     def from_dict(cls, kwargs: dict):
@@ -166,8 +166,8 @@ class DatasetsConfig(ManifestComponentConfig):
             raise u.ConfigurationError(f'Scope not found for dataset "{name}". Scope must be one of {scope_list}') from e
         
         parameters = kwargs.get(c.DATASET_PARAMETERS_KEY)
-        args = kwargs.get(c.DATASET_ARGS_KEY, {})
-        return cls(name, label, model, scope, parameters, args)
+        traits = kwargs.get(c.DATASET_TRAITS_KEY, {})
+        return cls(name, label, model, scope, parameters, traits)
 
 
 @dataclass

@@ -146,7 +146,7 @@ class Model:
         configuration = SqlModelConfig(connection_name, materialized)
         kwargs = {
             "proj_vars": ctx_args.proj_vars, "env_vars": ctx_args.env_vars,
-            "user": ctx_args.user, "prms": ctx_args.prms, "args": ctx_args.args,
+            "user": ctx_args.user, "prms": ctx_args.prms, "traits": ctx_args.traits,
             "ctx": ctx, "config": configuration.set_attribute
         }
         dependencies = set()
@@ -166,7 +166,7 @@ class Model:
     
     async def _compile_python_model(self, ctx: dict[str, Any], ctx_args: ContextArgs) -> tuple[PyModelQuery, set]:
         assert(isinstance(self.query_file.raw_query, RawPyQuery))
-        sqrl_args = ModelDepsArgs(ctx_args.proj_vars, ctx_args.env_vars, ctx_args.user, ctx_args.prms, ctx_args.args, ctx)
+        sqrl_args = ModelDepsArgs(ctx_args.proj_vars, ctx_args.env_vars, ctx_args.user, ctx_args.prms, ctx_args.traits, ctx)
         try:
             dependencies = await asyncio.to_thread(self.query_file.raw_query.dependencies_func, sqrl_args)
         except Exception as e:
@@ -175,7 +175,7 @@ class Model:
         dbview_conn_name = self._get_dbview_conn_name()
         connections = ConnectionSetIO.obj.get_engines_as_dict()
         ref = lambda x: self.upstreams[x].result
-        sqrl_args = ModelArgs(ctx_args.proj_vars, ctx_args.env_vars, ctx_args.user, ctx_args.prms, ctx_args.args, 
+        sqrl_args = ModelArgs(ctx_args.proj_vars, ctx_args.env_vars, ctx_args.user, ctx_args.prms, ctx_args.traits, 
                               ctx, dbview_conn_name, connections, ref, set(dependencies))
             
         def compiled_query():
@@ -320,7 +320,7 @@ class DAG:
         context = {}
         param_args = ParameterConfigsSetIO.args
         prms = self.parameter_set.get_parameters_as_dict()
-        args = ContextArgs(param_args.proj_vars, param_args.env_vars, user, prms, self.dataset.args)
+        args = ContextArgs(param_args.proj_vars, param_args.env_vars, user, prms, self.dataset.traits)
         try:
             context_func(ctx=context, sqrl=args)
         except Exception as e:

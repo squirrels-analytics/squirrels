@@ -167,7 +167,7 @@ def dataset_config1() -> m.DatasetsConfig:
 def dataset_config2() -> m.DatasetsConfig:
     data = {
         "name": "my_dataset", "label": "My Dataset", "model": "my_model", "scope": "protected", 
-        "parameters": [], "args": {"key": "value"}
+        "parameters": [], "traits": {"key": "value"}
     }
     return m.DatasetsConfig.from_dict(data)
 
@@ -214,7 +214,7 @@ def test_dataset_parameters(fixture: str, expected: Optional[list], request: pyt
 ])
 def test_dataset_args(fixture: str, expected: dict, request: pytest.FixtureRequest):
     dataset: m.DatasetsConfig = request.getfixturevalue(fixture)
-    assert dataset.args == expected
+    assert dataset.traits == expected
 
 
 ## Full manifest config

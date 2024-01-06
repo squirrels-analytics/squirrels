@@ -1,5 +1,5 @@
 from typing import Iterable, Optional, Mapping, Callable, Coroutine, TypeVar, Any
-from fastapi import Depends, FastAPI, Request, HTTPException, status
+from fastapi import Depends, FastAPI, Request, HTTPException, Response, status
 from fastapi.responses import HTMLResponse, JSONResponse
 from fastapi.templating import Jinja2Templates
 from fastapi.staticfiles import StaticFiles
@@ -45,7 +45,31 @@ class ApiServer:
         start = time.time()
         app = FastAPI()
 
-        app.add_middleware(CORSMiddleware, allow_origins=["*"], allow_credentials=True, allow_methods=["*"], allow_headers=["*"])
+        @app.middleware("http")
+        async def catch_exceptions_middleware(request: Request, call_next):
+            try:
+                return await call_next(request)
+            except u.InvalidInputError as exc:
+                traceback.print_exc()
+                return JSONResponse(status_code=status.HTTP_400_BAD_REQUEST, 
+                                    content={"message": f"Invalid user input: {str(exc)}"})
+            except u.ConfigurationError as exc:
+                traceback.print_exc()
+                return JSONResponse(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, 
+                                    content={"message": f"Squirrels configuration error: {str(exc)}"})
+            except NotImplementedError as exc:
+                traceback.print_exc()
+                return JSONResponse(status_code=status.HTTP_501_NOT_IMPLEMENTED, 
+                                    content={"message": f"Not implemented error: {str(exc)}"})
+            except Exception as exc:
+                traceback.print_exc()
+                return JSONResponse(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, 
+                                    content={"message": f"Server error: {str(exc)}"})
+
+        app.add_middleware(
+            CORSMiddleware, allow_origins=["*"], allow_credentials=True, allow_methods=["*"], allow_headers=["*"], 
+            expose_headers=["Applied-Username"]
+        )
 
         squirrels_version_path = f'/squirrels-v{sq_major_version}'
         partial_base_path = f'/{ManifestIO.obj.project_variables.get_name()}/v{ManifestIO.obj.project_variables.get_major_version()}'
@@ -56,25 +80,6 @@ class ApiServer:
 
         templates_dir = u.join_paths(os.path.dirname(__file__), c.PACKAGE_DATA_FOLDER, c.TEMPLATES_FOLDER)
         templates = Jinja2Templates(directory=templates_dir)
-
-        # Exception handlers
-        @app.exception_handler(u.InvalidInputError)
-        async def invalid_input_error_handler(request: Request, exc: u.InvalidInputError):
-            traceback.print_exc()
-            return JSONResponse(status_code=status.HTTP_400_BAD_REQUEST, 
-                                content={"message": f"Invalid user input: {str(exc)}"})
-
-        @app.exception_handler(u.ConfigurationError)
-        async def configuration_error_handler(request: Request, exc: u.InvalidInputError):
-            traceback.print_exc()
-            return JSONResponse(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, 
-                                content={"message": f"Squirrels configuration error: {str(exc)}"})
-        
-        @app.exception_handler(NotImplementedError)
-        async def not_implemented_error_handler(request: Request, exc: u.InvalidInputError):
-            traceback.print_exc()
-            return JSONResponse(status_code=status.HTTP_501_NOT_IMPLEMENTED, 
-                                content={"message": f"Not implemented error: {str(exc)}"})
         
         # Helpers
         T = TypeVar('T')
@@ -134,6 +139,14 @@ class ApiServer:
             
             return await api_function(user, dataset_normalized, selections, request_version)
 
+        async def do_cachable_action(cache: TTLCache, action: Callable[..., Coroutine[Any, Any, T]], *args) -> T:
+            cache_key = tuple(args)
+            result = cache.get(cache_key)
+            if result is None:
+                result = await action(*args)
+                cache[cache_key] = result
+            return result
+        
         # Login
         token_path = base_path + '/token'
 
@@ -154,17 +167,11 @@ class ApiServer:
                 "expiry_time": expiry
             }
         
-        async def get_current_user(token: str = Depends(oauth2_scheme)) -> Optional[User]:
+        async def get_current_user(response: Response, token: str = Depends(oauth2_scheme)) -> Optional[User]:
             user = self.authenticator.get_user_from_token(token)
+            username = "" if user is None else user.username
+            response.headers["Applied-Username"] = username
             return user
-
-        async def do_cachable_action(cache: TTLCache, action: Callable[..., Coroutine[Any, Any, T]], *args) -> T:
-            cache_key = tuple(args)
-            result = cache.get(cache_key)
-            if result is None:
-                result = await action(*args)
-                cache[cache_key] = result
-            return result
 
         # Parameters API
         parameters_path = base_path + '/{dataset}/parameters'

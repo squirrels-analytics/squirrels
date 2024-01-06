@@ -33,7 +33,7 @@ def main():
 
     compile_parser = subparsers.add_parser(c.COMPILE_CMD, help='Create files for rendered sql queries in the "target/compile" folder', add_help=False)
     compile_parser.add_argument('-h', '--help', action="help", help="Show this help message and exit")
-    compile_parser.add_argument('-d', '--dataset', type=str, help="Select dataset to use for dataset args. If not specified, all models for all datasets are compiled")
+    compile_parser.add_argument('-d', '--dataset', type=str, help="Select dataset to use for dataset traits. If not specified, all models for all datasets are compiled")
     compile_parser.add_argument('-a', '--all-test-sets', action="store_true", help="Compile models for all selection test sets")
     compile_parser.add_argument('-t', '--test-set', type=str, help="The selection test set to use. Default selections are used if not specified. Ignored if using --all-test-sets")
     compile_parser.add_argument('-s', '--select', type=str, help="Select single model to compile. If not specified, all models for the dataset are compiled. Also, ignored if --dataset is not specified")

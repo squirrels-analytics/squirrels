@@ -48,7 +48,7 @@ DATASET_NAME_KEY = 'name'
 DATASET_LABEL_KEY = 'label'
 DATASET_MODEL_KEY = 'model'
 DATASET_PARAMETERS_KEY = 'parameters'
-DATASET_ARGS_KEY = 'args'
+DATASET_TRAITS_KEY = 'traits'
 
 DATASET_SCOPE_KEY = 'scope'
 PUBLIC_SCOPE = 'public'
