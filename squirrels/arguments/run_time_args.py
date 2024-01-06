@@ -20,7 +20,7 @@ class AuthArgs(ConnectionsArgs):
 class ContextArgs(ParametersArgs):
     user: User
     prms: dict[str, Parameter]
-    args: dict[str, Any]
+    traits: dict[str, Any]
 
 
 @dataclass

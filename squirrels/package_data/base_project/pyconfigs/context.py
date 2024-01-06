@@ -8,7 +8,7 @@ def main(ctx: dict[str, Any], sqrl: sr.ContextArgs) -> None:
     These context variables can then be used in the models.
 
     Note that the code here is used by all datasets, regardless of the parameters they use. You can use 
-    sqrl.prms and sqrl.args to determine the conditions to execute certain blocks of code.
+    sqrl.prms and/or sqrl.traits to determine the conditions to execute certain blocks of code.
     """
 
     if "group_by" in sqrl.prms:
