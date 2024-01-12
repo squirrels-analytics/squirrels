@@ -13,7 +13,7 @@ def main(ctx: dict[str, Any], sqrl: sr.ContextArgs) -> None:
 
     if "group_by" in sqrl.prms:
         group_by_param: sr.SingleSelectParameter = sqrl.prms["group_by"]
-        ctx["group_by_cols_list"]: list[str] = group_by_param.get_selected("columns")
+        ctx["group_by_cols_list"] = group_by_param.get_selected("columns")
         ctx["group_by_cols"] = ",".join(ctx["group_by_cols_list"])
         ctx["order_by_cols"] = ",".join((x+" DESC") for x in ctx["group_by_cols_list"])
 
@@ -24,6 +24,11 @@ def main(ctx: dict[str, Any], sqrl: sr.ContextArgs) -> None:
     if "end_date" in sqrl.prms:
         end_date_param: sr.DateParameter = sqrl.prms["end_date"]
         ctx["end_date"] = end_date_param.get_selected_date_quoted()
+
+    if "date_range" in sqrl.prms:
+        date_range_param: sr.DateRangeParameter = sqrl.prms["date_range"]
+        ctx["start_date"] = date_range_param.get_selected_start_date_quoted()
+        ctx["end_date"] = date_range_param.get_selected_end_date_quoted()
     
     if "category" in sqrl.prms:
         category_param: sr.MultiSelectParameter = sqrl.prms["category"]
@@ -42,4 +47,9 @@ def main(ctx: dict[str, Any], sqrl: sr.ContextArgs) -> None:
     if "max_filter" in sqrl.prms:
         max_amount_filter: sr.NumberParameter = sqrl.prms["max_filter"]
         ctx["max_amount"] = max_amount_filter.get_selected_value()
+
+    if "between_filter" in sqrl.prms:
+        between_filter: sr.NumberRangeParameter = sqrl.prms["between_filter"]
+        ctx["min_amount"] = between_filter.get_selected_lower_value()
+        ctx["max_amount"] = between_filter.get_selected_upper_value()
     

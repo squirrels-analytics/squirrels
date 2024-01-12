@@ -8,31 +8,18 @@ from squirrels import _connection_set as cs, _utils as u
 
 @pytest.fixture(scope="module")
 def connection_set() -> cs.ConnectionSet:
-    connection_creator = partial(sqlite3.connect, ":memory:", check_same_thread=False)
-    
-    pool1 = StaticPool(connection_creator)
-    conn1 = pool1.connect()
+    pool1 = create_engine("sqlite://")
+    conn1 = pool1.raw_connection()
     try:
         cur1 = conn1.cursor()
-        cur1.execute("CREATE TABLE test (id INTEGER PRIMARY KEY, name TEXT)")
-        cur1.execute("INSERT INTO test (name) VALUES ('test1'), ('test2'), ('test3')")
+        cur1.execute("CREATE TABLE test (id INTEGER PRIMARY KEY, name TEXT, number NUMERIC)")
+        cur1.execute("INSERT INTO test (name, number) VALUES ('test1', 10), ('test1', 20), ('test2', 30)")
         conn1.commit()
     finally:
         conn1.close()
     
-    pool2 = create_engine("sqlite://")
-    conn2 = pool2.raw_connection()
-    try:
-        cur2 = conn2.cursor()
-        cur2.execute("CREATE TABLE test (id INTEGER PRIMARY KEY, name TEXT, number NUMERIC)")
-        cur2.execute("INSERT INTO test (name, number) VALUES ('test1', 10), ('test1', 20), ('test2', 30)")
-        conn2.commit()
-    finally:
-        conn2.close()
-    
     connection_set = cs.ConnectionSet({
-        "default": pool1, 
-        "db2": pool2
+        "db2": pool1
     })
 
     yield connection_set

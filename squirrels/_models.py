@@ -445,7 +445,7 @@ class ModelsIO:
         def write_model_outputs(model: Model) -> None:
             subfolder = c.DBVIEWS_FOLDER if model.query_file.model_type == ModelType.DBVIEW else c.FEDERATES_FOLDER
             subpath = u.join_paths(output_folder, subfolder)
-            os.makedirs(subpath)
+            os.makedirs(subpath, exist_ok=True)
             if isinstance(model.compiled_query, SqlModelQuery):
                 output_filepath = u.join_paths(subpath, model.name+'.sql')
                 query = model.compiled_query.query

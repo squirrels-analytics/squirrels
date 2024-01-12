@@ -40,7 +40,6 @@ class Initializer:
         options = ["core", "connections", "parameters", "dbview", "federate", "auth", "sample_db"]
         CORE, CONNECTIONS, PARAMETERS, DBVIEW, FEDERATE, AUTH, SAMPLE_DB = options
         TMP_FOLDER = "tmp"
-        IGNORES_FOLDER = "ignores"
 
         answers = { x: getattr(args, x) for x in options }
         if not any(answers.values()):
@@ -136,7 +135,7 @@ class Initializer:
 
             create_manifest_file()
             
-            self._copy_file(".gitignore", src_folder=IGNORES_FOLDER)
+            self._copy_file(".gitignore")
             self._copy_file(c.MANIFEST_FILE, src_folder=TMP_FOLDER)
             
             if connections_use_py:

@@ -43,6 +43,17 @@ datasets:
       - min_filter
       - max_filter
     traits: {} ## optional
+  
+  - name: private_dataset_example
+    label: Dataset Example 2
+    model: dataset_example
+    scope: private
+    parameters:
+      - group_by
+      - date_range
+      - category
+      - subcategory
+      - between_filter
 
 
 settings: {}

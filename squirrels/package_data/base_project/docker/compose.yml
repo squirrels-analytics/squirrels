@@ -1,0 +1,7 @@
+services:
+  squirrels:
+    build: .
+    ports:
+      - "4465:4465"
+    volumes:
+      - ./environcfg.yml:/app/environcfg.yml
