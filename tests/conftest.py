@@ -30,7 +30,7 @@ def my_initial_code():
     EnvironConfigIO.obj = _EnvironConfig(users, {}, credentials, {})
 
     m.ManifestIO.obj = m._ManifestConfig(
-        project_variables=m.ProjectVarsConfig({"name":"", "major_version": 0, "minor_version": 0}),
+        project_variables=m.ProjectVarsConfig({"name":"", "major_version": 0}),
         packages=[],
         connections={},
         parameters={},

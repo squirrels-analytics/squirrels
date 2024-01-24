@@ -74,12 +74,6 @@ class ApiServer:
         squirrels_version_path = f'/squirrels-v{sq_major_version}'
         partial_base_path = f'/{ManifestIO.obj.project_variables.get_name()}/v{ManifestIO.obj.project_variables.get_major_version()}'
         base_path = squirrels_version_path + u.normalize_name_for_api(partial_base_path)
-
-        static_dir = u.join_paths(os.path.dirname(__file__), c.PACKAGE_DATA_FOLDER, c.ASSETS_FOLDER)
-        app.mount('/'+c.ASSETS_FOLDER, StaticFiles(directory=static_dir), name=c.ASSETS_FOLDER)
-
-        templates_dir = u.join_paths(os.path.dirname(__file__), c.PACKAGE_DATA_FOLDER, c.TEMPLATES_FOLDER)
-        templates = Jinja2Templates(directory=templates_dir)
         
         # Helpers
         T = TypeVar('T')
@@ -174,7 +168,7 @@ class ApiServer:
             return user
 
         # Parameters API
-        parameters_path = base_path + '/{dataset}/parameters'
+        parameters_path = base_path + '/dataset/{dataset}/parameters'
         
         parameters_cache_size = ManifestIO.obj.settings.get(c.PARAMETERS_CACHE_SIZE_SETTING, 1024)
         parameters_cache_ttl = ManifestIO.obj.settings.get(c.PARAMETERS_CACHE_TTL_SETTING, 0)
@@ -216,7 +210,7 @@ class ApiServer:
             return result
 
         # Results API
-        results_path = base_path + '/{dataset}'
+        results_path = base_path + '/dataset/{dataset}'
 
         results_cache_size = ManifestIO.obj.settings.get(c.RESULTS_CACHE_SIZE_SETTING, 128)
         results_cache_ttl = ManifestIO.obj.settings.get(c.RESULTS_CACHE_TTL_SETTING, 0)
@@ -255,8 +249,10 @@ class ApiServer:
             timer.add_activity_time("POST REQUEST total time for DATASET", start)
             return result
         
-        # Catalog API
-        def get_catalog0(user: Optional[User]):
+        # Datasets Catalog API
+        datasets_path = base_path + '/datasets'
+
+        def get_datasets0(user: Optional[User]):
             datasets_info = []
             for dataset_name, dataset_config in self.dataset_configs.items():
                 if can_user_access_dataset(user, dataset_name):
@@ -265,30 +261,44 @@ class ApiServer:
                         'name': dataset_name,
                         'label': dataset_config.label,
                         'parameters_path': parameters_path.format(dataset=dataset_normalized),
-                        'result_path': results_path.format(dataset=dataset_normalized),
-                        'first_minor_version': 0
+                        'result_path': results_path.format(dataset=dataset_normalized)
                     })
-            
+            return {"datasets": datasets_info}
+        
+        @app.get(datasets_path)
+        def get_datasets(request: Request, user: Optional[User] = Depends(get_current_user)):
+            return process_based_on_response_version_header(request.headers, {
+                0: lambda: get_datasets0(user)
+            })
+        
+        # Projects Catalog API
+        def get_catalog0():
             return {
                 'projects': [{
                     'name': ManifestIO.obj.project_variables.get_name(),
                     'label': ManifestIO.obj.project_variables.get_label(),
                     'versions': [{
                         'major_version': ManifestIO.obj.project_variables.get_major_version(),
-                        'latest_minor_version': ManifestIO.obj.project_variables.get_minor_version(),
+                        'minor_versions': [0],
                         'token_path': token_path,
-                        'datasets': datasets_info
+                        'datasets_path': datasets_path
                     }]
                 }]
             }
         
         @app.get(squirrels_version_path, response_class=JSONResponse)
-        async def get_catalog(request: Request, user: Optional[User] = Depends(get_current_user)):
+        async def get_catalog(request: Request):
             return process_based_on_response_version_header(request.headers, {
-                0: lambda: get_catalog0(user)
+                0: lambda: get_catalog0()
             })
         
         # Squirrels UI
+        static_dir = u.join_paths(os.path.dirname(__file__), c.PACKAGE_DATA_FOLDER, c.ASSETS_FOLDER)
+        app.mount('/'+c.ASSETS_FOLDER, StaticFiles(directory=static_dir), name=c.ASSETS_FOLDER)
+
+        templates_dir = u.join_paths(os.path.dirname(__file__), c.PACKAGE_DATA_FOLDER, c.TEMPLATES_FOLDER)
+        templates = Jinja2Templates(directory=templates_dir)
+
         @app.get('/', response_class=HTMLResponse)
         async def get_ui(request: Request):
             return templates.TemplateResponse('index.html', {

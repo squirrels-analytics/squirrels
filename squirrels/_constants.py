@@ -9,7 +9,6 @@ PROJ_VARS_KEY = 'project_variables'
 PROJECT_NAME_KEY = 'name'
 PROJECT_LABEL_KEY = 'label'
 MAJOR_VERSION_KEY = 'major_version'
-MINOR_VERSION_KEY = 'minor_version'
 
 PACKAGES_KEY = 'packages'
 PACKAGE_GIT_KEY = 'git'
