@@ -26,10 +26,10 @@ class ProjectVarsConfig(ManifestComponentConfig):
     data: dict
 
     def __post_init__(self):
-        required_keys = [c.PROJECT_NAME_KEY, c.MAJOR_VERSION_KEY, c.MINOR_VERSION_KEY]
+        required_keys = [c.PROJECT_NAME_KEY, c.MAJOR_VERSION_KEY]
         self._validate_required(self.data, required_keys, c.PROJ_VARS_KEY)
         
-        integer_keys = [c.MAJOR_VERSION_KEY, c.MINOR_VERSION_KEY]
+        integer_keys = [c.MAJOR_VERSION_KEY]
         for key in integer_keys:
             if key in self.data and not isinstance(self.data[key], int):
                 raise u.ConfigurationError(f'Project variable "{key}" must be an integer')
@@ -46,9 +46,6 @@ class ProjectVarsConfig(ManifestComponentConfig):
     
     def get_major_version(self) -> int:
         return self.data[c.MAJOR_VERSION_KEY]
-    
-    def get_minor_version(self) -> int:
-        return self.data[c.MINOR_VERSION_KEY]
 
 
 @dataclass

@@ -7,11 +7,9 @@ from squirrels import _manifest as m, _utils as u
 ## Project variables config
 
 @pytest.mark.parametrize("data", [
-    {"major_version": 1, "minor_version": 3},
-    {"name": "my_name", "major_version": "1", "minor_version": 3},
-    {"name": "my_name", "minor_version": 3},
-    {"name": "my_name", "major_version": 1, "minor_version": "3"},
-    {"name": "my_name", "major_version": 1}
+    {"major_version": 1},
+    {"name": "my_name", "major_version": "1"},
+    {"name": "my_name"}
 ])
 def test_invalid_proj_vars(data: dict):
     with pytest.raises(u.ConfigurationError):
@@ -20,13 +18,13 @@ def test_invalid_proj_vars(data: dict):
 
 @pytest.fixture(scope="module")
 def proj_vars1() -> m.ProjectVarsConfig:
-    data = {"name": "my_name", "major_version": 1, "minor_version": 3}
+    data = {"name": "my_name", "major_version": 1}
     return m.ProjectVarsConfig(data)
 
 
 @pytest.fixture(scope="module")
 def proj_vars2() -> m.ProjectVarsConfig:
-    data = {"name": "my_name", "label": "my_label", "major_version": 1, "minor_version": 3}
+    data = {"name": "my_name", "label": "my_label", "major_version": 1}
     return m.ProjectVarsConfig(data)
 
 
@@ -229,14 +227,14 @@ def test_invalid_manifest_config(data: dict):
 
 @pytest.fixture(scope="module")
 def manifest_config1() -> m._ManifestConfig:
-    data = {"project_variables": {"name": "", "major_version": 0, "minor_version": 1}}
+    data = {"project_variables": {"name": "", "major_version": 0}}
     return m._ManifestConfig.from_dict(data)
 
 
 @pytest.fixture(scope="module")
 def manifest_config2() -> m._ManifestConfig:
     data = {
-        "project_variables": {"name": "", "major_version": 0, "minor_version": 1}, 
+        "project_variables": {"name": "", "major_version": 0}, 
         "packages": [{"git": "path/test.git", "revision": "0.1.0"}],
         "connections": [],
         "parameters": [],
