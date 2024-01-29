@@ -81,14 +81,13 @@ class DbConnConfig(ManifestComponentConfig):
 
 @dataclass
 class ParametersConfig(ManifestComponentConfig):
-    name: str
     type: str
     factory: str
     arguments: dict
 
     @classmethod
     def from_dict(cls, kwargs: dict):
-        all_keys = [c.PARAMETER_NAME_KEY, c.PARAMETER_TYPE_KEY, c.PARAMETER_FACTORY_KEY, c.PARAMETER_ARGS_KEY]
+        all_keys = [c.PARAMETER_TYPE_KEY, c.PARAMETER_FACTORY_KEY, c.PARAMETER_ARGS_KEY]
         cls._validate_required(kwargs, all_keys, c.PARAMETERS_KEY)
         args = {key: kwargs[key] for key in all_keys}
         return cls(**args)
@@ -172,7 +171,7 @@ class _ManifestConfig:
     project_variables: ProjectVarsConfig
     packages: list[PackageConfig]
     connections: dict[str, DbConnConfig]
-    parameters: dict[str, ParametersConfig]
+    parameters: list[ParametersConfig]
     selection_test_sets: dict[str, TestSetsConfig]
     dbviews: dict[str, DbviewConfig]
     federates: dict[str, FederateConfig]
@@ -206,7 +205,7 @@ class _ManifestConfig:
             all_package_dirs.add(package.directory)
 
         db_conns = cls._create_configs_as_dict(DbConnConfig, kwargs, c.DB_CONNECTIONS_KEY, c.DB_CONN_NAME_KEY)
-        params = cls._create_configs_as_dict(ParametersConfig, kwargs, c.PARAMETERS_KEY, c.PARAMETER_NAME_KEY)
+        params = [ParametersConfig.from_dict(x) for x in kwargs.get(c.PARAMETERS_KEY, [])]
 
         test_sets = cls._create_configs_as_dict(TestSetsConfig, kwargs, c.TEST_SETS_KEY, c.TEST_SET_NAME_KEY)
         default_test_set: str = settings.get(c.TEST_SET_DEFAULT_USED_SETTING, c.DEFAULT_TEST_SET_NAME)

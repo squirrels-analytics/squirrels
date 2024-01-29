@@ -33,7 +33,7 @@ def my_initial_code():
         project_variables=m.ProjectVarsConfig({"name":"", "major_version": 0}),
         packages=[],
         connections={},
-        parameters={},
+        parameters=[],
         selection_test_sets={},
         dbviews={},
         federates={},

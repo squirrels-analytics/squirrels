@@ -164,7 +164,6 @@ class ParameterConfigsSetIO:
     
     @classmethod
     def _AddFromDict(cls, param_config: ParametersConfig) -> None:
-        param_config.arguments["name"] = param_config.name
         ptype = getattr(p, param_config.type)
         factory = getattr(ptype, param_config.factory)
         factory(**param_config.arguments)
@@ -174,8 +173,7 @@ class ParameterConfigsSetIO:
         start = time.time()
         cls.obj = _ParameterConfigsSet()
 
-        parameters_from_manifest = ManifestIO.obj.parameters.values()
-        for param_as_dict in parameters_from_manifest:
+        for param_as_dict in ManifestIO.obj.parameters:
             cls._AddFromDict(param_as_dict)
         
         conn_args = ConnectionSetIO.args
