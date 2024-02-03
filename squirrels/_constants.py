@@ -68,7 +68,7 @@ USERNAME_KEY = 'username'
 PASSWORD_KEY = 'password'
 
 SECRETS_KEY = 'secrets'
-JWT_SECRET_KEY = 'jwt_secret'
+JWT_SIGNATURE_KEY = 'jwt_signature'
 
 # Folder/File names
 PACKAGE_DATA_FOLDER = 'package_data'
@@ -108,14 +108,17 @@ PARAMETERS_OUTPUT = 'parameters.json'
 FINAL_VIEW_OUT_STEM = 'final_view'
 
 # Dataset setting names
-AUTH_TOKEN_EXPIRE_SETTING = 'auth.token.expire.minutes'
+AUTH_TOKEN_EXPIRE_SETTING = 'auth.token.expire_minutes'
 PARAMETERS_CACHE_SIZE_SETTING = 'parameters.cache.size'
-PARAMETERS_CACHE_TTL_SETTING = 'parameters.cache.ttl.minutes'
+PARAMETERS_CACHE_TTL_SETTING = 'parameters.cache.ttl_minutes'
 RESULTS_CACHE_SIZE_SETTING = 'results.cache.size'
-RESULTS_CACHE_TTL_SETTING = 'results.cache.ttl.minutes'
+RESULTS_CACHE_TTL_SETTING = 'results.cache.ttl_minutes'
 TEST_SET_DEFAULT_USED_SETTING = 'selection_test_sets.default_name_used'
 DB_CONN_DEFAULT_USED_SETTING = 'connections.default_name_used'
 DEFAULT_MATERIALIZE_SETTING = 'defaults.federates.materialized'
+IN_MEMORY_DB_SETTING = 'in_memory_database'
+SQLITE = 'sqlite'
+DUCKDB = 'duckdb'
 
 # Selection cfg sections
 USER_ATTRIBUTES_SECTION = 'user_attributes'

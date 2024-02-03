@@ -1,6 +1,5 @@
-from sqlalchemy import StaticPool, create_engine
-from functools import partial
-import sqlite3, pandas as pd
+from sqlalchemy import create_engine
+import pandas as pd
 import pytest
 
 from squirrels import _connection_set as cs, _utils as u

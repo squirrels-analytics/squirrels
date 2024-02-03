@@ -3,6 +3,8 @@ from pathlib import Path
 from pandas.api import types as pd_types
 import json, jinja2 as j2, pandas as pd
 
+from . import _constants as c
+
 FilePath = Union[str, Path]
 
 
@@ -179,3 +181,8 @@ def process_if_not_none(input_val: Optional[X], processor: Callable[[X], Y]) -> 
     if input_val is None:
         return None
     return processor(input_val)
+
+
+def use_duckdb():
+    from ._manifest import ManifestIO
+    return (ManifestIO.obj.settings.get(c.IN_MEMORY_DB_SETTING, c.SQLITE) == c.DUCKDB)

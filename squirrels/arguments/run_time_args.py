@@ -1,12 +1,13 @@
 from typing import Callable, Any
 from dataclasses import dataclass
 from sqlalchemy import Engine
-import pandas as pd, sqlite3
+import pandas as pd, sqlite3, duckdb
 
 from .init_time_args import ConnectionsArgs, ParametersArgs
 from ..user_base import User
 from ..parameters import Parameter
 from .._connection_set import ConnectionSetIO
+from .. import _utils as u
 
 
 @dataclass
@@ -80,10 +81,19 @@ class ModelArgs(ModelDepsArgs):
         if dataframes is None:
             dataframes = {x: self.ref(x) for x in self.dependencies}
 
-        conn = sqlite3.connect(":memory:")
+        use_duckdb = u.use_duckdb()
+        if use_duckdb:
+            conn = duckdb.connect()
+        else:
+            conn = sqlite3.connect(":memory:")
+        
         try:
             for name, df in dataframes.items():
-                df.to_sql(name, conn, index=False)
-            return pd.read_sql(query, conn)
+                if use_duckdb:
+                    conn.execute(f"CREATE TABLE {name} AS FROM df")
+                else:
+                    df.to_sql(name, conn, index=False)
+            
+            return conn.execute(query).df() if use_duckdb else pd.read_sql(query, conn)
         finally:
             conn.close()
