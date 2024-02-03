@@ -26,7 +26,7 @@ class Authenticator:
         self.algorithm = "HS256"
 
     def _get_secret_key(self):
-        secret_key = EnvironConfigIO.obj.get_secret(c.JWT_SIGNATURE_KEY, default_factory=lambda: secrets.token_hex(32))
+        secret_key = EnvironConfigIO.obj.get_secret(c.JWT_SECRET_KEY, default_factory=lambda: secrets.token_hex(32))
         return secret_key
     
     def _get_auth_args(self, username: str, password: str):

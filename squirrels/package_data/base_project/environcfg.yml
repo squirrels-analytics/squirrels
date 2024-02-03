@@ -26,4 +26,4 @@ credentials:
 
 ## Predefined secrets used by the squirrels framework
 secrets:
-  jwt_signature: ## generate a random 32 byte hex string here for jwt signatures. For instance, you can run "openssl rand -hex 32" in bash
+  jwt_secret: ## generate a random 32 byte hex string here for the jwt secret/private key. For instance, you can run "openssl rand -hex 32" in bash

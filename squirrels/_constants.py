@@ -68,7 +68,7 @@ USERNAME_KEY = 'username'
 PASSWORD_KEY = 'password'
 
 SECRETS_KEY = 'secrets'
-JWT_SIGNATURE_KEY = 'jwt_signature'
+JWT_SECRET_KEY = 'jwt_secret'
 
 # Folder/File names
 PACKAGE_DATA_FOLDER = 'package_data'
