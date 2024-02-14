@@ -14,7 +14,7 @@ class User:
     username: str
     is_internal: bool
 
-    def __init__(self, username: str, *, is_internal: bool = False, **kwargs):
+    def __init__(self, username: str, is_internal: bool):
         """
         Constructor for the User base class
 
@@ -33,14 +33,17 @@ class User:
         """
         pass
     
-    def with_attributes(self, user_dict: dict[str, Any]):
-        self.set_attributes(user_dict)
-        return self
+    @classmethod
+    def Create(cls, username: str, user_dict: dict[str, Any], *, is_internal: bool = False, **kwargs):
+        user = cls(username, is_internal)
+        user.set_attributes(user_dict)
+        return user
     
     @classmethod
-    def _FromDict(cls, user_dict: dict[str, Any]):
-        user = cls(username="TBA")
-        for key, val in user_dict.items():
+    def _FromDict(cls, user_obj_as_dict: dict[str, Any]):
+        username, is_internal = user_obj_as_dict["username"], user_obj_as_dict["is_internal"]
+        user = cls(username=username, is_internal=is_internal)
+        for key, val in user_obj_as_dict.items():
             setattr(user, key, val)
         return user
 
@@ -51,8 +54,4 @@ class WrongPassword:
     Return this object if the username was found but the password was incorrect
 
     This ensures that if the username exists as a real user, we won't continue to use the environcfg.yml file to authenticate
-
-    Attributes:
-        username: The identifier for the user
     """
-    username: str

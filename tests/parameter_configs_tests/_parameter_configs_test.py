@@ -4,12 +4,12 @@ from decimal import Decimal
 import pytest
 
 from squirrels import _parameter_configs as pc, parameters as p, parameter_options as po, _utils as u
-from squirrels.user_base import User
+from tests.parameter_configs_tests._user_class import User
 
 
 @pytest.fixture(scope="module")
 def user() -> User:
-    return User._FromDict({"username": "user1", "organization": "org1"})
+    return User.Create("user1", {"organization": "org1"})
 
 
 class TestMultiSelectParameterConfig:

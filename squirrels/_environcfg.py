@@ -43,7 +43,7 @@ class _EnvironConfig:
         return credential[c.USERNAME_KEY], credential[c.PASSWORD_KEY]
     
     def get_secret(self, key: str, *, default_factory: Optional[Callable[[],str]] = None) -> str:
-        if key not in self._secrets and default_factory is not None:
+        if not self._secrets.get(key) and default_factory is not None:
             self._secrets[key] = default_factory()
         return self._secrets.get(key)
 

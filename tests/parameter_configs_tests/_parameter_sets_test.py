@@ -2,12 +2,12 @@ from collections import OrderedDict
 import pytest, pandas as pd
 
 from squirrels import _parameter_sets as ps, parameters as p, _parameter_configs as pc, parameter_options as po, data_sources as d, _utils as u
-from squirrels.user_base import User
+from tests.parameter_configs_tests._user_class import User
 
 
 @pytest.fixture(scope="module")
 def user() -> User:
-    return User._FromDict({"username": "user1", "organization": "org3"})
+    return User.Create("user1", {"organization": "org3"})
 
 
 def add_param(data: dict[str, p.Parameter], param: p.Parameter):

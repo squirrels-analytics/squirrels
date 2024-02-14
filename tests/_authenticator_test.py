@@ -1,22 +1,20 @@
-from __future__ import annotations
-from typing import Optional, Any
+from typing import Optional, Union, Any
 import pytest
 
 from squirrels import AuthArgs
-from squirrels._authenticator import Authenticator, User, WrongPassword
+from squirrels._authenticator import Authenticator, User as UserBase, WrongPassword
 from squirrels._manifest import DatasetScope
 
 
-class AuthHelper:
-    class User(User):
-        def with_attributes(self, user_dict: dict[str, Any]) -> AuthHelper.User:
+class AuthHelper:    
+    class User(UserBase):
+        def set_attributes(self, user_dict: dict[str, Any]) -> None:
             self.email = user_dict["email"]
-            return self
         
         def __eq__(self, other) -> bool:
             return type(other) is self.__class__ and self.__dict__ == other.__dict__
     
-    def get_user_if_valid(self, sqrl: AuthArgs) -> Optional[User]:
+    def get_user_if_valid(self, sqrl: AuthArgs) -> Union[User, WrongPassword, None]:
         mock_db = {
             "johndoe": {
                 "username": "johndoe",
@@ -37,9 +35,9 @@ class AuthHelper:
             user_dict = mock_db[username]
             if str(hash(password)) == user_dict["hashed_password"]:
                 is_admin = user_dict["is_admin"]
-                return self.User(username, is_internal=is_admin).with_attributes(user_dict)
+                return self.User.Create(username, user_dict, is_internal=is_admin)
             else:
-                return WrongPassword(username)
+                return WrongPassword()
 
 
 @pytest.fixture(scope="module")
@@ -49,20 +47,20 @@ def auth() -> Authenticator:
 
 @pytest.fixture(scope="module")
 def john_doe_user() -> AuthHelper.User:
-    custom_user_attributes = {"email": "john.doe@email.com"}
-    return AuthHelper.User("johndoe", is_internal=True).with_attributes(custom_user_attributes)
+    user_dict = {"email": "john.doe@email.com"}
+    return AuthHelper.User.Create("johndoe", user_dict, is_internal=True)
 
 
 @pytest.fixture(scope="module")
 def matt_doe_user() -> AuthHelper.User:
-    custom_user_attributes = {"email": "matt.doe@email.com"}
-    return AuthHelper.User("mattdoe", is_internal=False).with_attributes(custom_user_attributes)
+    user_dict = {"email": "matt.doe@email.com"}
+    return AuthHelper.User.Create("mattdoe", user_dict, is_internal=False)
 
 
 @pytest.fixture(scope="module")
 def lisa_doe_user() -> AuthHelper.User:
-    custom_user_attributes = {"email": "lisadoe@org2.com"}
-    return AuthHelper.User("lisadoe", is_internal=True).with_attributes(custom_user_attributes)
+    user_dict = {"email": "lisadoe@org2.com"}
+    return AuthHelper.User.Create("lisadoe", user_dict, is_internal=True)
 
 
 @pytest.mark.parametrize('username,password,expected', [

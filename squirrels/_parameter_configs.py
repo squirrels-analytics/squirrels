@@ -1,5 +1,5 @@
 from __future__ import annotations
-from typing import Type, Optional, Union, Sequence, Iterator
+from typing import Type, Optional, Union, Sequence, Iterator, Any
 from dataclasses import dataclass, field
 from abc import ABCMeta, abstractmethod
 from copy import copy
@@ -32,10 +32,10 @@ class ParameterConfigBase(metaclass=ABCMeta):
         self.user_attribute = user_attribute
         self.parent_name = parent_name
 
-    def _get_user_group(self, user: Optional[User]) -> Optional[str]:
+    def _get_user_group(self, user: Optional[User]) -> Any:
         if self.user_attribute is not None:
             if user is None:
-                raise u.ConfigurationError(f"Public datasets with non-authenticated users cannot use parameter named " +
+                raise u.ConfigurationError(f"Public datasets (which allows non-authenticated users) cannot use parameter " +
                                            f"'{self.name}' because 'user_attribute' is defined on this parameter.")
             return getattr(user, self.user_attribute)
         
@@ -130,7 +130,7 @@ class SelectionParameterConfig(ParameterConfig):
     def _get_default_ids_iterator(self, options: Sequence[po.SelectParameterOption]) -> Iterator[str]:
         return (x._identifier for x in options if x._is_default)
     
-    def copy(self) -> MultiSelectParameterConfig:
+    def copy(self) -> SelectionParameterConfig:
         """
         Use for unit testing only
         """

@@ -14,12 +14,12 @@ class ParameterOption(metaclass=ABCMeta):
     """
     Abstract class for parameter options
     """
-    _user_groups: Set[str] # = field(default_factory=frozenset, kw_only=True)
+    _user_groups: Set[Any] # = field(default_factory=frozenset, kw_only=True)
     _parent_option_ids: Set[str] # = field(default_factory=frozenset, kw_only=True)
 
     @abstractmethod
     def __init__(
-        self, *, user_groups: Union[Iterable[str], str] = frozenset(), parent_option_ids: Union[Iterable[str], str] = frozenset(), **kwargs
+        self, *, user_groups: Union[Iterable[Any], str] = frozenset(), parent_option_ids: Union[Iterable[str], str] = frozenset(), **kwargs
     ) -> None:
         self._user_groups = frozenset({user_groups} if isinstance(user_groups, str) else user_groups)
         self._parent_option_ids = frozenset({parent_option_ids} if isinstance(parent_option_ids, str) else parent_option_ids)
@@ -29,13 +29,13 @@ class ParameterOption(metaclass=ABCMeta):
         if lower_value > upper_value:
             raise ConfigurationError(f'The {lower_label} "{lower_value}" must be less than or equal to the {upper_label} "{upper_value}"')
 
-    def _is_valid(self, user_group: Optional[str], selected_parent_option_ids: Optional[Iterable[str]]) -> bool:
+    def _is_valid(self, user_group: Any, selected_parent_option_ids: Optional[Iterable[str]]) -> bool:
         """
         Checks if this option is valid given the selected parent options and user group of user if applicable.
         
         Parameters:
-            user_group: The value of the user's "user group attribute". Only None when "user_group_attr" is not specified
-                for the Parameter object. Note that when user is None but "user_group_attr" is specified, an error is thrown
+            user_group: The value of the user's "user group attribute". Only None when "user_attribute" is not specified
+                for the Parameter factory. Note that when user is None but "user_attribute" is specified, an error is thrown
             selected_parent_option_ids: List of selected option ids from the parent parameter. Only None when the Parameter
                 object has no parent parameter.
         
@@ -64,8 +64,8 @@ class SelectParameterOption(ParameterOption):
         identifier: Unique identifier for this option that never changes over time
         label: Human readable label that gets shown as a dropdown option
         is_default: True if this is a default option, False otherwise
-        user_groups: The user groups this parameter option would show for if "user_group_attr" is specified in the Parameter object
-        parent_option_ids: Set of parent option ids this parameter option would show for if "parent" is specified in the Parameter object
+        user_groups: The user groups this parameter option would show for if "user_attribute" is specified in the Parameter factory
+        parent_option_ids: Set of parent option ids this parameter option would show for if "parent" is specified in the Parameter factory
         custom_fields: Dictionary to associate custom attributes to the parameter option
     """
     _identifier: str
@@ -74,7 +74,7 @@ class SelectParameterOption(ParameterOption):
     custom_fields: dict[str, Any] # = field(default_factory=False, kw_only=True)
 
     def __init__(
-        self, id: str, label: str, *, is_default: bool = False, user_groups: Union[Iterable[str], str] = frozenset(), 
+        self, id: str, label: str, *, is_default: bool = False, user_groups: Union[Iterable[Any], str] = frozenset(), 
         parent_option_ids: Union[Iterable[str], str] = frozenset(), custom_fields: dict[str, Any] = {}, **kwargs
     ) -> None:
         """
@@ -131,7 +131,7 @@ class _DateTypeParameterOption(ParameterOption):
 
     @abstractmethod
     def __init__(
-        self, *, date_format: str = '%Y-%m-%d', user_groups: Union[Iterable[str], str] = frozenset(), 
+        self, *, date_format: str = '%Y-%m-%d', user_groups: Union[Iterable[Any], str] = frozenset(), 
         parent_option_ids: Union[Iterable[str], str] = frozenset(), **kwargs
     ) -> None:
         super().__init__(user_groups=user_groups, parent_option_ids=parent_option_ids)
@@ -155,13 +155,13 @@ class DateParameterOption(_DateTypeParameterOption):
     Attributes:
         default_date: Default date for this option
         date_format: Format of the default date, default is '%Y-%m-%d'
-        user_groups: The user groups this parameter option would show for if "user_group_attr" is specified in the Parameter object
-        parent_option_ids: Set of parent option ids this parameter option would show for if "parent" is specified in the Parameter object
+        user_groups: The user groups this parameter option would show for if "user_attribute" is specified in the Parameter factory
+        parent_option_ids: Set of parent option ids this parameter option would show for if "parent" is specified in the Parameter factory
     """
     _default_date: date
 
     def __init__(
-        self, default_date: Union[str, date], *, date_format: str = '%Y-%m-%d', user_groups: Union[Iterable[str], str] = frozenset(), 
+        self, default_date: Union[str, date], *, date_format: str = '%Y-%m-%d', user_groups: Union[Iterable[Any], str] = frozenset(), 
         parent_option_ids: Union[Iterable[str], str] = frozenset(), **kwargs
     ) -> None:
         """
@@ -183,15 +183,15 @@ class DateRangeParameterOption(_DateTypeParameterOption):
         default_start_date: Default start date for this option
         default_end_date: Default end date for this option
         date_format: Format of the default date, default is '%Y-%m-%d'
-        user_groups: The user groups this parameter option would show for if "user_group_attr" is specified in the Parameter object
-        parent_option_ids: Set of parent option ids this parameter option would show for if "parent" is specified in the Parameter object
+        user_groups: The user groups this parameter option would show for if "user_attribute" is specified in the Parameter factory
+        parent_option_ids: Set of parent option ids this parameter option would show for if "parent" is specified in the Parameter factory
     """
     _default_start_date: date
     _default_end_date: date
 
     def __init__(
         self, default_start_date: Union[str, date], default_end_date: Union[str, date], *, date_format: str = '%Y-%m-%d', 
-        user_groups: Union[Iterable[str], str] = frozenset(), parent_option_ids: Union[Iterable[str], str] = frozenset(), **kwargs
+        user_groups: Union[Iterable[Any], str] = frozenset(), parent_option_ids: Union[Iterable[str], str] = frozenset(), **kwargs
     ) -> None:
         """
         Constructor for DateRangeParameterOption
@@ -216,7 +216,7 @@ class _NumericParameterOption(ParameterOption):
 
     @abstractmethod
     def __init__(
-        self, min_value: Number, max_value: Number, *, increment: Number = 1, user_groups: Union[Iterable[str], str] = frozenset(), 
+        self, min_value: Number, max_value: Number, *, increment: Number = 1, user_groups: Union[Iterable[Any], str] = frozenset(), 
         parent_option_ids: Union[Iterable[str], str] = frozenset(), **kwargs
     ) -> None:
         super().__init__(user_groups=user_groups, parent_option_ids=parent_option_ids)
@@ -272,14 +272,14 @@ class NumberParameterOption(_NumericParameterOption):
         max_value: Maximum selectable value
         increment: Increment of selectable values, and must fit evenly between min_value and max_value
         default_value: Default value for this option, and must be selectable based on min_value, max_value, and increment
-        user_groups: The user groups this parameter option would show for if "user_group_attr" is specified in the Parameter object
-        parent_option_ids: Set of parent option ids this parameter option would show for if "parent" is specified in the Parameter object
+        user_groups: The user groups this parameter option would show for if "user_attribute" is specified in the Parameter factory
+        parent_option_ids: Set of parent option ids this parameter option would show for if "parent" is specified in the Parameter factory
     """
     _default_value: Decimal # = field(default=None, kw_only=True)
 
     def __init__(
         self, min_value: Number, max_value: Number, *, increment: Number = 1, default_value: Optional[Number] = None,
-        user_groups: Union[Iterable[str], str] = frozenset(), parent_option_ids: Union[Iterable[str], str] = frozenset(), **kwargs
+        user_groups: Union[Iterable[Any], str] = frozenset(), parent_option_ids: Union[Iterable[str], str] = frozenset(), **kwargs
     ) -> None:
         """
         Constructor for NumberParameterOption
@@ -305,15 +305,15 @@ class NumberRangeParameterOption(_NumericParameterOption):
         default_lower_value: Default lower value for this option, and must be selectable based on min_value, max_value, and increment
         default_upper_value: Default upper value for this option, and must be selectable based on min_value, max_value, and increment. 
                 Must also be greater than default_lower_value
-        user_groups: The user groups this parameter option would show for if "user_group_attr" is specified in the Parameter object
-        parent_option_ids: Set of parent option ids this parameter option would show for if "parent" is specified in the Parameter object
+        user_groups: The user groups this parameter option would show for if "user_attribute" is specified in the Parameter factory
+        parent_option_ids: Set of parent option ids this parameter option would show for if "parent" is specified in the Parameter factory
     """
     _default_lower_value: Decimal # = field(default=None, kw_only=True)
     _default_upper_value: Decimal # = field(default=None, kw_only=True)
 
     def __init__(
         self, min_value: Number, max_value: Number, *, increment: Number = 1, default_lower_value: Optional[Number] = None, 
-        default_upper_value: Optional[Number] = None, user_groups: Union[Iterable[str], str] = frozenset(), 
+        default_upper_value: Optional[Number] = None, user_groups: Union[Iterable[Any], str] = frozenset(), 
         parent_option_ids: Union[Iterable[str], str] = frozenset(), **kwargs
     ) -> None:
         """

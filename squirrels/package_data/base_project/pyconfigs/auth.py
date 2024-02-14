@@ -1,4 +1,3 @@
-from __future__ import annotations
 from typing import Union, Any
 from squirrels import User as UserBase, AuthArgs, WrongPassword
 
@@ -17,8 +16,8 @@ def get_user_if_valid(sqrl: AuthArgs) -> Union[User, WrongPassword, None]:
 
     Return:
         - User instance - if username and password are correct
-        - WrongPassword(username) - if username exists but password is incorrect
-        - None - if the username doesn't exist (and username search will continue among any "fake users" configured in environcfg.yml)
+        - WrongPassword() - if username exists but password is incorrect
+        - None - if the username doesn't exist (and search for username will continue for "fake users" configured in environcfg.yml)
     """
     mock_users_db = {
         "johndoe": {
@@ -35,14 +34,11 @@ def get_user_if_valid(sqrl: AuthArgs) -> Union[User, WrongPassword, None]:
         }
     }
 
-    username, password = sqrl.username, sqrl.password
-    if username in mock_users_db:
-        user_dict = mock_users_db[username]
-        hashed_pwd = user_dict["hashed_password"]
-        if str(hash(password)) == hashed_pwd:
-            is_admin = user_dict["is_admin"]
-            user = User(username, is_internal=is_admin)
-            return user.with_attributes(user_dict)
-        else:
-            return WrongPassword(username)
-    return None
+    user_dict = mock_users_db.get(sqrl.username)
+    if user_dict is None:
+        return None
+    
+    if str(hash(sqrl.password)) == user_dict["hashed_password"]:
+        return User.Create(sqrl.username, user_dict, is_internal=user_dict["is_admin"])
+    else:
+        return WrongPassword()
