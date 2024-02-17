@@ -34,7 +34,7 @@ class Authenticator:
         return AuthArgs(conn_args.proj_vars, conn_args.env_vars, conn_args._get_credential, connections, username, password)
 
     def authenticate_user(self, username: str, password: str) -> Optional[User]:
-        user_cls = self.auth_helper.get_func_or_class("User", default_attr=User)
+        user_cls: type[User] = self.auth_helper.get_func_or_class("User", default_attr=User)
         get_user = self.auth_helper.get_func_or_class(c.GET_USER_FUNC, is_required=False)
         try:
             real_user = get_user(self._get_auth_args(username, password)) if get_user is not None else None

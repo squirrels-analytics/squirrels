@@ -7,7 +7,7 @@ import sqlite3, duckdb, pandas as pd, asyncio, os, shutil
 
 from . import _constants as c, _utils as u, _py_module as pm
 from .arguments.run_time_args import ContextArgs, ModelDepsArgs, ModelArgs
-from .user_base import User
+from ._authenticator import User, Authenticator
 from ._connection_set import ConnectionSetIO
 from ._manifest import ManifestIO, DatasetsConfig
 from ._parameter_sets import ParameterConfigsSetIO, ParameterSet
@@ -449,10 +449,13 @@ class ModelsIO:
     @classmethod
     async def WriteDatasetOutputsGivenTestSet(cls, dataset: str, select: str, test_set: str, runquery: bool, recurse: bool) -> Any:
         test_set_conf = ManifestIO.obj.selection_test_sets[test_set]
-        user = User("")
-        for key, val in test_set_conf.user_attributes.items():
-            setattr(user, key, val)
+        user_attributes = test_set_conf.user_attributes
         selections = test_set_conf.parameters
+        
+        username, is_internal = user_attributes.get("username", ""), user_attributes.get("is_internal", False)
+        user_cls: type[User] = Authenticator.get_auth_helper().get_func_or_class("User", default_attr=User)
+        user = user_cls.Create(username, test_set_conf.user_attributes, is_internal=is_internal)
+        
         dag = cls.GenerateDAG(dataset, target_model_name=select, always_pandas=True)
         await dag.execute(cls.context_func, user, selections, runquery=runquery, recurse=recurse)
         
