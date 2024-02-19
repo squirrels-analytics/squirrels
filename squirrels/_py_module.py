@@ -1,6 +1,6 @@
 from typing import Type, Optional, Any
 from types import ModuleType
-from importlib.machinery import SourceFileLoader
+import importlib.util
 
 from . import _constants as c, _utils as u
 
@@ -16,7 +16,9 @@ class PyModule:
         """
         self.filepath = str(filepath)
         try:
-            self.module: Optional[ModuleType] = SourceFileLoader(self.filepath, self.filepath).load_module()
+            spec = importlib.util.spec_from_file_location(self.filepath, self.filepath)
+            self.module = importlib.util.module_from_spec(spec)
+            spec.loader.exec_module(self.module)
         except FileNotFoundError as e:
             if is_required:
                 raise u.ConfigurationError(f"Required file not found: '{self.filepath}'") from e
