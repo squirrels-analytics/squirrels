@@ -1,4 +1,4 @@
-from typing import Iterable, Optional, Mapping, Callable, Coroutine, TypeVar, Any
+from typing import List, Iterable, Optional, Mapping, Callable, Coroutine, TypeVar, Any
 from fastapi import Depends, FastAPI, Request, HTTPException, Response, status
 from fastapi.responses import HTMLResponse, JSONResponse
 from fastapi.templating import Jinja2Templates
@@ -126,7 +126,7 @@ class ApiServer:
             # Changing selections into a cachable "frozenset" that will later be converted to dictionary
             selections = set()
             for key, val in params.items():
-                if not isinstance(val, str):
+                if isinstance(val, List):
                     val = tuple(val)
                 selections.add((u.normalize_name(key), val))
             selections = frozenset(selections)

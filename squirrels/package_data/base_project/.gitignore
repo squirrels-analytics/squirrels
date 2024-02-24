@@ -1,4 +1,8 @@
 __pycache__
+
+# common virtual environment names
+.env/
+.venv/
 venv/
 
 # squirrels files to ignore

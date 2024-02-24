@@ -3,7 +3,7 @@ from typing import Union, Optional, Callable, Iterable, Any
 from dataclasses import dataclass, field
 from enum import Enum
 from pathlib import Path
-import sqlite3, duckdb, pandas as pd, asyncio, os, shutil
+import sqlite3, pandas as pd, asyncio, os, shutil
 
 from . import _constants as c, _utils as u, _py_module as pm
 from .arguments.run_time_args import ContextArgs, ModelDepsArgs, ModelArgs
@@ -12,8 +12,6 @@ from ._connection_set import ConnectionSetIO
 from ._manifest import ManifestIO, DatasetsConfig
 from ._parameter_sets import ParameterConfigsSetIO, ParameterSet
 from ._timer import timer, time
-
-DBConnection = Union[sqlite3.Connection, duckdb.DuckDBPyConnection]
 
 class ModelType(Enum):
     DBVIEW = 1
@@ -237,20 +235,20 @@ class Model:
         self.confirmed_no_cycles = True
         return terminal_nodes
         
-    def _load_pandas_to_table(self, df: pd.DataFrame, conn: DBConnection) -> None:
+    def _load_pandas_to_table(self, df: pd.DataFrame, conn: sqlite3.Connection) -> None:
         if u.use_duckdb():
             conn.execute(f"CREATE TABLE {self.name} AS FROM df")
         else:
             df.to_sql(self.name, conn, index=False)
             
-    def _load_table_to_pandas(self, conn: DBConnection) -> pd.DataFrame:
+    def _load_table_to_pandas(self, conn: sqlite3.Connection) -> pd.DataFrame:
         if u.use_duckdb():
             return conn.execute(f"FROM {self.name}").df()
         else:
             query = f"SELECT * FROM {self.name}"
             return pd.read_sql(query, conn)
 
-    async def _run_sql_model(self, conn: DBConnection) -> None:
+    async def _run_sql_model(self, conn: sqlite3.Connection) -> None:
         assert(isinstance(self.compiled_query, SqlModelQuery))
         config = self.compiled_query.config
         query = self.compiled_query.query
@@ -278,7 +276,7 @@ class Model:
             if self.needs_pandas or self.is_target:
                 self.result = await asyncio.to_thread(self._load_table_to_pandas, conn)
     
-    async def _run_python_model(self, conn: DBConnection) -> None:
+    async def _run_python_model(self, conn: sqlite3.Connection) -> None:
         assert(isinstance(self.compiled_query, PyModelQuery))
 
         df = await asyncio.to_thread(self.compiled_query.query)
@@ -287,7 +285,7 @@ class Model:
         if self.needs_pandas or self.is_target:
             self.result = df
     
-    async def run_model(self, conn: DBConnection) -> None:
+    async def run_model(self, conn: sqlite3.Connection) -> None:
         start = time.time()
         if self.query_file.query_type == QueryType.SQL:
             await self._run_sql_model(conn)
@@ -300,7 +298,7 @@ class Model:
             coroutines.append(model.trigger(conn))
         await asyncio.gather(*coroutines)
     
-    async def trigger(self, conn: DBConnection) -> None:
+    async def trigger(self, conn: sqlite3.Connection) -> None:
         self.wait_count -= 1
         if (self.wait_count == 0):
             await self.run_model(conn)
@@ -353,6 +351,7 @@ class DAG:
 
     async def _run_models(self, terminal_nodes: set[str]) -> None:
         if u.use_duckdb():
+            import duckdb
             conn = duckdb.connect()
         else:
             conn = sqlite3.connect(":memory:", check_same_thread=False)

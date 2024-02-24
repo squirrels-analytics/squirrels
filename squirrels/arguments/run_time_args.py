@@ -1,7 +1,7 @@
 from typing import Callable, Any
 from dataclasses import dataclass
 from sqlalchemy import Engine
-import pandas as pd, sqlite3, duckdb
+import pandas as pd, sqlite3
 
 from .init_time_args import ConnectionsArgs, ParametersArgs
 from ..user_base import User
@@ -83,6 +83,7 @@ class ModelArgs(ModelDepsArgs):
 
         use_duckdb = u.use_duckdb()
         if use_duckdb:
+            import duckdb
             conn = duckdb.connect()
         else:
             conn = sqlite3.connect(":memory:")

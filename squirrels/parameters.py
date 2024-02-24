@@ -74,13 +74,13 @@ class Parameter(metaclass=ABCMeta):
         try:
             return datetime.strptime(input_date.strip(), "%Y-%m-%d").date() if isinstance(input_date, str) else input_date
         except ValueError as e:
-            self._config._raise_invalid_input_error(input_date, 'Invalid selection for date.', e)
+            self._config._raise_invalid_input_error(input_date, str(e), e)
     
     def _validate_number(self, input_number: po.Number, curr_option: po._NumericParameterOption) -> Decimal:
         try:
             return curr_option._validate_value(input_number)
         except u.ConfigurationError as e:
-            self._config._raise_invalid_input_error(input_number, 'Invalid selection for number.', e)
+            self._config._raise_invalid_input_error(input_number, str(e), e)
     
     @abstractmethod
     def to_json_dict0(self) -> dict:
@@ -104,7 +104,7 @@ class _SelectionParameter(Parameter):
 
     def _validate_selected_id_in_options(self, selected_id):
         if selected_id not in (x._identifier for x in self._options):
-            self._config._raise_invalid_input_error(selected_id)
+            self._config._raise_invalid_input_error(selected_id, f"The selected id {selected_id} does not exist in available options.")
     
     @abstractmethod
     def to_json_dict0(self):

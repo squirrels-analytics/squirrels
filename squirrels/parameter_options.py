@@ -248,10 +248,10 @@ class _NumericParameterOption(ParameterOption):
         
         if not self.__value_in_range(value):
             raise ConfigurationError(f'The selected value "{value}" is outside of bounds ' +
-                '"{min_value}" and "{self.max_value}"')
+                f'"{self._min_value}" and "{self._max_value}".')
         if not self.__value_on_increment(value):
             raise ConfigurationError(f'The difference between selected value "{value}" and lower value ' +
-                '"{min_value}" must be a multiple of increment "{self.increment}"')
+                f'"{self._min_value}" must be a multiple of increment "{self._increment}".')
         return value
     
     def _to_json_dict(self):
