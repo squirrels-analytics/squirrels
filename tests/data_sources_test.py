@@ -4,38 +4,38 @@ import pytest, pandas as pd
 from squirrels import data_sources as d, _parameter_configs as pc, parameter_options as po, _utils as u
 
 
-class TestSingleSelectDataSource:
-    def create_data_source(self, *, parent_id_col: Optional[str] = None, user_group_col: Optional[str] = None) -> d.SingleSelectDataSource:
-        return d.SingleSelectDataSource('table', 'test_id', 'test_options', custom_cols={"test_field": "test_col"},
+class TestSelectDataSource:
+    def create_data_source(self, *, parent_id_col: Optional[str] = None, user_group_col: Optional[str] = None) -> d.SelectDataSource:
+        return d.SelectDataSource('table', 'test_id', 'test_options', custom_cols={"test_field": "test_col"},
                                         is_default_col='test_is_default', parent_id_col=parent_id_col, user_group_col=user_group_col)
     
     @pytest.fixture(scope="class")
-    def data_source(self) -> d.SingleSelectDataSource:
+    def data_source(self) -> d.SelectDataSource:
         return self.create_data_source()
     
     @pytest.fixture(scope="class")
-    def data_source_with_parent(self) -> d.SingleSelectDataSource:
+    def data_source_with_parent(self) -> d.SelectDataSource:
         return self.create_data_source(parent_id_col='test_parent_id')
     
     @pytest.fixture(scope="class")
-    def data_source_with_user(self) -> d.SingleSelectDataSource:
+    def data_source_with_user(self) -> d.SelectDataSource:
         return self.create_data_source(user_group_col='test_user_group')
 
     def test_get_query(self):
-        data_source1 = d.SingleSelectDataSource('table_name', 'my_ids', 'my_options')
+        data_source1 = d.SelectDataSource('table_name', 'my_ids', 'my_options')
         assert data_source1._get_query() == 'SELECT * FROM table_name'
 
-        data_source2 = d.SingleSelectDataSource('select', 'my_ids', 'my_options')
+        data_source2 = d.SelectDataSource('select', 'my_ids', 'my_options')
         assert data_source2._get_query() == 'SELECT * FROM select'
         
-        data_source3 = d.SingleSelectDataSource('SELECT * FROM table_name', 'my_ids', 'my_options')
+        data_source3 = d.SelectDataSource('SELECT * FROM table_name', 'my_ids', 'my_options')
         assert data_source3._get_query() == 'SELECT * FROM table_name'
 
-        data_source4 = d.SingleSelectDataSource('select * from table_name', 'my_ids', 'my_options')
+        data_source4 = d.SelectDataSource('select * from table_name', 'my_ids', 'my_options')
         assert data_source4._get_query() == 'select * from table_name'
 
-    def test_convert(self, data_source: d.SingleSelectDataSource, data_source_with_parent: d.SingleSelectDataSource,
-                     data_source_with_user: d.SingleSelectDataSource):
+    def test_convert(self, data_source: d.SelectDataSource, data_source_with_parent: d.SelectDataSource,
+                     data_source_with_user: d.SelectDataSource):
         df = pd.DataFrame({
             'test_id': ['0', '1', '2'],
             'test_options': ['zero', 'one', 'two'],
@@ -43,14 +43,16 @@ class TestSingleSelectDataSource:
             'test_is_default': [0, 1, 1]
         })
 
-        ds_param = pc.DataSourceParameterConfig(pc.SingleSelectParameterConfig, 'test_param', 'Test Parameter', data_source)
-        param: pc.SingleSelectParameterConfig = ds_param.convert(df)
+        ds_param = pc.DataSourceParameterConfig(
+            pc.MultiSelectParameterConfig, 'test_param', 'Test Parameter', data_source, extra_args={"show_select_all": False}
+        )
+        param: pc.MultiSelectParameterConfig = ds_param.convert(df)
         param_options = (
             po.SelectParameterOption('0', 'zero', test_field='zerox'),
             po.SelectParameterOption('1', 'one', test_field='wonder', is_default=True),
             po.SelectParameterOption('2', 'two', test_field='tutor', is_default=True)
         )
-        expected = pc.SingleSelectParameterConfig('test_param', 'Test Parameter', param_options)
+        expected = pc.MultiSelectParameterConfig('test_param', 'Test Parameter', param_options, show_select_all=False)
         assert param == expected
 
         ds_param = pc.DataSourceParameterConfig(pc.SingleSelectParameterConfig, 'test_param', 'Test Parameter', data_source_with_parent,
@@ -77,7 +79,7 @@ class TestSingleSelectDataSource:
         expected = pc.SingleSelectParameterConfig('test_param', 'Test Parameter', param_options, user_attribute='organization')
         assert param == expected
     
-    def test_invalid_column_names(self, data_source: d.SingleSelectDataSource):
+    def test_invalid_column_names(self, data_source: d.SelectDataSource):
         ds_param = pc.DataSourceParameterConfig(pc.SingleSelectParameterConfig, 'test_param', 'Test Parameter', data_source)
         df = pd.DataFrame({
             'invalid_name': ['0', '1', '2'],

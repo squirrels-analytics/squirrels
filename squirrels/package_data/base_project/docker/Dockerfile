@@ -3,7 +3,7 @@ FROM python:3.11-slim
 WORKDIR /app
 
 # Needed if any python dependencies are installed from git, or for 
-# "squirrels deps" if there are modules in "squirrels.yml"
+# "squirrels deps" command if there are packages defined in "squirrels.yml"
 RUN apt-get update && apt-get install -y git
 
 COPY requirements-lock.txt .

@@ -52,7 +52,7 @@ class Parameter(metaclass=ABCMeta):
         user_attribute: Optional[str] = None, parent_name: Optional[str] = None, **kwargs
     ) -> None:
         """
-        Method for creating the configurations for any Parameter that uses a DataSource to received the options
+        Method for creating the configurations for any Parameter that uses a DataSource to receive the options
 
         Parameters:
             name: The name of the parameter
@@ -267,7 +267,7 @@ class MultiSelectParameter(_SelectionParameter):
         user_attribute: Optional[str] = None, parent_name: Optional[str] = None, **kwargs
     ) -> None:
         """
-        Method for creating the configurations for a Parameter that may include user attribute or parent
+        Method for creating the configurations for a MultiSelectParameter that may include user attribute or parent
 
         Parameters:
             name: The name of the parameter
@@ -294,7 +294,7 @@ class MultiSelectParameter(_SelectionParameter):
         is_dropdown: bool = True, order_matters: bool = False, none_is_all: bool = True, is_hidden: bool = False, **kwargs
     ) -> None:
         """
-        Method for creating the configurations for a Parameter that doesn't involve user attributes or parent parameters
+        Method for creating the configurations for a MultiSelectParameter that doesn't involve user attributes or parent parameters
 
         Parameters:
             name: The name of the parameter
@@ -311,6 +311,37 @@ class MultiSelectParameter(_SelectionParameter):
             show_select_all=show_select_all, s_dropdown=is_dropdown, order_matters=order_matters, none_is_all=none_is_all, 
             is_hidden=is_hidden
         )
+    
+    @classmethod
+    def CreateFromSource(
+        cls, name: str, label: str, data_source: Union[d.SelectDataSource, dict], *, show_select_all: bool = True, 
+        is_dropdown: bool = True, order_matters: bool = False, none_is_all: bool = True, is_hidden: bool = False, 
+        user_attribute: Optional[str] = None, parent_name: Optional[str] = None, **kwargs
+    ) -> None:
+        """
+        Method for creating the configurations for a MultiSelectParameter that uses a SelectDataSource to receive the options
+
+        Parameters:
+            name: The name of the parameter
+            label: The display label for the parameter
+            data_source: The lookup table to use for this parameter
+            show_select_all: Communicate to front-end whether to include a "select all" option
+            is_dropdown: Communicate to front-end whether the widget should be a dropdown with checkboxes
+            order_matters: Communicate to front-end whether the order of the selections made matter
+            none_is_all: Whether having no options selected is equivalent to all selectable options selected
+            is_hidden: Whether the parameter is hidden in the parameters API response. Default is False
+            user_attribute: The user attribute that may cascade the options for this parameter. Default is None
+            parent_name: Name of parent parameter that may cascade the options for this parameter. Default is None (no parent)
+        """
+        extra_args = {
+            "show_select_all": show_select_all, "is_dropdown": is_dropdown, 
+            "order_matters": order_matters, "none_is_all": none_is_all
+        }
+        param_config = pc.DataSourceParameterConfig(
+            pc.MultiSelectParameterConfig, name, label, data_source, extra_args=extra_args, is_hidden=is_hidden, 
+            user_attribute=user_attribute, parent_name=parent_name
+        )
+        ps.ParameterConfigsSetIO.obj.add(param_config)
 
     def has_non_empty_selection(self) -> bool:
         """
