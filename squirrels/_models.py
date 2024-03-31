@@ -3,7 +3,8 @@ from typing import Union, Optional, Callable, Iterable, Any
 from dataclasses import dataclass, field
 from enum import Enum
 from pathlib import Path
-import sqlite3, pandas as pd, asyncio, os, shutil
+import sqlite3, asyncio, os, shutil, pandas as pd
+import matplotlib.pyplot as plt, networkx as nx
 
 from . import _constants as c, _utils as u, _py_module as pm
 from .arguments.run_time_args import ContextArgs, ModelDepsArgs, ModelArgs
@@ -386,7 +387,14 @@ class DAG:
         all_model_names = set()
         self.target_model.fill_dependent_model_names(all_model_names)
         return all_model_names
-
+    
+    def to_networkx_graph(self) -> nx.DiGraph:
+        G = nx.DiGraph()
+        G.add_node(self.target_model.name)
+        for model_name, model in self.models_dict.items():
+            for dep_model_name in model.downstreams:
+                G.add_edge(model_name, dep_model_name)
+        return G
 
 class ModelsIO:
     raw_queries_by_model: dict[str, QueryFile] 
@@ -446,6 +454,28 @@ class ModelsIO:
         return DAG(dataset_config, target_model, models_dict)
     
     @classmethod
+    def draw_dag(cls, dag: DAG, output_folder: Path) -> None:
+        G = dag.to_networkx_graph()
+
+        for layer, nodes in enumerate(nx.topological_generations(G)):
+            for node in nodes:
+                G.nodes[node]["layer"] = layer
+        
+        fig, _ = plt.subplots()
+        pos = nx.multipartite_layout(G, subset_key="layer")
+        nx.draw(G, pos=pos, node_shape='^', node_size=1000, node_color='skyblue', arrowsize=20)
+        
+        y_values = [val[1] for val in pos.values()]
+        scale = max(y_values) - min(y_values) if len(y_values) > 0 else 0
+        label_pos = {key: (val[0], val[1]-0.002-0.1*scale) for key, val in pos.items()}
+        nx.draw_networkx_labels(G, pos=label_pos, font_size=8)
+        
+        fig.tight_layout()
+        plt.margins(x=0.1, y=0.1)
+        plt.savefig(u.join_paths(output_folder, "dag.png"))
+        plt.close(fig)
+
+    @classmethod
     async def WriteDatasetOutputsGivenTestSet(cls, dataset: str, select: str, test_set: str, runquery: bool, recurse: bool) -> Any:
         test_set_conf = ManifestIO.obj.selection_test_sets[test_set]
         user_attributes = test_set_conf.user_attributes
@@ -478,6 +508,10 @@ class ModelsIO:
         all_model_names = dag.get_all_model_names()
         coroutines = [asyncio.to_thread(write_model_outputs, dag.models_dict[name]) for name in all_model_names]
         await asyncio.gather(*coroutines)
+
+        if recurse:
+            cls.draw_dag(dag, output_folder)
+
         return dag.target_model.compiled_query.query
 
     @classmethod

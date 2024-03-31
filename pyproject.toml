@@ -34,6 +34,8 @@ pyyaml = "^6.0.1"
 sqlalchemy = "^2.0.25"
 uvicorn = "^0.27.1"
 duckdb = { version = ">=0.10.0", optional = true }
+matplotlib = "^3.8.3"
+networkx = "^3.2.1"
 
 
 [tool.poetry.extras]
