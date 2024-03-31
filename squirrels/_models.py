@@ -218,7 +218,7 @@ class Model:
     
     def validate_no_cycles(self, depencency_path: set[str]) -> set[str]:
         if self.confirmed_no_cycles:
-            return
+            return {self.name}
         
         if self.name in depencency_path:
             raise u.ConfigurationError(f'Cycle found in model dependency graph')
@@ -309,7 +309,17 @@ class Model:
             dependent_model_names.add(self.name)
             for dep_model in self.upstreams.values():
                 dep_model.fill_dependent_model_names(dependent_model_names)
-
+    
+    def get_max_path_length_to_target(self) -> int:
+        if not hasattr(self, "max_path_len_to_target"):
+            path_lengths = []
+            for child_model in self.downstreams.values():
+                path_lengths.append(child_model.get_max_path_length_to_target()+1)
+            if len(path_lengths) > 0:
+                self.max_path_len_to_target = max(path_lengths)
+            else:
+                self.max_path_len_to_target = 0 if self.is_target else None
+        return self.max_path_len_to_target
 
 @dataclass
 class DAG:
@@ -390,10 +400,17 @@ class DAG:
     
     def to_networkx_graph(self) -> nx.DiGraph:
         G = nx.DiGraph()
-        G.add_node(self.target_model.name)
+
         for model_name, model in self.models_dict.items():
+            level = model.get_max_path_length_to_target()
+            if level is not None:
+                G.add_node(model_name, layer=-level)
+        
+        for model_name in G.nodes:
+            model = self.models_dict[model_name]
             for dep_model_name in model.downstreams:
                 G.add_edge(model_name, dep_model_name)
+        
         return G
 
 class ModelsIO:
@@ -456,10 +473,6 @@ class ModelsIO:
     @classmethod
     def draw_dag(cls, dag: DAG, output_folder: Path) -> None:
         G = dag.to_networkx_graph()
-
-        for layer, nodes in enumerate(nx.topological_generations(G)):
-            for node in nodes:
-                G.nodes[node]["layer"] = layer
         
         fig, _ = plt.subplots()
         pos = nx.multipartite_layout(G, subset_key="layer")
@@ -516,19 +529,19 @@ class ModelsIO:
 
     @classmethod
     async def WriteOutputs(
-        cls, dataset: Optional[str], select: Optional[str], all_test_sets: bool, test_set: Optional[str], runquery: bool
+        cls, dataset: Optional[str], all_datasets: bool, select: Optional[str], test_set: Optional[str], all_test_sets: bool, 
+        runquery: bool
     ) -> None:
-        if test_set is None:
-            test_set = ManifestIO.obj.settings.get(c.TEST_SET_DEFAULT_USED_SETTING, c.DEFAULT_TEST_SET_NAME)
-
         if all_test_sets:
             test_sets = ManifestIO.obj.selection_test_sets.keys()
         else:
+            if test_set is None:
+                test_set = ManifestIO.obj.settings.get(c.TEST_SET_DEFAULT_USED_SETTING, c.DEFAULT_TEST_SET_NAME)
             test_sets = [test_set]
         
         recurse = True
         dataset_configs = ManifestIO.obj.datasets
-        if dataset is None:
+        if all_datasets:
             selected_models = [(dataset.name, dataset.model) for dataset in dataset_configs.values()]
         else:
             if select is None:
@@ -538,9 +551,9 @@ class ModelsIO:
             selected_models = [(dataset, select)]
         
         coroutines = []
-        for test_set in test_sets:
+        for tset in test_sets:
             for dataset, select in selected_models:
-                coroutine = cls.WriteDatasetOutputsGivenTestSet(dataset, select, test_set, runquery, recurse)
+                coroutine = cls.WriteDatasetOutputsGivenTestSet(dataset, select, tset, runquery, recurse)
                 coroutines.append(coroutine)
         
         queries = await asyncio.gather(*coroutines)

@@ -31,15 +31,20 @@ def main():
     module_parser = subparsers.add_parser(c.DEPS_CMD, help=f'Load all packages specified in {c.MANIFEST_FILE} (from git)', add_help=False)
     module_parser.add_argument('-h', '--help', action="help", help="Show this help message and exit")
 
-    compile_parser = subparsers.add_parser(c.COMPILE_CMD, help='Create files for rendered sql queries in the "target/compile" folder', add_help=False)
+    compile_parser = subparsers.add_parser(c.COMPILE_CMD, help='Create rendered SQL files in the folder "./target/compile"', add_help=False)
+    compile_dataset_group = compile_parser.add_mutually_exclusive_group(required=True)
+    compile_test_set_group = compile_parser.add_mutually_exclusive_group(required=False)
     compile_parser.add_argument('-h', '--help', action="help", help="Show this help message and exit")
-    compile_parser.add_argument('-d', '--dataset', type=str, help="Select dataset to use for dataset traits. If not specified, all models for all datasets are compiled")
-    compile_parser.add_argument('-a', '--all-test-sets', action="store_true", help="Compile models for all selection test sets")
-    compile_parser.add_argument('-t', '--test-set', type=str, help="The selection test set to use. Default selections are used if not specified. Ignored if using --all-test-sets")
-    compile_parser.add_argument('-s', '--select', type=str, help="Select single model to compile. If not specified, all models for the dataset are compiled. Also, ignored if --dataset is not specified")
+    
+    compile_dataset_group.add_argument('-d', '--dataset', type=str, help="Select dataset to use for dataset traits. Is required, unless using --all-datasets")
+    compile_test_set_group.add_argument('-t', '--test-set', type=str, help="The selection test set to use. If not specified, default selections are used, unless using --all-test-sets")
+    compile_dataset_group.add_argument('-D', '--all-datasets', action="store_true", help="Compile models for all datasets. Only required if --dataset is not specified")
+    compile_test_set_group.add_argument('-T', '--all-test-sets', action="store_true", help="Compile models for all selection test sets")
+    
+    compile_parser.add_argument('-s', '--select', type=str, help="Select single model to compile. If not specified, all models for the dataset are compiled. Ignored if using --all-datasets")
     compile_parser.add_argument('-r', '--runquery', action='store_true', help='Runs all target models, and produce the results as csv files')
 
-    run_parser = subparsers.add_parser(c.RUN_CMD, help='Run the builtin API server', add_help=False)
+    run_parser = subparsers.add_parser(c.RUN_CMD, help='Run the API server', add_help=False)
     run_parser.add_argument('-h', '--help', action="help", help="Show this help message and exit")
     run_parser.add_argument('--no-cache', action='store_true', help='Do not cache any api results')
     run_parser.add_argument('--debug', action='store_true', help='Show all "hidden parameters" in the parameters response')
@@ -76,9 +81,8 @@ def main():
             if args.command == c.RUN_CMD:
                 server = ApiServer(args.no_cache, args.debug)
                 server.run(args)
-                pass
             elif args.command == c.COMPILE_CMD:
-                task = ModelsIO.WriteOutputs(args.dataset, args.select, args.all_test_sets, args.test_set, args.runquery)
+                task = ModelsIO.WriteOutputs(args.dataset, args.all_datasets, args.select, args.test_set, args.all_test_sets, args.runquery)
                 asyncio.run(task)
         finally:
             ConnectionSetIO.Dispose()
