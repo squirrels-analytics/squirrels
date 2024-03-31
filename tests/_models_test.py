@@ -51,13 +51,13 @@ def modelB1_query_file():
         time.sleep(1)
         return pd.DataFrame({"row_id": ["a", "b", "c"], "valB": [1, 2, 3]})
     
-    raw_query = m.RawPyQuery(main_func, lambda sqrl: ["modelC2"])
+    raw_query = m.RawPyQuery(main_func, lambda sqrl: ["modelC1"])
     return m.QueryFile("/path2", m.ModelType.FEDERATE, m.QueryType.PYTHON, raw_query)
 
 
 @pytest.fixture(scope="module")
 def modelB2_query_file():
-    raw_query = m.RawSqlQuery('SELECT * FROM {{ ref("modelC1") }}')
+    raw_query = m.RawSqlQuery('SELECT row_id, valC FROM {{ ref("modelC1") }} JOIN {{ ref("modelC2") }}')
     return m.QueryFile("/path3", m.ModelType.FEDERATE, m.QueryType.SQL, raw_query)
 
 
@@ -144,7 +144,7 @@ def test_compile(compiled_dag: m.DAG):
     assert modelA.downstreams == {}
     assert not modelA.needs_sql_table and not modelA.needs_pandas
     assert modelB1.needs_sql_table and not modelB1.needs_pandas
-    assert modelC2.needs_pandas and not modelC2.needs_sql_table
+    assert not modelC2.needs_pandas and modelC2.needs_sql_table
     try:
         modelA.validate_no_cycles(set())
     except u.ConfigurationError:
@@ -170,5 +170,6 @@ def test_run_models(compiled_dag: m.DAG):
     start = time.time()
     asyncio.run(compiled_dag._run_models(terminal_nodes))
     end = time.time()
-    assert (end - start) < 1.5
+    
     assert modelA.result.equals(pd.DataFrame({"row_id": ["a", "b", "c"], "valB": [1, 2, 3], "valC": [10, 20, 30]}))
+    assert (end - start) < 2.5
