@@ -122,16 +122,18 @@ def modelC2(modelC2_query_file):
 def compiled_dag(modelA: m.Model, modelB1, modelB2, modelC1a, modelC2, context_args):
     models: list[m.Model] = [modelA, modelB1, modelB2, modelC1a, modelC2]
     models_dict = {mod.name: mod for mod in models}
-    asyncio.run(modelA.compile({}, context_args, models_dict, True))
-    return m.DAG(None, modelA, models_dict)
+    dag = m.DAG(None, modelA, models_dict)
+    asyncio.run(dag._compile_models({}, context_args, True))
+    return dag
 
 
 @pytest.fixture(scope="function")
 def compiled_dag_with_cycle(modelA: m.Model, modelB1, modelB2, modelC1b, modelC2, context_args):
     models: list[m.Model] = [modelA, modelB1, modelB2, modelC1b, modelC2]
     models_dict = {mod.name: mod for mod in models}
-    asyncio.run(modelA.compile({}, context_args, models_dict, True))
-    return m.DAG(None, modelA, models_dict)
+    dag = m.DAG(None, modelA, models_dict)
+    asyncio.run(dag._compile_models({}, context_args, True))
+    return dag
 
 
 def test_compile(compiled_dag: m.DAG):
@@ -146,16 +148,16 @@ def test_compile(compiled_dag: m.DAG):
     assert modelB1.needs_sql_table and not modelB1.needs_pandas
     assert modelC2.needs_pandas and not modelC2.needs_sql_table
     try:
-        modelA.validate_no_cycles(set())
+        terminal_nodes = compiled_dag._get_terminal_nodes()
     except u.ConfigurationError:
         raise AssertionError()
     
-    assert modelA.confirmed_no_cycles
+    assert terminal_nodes == {"modelC1", "modelC2"}
 
 
 def test_cycles_produces_error(compiled_dag_with_cycle: m.DAG):
     with pytest.raises(u.ConfigurationError):
-        compiled_dag_with_cycle._validate_no_cycles()
+        compiled_dag_with_cycle._get_terminal_nodes()
 
 
 def test_get_all_model_names(compiled_dag: m.DAG):
@@ -164,7 +166,7 @@ def test_get_all_model_names(compiled_dag: m.DAG):
 
 
 def test_run_models(compiled_dag: m.DAG):
-    terminal_nodes = compiled_dag._validate_no_cycles()
+    terminal_nodes = compiled_dag._get_terminal_nodes()
     modelA = compiled_dag.models_dict["modelA"]
     
     start = time.time()

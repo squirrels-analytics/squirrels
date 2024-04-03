@@ -215,9 +215,9 @@ class Model:
             coroutines.append(coro)
         await asyncio.gather(*coroutines)
     
-    def validate_no_cycles(self, depencency_path: set[str]) -> set[str]:
+    def get_terminal_nodes(self, depencency_path: set[str]) -> set[str]:
         if self.confirmed_no_cycles:
-            return
+            return set()
         
         if self.name in depencency_path:
             raise u.ConfigurationError(f'Cycle found in model dependency graph')
@@ -229,7 +229,7 @@ class Model:
             new_path = set(depencency_path)
             new_path.add(self.name)
             for dep_model in self.upstreams.values():
-                terminal_nodes_under_dep = dep_model.validate_no_cycles(new_path)
+                terminal_nodes_under_dep = dep_model.get_terminal_nodes(new_path)
                 terminal_nodes = terminal_nodes.union(terminal_nodes_under_dep)
         
         self.confirmed_no_cycles = True
@@ -343,9 +343,11 @@ class DAG:
     async def _compile_models(self, context: dict[str, Any], ctx_args: ContextArgs, recurse: bool) -> None:
         await self.target_model.compile(context, ctx_args, self.models_dict, recurse)
     
-    def _validate_no_cycles(self) -> set[str]:
+    def _get_terminal_nodes(self) -> set[str]:
         start = time.time()
-        terminal_nodes = self.target_model.validate_no_cycles(set())
+        terminal_nodes = self.target_model.get_terminal_nodes(set())
+        for model in self.models_dict.values():
+            model.confirmed_no_cycles = False
         timer.add_activity_time(f"validating no cycles in models dependencies", start)
         return terminal_nodes
 
@@ -377,7 +379,7 @@ class DAG:
 
         await self._compile_models(context, ctx_args, recurse)
         
-        terminal_nodes = self._validate_no_cycles()
+        terminal_nodes = self._get_terminal_nodes()
 
         if runquery:
             await self._run_models(terminal_nodes)
