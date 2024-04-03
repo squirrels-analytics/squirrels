@@ -83,9 +83,9 @@ def param_configs_set2(
     config_set = ps._ParameterConfigsSet()
     config_set.add(ss_config_with_ms_parent.copy())
 
-    ms_datasource = d.MultiSelectDataSource("ms_table", "my_id", "my_label", is_default_col="my_default_flag", 
-                                            user_group_col="my_user_group")
-    ms_ds_param = pc.DataSourceParameterConfig(pc.MultiSelectParameterConfig, ms_config_basic.name, ms_config_basic.label, ms_datasource,
+    datasource = d.SelectDataSource("ms_table", "my_id", "my_label", is_default_col="my_default_flag", 
+                                    user_group_col="my_user_group")
+    ms_ds_param = pc.DataSourceParameterConfig(pc.MultiSelectParameterConfig, ms_config_basic.name, ms_config_basic.label, datasource,
                                                user_attribute=ms_config_basic.user_attribute)
     config_set.add(ms_ds_param)
 

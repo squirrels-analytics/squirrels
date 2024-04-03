@@ -159,7 +159,7 @@ class SingleSelectParameterConfig(SelectionParameterConfig):
      
     @staticmethod
     def DataSource(*args, **kwargs):
-        return d.SingleSelectDataSource(*args, **kwargs)
+        return d.SelectDataSource(*args, **kwargs)
     
     def with_selection(
         self, selection: Optional[str], user: Optional[User], parent_param: Optional[p._SelectionParameter],
@@ -199,7 +199,7 @@ class MultiSelectParameterConfig(SelectionParameterConfig):
     
     @staticmethod
     def DataSource(*args, **kwargs):
-        return d.MultiSelectDataSource(*args, **kwargs)
+        return d.SelectDataSource(*args, **kwargs)
     
     def with_selection(
         self, selection: Optional[str], user: Optional[User], parent_param: Optional[p._SelectionParameter],
@@ -394,13 +394,14 @@ class DataSourceParameterConfig(ParameterConfigBase):
 
     def __init__(
         self, parameter_type: Type[ParameterConfig], name: str, label: str, data_source: Union[d.DataSource, dict], *, 
-        is_hidden: bool = False, user_attribute: Optional[str] = None, parent_name: Optional[str] = None
+        extra_args: dict = {}, is_hidden: bool = False, user_attribute: Optional[str] = None, parent_name: Optional[str] = None
     ) -> None:
         super().__init__("data_source", name, label, is_hidden=is_hidden, user_attribute=user_attribute, parent_name=parent_name)
         self.parameter_type = parameter_type
         if isinstance(data_source, dict):
             data_source = parameter_type.DataSource(**data_source)
         self.data_source = data_source
+        self.extra_args = extra_args
 
     def convert(self, df: pd.DataFrame) -> ParameterConfig:
         return self.data_source._convert(self, df)

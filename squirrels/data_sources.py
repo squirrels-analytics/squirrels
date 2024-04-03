@@ -139,9 +139,9 @@ class _SelectionDataSource(DataSource):
 
 
 @dataclass
-class SingleSelectDataSource(_SelectionDataSource):
+class SelectDataSource(_SelectionDataSource):
     """
-    Lookup table for single select parameter options
+    Lookup table for select parameter options
 
     Attributes:
         table_or_query: Either the name of the table to use, or a query to run
@@ -161,10 +161,59 @@ class SingleSelectDataSource(_SelectionDataSource):
             parent_id_col: Optional[str] = None, connection_name: Optional[str] = None, **kwargs
         ) -> None:
         """
-        Constructor for SingleSelectDataSource
+        Constructor for SelectDataSource
 
         Parameters:
-            ...see Attributes of SingleSelectDataSource
+            ...see Attributes of SelectDataSource
+        """
+        super().__init__(table_or_query, id_col, options_col, order_by_col=order_by_col, is_default_col=is_default_col,
+                         custom_cols=custom_cols, user_group_col=user_group_col, parent_id_col=parent_id_col, 
+                         connection_name=connection_name)
+
+    def _convert(self, ds_param: pc.DataSourceParameterConfig, df: pd.DataFrame) -> pc.SelectionParameterConfig:
+        """
+        Method to convert the associated DataSourceParameter into a SingleSelectParameterConfig or MultiSelectParameterConfig
+
+        Parameters:
+            ds_param: The parameter to convert
+            df: The dataframe containing the parameter options data
+
+        Returns:
+            The converted parameter
+        """
+        all_options = self._get_all_options(df)
+        if ds_param.parameter_type == pc.SingleSelectParameterConfig:
+            return pc.SingleSelectParameterConfig(
+                ds_param.name, ds_param.label, all_options, is_hidden=ds_param.is_hidden, 
+                user_attribute=ds_param.user_attribute, parent_name=ds_param.parent_name
+            )
+        elif ds_param.parameter_type == pc.MultiSelectParameterConfig:
+            return pc.MultiSelectParameterConfig(
+                ds_param.name, ds_param.label, all_options, is_hidden=ds_param.is_hidden, 
+                user_attribute=ds_param.user_attribute, parent_name=ds_param.parent_name, **ds_param.extra_args
+            )
+        else:
+            raise u.ConfigurationError(f'Invalid widget type "{ds_param.parameter_type}" for SelectDataSource')
+
+
+@dataclass
+class SingleSelectDataSource(_SelectionDataSource):
+    """
+    DEPRECATED. Use "SelectDataSource" instead.
+
+    Lookup table for single select parameter options
+    """
+
+    def __init__(
+            self, table_or_query: str, id_col: str, options_col: str, *, order_by_col: Optional[str] = None, 
+            is_default_col: Optional[str] = None, custom_cols: dict[str, str] = {}, user_group_col: Optional[str] = None, 
+            parent_id_col: Optional[str] = None, connection_name: Optional[str] = None, **kwargs
+        ) -> None:
+        """
+        Constructor for SelectDataSource
+
+        Parameters:
+            ...see Attributes of SelectDataSource
         """
         super().__init__(table_or_query, id_col, options_col, order_by_col=order_by_col, is_default_col=is_default_col,
                          custom_cols=custom_cols, user_group_col=user_group_col, parent_id_col=parent_id_col, 
@@ -186,11 +235,12 @@ class SingleSelectDataSource(_SelectionDataSource):
         return pc.SingleSelectParameterConfig(ds_param.name, ds_param.label, all_options, is_hidden=ds_param.is_hidden, 
                                               user_attribute=ds_param.user_attribute, parent_name=ds_param.parent_name)
 
-
 @dataclass
 class MultiSelectDataSource(_SelectionDataSource):
     """
-    Lookup table for single select parameter options
+    DEPRECATED. Use "SelectDataSource" instead.
+
+    Lookup table for multi select parameter options
 
     Attributes:
         table_or_query: Either the name of the table to use, or a query to run
