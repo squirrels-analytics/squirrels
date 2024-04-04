@@ -2,7 +2,7 @@
 
 Squirrels is an API framework that lets you create REST APIs for dynamic data analytics!
 
-**Documentation**: <a href="https://squirrels-nest.github.io/squirrels-docs" target="_blank">https://squirrels-nest.github.io/squirrels-docs</a>
+**Documentation**: <a href="https://squirrels-nest.github.io/" target="_blank">https://squirrels-nest.github.io/</a>
 
 **Source Code**: <a href="https://github.com/squirrels-nest/squirrels" target="_blank">https://github.com/squirrels-nest/squirrels</a>
 
