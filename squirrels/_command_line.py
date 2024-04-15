@@ -37,8 +37,8 @@ def main():
     compile_parser.add_argument('-h', '--help', action="help", help="Show this help message and exit")
     
     compile_dataset_group.add_argument('-d', '--dataset', type=str, help="Select dataset to use for dataset traits. Is required, unless using --all-datasets")
-    compile_test_set_group.add_argument('-t', '--test-set', type=str, help="The selection test set to use. If not specified, default selections are used, unless using --all-test-sets")
     compile_dataset_group.add_argument('-D', '--all-datasets', action="store_true", help="Compile models for all datasets. Only required if --dataset is not specified")
+    compile_test_set_group.add_argument('-t', '--test-set', type=str, help="The selection test set to use. If not specified, default selections are used, unless using --all-test-sets")
     compile_test_set_group.add_argument('-T', '--all-test-sets', action="store_true", help="Compile models for all selection test sets")
     
     compile_parser.add_argument('-s', '--select', type=str, help="Select single model to compile. If not specified, all models for the dataset are compiled. Ignored if using --all-datasets")
