@@ -94,7 +94,7 @@ FEDERATES_FOLDER = 'federates'
 FEDERATE_SQL_NAME = 'dataset_example.sql'
 FEDERATE_PY_NAME = 'dataset_example.py'
 
-PYCONFIG_FOLDER = 'pyconfigs'
+PYCONFIGS_FOLDER = 'pyconfigs'
 AUTH_FILE = 'auth.py'
 CONNECTIONS_FILE = 'connections.py'
 CONTEXT_FILE = 'context.py'
@@ -104,6 +104,8 @@ TARGET_FOLDER = 'target'
 COMPILE_FOLDER = 'compile'
 
 SEEDS_FOLDER = 'seeds'
+CATEGORY_SEED_FILE = 'seed_categories.csv'
+SUBCATEGORY_SEED_FILE = 'seed_subcategories.csv'
 
 # Dataset setting names
 AUTH_TOKEN_EXPIRE_SETTING = 'auth.token.expire_minutes'

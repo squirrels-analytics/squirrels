@@ -31,4 +31,4 @@ class SeedsIO:
             seeds_dict[file_stem] = df
         
         cls.obj = Seeds(seeds_dict)
-        timer.add_activity_time("loading seeds", start)
+        timer.add_activity_time("loading seed files", start)

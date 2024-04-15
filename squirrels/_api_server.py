@@ -198,7 +198,7 @@ class ApiServer:
         async def get_parameters(dataset: str, request: Request, user: Optional[User] = Depends(get_current_user)):
             start = time.time()
             result = await get_parameters_definition(dataset, user, request.headers, request.query_params)
-            timer.add_activity_time("GET REQUEST total time for PARAMETERS", start)
+            timer.add_activity_time("GET REQUEST total time for PARAMETERS endpoint", start)
             return result
 
         @app.post(parameters_path, response_class=JSONResponse)
@@ -206,7 +206,7 @@ class ApiServer:
             start = time.time()
             request_body = await request.json()
             result = await get_parameters_definition(dataset, user, request.headers, request_body)
-            timer.add_activity_time("POST REQUEST total time for PARAMETERS", start)
+            timer.add_activity_time("POST REQUEST total time for PARAMETERS endpoint", start)
             return result
 
         # Results API
@@ -238,7 +238,7 @@ class ApiServer:
         async def get_results(dataset: str, request: Request, user: Optional[User] = Depends(get_current_user)):
             start = time.time()
             result = await get_results_definition(dataset, user, request.headers, request.query_params)
-            timer.add_activity_time("GET REQUEST total time for DATASET", start)
+            timer.add_activity_time("GET REQUEST total time for DATASET endpoint", start)
             return result
         
         @app.post(results_path, response_class=JSONResponse)
@@ -246,7 +246,7 @@ class ApiServer:
             start = time.time()
             request_body = await request.json()
             result = await get_results_definition(dataset, user, request.headers, request_body)
-            timer.add_activity_time("POST REQUEST total time for DATASET", start)
+            timer.add_activity_time("POST REQUEST total time for DATASET endpoint", start)
             return result
         
         # Datasets Catalog API

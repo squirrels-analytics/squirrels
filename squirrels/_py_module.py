@@ -52,7 +52,7 @@ def run_pyconfig_main(filename: str, kwargs: dict[str, Any] = {}) -> None:
         filename: The name of the file to run main function
         kwargs: Dictionary of the main function arguments
     """
-    filepath = u.join_paths(c.PYCONFIG_FOLDER, filename)
+    filepath = u.join_paths(c.PYCONFIGS_FOLDER, filename)
     module = PyModule(filepath)
     main_function = module.get_func_or_class(c.MAIN_FUNC, is_required=False)
     if main_function:

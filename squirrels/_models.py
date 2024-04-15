@@ -270,6 +270,7 @@ class _Model(_Referable):
             self.compiled_query = _WorkInProgress()
         
         start = time.time()
+
         if self.query_file.query_type == QueryType.SQL:
             compiled_query, dependencies = await self._compile_sql_model(ctx, ctx_args)
         elif self.query_file.query_type == QueryType.PYTHON:
@@ -279,7 +280,9 @@ class _Model(_Referable):
         
         self.compiled_query = compiled_query
         self.wait_count = len(dependencies)
-        timer.add_activity_time(f"compiling model '{self.name}'", start)
+
+        model_type = self.get_model_type().name.lower()
+        timer.add_activity_time(f"compiling {model_type} model '{self.name}'", start)
         
         if not recurse:
             return 
@@ -351,11 +354,14 @@ class _Model(_Referable):
     
     async def run_model(self, conn: sqlite3.Connection) -> None:
         start = time.time()
+        
         if self.query_file.query_type == QueryType.SQL:
             await self._run_sql_model(conn)
         elif self.query_file.query_type == QueryType.PYTHON:
             await self._run_python_model(conn)
-        timer.add_activity_time(f"running model '{self.name}'", start)
+        
+        model_type = self.get_model_type().name.lower()
+        timer.add_activity_time(f"running {model_type} model '{self.name}'", start)
         
         await super().run_model(conn)
     
@@ -381,7 +387,7 @@ class _DAG:
         parameter_set = ParameterConfigsSetIO.obj.apply_selections(dataset_params, selections, user, updates_only=updates_only, 
                                                                    request_version=request_version)
         self.parameter_set = parameter_set
-        timer.add_activity_time(f"applying selections for dataset", start)
+        timer.add_activity_time(f"applying selections for dataset '{self.dataset.name}'", start)
     
     def _compile_context(self, context_func: ContextFunc, user: Optional[User]) -> tuple[dict[str, Any], ContextArgs]:
         start = time.time()
@@ -392,8 +398,8 @@ class _DAG:
         try:
             context_func(ctx=context, sqrl=args)
         except Exception as e:
-            raise u.FileExecutionError(f'Failed to run {c.CONTEXT_FILE} for dataset "{self.dataset}"', e)
-        timer.add_activity_time(f"running context.py for dataset", start)
+            raise u.FileExecutionError(f'Failed to run {c.CONTEXT_FILE} for dataset "{self.dataset.name}"', e)
+        timer.add_activity_time(f"running context.py for dataset '{self.dataset.name}'", start)
         return context, args
     
     async def _compile_models(self, context: dict[str, Any], ctx_args: ContextArgs, recurse: bool) -> None:
@@ -404,7 +410,7 @@ class _DAG:
         terminal_nodes = self.target_model.get_terminal_nodes(set())
         for model in self.models_dict.values():
             model.confirmed_no_cycles = False
-        timer.add_activity_time(f"validating no cycles in models dependencies", start)
+        timer.add_activity_time(f"validating no cycles in model dependencies", start)
         return terminal_nodes
 
     async def _run_models(self, terminal_nodes: set[str]) -> None:
@@ -501,10 +507,10 @@ class ModelsIO:
         federates_path = u.join_paths(c.MODELS_FOLDER, c.FEDERATES_FOLDER)
         populate_raw_queries_for_type(federates_path, ModelType.FEDERATE)
 
-        context_path = u.join_paths(c.PYCONFIG_FOLDER, c.CONTEXT_FILE)
+        context_path = u.join_paths(c.PYCONFIGS_FOLDER, c.CONTEXT_FILE)
         cls.context_func = pm.PyModule(context_path).get_func_or_class(c.MAIN_FUNC, default_attr=lambda x, y: None)
         
-        timer.add_activity_time("loading models and/or context.py", start)
+        timer.add_activity_time("loading files for models and context.py", start)
 
     @classmethod
     def GenerateDAG(cls, dataset: str, *, target_model_name: Optional[str] = None, always_pandas: bool = False) -> _DAG:

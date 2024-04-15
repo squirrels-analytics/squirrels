@@ -10,10 +10,9 @@ class Initializer:
     def __init__(self, overwrite: bool):
         self.overwrite = overwrite
 
-    def _path_exists(self, filepath: str, *, is_folder: bool = False) -> bool:
+    def _path_exists(self, filepath: str) -> bool:
         if not self.overwrite and os.path.exists(filepath):
-            file_or_folder = "Folder" if is_folder else "File"
-            print(file_or_folder, f'"{filepath}" already exists. Creation skipped.')
+            print(f'File "{filepath}" already exists. Creation skipped.')
             return True
         return False
     
@@ -24,11 +23,6 @@ class Initializer:
                 os.makedirs(dest_dir, exist_ok=True)
             src_path = u.join_paths(base_proj_dir, src_folder, filepath)
             shutil.copy(src_path, filepath)
-    
-    def _copy_folder(self, folderpath: str):
-        if not self._path_exists(folderpath, is_folder=True):
-            src_path = u.join_paths(base_proj_dir, folderpath)
-            shutil.copytree(src_path, folderpath)
 
     def _copy_dbview_file(self, filepath: str):
         self._copy_file(u.join_paths(c.MODELS_FOLDER, c.DBVIEWS_FOLDER, filepath))
@@ -39,8 +33,11 @@ class Initializer:
     def _copy_database_file(self, filepath: str):
         self._copy_file(u.join_paths(c.DATABASE_FOLDER, filepath))
     
-    def _copy_pyconfigs_file(self, filepath: str):
-        self._copy_file(u.join_paths(c.PYCONFIG_FOLDER, filepath))
+    def _copy_pyconfig_file(self, filepath: str):
+        self._copy_file(u.join_paths(c.PYCONFIGS_FOLDER, filepath))
+    
+    def _copy_seed_file(self, filepath: str):
+        self._copy_file(u.join_paths(c.SEEDS_FOLDER, filepath))
 
     def init_project(self, args):
         options = ["core", "connections", "parameters", "dbview", "federate", "auth", "sample_db"]
@@ -143,28 +140,29 @@ class Initializer:
             self._copy_file(c.MANIFEST_FILE, src_folder=TMP_FOLDER)
             
             if connections_use_py:
-                self._copy_pyconfigs_file(c.CONNECTIONS_FILE)
+                self._copy_pyconfig_file(c.CONNECTIONS_FILE)
             elif connections_use_yaml:
                 pass # already included in squirrels.yml
             else:
                 raise NotImplementedError(f"Format '{connections_format}' not supported for configuring database connections")
             
             if parameters_use_py:
-                self._copy_pyconfigs_file(c.PARAMETERS_FILE)
+                self._copy_pyconfig_file(c.PARAMETERS_FILE)
             elif parameters_use_yaml:
                 pass # already included in squirrels.yml
             else:
                 raise NotImplementedError(f"Format '{parameters_format}' not supported for configuring widget parameters")
             
-            self._copy_pyconfigs_file(c.CONTEXT_FILE)
+            self._copy_pyconfig_file(c.CONTEXT_FILE)
             self._copy_file(c.ENVIRON_CONFIG_FILE)
-            self._copy_folder(c.SEEDS_FOLDER)
+            self._copy_seed_file(c.CATEGORY_SEED_FILE)
+            self._copy_seed_file(c.SUBCATEGORY_SEED_FILE)
 
             self._copy_dbview_file(db_view_file)
             self._copy_federate_file(federate_file)
         
         if answers.get(AUTH, False):
-            self._copy_pyconfigs_file(c.AUTH_FILE)
+            self._copy_pyconfig_file(c.AUTH_FILE)
 
         sample_db = answers.get(SAMPLE_DB)
         if sample_db is not None and sample_db != "none":
