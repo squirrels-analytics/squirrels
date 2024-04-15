@@ -8,6 +8,7 @@ from . import _utils as u, _constants as c, parameters as p, _parameter_configs 
 from .arguments.init_time_args import ParametersArgs
 from ._manifest import ManifestIO, ParametersConfig
 from ._connection_set import ConnectionSetIO
+from ._seeds import SeedsIO
 from .user_base import User
 from ._timer import timer, time
 
@@ -146,19 +147,13 @@ class ParameterConfigsSetIO:
     obj: _ParameterConfigsSet
     
     @classmethod
-    def _GetDfDict(cls) -> dict[str, pd.DataFrame]:
-        def get_dataframe_from_query(ds_param_config: pc.DataSourceParameterConfig) -> pd.DataFrame:
-            key, datasource = ds_param_config.name, ds_param_config.data_source
-            try:
-                query, conn_name = datasource._get_query(), datasource._get_connection_name()
-                df = ConnectionSetIO.obj.run_sql_query_from_conn_name(query, conn_name)
-            except RuntimeError as e:
-                raise u.ConfigurationError(f'Error executing query for datasource parameter "{key}"') from e
-            return key, df
+    def _GetDfDictFromDataSources(cls) -> dict[str, pd.DataFrame]:
+        def get_dataframe(ds_param_config: pc.DataSourceParameterConfig) -> tuple[str, pd.DataFrame]:
+            return ds_param_config.name, ds_param_config.get_dataframe(ConnectionSetIO.obj, SeedsIO.obj)
         
         ds_param_configs = cls.obj._get_all_ds_param_configs()
         with concurrent.futures.ThreadPoolExecutor() as executor:
-            df_dict = dict(executor.map(get_dataframe_from_query, ds_param_configs))
+            df_dict = dict(executor.map(get_dataframe, ds_param_configs))
         
         return df_dict
     
@@ -180,7 +175,7 @@ class ParameterConfigsSetIO:
         cls.args = ParametersArgs(conn_args.proj_vars, conn_args.env_vars)
         pm.run_pyconfig_main(c.PARAMETERS_FILE, {"sqrl": cls.args})
         
-        df_dict = cls._GetDfDict()
+        df_dict = cls._GetDfDictFromDataSources()
         cls.obj._post_process_params(df_dict)
         
         timer.add_activity_time("loading parameters", start)

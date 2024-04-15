@@ -1,4 +1,4 @@
-import sqlite3, pandas as pd
+import sqlite3, csv, pandas as pd
 
 df = pd.read_csv("sample-transactions.csv")
 
@@ -14,7 +14,7 @@ df_subcat = df_subcat.drop('category', axis=1)
 conn = sqlite3.connect('expenses.db')
 try:
     df.to_sql('transactions', conn, index=False, if_exists='replace')
-    df_cat.to_sql('categories', conn, index=False, if_exists='replace')
-    df_subcat.to_sql('subcategories', conn, index=False, if_exists='replace')
+    df_cat.to_csv('seed_categories.csv', index=False, quoting=csv.QUOTE_ALL)
+    df_subcat.to_csv('seed_subcategories.csv', index=False, quoting=csv.QUOTE_ALL)
 finally:
     conn.close()

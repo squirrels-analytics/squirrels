@@ -6,12 +6,12 @@ from squirrels.arguments.run_time_args import ContextArgs
 
 @pytest.fixture(scope="function")
 def sql_model_config1():
-    return m.SqlModelConfig("my_conn_name", m.Materialization.VIEW)
+    return m._SqlModelConfig("my_conn_name", m.Materialization.VIEW)
 
 
 @pytest.fixture(scope="function")
 def sql_model_config2():
-    return m.SqlModelConfig("default", m.Materialization.TABLE)
+    return m._SqlModelConfig("default", m.Materialization.TABLE)
 
 
 @pytest.mark.parametrize("fixture,query,expected", [
@@ -19,17 +19,17 @@ def sql_model_config2():
     ("sql_model_config2", "SELECT...", "CREATE TABLE my_model AS\nSELECT...")
 ])
 def test_get_sql_for_create(fixture: str, query: str, expected: str, request: pytest.FixtureRequest):
-    sql_model_config: m.SqlModelConfig = request.getfixturevalue(fixture)
+    sql_model_config: m._SqlModelConfig = request.getfixturevalue(fixture)
     assert sql_model_config.get_sql_for_create("my_model", query) == expected
 
 
 @pytest.mark.parametrize("fixture,kwargs,expected", [
-    ("sql_model_config1", {"not_exist": "test"}, m.SqlModelConfig("my_conn_name", m.Materialization.VIEW)),
-    ("sql_model_config1", {"materialized": "taBle"}, m.SqlModelConfig("my_conn_name", m.Materialization.TABLE)),
-    ("sql_model_config2", {"connection_name": "Test"}, m.SqlModelConfig("Test", m.Materialization.TABLE))
+    ("sql_model_config1", {"not_exist": "test"}, m._SqlModelConfig("my_conn_name", m.Materialization.VIEW)),
+    ("sql_model_config1", {"materialized": "taBle"}, m._SqlModelConfig("my_conn_name", m.Materialization.TABLE)),
+    ("sql_model_config2", {"connection_name": "Test"}, m._SqlModelConfig("Test", m.Materialization.TABLE))
 ])
-def test_set_attribute(fixture: str, kwargs: str, expected: m.SqlModelConfig, request: pytest.FixtureRequest):
-    sql_model_config: m.SqlModelConfig = request.getfixturevalue(fixture)
+def test_set_attribute(fixture: str, kwargs: str, expected: m._SqlModelConfig, request: pytest.FixtureRequest):
+    sql_model_config: m._SqlModelConfig = request.getfixturevalue(fixture)
     assert sql_model_config.set_attribute(**kwargs) == ""
     assert sql_model_config == expected
 
@@ -41,8 +41,8 @@ def context_args():
 
 @pytest.fixture(scope="module")
 def modelA_query_file():
-    raw_query = m.RawSqlQuery('SELECT * FROM {{ ref("modelB1") }} JOIN {{ ref("modelB2") }} USING (row_id)')
-    return m.QueryFile("/path1", m.ModelType.FEDERATE, m.QueryType.SQL, raw_query)
+    raw_query = m._RawSqlQuery('SELECT * FROM {{ ref("modelB1") }} JOIN {{ ref("modelB2") }} USING (row_id)')
+    return m._QueryFile("/path1", m.ModelType.FEDERATE, m.QueryType.SQL, raw_query)
 
 
 @pytest.fixture(scope="module")
@@ -51,14 +51,14 @@ def modelB1_query_file():
         time.sleep(1)
         return pd.DataFrame({"row_id": ["a", "b", "c"], "valB": [1, 2, 3]})
     
-    raw_query = m.RawPyQuery(main_func, lambda sqrl: ["modelC1"])
-    return m.QueryFile("/path2", m.ModelType.FEDERATE, m.QueryType.PYTHON, raw_query)
+    raw_query = m._RawPyQuery(main_func, lambda sqrl: ["modelC1", "modelSeed"])
+    return m._QueryFile("/path2", m.ModelType.FEDERATE, m.QueryType.PYTHON, raw_query)
 
 
 @pytest.fixture(scope="module")
 def modelB2_query_file():
-    raw_query = m.RawSqlQuery('SELECT row_id, valC FROM {{ ref("modelC1") }} JOIN {{ ref("modelC2") }}')
-    return m.QueryFile("/path3", m.ModelType.FEDERATE, m.QueryType.SQL, raw_query)
+    raw_query = m._RawSqlQuery('SELECT row_id, valC FROM {{ ref("modelC1") }} JOIN {{ ref("modelC2") }}')
+    return m._QueryFile("/path3", m.ModelType.FEDERATE, m.QueryType.SQL, raw_query)
 
 
 @pytest.fixture(scope="module")
@@ -67,8 +67,8 @@ def modelC1a_query_file():
         time.sleep(1)
         return pd.DataFrame({"row_id": ["a", "b", "c"], "valC": [10, 20, 30]})
     
-    raw_query = m.RawPyQuery(main_func, lambda sqrl: [])
-    return m.QueryFile("/path4", m.ModelType.FEDERATE, m.QueryType.PYTHON, raw_query)
+    raw_query = m._RawPyQuery(main_func, lambda sqrl: [])
+    return m._QueryFile("/path4", m.ModelType.FEDERATE, m.QueryType.PYTHON, raw_query)
 
 
 @pytest.fixture(scope="module")
@@ -76,67 +76,72 @@ def modelC1b_query_file():
     def main_func(sqrl):
         return pd.DataFrame({"row_id": ["a", "b", "c"], "valC": [10, 20, 30]})
     
-    raw_query = m.RawPyQuery(main_func, lambda sqrl: ["modelA"])
-    return m.QueryFile("/path4", m.ModelType.FEDERATE, m.QueryType.PYTHON, raw_query)
+    raw_query = m._RawPyQuery(main_func, lambda sqrl: ["modelA"])
+    return m._QueryFile("/path4", m.ModelType.FEDERATE, m.QueryType.PYTHON, raw_query)
 
 
 @pytest.fixture(scope="module")
 def modelC2_query_file():
-    raw_query = m.RawSqlQuery('SELECT 1 as a')
-    return m.QueryFile("/path5", m.ModelType.FEDERATE, m.QueryType.SQL, raw_query)
+    raw_query = m._RawSqlQuery('SELECT 1 as a')
+    return m._QueryFile("/path5", m.ModelType.FEDERATE, m.QueryType.SQL, raw_query)
 
 
 @pytest.fixture(scope="function")
 def modelA(modelA_query_file):
-    model = m.Model("modelA", modelA_query_file)
+    model = m._Model("modelA", modelA_query_file)
     model.is_target = True
     return model
 
 
 @pytest.fixture(scope="function")
 def modelB1(modelB1_query_file):
-    return m.Model("modelB1", modelB1_query_file)
+    return m._Model("modelB1", modelB1_query_file)
 
 
 @pytest.fixture(scope="function")
 def modelB2(modelB2_query_file):
-    return m.Model("modelB2", modelB2_query_file)
+    return m._Model("modelB2", modelB2_query_file)
 
 
 @pytest.fixture(scope="function")
 def modelC1a(modelC1a_query_file):
-    return m.Model("modelC1", modelC1a_query_file)
+    return m._Model("modelC1", modelC1a_query_file)
 
 
 @pytest.fixture(scope="function")
 def modelC1b(modelC1b_query_file):
-    return m.Model("modelC1", modelC1b_query_file)
+    return m._Model("modelC1", modelC1b_query_file)
 
 
 @pytest.fixture(scope="function")
 def modelC2(modelC2_query_file):
-    return m.Model("modelC2", modelC2_query_file)
+    return m._Model("modelC2", modelC2_query_file)
 
 
 @pytest.fixture(scope="function")
-def compiled_dag(modelA: m.Model, modelB1, modelB2, modelC1a, modelC2, context_args):
-    models: list[m.Model] = [modelA, modelB1, modelB2, modelC1a, modelC2]
+def modelSeed():
+    return m._Seed("modelSeed", None)
+
+
+@pytest.fixture(scope="function")
+def compiled_dag(modelA, modelB1, modelB2, modelC1a, modelC2, modelSeed, context_args):
+    models: list[m._Model] = [modelA, modelB1, modelB2, modelC1a, modelC2, modelSeed]
     models_dict = {mod.name: mod for mod in models}
-    dag = m.DAG(None, modelA, models_dict)
+    dag = m._DAG(None, modelA, models_dict)
     asyncio.run(dag._compile_models({}, context_args, True))
     return dag
 
 
 @pytest.fixture(scope="function")
-def compiled_dag_with_cycle(modelA: m.Model, modelB1, modelB2, modelC1b, modelC2, context_args):
-    models: list[m.Model] = [modelA, modelB1, modelB2, modelC1b, modelC2]
+def compiled_dag_with_cycle(modelA, modelB1, modelB2, modelC1b, modelC2, modelSeed, context_args):
+    models: list[m._Model] = [modelA, modelB1, modelB2, modelC1b, modelC2, modelSeed]
     models_dict = {mod.name: mod for mod in models}
-    dag = m.DAG(None, modelA, models_dict)
+    dag = m._DAG(None, modelA, models_dict)
     asyncio.run(dag._compile_models({}, context_args, True))
     return dag
 
 
-def test_compile(compiled_dag: m.DAG):
+def test_compile(compiled_dag: m._DAG):
     modelA = compiled_dag.models_dict["modelA"]
     modelB1 = compiled_dag.models_dict["modelB1"]
     modelB2 = compiled_dag.models_dict["modelB2"]
@@ -152,20 +157,20 @@ def test_compile(compiled_dag: m.DAG):
     except u.ConfigurationError:
         raise AssertionError()
     
-    assert terminal_nodes == {"modelC1", "modelC2"}
+    assert terminal_nodes == {"modelC1", "modelC2", "modelSeed"}
 
 
-def test_cycles_produces_error(compiled_dag_with_cycle: m.DAG):
+def test_cycles_produces_error(compiled_dag_with_cycle: m._DAG):
     with pytest.raises(u.ConfigurationError):
         compiled_dag_with_cycle._get_terminal_nodes()
 
 
-def test_get_all_model_names(compiled_dag: m.DAG):
-    model_names = compiled_dag.get_all_model_names()
+def test_get_all_model_names(compiled_dag: m._DAG):
+    model_names = compiled_dag.get_all_query_models()
     assert model_names == {"modelA", "modelB1", "modelB2", "modelC1", "modelC2"}
 
 
-def test_run_models(compiled_dag: m.DAG):
+def test_run_models(compiled_dag: m._DAG):
     terminal_nodes = compiled_dag._get_terminal_nodes()
     modelA = compiled_dag.models_dict["modelA"]
     

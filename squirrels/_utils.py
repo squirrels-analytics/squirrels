@@ -1,7 +1,7 @@
 from typing import Sequence, Optional, Union, Any, TypeVar, Callable
 from pathlib import Path
 from pandas.api import types as pd_types
-import json, jinja2 as j2, pandas as pd
+import json, sqlite3, jinja2 as j2, pandas as pd
 
 from . import _constants as c
 
@@ -183,6 +183,42 @@ def process_if_not_none(input_val: Optional[X], processor: Callable[[X], Y]) -> 
     return processor(input_val)
 
 
-def use_duckdb():
+def use_duckdb() -> bool:
+    """
+    Determines whether to use DuckDB instead of SQLite for embedded database
+
+    Returns:
+        A boolean
+    """
     from ._manifest import ManifestIO
     return (ManifestIO.obj.settings.get(c.IN_MEMORY_DB_SETTING, c.SQLITE) == c.DUCKDB)
+
+
+def run_sql_on_dataframes(sql_query: str, dataframes: dict[str, pd.DataFrame]) -> pd.DataFrame:
+    """
+    Runs a SQL query against a collection of dataframes
+
+    Parameters:
+        sql_query: The SQL query to run
+        dataframes: A dictionary of table names to their pandas Dataframe
+    
+    Returns:
+        The result as a pandas Dataframe from running the query
+    """
+    do_use_duckdb = use_duckdb()
+    if do_use_duckdb:
+        import duckdb
+        conn = duckdb.connect()
+    else:
+        conn = sqlite3.connect(":memory:")
+    
+    try:
+        for name, df in dataframes.items():
+            if do_use_duckdb:
+                conn.execute(f"CREATE TABLE {name} AS FROM df")
+            else:
+                df.to_sql(name, conn, index=False)
+        
+        return conn.execute(sql_query).df() if do_use_duckdb else pd.read_sql(sql_query, conn)
+    finally:
+        conn.close()

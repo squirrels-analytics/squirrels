@@ -33,8 +33,11 @@ class Initializer:
     def _copy_database_file(self, filepath: str):
         self._copy_file(u.join_paths(c.DATABASE_FOLDER, filepath))
     
-    def _copy_pyconfigs_file(self, filepath: str):
-        self._copy_file(u.join_paths(c.PYCONFIG_FOLDER, filepath))
+    def _copy_pyconfig_file(self, filepath: str):
+        self._copy_file(u.join_paths(c.PYCONFIGS_FOLDER, filepath))
+    
+    def _copy_seed_file(self, filepath: str):
+        self._copy_file(u.join_paths(c.SEEDS_FOLDER, filepath))
 
     def init_project(self, args):
         options = ["core", "connections", "parameters", "dbview", "federate", "auth", "sample_db"]
@@ -124,8 +127,6 @@ class Initializer:
                     "connections": c.CONNECTIONS_YML_FILE if connections_use_yaml else None
                 }
                 substitutions = {key: get_content(val) for key, val in file_name_dict.items()}
-                substitutions["db_view_file"] = db_view_file
-                substitutions["final_view_file"] = federate_file
                 
                 manifest_template = get_content(c.MANIFEST_JINJA_FILE)
                 manifest_content = u.render_string(manifest_template, substitutions)
@@ -139,23 +140,29 @@ class Initializer:
             self._copy_file(c.MANIFEST_FILE, src_folder=TMP_FOLDER)
             
             if connections_use_py:
-                self._copy_pyconfigs_file(c.CONNECTIONS_FILE)
-            elif not connections_use_yaml:
+                self._copy_pyconfig_file(c.CONNECTIONS_FILE)
+            elif connections_use_yaml:
+                pass # already included in squirrels.yml
+            else:
                 raise NotImplementedError(f"Format '{connections_format}' not supported for configuring database connections")
             
             if parameters_use_py:
-                self._copy_pyconfigs_file(c.PARAMETERS_FILE)
-            elif not parameters_use_yaml:
+                self._copy_pyconfig_file(c.PARAMETERS_FILE)
+            elif parameters_use_yaml:
+                pass # already included in squirrels.yml
+            else:
                 raise NotImplementedError(f"Format '{parameters_format}' not supported for configuring widget parameters")
             
-            self._copy_pyconfigs_file(c.CONTEXT_FILE)
+            self._copy_pyconfig_file(c.CONTEXT_FILE)
             self._copy_file(c.ENVIRON_CONFIG_FILE)
+            self._copy_seed_file(c.CATEGORY_SEED_FILE)
+            self._copy_seed_file(c.SUBCATEGORY_SEED_FILE)
 
             self._copy_dbview_file(db_view_file)
             self._copy_federate_file(federate_file)
         
         if answers.get(AUTH, False):
-            self._copy_pyconfigs_file(c.AUTH_FILE)
+            self._copy_pyconfig_file(c.AUTH_FILE)
 
         sample_db = answers.get(SAMPLE_DB)
         if sample_db is not None and sample_db != "none":

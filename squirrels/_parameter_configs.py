@@ -7,6 +7,8 @@ import pandas as pd
 
 from . import parameter_options as po, parameters as p, data_sources as d, _utils as u
 from .user_base import User
+from ._connection_set import ConnectionSet
+from ._seeds import Seeds
 
 
 @dataclass
@@ -405,3 +407,16 @@ class DataSourceParameterConfig(ParameterConfigBase):
 
     def convert(self, df: pd.DataFrame) -> ParameterConfig:
         return self.data_source._convert(self, df)
+    
+    def get_dataframe(self, conn_set: ConnectionSet, seeds: Seeds) -> pd.DataFrame:
+        datasource = self.data_source
+        query = datasource._get_query()
+        if datasource.is_from_seed():
+            df = seeds.run_query(query)
+        else:
+            try:
+                conn_name = datasource._get_connection_name()
+                df = conn_set.run_sql_query_from_conn_name(query, conn_name)
+            except RuntimeError as e:
+                raise u.ConfigurationError(f'Error executing query for datasource parameter "{self.name}"') from e
+        return df

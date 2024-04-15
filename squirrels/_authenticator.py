@@ -16,7 +16,7 @@ class Authenticator:
     
     @classmethod
     def get_auth_helper(cls, default_auth_helper = None):
-        auth_module_path = u.join_paths(c.PYCONFIG_FOLDER, c.AUTH_FILE)
+        auth_module_path = u.join_paths(c.PYCONFIGS_FOLDER, c.AUTH_FILE)
         return PyModule(auth_module_path, default_class=default_auth_helper)
 
     def __init__(self, token_expiry_minutes: int, auth_helper = None) -> None:
