@@ -1,9 +1,10 @@
 from copy import copy
 from datetime import date
 from decimal import Decimal
-import pytest
+import pytest, pandas as pd
 
-from squirrels import _parameter_configs as pc, parameters as p, parameter_options as po, _utils as u
+from squirrels import _parameter_configs as pc, parameters as p, parameter_options as po, data_sources as ds
+from squirrels import _connection_set as cs, _seeds as s, _utils as u
 from tests.parameter_configs_tests._user_class import User
 
 
@@ -180,3 +181,21 @@ class TestNumberRangeParameterConfig:
             num_range_config.with_selection("10.9,12.1,12.5", user, None) # three numbers
         with pytest.raises(u.InvalidInputError):
             num_range_config.with_selection("10.9.0,12.1", user, None) # wrong number format
+
+
+class TestDataSourceParameterConfig:
+    def test_get_dataframe(self):
+        data_source = ds.SelectDataSource("SELECT DISTINCT col_id, col_val FROM seed_test", "col_id", "col_val", from_seeds=True)
+        ds_config = pc.DataSourceParameterConfig(pc.SingleSelectParameterConfig, "ds_test", "", data_source)
+
+        input_df = pd.DataFrame({
+            "col_id": [1, 1, 2, 2, 3],
+            "col_val": ["a", "a", "b", "b", "c"]
+        })
+        seeds = s.Seeds({"seed_test": input_df})
+        output_df = ds_config.get_dataframe(cs.ConnectionSet({}), seeds)
+
+        assert output_df.equals(pd.DataFrame({
+            "col_id": [1, 2, 3],
+            "col_val": ["a", "b", "c"]
+        }))

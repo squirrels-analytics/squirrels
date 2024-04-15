@@ -103,9 +103,7 @@ PARAMETERS_FILE = 'parameters.py'
 TARGET_FOLDER = 'target'
 COMPILE_FOLDER = 'compile'
 
-OUTPUTS_FOLDER = 'outputs'
-PARAMETERS_OUTPUT = 'parameters.json'
-FINAL_VIEW_OUT_STEM = 'final_view'
+SEEDS_FOLDER = 'seeds'
 
 # Dataset setting names
 AUTH_TOKEN_EXPIRE_SETTING = 'auth.token.expire_minutes'

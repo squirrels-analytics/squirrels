@@ -63,6 +63,7 @@ def main():
     from ._package_loader import PackageLoaderIO
     from ._connection_set import ConnectionSetIO
     from ._parameter_sets import ParameterConfigsSetIO
+    from ._seeds import SeedsIO
 
     if args.version:
         print(__version__)
@@ -73,11 +74,11 @@ def main():
         PackageLoaderIO.LoadPackages(reload=True)
     elif args.command in [c.RUN_CMD, c.COMPILE_CMD]:
         ManifestIO.LoadFromFile()
+        SeedsIO.LoadFiles()
         ConnectionSetIO.LoadFromFile()
         try:
             ParameterConfigsSetIO.LoadFromFile()
             ModelsIO.LoadFiles()
-            
             if args.command == c.RUN_CMD:
                 server = ApiServer(args.no_cache, args.debug)
                 server.run(args)

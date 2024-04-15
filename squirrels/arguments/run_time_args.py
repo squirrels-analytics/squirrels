@@ -1,7 +1,7 @@
 from typing import Callable, Any
 from dataclasses import dataclass
 from sqlalchemy import Engine
-import pandas as pd, sqlite3
+import pandas as pd
 
 from .init_time_args import ConnectionsArgs, ParametersArgs
 from ..user_base import User
@@ -53,26 +53,26 @@ class ModelArgs(ModelDepsArgs):
             A pandas DataFrame
         """
 
-    def run_external_sql(self, sql: str, *, connection_name: str = None, **kwargs) -> pd.DataFrame:
+    def run_external_sql(self, sql_query: str, *, connection_name: str = None, **kwargs) -> pd.DataFrame:
         """
         Runs a SQL query against an external database, with option to specify the connection name
 
         Parameters:
-            sql: The SQL query
+            sql_query: The SQL query
             connection_name: The connection name for the database. If None, uses the one configured for the model
         
         Returns:
             The query result as a pandas DataFrame
         """
         connection_name = self.connection_name if connection_name is None else connection_name
-        return ConnectionSetIO.obj.run_sql_query_from_conn_name(sql, connection_name)
+        return ConnectionSetIO.obj.run_sql_query_from_conn_name(sql_query, connection_name)
 
-    def run_sql_on_dataframes(self, query: str, *, dataframes: dict[str, pd.DataFrame] = None, **kwargs) -> pd.DataFrame:
+    def run_sql_on_dataframes(self, sql_query: str, *, dataframes: dict[str, pd.DataFrame] = None, **kwargs) -> pd.DataFrame:
         """
-        Uses a dictionary of dataframes to execute a SQL query in an in-memory sqlite database
+        Uses a dictionary of dataframes to execute a SQL query in an embedded in-memory database (sqlite or duckdb based on setting)
 
         Parameters:
-            query: The SQL query to run using sqlite
+            sql_query: The SQL query to run
             dataframes: A dictionary of table names to their pandas Dataframe
         
         Returns:
@@ -81,20 +81,4 @@ class ModelArgs(ModelDepsArgs):
         if dataframes is None:
             dataframes = {x: self.ref(x) for x in self.dependencies}
 
-        use_duckdb = u.use_duckdb()
-        if use_duckdb:
-            import duckdb
-            conn = duckdb.connect()
-        else:
-            conn = sqlite3.connect(":memory:")
-        
-        try:
-            for name, df in dataframes.items():
-                if use_duckdb:
-                    conn.execute(f"CREATE TABLE {name} AS FROM df")
-                else:
-                    df.to_sql(name, conn, index=False)
-            
-            return conn.execute(query).df() if use_duckdb else pd.read_sql(query, conn)
-        finally:
-            conn.close()
+        return u.run_sql_on_dataframes(sql_query, dataframes)

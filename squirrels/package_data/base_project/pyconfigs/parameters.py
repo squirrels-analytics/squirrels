@@ -36,11 +36,11 @@ def main(sqrl: sr.ParametersArgs) -> None:
     sr.DateRangeParameter.CreateSimple("date_range", "Date Range", "2023-01-01", "2023-12-31")
 
     """ Example of creating MultiSelectParameter from lookup query/table """
-    category_ds = sr.SelectDataSource("categories", "category_id", "category")
+    category_ds = sr.SelectDataSource("seed_categories", "category_id", "category", from_seeds=True)
     sr.MultiSelectParameter.CreateFromSource("category", "Category Filter", category_ds)
 
     """ Example of creating MultiSelectParameter with parent from lookup query/table """
-    subcategory_ds = sr.SelectDataSource("subcategories", "subcategory_id", "subcategory", parent_id_col="category_id")
+    subcategory_ds = sr.SelectDataSource("seed_subcategories", "subcategory_id", "subcategory", from_seeds=True, parent_id_col="category_id")
     sr.MultiSelectParameter.CreateFromSource("subcategory", "Subcategory Filter", subcategory_ds, parent_name="category")
 
     """ Example of creating NumberParameter """
