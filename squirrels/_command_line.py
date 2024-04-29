@@ -85,6 +85,8 @@ def main():
             elif args.command == c.COMPILE_CMD:
                 task = ModelsIO.WriteOutputs(args.dataset, args.all_datasets, args.select, args.test_set, args.all_test_sets, args.runquery)
                 asyncio.run(task)
+        except KeyboardInterrupt:
+            print(f"(Process cancelled by user)")
         finally:
             ConnectionSetIO.Dispose()
     elif args.command is None:

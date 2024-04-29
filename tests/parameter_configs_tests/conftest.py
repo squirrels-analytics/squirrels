@@ -29,7 +29,7 @@ def ss_config_with_ms_parent() -> pc.SingleSelectParameterConfig:
         po.SelectParameterOption('ss3', 'Single Option 4', is_default=True, parent_option_ids=['ms3', 'ms0'])
     )
     return pc.SingleSelectParameterConfig("single_select_with_ms_parent", "Single With Parent 1", param_options, 
-                                          is_hidden=True, parent_name="multi_select_basic")
+                                          parent_name="multi_select_basic")
 
 
 @pytest.fixture(scope="module")

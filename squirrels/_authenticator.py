@@ -55,7 +55,7 @@ class Authenticator:
         
         return None
     
-    def create_access_token(self, user: User) -> str:
+    def create_access_token(self, user: User) -> tuple[str, datetime]:
         expire = datetime.now(timezone.utc) + timedelta(minutes=self.token_expiry_minutes)
         to_encode = {**vars(user), "exp": expire}
         encoded_jwt = jwt.encode(to_encode, self.secret_key, algorithm=self.algorithm)

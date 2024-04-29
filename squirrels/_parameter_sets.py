@@ -4,7 +4,7 @@ from dataclasses import dataclass, field
 from collections import OrderedDict
 import concurrent.futures, pandas as pd
 
-from . import _utils as u, _constants as c, parameters as p, _parameter_configs as pc, _py_module as pm
+from . import _utils as u, _constants as c, parameters as p, _parameter_configs as pc, _py_module as pm, _api_response_models as arm
 from .arguments.init_time_args import ParametersArgs
 from ._manifest import ManifestIO, ParametersConfig
 from ._connection_set import ConnectionSetIO
@@ -23,12 +23,11 @@ class ParameterSet:
     def get_parameters_as_dict(self) -> dict[str, p.Parameter]:
         return self._parameters_dict.copy()
 
-    def to_json_dict0(self, *, debug: bool = False) -> dict:
+    def to_api_response_model0(self) -> arm.ParametersModel:
         parameters = []
         for x in self._parameters_dict.values():
-            if not x._config.is_hidden or debug:
-                parameters.append(x.to_json_dict0())
-        return {"parameters": parameters}
+            parameters.append(x._to_api_response_model0())
+        return arm.ParametersModel(parameters=parameters)
 
 
 @dataclass
@@ -137,6 +136,9 @@ class _ParameterConfigsSet:
         
         ordered_parameters = OrderedDict((key, parameters_by_name[key]) for key in dataset_params if key in parameters_by_name)
         return ParameterSet(ordered_parameters)
+    
+    def get_all_api_field_info(self) -> dict[str, pc.APIParamFieldInfo]:
+        return {param: config.get_api_field_info() for param, config in self._data.items()}
 
 
 class ParameterConfigsSetIO:

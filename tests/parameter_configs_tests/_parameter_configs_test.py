@@ -52,6 +52,7 @@ class TestMultiSelectParameterConfig:
             "widget_type": "multi_select",
             "name": "multi_select_basic",
             "label": "Multi Select Basic",
+            "description": "",
             "trigger_refresh": False,
             "show_select_all": True,
             "is_dropdown": True,
@@ -95,6 +96,7 @@ class TestSingleSelectParameterConfig:
             "widget_type": "single_select",
             "name": "single_select_with_ms_parent",
             "label": "Single With Parent 1",
+            "description": "",
             "trigger_refresh": False
         }
         assert ss_config_with_ms_parent.to_json_dict0() == expected

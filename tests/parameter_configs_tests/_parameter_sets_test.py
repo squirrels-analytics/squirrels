@@ -1,7 +1,8 @@
 from collections import OrderedDict
 import pytest, pandas as pd
 
-from squirrels import _parameter_sets as ps, parameters as p, _parameter_configs as pc, parameter_options as po, data_sources as d, _utils as u
+from squirrels import _parameter_sets as ps, parameters as p, _parameter_configs as pc, parameter_options as po, data_sources as d
+from squirrels import _utils as u
 from tests.parameter_configs_tests._user_class import User
 
 
@@ -120,17 +121,30 @@ def param_configs_set2(
 
 def test_parameter_set_to_json_dict(parameter_set1: ps.ParameterSet):
     expected_params = []
-    expected = {
-        "parameters": expected_params
+
+    ss_param_json = {
+        "widget_type": "single_select",
+        "name": "single_select_with_ms_parent",
+        "label": "Single With Parent 1",
+        "description": "",
+        "options": [
+            {"id": "ss0", "label": "Single Option 1"},
+            {"id": "ss1", "label": "Single Option 2"},
+            {"id": "ss2", "label": "Single Option 3"}
+        ],
+        "trigger_refresh": False,
+        "selected_id": "ss1"
     }
+    expected_params.append(ss_param_json)
 
     ms_param_json = {
         "widget_type": "multi_select",
         "name": "multi_select_basic",
         "label": "Multi Select Basic",
+        "description": "",
         "options": [
-            {"id": "ms1", "label": "Multi Option 2"},
-            {"id": "ms2", "label": "Multi Option 3"}
+            { "id":"ms1", "label":"Multi Option 2"},
+            { "id":"ms2", "label":"Multi Option 3" }
         ],
         "trigger_refresh": True,
         "show_select_all": True,
@@ -140,23 +154,10 @@ def test_parameter_set_to_json_dict(parameter_set1: ps.ParameterSet):
     }
     expected_params.append(ms_param_json)
 
-    assert parameter_set1.to_json_dict0() == expected
-
-    ss_param_json = {
-        "widget_type": "single_select",
-        "name": "single_select_with_ms_parent",
-        "label": "Single With Parent 1",
-        "options": [
-            {"id": "ss0", "label": "Single Option 1"},
-            {"id": "ss1", "label": "Single Option 2"},
-            {"id": "ss2", "label": "Single Option 3"}
-        ],
-        "trigger_refresh": False,
-        "selected_id": "ss1"
+    expected = {
+        "parameters": expected_params
     }
-    expected_params.insert(0, ss_param_json)
-
-    assert parameter_set1.to_json_dict0(debug=True) == expected
+    assert parameter_set1.to_api_response_model0().model_dump() == expected
 
 
 def test_invalid_non_select_parent():
