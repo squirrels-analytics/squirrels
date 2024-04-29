@@ -5,7 +5,8 @@ from datetime import datetime, date
 from decimal import Decimal
 from abc import ABCMeta, abstractmethod
 
-from . import _parameter_configs as pc, _parameter_sets as ps, parameter_options as po, data_sources as d, _utils as u
+from . import _parameter_configs as pc, _parameter_sets as ps, parameter_options as po, data_sources as d
+from . import _api_response_models as arm, _utils as u
 
 
 @dataclass
@@ -22,7 +23,7 @@ class Parameter(metaclass=ABCMeta):
     
     @classmethod
     def Create(
-        cls, name: str, label: str, all_options: Sequence[Union[po.ParameterOption, dict]], *, is_hidden: bool = False, 
+        cls, name: str, label: str, all_options: Sequence[Union[po.ParameterOption, dict]], *, description: str = "",
         user_attribute: Optional[str] = None, parent_name: Optional[str] = None, **kwargs
     ) -> None:
         """
@@ -32,23 +33,23 @@ class Parameter(metaclass=ABCMeta):
             name: The name of the parameter
             label: The display label for the parameter
             all_options: All options associated to this parameter regardless of the user group or parent parameter option they depend on
-            is_hidden: Whether the parameter is hidden in the parameters API response. Default is False
+            description: Explains the meaning of the parameter
             user_attribute: The user attribute that may cascade the options for this parameter. Default is None
             parent_name: Name of parent parameter that may cascade the options for this parameter. Default is None (no parent)
         """
         param_config_type = cls._ParameterConfigType()
-        param_config = param_config_type(name, label, all_options, is_hidden=is_hidden, user_attribute=user_attribute, 
+        param_config = param_config_type(name, label, all_options, description=description, user_attribute=user_attribute, 
                                          parent_name=parent_name)
         ps.ParameterConfigsSetIO.obj.add(param_config)
 
     @classmethod
     @abstractmethod
-    def CreateSimple(cls, name: str, label: str, *args, is_hidden: bool = False, **kwargs) -> None:
+    def CreateSimple(cls, name: str, label: str, *args, description: str = "", **kwargs) -> None:
         pass
     
     @classmethod
     def CreateFromSource(
-        cls, name: str, label: str, data_source: Union[d.DataSource , dict], *, is_hidden: bool = False, 
+        cls, name: str, label: str, data_source: Union[d.DataSource , dict], *, description: str = "", 
         user_attribute: Optional[str] = None, parent_name: Optional[str] = None, **kwargs
     ) -> None:
         """
@@ -58,12 +59,12 @@ class Parameter(metaclass=ABCMeta):
             name: The name of the parameter
             label: The display label for the parameter
             data_source: The lookup table to use for this parameter
-            is_hidden: Whether the parameter is hidden in the parameters API response. Default is False
+            description: Explains the meaning of the parameter
             user_attribute: The user attribute that may cascade the options for this parameter. Default is None
             parent_name: Name of parent parameter that may cascade the options for this parameter. Default is None (no parent)
         """
         param_config_type = cls._ParameterConfigType()
-        param_config = pc.DataSourceParameterConfig(param_config_type, name, label, data_source, is_hidden=is_hidden, 
+        param_config = pc.DataSourceParameterConfig(param_config_type, name, label, data_source, description=description, 
                                                     user_attribute=user_attribute, parent_name=parent_name)
         ps.ParameterConfigsSetIO.obj.add(param_config)
         
@@ -88,6 +89,13 @@ class Parameter(metaclass=ABCMeta):
         Helper method to convert the derived Parameter class into a JSON dictionary
         """
         return self._config.to_json_dict0()
+    
+    @abstractmethod
+    def _get_response_model0(self) -> type[arm.ParameterModel]:
+        pass
+    
+    def _to_api_response_model0(self) -> arm.ParameterModel:
+        return self._get_response_model0().model_validate(self.to_json_dict0())
 
 
 @dataclass
@@ -107,7 +115,7 @@ class _SelectionParameter(Parameter):
             self._config._raise_invalid_input_error(selected_id, f"The selected id {selected_id} does not exist in available options.")
     
     @abstractmethod
-    def to_json_dict0(self):
+    def to_json_dict0(self) -> dict:
         """
         Helper method to convert the derived selection parameter class into a JSON object
         """
@@ -143,7 +151,7 @@ class SingleSelectParameter(_SelectionParameter):
     
     @classmethod
     def CreateSimple(
-        cls, name: str, label: str, all_options: Sequence[po.SelectParameterOption], *, is_hidden: bool = False, **kwargs
+        cls, name: str, label: str, all_options: Sequence[po.SelectParameterOption], *, description: str = "", **kwargs
     ) -> None:
         """
         Method for creating the configurations for a Parameter that doesn't involve user attributes or parent parameters
@@ -152,9 +160,9 @@ class SingleSelectParameter(_SelectionParameter):
             name: The name of the parameter
             label: The display label for the parameter
             all_options: All options associated to this parameter regardless of the user group or parent parameter option they depend on
-            is_hidden: Whether the parameter is hidden in the parameters API response. Default is False
+            description: Explains the meaning of the parameter
         """
-        cls.Create(name, label, all_options, is_hidden=is_hidden)
+        cls.Create(name, label, all_options, description=description)
 
     def get_selected(
         self, field: Optional[str] = None, *, default_field: Optional[str] = None, default: Any = None, **kwargs
@@ -235,6 +243,9 @@ class SingleSelectParameter(_SelectionParameter):
         output = super().to_json_dict0()
         output['selected_id'] = self._selected_id
         return output
+    
+    def _get_response_model0(self):
+        return arm.SingleSelectParameterModel
 
 
 @dataclass
@@ -262,8 +273,8 @@ class MultiSelectParameter(_SelectionParameter):
     
     @classmethod
     def Create(
-        cls, name: str, label: str, all_options: Sequence[Union[po.SelectParameterOption, dict]], *, show_select_all: bool = True, 
-        is_dropdown: bool = True, order_matters: bool = False, none_is_all: bool = True, is_hidden: bool = False, 
+        cls, name: str, label: str, all_options: Sequence[Union[po.SelectParameterOption, dict]], *, description: str = "",
+        show_select_all: bool = True, is_dropdown: bool = True, order_matters: bool = False, none_is_all: bool = True,
         user_attribute: Optional[str] = None, parent_name: Optional[str] = None, **kwargs
     ) -> None:
         """
@@ -273,25 +284,25 @@ class MultiSelectParameter(_SelectionParameter):
             name: The name of the parameter
             label: The display label for the parameter
             all_options: All options associated to this parameter regardless of the user group or parent parameter option they depend on
+            description: Explains the meaning of the parameter
             show_select_all: Communicate to front-end whether to include a "select all" option
             is_dropdown: Communicate to front-end whether the widget should be a dropdown with checkboxes
             order_matters: Communicate to front-end whether the order of the selections made matter
             none_is_all: Whether having no options selected is equivalent to all selectable options selected
-            is_hidden: Whether the parameter is hidden in the parameters API response. Default is False
             user_attribute: The user attribute that may cascade the options for this parameter. Default is None
             parent_name: Name of parent parameter that may cascade the options for this parameter. Default is None (no parent)
         """
         param_config = pc.MultiSelectParameterConfig(
             name, label, all_options, 
             show_select_all=show_select_all, is_dropdown=is_dropdown, order_matters=order_matters, none_is_all=none_is_all, 
-            is_hidden=is_hidden, user_attribute=user_attribute, parent_name=parent_name
+            description=description, user_attribute=user_attribute, parent_name=parent_name
         )
         ps.ParameterConfigsSetIO.obj.add(param_config)
 
     @classmethod
     def CreateSimple(
-        cls, name: str, label: str, all_options: Sequence[po.SelectParameterOption], *, show_select_all: bool = True, 
-        is_dropdown: bool = True, order_matters: bool = False, none_is_all: bool = True, is_hidden: bool = False, **kwargs
+        cls, name: str, label: str, all_options: Sequence[po.SelectParameterOption], *, description: str = "",
+        show_select_all: bool = True, is_dropdown: bool = True, order_matters: bool = False, none_is_all: bool = True, **kwargs
     ) -> None:
         """
         Method for creating the configurations for a MultiSelectParameter that doesn't involve user attributes or parent parameters
@@ -300,22 +311,21 @@ class MultiSelectParameter(_SelectionParameter):
             name: The name of the parameter
             label: The display label for the parameter
             all_options: All options associated to this parameter regardless of the user group or parent parameter option they depend on
+            description: Explains the meaning of the parameter
             show_select_all: Communicate to front-end whether to include a "select all" option
             is_dropdown: Communicate to front-end whether the widget should be a dropdown with checkboxes
             order_matters: Communicate to front-end whether the order of the selections made matter
             none_is_all: Whether having no options selected is equivalent to all selectable options selected
-            is_hidden: Whether the parameter is hidden in the parameters API response. Default is False
         """
         cls.Create(
-            name, label, all_options, 
-            show_select_all=show_select_all, s_dropdown=is_dropdown, order_matters=order_matters, none_is_all=none_is_all, 
-            is_hidden=is_hidden
+            name, label, all_options, description=description,
+            show_select_all=show_select_all, s_dropdown=is_dropdown, order_matters=order_matters, none_is_all=none_is_all
         )
     
     @classmethod
     def CreateFromSource(
-        cls, name: str, label: str, data_source: Union[d.SelectDataSource, dict], *, show_select_all: bool = True, 
-        is_dropdown: bool = True, order_matters: bool = False, none_is_all: bool = True, is_hidden: bool = False, 
+        cls, name: str, label: str, data_source: Union[d.SelectDataSource, dict], *, description: str = "",
+        show_select_all: bool = True, is_dropdown: bool = True, order_matters: bool = False, none_is_all: bool = True,
         user_attribute: Optional[str] = None, parent_name: Optional[str] = None, **kwargs
     ) -> None:
         """
@@ -325,11 +335,11 @@ class MultiSelectParameter(_SelectionParameter):
             name: The name of the parameter
             label: The display label for the parameter
             data_source: The lookup table to use for this parameter
+            description: Explains the meaning of the parameter
             show_select_all: Communicate to front-end whether to include a "select all" option
             is_dropdown: Communicate to front-end whether the widget should be a dropdown with checkboxes
             order_matters: Communicate to front-end whether the order of the selections made matter
             none_is_all: Whether having no options selected is equivalent to all selectable options selected
-            is_hidden: Whether the parameter is hidden in the parameters API response. Default is False
             user_attribute: The user attribute that may cascade the options for this parameter. Default is None
             parent_name: Name of parent parameter that may cascade the options for this parameter. Default is None (no parent)
         """
@@ -338,7 +348,7 @@ class MultiSelectParameter(_SelectionParameter):
             "order_matters": order_matters, "none_is_all": none_is_all
         }
         param_config = pc.DataSourceParameterConfig(
-            pc.MultiSelectParameterConfig, name, label, data_source, extra_args=extra_args, is_hidden=is_hidden, 
+            pc.MultiSelectParameterConfig, name, label, data_source, extra_args=extra_args, description=description, 
             user_attribute=user_attribute, parent_name=parent_name
         )
         ps.ParameterConfigsSetIO.obj.add(param_config)
@@ -467,6 +477,9 @@ class MultiSelectParameter(_SelectionParameter):
         output = super().to_json_dict0()
         output['selected_ids'] = list(self._selected_ids)
         return output
+    
+    def _get_response_model0(self):
+        return arm.MultiSelectParameterModel
 
 
 @dataclass
@@ -491,7 +504,8 @@ class DateParameter(Parameter):
 
     @classmethod
     def CreateSimple(
-        cls, name: str, label: str, default_date: Union[str, date], *, date_format: str = '%Y-%m-%d', is_hidden: bool = False, **kwargs
+        cls, name: str, label: str, default_date: Union[str, date], *, description: str = "", 
+        date_format: str = '%Y-%m-%d', **kwargs
     ) -> None:
         """
         Method for creating the configurations for a Parameter that doesn't involve user attributes or parent parameters
@@ -500,11 +514,11 @@ class DateParameter(Parameter):
             name: The name of the parameter
             label: The display label for the parameter
             default_date: Default date for this option
+            description: Explains the meaning of the parameter
             date_format: Format of the default date, default is '%Y-%m-%d'
-            is_hidden: Whether the parameter is hidden in the parameters API response. Default is False
         """
         single_param_option = po.DateParameterOption(default_date, date_format=date_format)
-        cls.Create(name, label, (single_param_option,), is_hidden=is_hidden)
+        cls.Create(name, label, (single_param_option,), description=description)
     
     def get_selected_date(self, *, date_format: str = None, **kwargs) -> str:
         """
@@ -544,6 +558,9 @@ class DateParameter(Parameter):
         output.update(self._curr_option._to_json_dict())
         output['selected_date'] = self.get_selected_date(date_format="%Y-%m-%d")
         return output
+    
+    def _get_response_model0(self):
+        return arm.DateParameterModel
 
 
 @dataclass
@@ -571,8 +588,8 @@ class DateRangeParameter(Parameter):
 
     @classmethod
     def CreateSimple(
-        cls, name: str, label: str, default_start_date: Union[str, date], default_end_date: Union[str, date], 
-        *, date_format: str = '%Y-%m-%d', is_hidden: bool = False, **kwargs
+        cls, name: str, label: str, default_start_date: Union[str, date], default_end_date: Union[str, date], *, 
+        description: str = "", date_format: str = '%Y-%m-%d', **kwargs
     ) -> None:
         """
         Method for creating the configurations for a Parameter that doesn't involve user attributes or parent parameters
@@ -582,11 +599,11 @@ class DateRangeParameter(Parameter):
             label: The display label for the parameter
             default_start_date: Default start date for this option
             default_end_date: Default end date for this option
+            description: Explains the meaning of the parameter
             date_format: Format of the default date, default is '%Y-%m-%d'
-            is_hidden: Whether the parameter is hidden in the parameters API response. Default is False
         """
         single_param_option = po.DateRangeParameterOption(default_start_date, default_end_date, date_format=date_format)
-        cls.Create(name, label, (single_param_option,), is_hidden=is_hidden)
+        cls.Create(name, label, (single_param_option,), description=description)
     
     def get_selected_start_date(self, *, date_format: str = None, **kwargs) -> str:
         """
@@ -652,6 +669,9 @@ class DateRangeParameter(Parameter):
         output['selected_start_date'] = self.get_selected_start_date(date_format="%Y-%m-%d")
         output['selected_end_date'] = self.get_selected_end_date(date_format="%Y-%m-%d")
         return output
+    
+    def _get_response_model0(self):
+        return arm.DateRangeParameterModel
 
 
 @dataclass
@@ -676,8 +696,8 @@ class NumberParameter(Parameter):
 
     @classmethod
     def CreateSimple(
-        cls, name: str, label: str, min_value: po.Number, max_value: po.Number, *, increment: po.Number = 1, 
-        default_value: Optional[po.Number] = None, is_hidden: bool = False, **kwargs
+        cls, name: str, label: str, min_value: po.Number, max_value: po.Number, *, description: str = "", 
+        increment: po.Number = 1, default_value: Optional[po.Number] = None, **kwargs
     ) -> None:
         """
         Method for creating the configurations for a Parameter that doesn't involve user attributes or parent parameters
@@ -689,12 +709,12 @@ class NumberParameter(Parameter):
             label: The display label for the parameter
             min_value: Minimum selectable value
             max_value: Maximum selectable value
+            description: Explains the meaning of the parameter
             increment: Increment of selectable values, and must fit evenly between min_value and max_value
             default_value: Default value for this option, and must be selectable based on min_value, max_value, and increment
-            is_hidden: Whether the parameter is hidden in the parameters API response. Default is False
         """
         single_param_option = po.NumberParameterOption(min_value, max_value, increment=increment, default_value=default_value)
-        cls.Create(name, label, (single_param_option,), is_hidden=is_hidden)
+        cls.Create(name, label, (single_param_option,), description=description)
     
     def get_selected_value(self, **kwargs) -> str:
         """
@@ -716,6 +736,9 @@ class NumberParameter(Parameter):
         output.update(self._curr_option._to_json_dict())
         output['selected_value'] = self.get_selected_value()
         return output
+    
+    def _get_response_model0(self):
+        return arm.NumberParameterModel
 
 
 @dataclass
@@ -743,8 +766,9 @@ class NumberRangeParameter(Parameter):
 
     @classmethod
     def CreateSimple(
-        cls, name: str, label: str, min_value: po.Number, max_value: po.Number, *, increment: po.Number = 1, 
-        default_lower_value: Optional[po.Number] = None, default_upper_value: Optional[po.Number] = None, is_hidden: bool = False, **kwargs
+        cls, name: str, label: str, min_value: po.Number, max_value: po.Number, *, description: str = "",
+        increment: po.Number = 1, default_lower_value: Optional[po.Number] = None, default_upper_value: Optional[po.Number] = None,
+        **kwargs
     ) -> None:
         """
         Method for creating the configurations for a Parameter that doesn't involve user attributes or parent parameters
@@ -756,15 +780,15 @@ class NumberRangeParameter(Parameter):
             label: The display label for the parameter
             min_value: Minimum selectable value
             max_value: Maximum selectable value
+            description: Explains the meaning of the parameter
             increment: Increment of selectable values, and must fit evenly between min_value and max_value
             default_lower_value: Default lower value for this option, and must be selectable based on min_value, max_value, and increment
             default_upper_value: Default upper value for this option, and must be selectable based on min_value, max_value, and increment. 
                     Must also be greater than default_lower_value
-            is_hidden: Whether the parameter is hidden in the parameters API response. Default is False
         """
         single_param_option = po.NumberRangeParameterOption(min_value, max_value, increment=increment, default_lower_value=default_lower_value, 
                                                          default_upper_value=default_upper_value)
-        cls.Create(name, label, (single_param_option,), is_hidden=is_hidden)
+        cls.Create(name, label, (single_param_option,), description=description)
     
     def get_selected_lower_value(self, **kwargs) -> str:
         """
@@ -796,3 +820,6 @@ class NumberRangeParameter(Parameter):
         output['selected_lower_value'] = self.get_selected_lower_value()
         output['selected_upper_value'] = self.get_selected_upper_value()
         return output
+    
+    def _get_response_model0(self):
+        return arm.NumberRangeParameterModel

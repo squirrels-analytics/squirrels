@@ -144,3 +144,6 @@ DATABASE_CHOICES = [EXPENSES_DB_NAME, WEATHER_DB_NAME]
 GET_USER_FUNC = "get_user_if_valid"
 DEP_FUNC = "dependencies"
 MAIN_FUNC = "main"
+
+# Regex
+date_regex = r'^\d{4}\-\d{2}\-\d{2}$'

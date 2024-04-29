@@ -195,12 +195,12 @@ class SelectDataSource(_SelectionDataSource):
         all_options = self._get_all_options(df)
         if ds_param.parameter_type == pc.SingleSelectParameterConfig:
             return pc.SingleSelectParameterConfig(
-                ds_param.name, ds_param.label, all_options, is_hidden=ds_param.is_hidden, 
+                ds_param.name, ds_param.label, all_options, description=ds_param.description, 
                 user_attribute=ds_param.user_attribute, parent_name=ds_param.parent_name
             )
         elif ds_param.parameter_type == pc.MultiSelectParameterConfig:
             return pc.MultiSelectParameterConfig(
-                ds_param.name, ds_param.label, all_options, is_hidden=ds_param.is_hidden, 
+                ds_param.name, ds_param.label, all_options, description=ds_param.description, 
                 user_attribute=ds_param.user_attribute, parent_name=ds_param.parent_name, **ds_param.extra_args
             )
         else:
@@ -243,7 +243,7 @@ class SingleSelectDataSource(_SelectionDataSource):
         """
         self._validate_parameter_type(ds_param, pc.SingleSelectParameterConfig)
         all_options = self._get_all_options(df)
-        return pc.SingleSelectParameterConfig(ds_param.name, ds_param.label, all_options, is_hidden=ds_param.is_hidden, 
+        return pc.SingleSelectParameterConfig(ds_param.name, ds_param.label, all_options, description=ds_param.description, 
                                               user_attribute=ds_param.user_attribute, parent_name=ds_param.parent_name)
 
 @dataclass
@@ -306,7 +306,7 @@ class MultiSelectDataSource(_SelectionDataSource):
         all_options = self._get_all_options(df)
         return pc.MultiSelectParameterConfig(
             ds_param.name, ds_param.label, all_options, show_select_all=self._show_select_all, is_dropdown=self._is_dropdown,
-            order_matters=self._order_matters, none_is_all=self._none_is_all, is_hidden=ds_param.is_hidden, 
+            order_matters=self._order_matters, none_is_all=self._none_is_all, description=ds_param.description, 
             user_attribute=ds_param.user_attribute, parent_name=ds_param.parent_name
         )
 
@@ -370,7 +370,7 @@ class DateDataSource(DataSource):
                                    parent_option_ids=self._get_key_from_record_as_list(self._parent_id_col, record))
             for _, record in records.items()
         )
-        return pc.DateParameterConfig(ds_param.name, ds_param.label, options, is_hidden=ds_param.is_hidden, 
+        return pc.DateParameterConfig(ds_param.name, ds_param.label, options, description=ds_param.description, 
                                       user_attribute=ds_param.user_attribute, parent_name=ds_param.parent_name)
 
 
@@ -437,7 +437,7 @@ class DateRangeDataSource(DataSource):
                                         parent_option_ids=self._get_key_from_record_as_list(self._parent_id_col, record))
             for _, record in records.items()
         )
-        return pc.DateRangeParameterConfig(ds_param.name, ds_param.label, options, is_hidden=ds_param.is_hidden, 
+        return pc.DateRangeParameterConfig(ds_param.name, ds_param.label, options, description=ds_param.description, 
                                            user_attribute=ds_param.user_attribute, parent_name=ds_param.parent_name)
 
 
@@ -526,7 +526,7 @@ class NumberDataSource(_NumericDataSource):
                                      parent_option_ids=self._get_key_from_record_as_list(self._parent_id_col, record))
             for _, record in records.items()
         )
-        return pc.NumberParameterConfig(ds_param.name, ds_param.label, options, is_hidden=ds_param.is_hidden,
+        return pc.NumberParameterConfig(ds_param.name, ds_param.label, options, description=ds_param.description,
                                         user_attribute=ds_param.user_attribute, parent_name=ds_param.parent_name)
 
 
@@ -596,5 +596,5 @@ class NumberRangeDataSource(_NumericDataSource):
                                        parent_option_ids=self._get_key_from_record_as_list(self._parent_id_col, record))
             for _, record in records.items()
         )
-        return pc.NumberRangeParameterConfig(ds_param.name, ds_param.label, options, is_hidden=ds_param.is_hidden,
+        return pc.NumberRangeParameterConfig(ds_param.name, ds_param.label, options, description=ds_param.description,
                                           user_attribute=ds_param.user_attribute, parent_name=ds_param.parent_name)

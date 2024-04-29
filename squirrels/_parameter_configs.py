@@ -1,14 +1,42 @@
 from __future__ import annotations
-from typing import Type, Optional, Union, Sequence, Iterator, Any
+from typing import Annotated, Type, Optional, Union, Sequence, Iterator, Any
 from dataclasses import dataclass, field
 from abc import ABCMeta, abstractmethod
 from copy import copy
+from fastapi import Query
+from pydantic.fields import Field, FieldInfo
 import pandas as pd
 
-from . import parameter_options as po, parameters as p, data_sources as d, _utils as u
+from . import parameter_options as po, parameters as p, data_sources as d, _api_response_models as arm, _utils as u, _constants as c
 from .user_base import User
 from ._connection_set import ConnectionSet
 from ._seeds import Seeds
+
+
+@dataclass
+class APIParamFieldInfo:
+    name: str
+    type: type
+    title: str = ""
+    description: str = ""
+    examples: Optional[list[Any]] = None
+    pattern: Optional[str] = None
+    min_length: Optional[int] = None
+    max_length: Optional[int] = None
+    
+    def as_query_info(self):
+        query_info = Query(
+            title=self.title, description=self.description, examples=self.examples, pattern=self.pattern,
+            min_length=self.min_length, max_length=self.max_length
+        )
+        return (self.name, Annotated[self.type, query_info], None)
+    
+    def as_body_info(self):
+        field_info = Field(None,
+            title=self.title, description=self.description, examples=self.examples, pattern=self.pattern,
+            min_length=self.min_length, max_length=self.max_length
+        )
+        return (self.type, field_info)
 
 
 @dataclass
@@ -18,19 +46,19 @@ class ParameterConfigBase(metaclass=ABCMeta):
     """
     name: str
     label: str
-    is_hidden: bool # = field(default=False, kw_only=True)
+    description: str # = field(default="", kw_only=True)
     user_attribute: Optional[str] # = field(default=None, kw_only=True)
     parent_name: Optional[str] # = field(default=None, kw_only=True)
 
     @abstractmethod
     def __init__(
-        self, widget_type: str, name: str, label: str, *, is_hidden: bool = False, user_attribute: Optional[str] = None, 
+        self, widget_type: str, name: str, label: str, *, description: str = "", user_attribute: Optional[str] = None, 
         parent_name: Optional[str] = None
     ) -> None:
         self.widget_type = widget_type
         self.name = name
         self.label = label
-        self.is_hidden = is_hidden
+        self.description = description
         self.user_attribute = user_attribute
         self.parent_name = parent_name
 
@@ -47,11 +75,9 @@ class ParameterConfigBase(metaclass=ABCMeta):
         """
         return copy(self)
 
-    def to_json_dict0(self) -> dict:
+    def to_json_dict0(self) -> arm.ParameterModel:
         return {
-            'widget_type': self.widget_type,
-            'name': self.name,
-            'label': self.label
+            "widget_type": self.widget_type, "name": self.name, "label": self.label, "description": self.description
         }
 
 
@@ -64,10 +90,10 @@ class ParameterConfig(ParameterConfigBase):
 
     @abstractmethod
     def __init__(
-        self, widget_type: str, name: str, label: str, all_options: Sequence[Union[po.ParameterOption, dict]], *, is_hidden: bool = False, 
-        user_attribute: Optional[str] = None, parent_name: Optional[str] = None
+        self, widget_type: str, name: str, label: str, all_options: Sequence[Union[po.ParameterOption, dict]], *, 
+        description: str = "", user_attribute: Optional[str] = None, parent_name: Optional[str] = None
     ) -> None:
-        super().__init__(widget_type, name, label, is_hidden=is_hidden, user_attribute=user_attribute, 
+        super().__init__(widget_type, name, label, description=description, user_attribute=user_attribute, 
                          parent_name=parent_name)
         self.all_options = tuple(self.__to_param_option(x) for x in all_options)
 
@@ -98,6 +124,10 @@ class ParameterConfig(ParameterConfigBase):
         user_group = self._get_user_group(user)
         selected_parent_option_ids = frozenset(parent_param._get_selected_ids_as_list()) if parent_param else None
         return (x for x in self.all_options if x._is_valid(user_group, selected_parent_option_ids))
+    
+    @abstractmethod
+    def get_api_field_info(self) -> APIParamFieldInfo:
+        pass
 
 
 @dataclass
@@ -105,15 +135,16 @@ class SelectionParameterConfig(ParameterConfig):
     """
     Abstract class for select parameter classes (single-select, multi-select, etc)
     """
+    all_options: Sequence[po.SelectParameterOption] = field(repr=False)
     children: dict[str, ParameterConfigBase] = field(default_factory=dict, init=False, repr=False)
     trigger_refresh: bool = field(default=False, init=False)
 
     @abstractmethod
     def __init__(
-        self, widget_type: str, name: str, label: str, all_options: Sequence[Union[po.SelectParameterOption, dict]], *, is_hidden: bool = False, 
-        user_attribute: Optional[str] = None, parent_name: Optional[str] = None
+        self, widget_type: str, name: str, label: str, all_options: Sequence[Union[po.SelectParameterOption, dict]], *,
+        description: str = "", user_attribute: Optional[str] = None, parent_name: Optional[str] = None
     ) -> None:
-        super().__init__(widget_type, name, label, all_options, is_hidden=is_hidden, user_attribute=user_attribute, 
+        super().__init__(widget_type, name, label, all_options, description=description, user_attribute=user_attribute, 
                          parent_name=parent_name)
         self.children: dict[str, ParameterConfigBase] = dict()
         self.trigger_refresh = False
@@ -153,10 +184,10 @@ class SingleSelectParameterConfig(SelectionParameterConfig):
     """
     
     def __init__(
-        self, name: str, label: str, all_options: Sequence[Union[po.SelectParameterOption, dict]], *, is_hidden: bool = False, 
+        self, name: str, label: str, all_options: Sequence[Union[po.SelectParameterOption, dict]], *, description: str = "", 
         user_attribute: Optional[str] = None, parent_name: Optional[str] = None
     ) -> None:
-        super().__init__("single_select", name, label, all_options, is_hidden=is_hidden, user_attribute=user_attribute, 
+        super().__init__("single_select", name, label, all_options, description=description, user_attribute=user_attribute, 
                          parent_name=parent_name)
      
     @staticmethod
@@ -175,6 +206,12 @@ class SingleSelectParameterConfig(SelectionParameterConfig):
         else:
             selected_id = selection
         return p.SingleSelectParameter(self, options, selected_id)
+    
+    def get_api_field_info(self) -> APIParamFieldInfo:
+        examples = [x._identifier for x in self.all_options]
+        return APIParamFieldInfo(
+            self.name, str, title=self.label, description=self.description, examples=examples
+        )
 
 
 @dataclass
@@ -188,11 +225,11 @@ class MultiSelectParameterConfig(SelectionParameterConfig):
     none_is_all: bool # = field(default=True, kw_only=True)
 
     def __init__(
-        self, name: str, label: str, all_options: Sequence[Union[po.SelectParameterOption, dict]], *, show_select_all: bool = True, 
-        is_dropdown: bool = True, order_matters: bool = False, none_is_all: bool = True, is_hidden: bool = False, 
+        self, name: str, label: str, all_options: Sequence[Union[po.SelectParameterOption, dict]], *, description: str = "", 
+        show_select_all: bool = True, is_dropdown: bool = True, order_matters: bool = False, none_is_all: bool = True,
         user_attribute: Optional[str] = None, parent_name: Optional[str] = None
     ) -> None:
-        super().__init__("multi_select", name, label, all_options, is_hidden=is_hidden, user_attribute=user_attribute, 
+        super().__init__("multi_select", name, label, all_options, description=description, user_attribute=user_attribute, 
                          parent_name=parent_name)
         self.show_select_all = show_select_all
         self.is_dropdown = is_dropdown
@@ -220,6 +257,12 @@ class MultiSelectParameterConfig(SelectionParameterConfig):
         output['is_dropdown'] = self.is_dropdown
         output['order_matters'] = self.order_matters
         return output
+    
+    def get_api_field_info(self) -> APIParamFieldInfo:
+        identifiers = [x._identifier for x in self.all_options]
+        return APIParamFieldInfo(
+            self.name, list[str], title=self.label, description=self.description, examples=[identifiers]
+        )
 
 
 @dataclass
@@ -230,10 +273,10 @@ class _DateTypeParameterConfig(ParameterConfig):
 
     @abstractmethod
     def __init__(
-        self, widget_type: str, name: str, label: str, all_options: Sequence[Union[po.ParameterOption, dict]], *, is_hidden: bool = False, 
-        user_attribute: Optional[str] = None, parent_name: Optional[str] = None
+        self, widget_type: str, name: str, label: str, all_options: Sequence[Union[po.ParameterOption, dict]], *,
+        description: str = "", user_attribute: Optional[str] = None, parent_name: Optional[str] = None
     ) -> None:
-        super().__init__(widget_type, name, label, all_options, is_hidden=is_hidden, user_attribute=user_attribute, 
+        super().__init__(widget_type, name, label, all_options, description=description, user_attribute=user_attribute, 
                          parent_name=parent_name)
 
 
@@ -242,12 +285,13 @@ class DateParameterConfig(_DateTypeParameterConfig):
     """
     Class to define configurations for single-select parameter widgets.
     """
+    all_options: Sequence[po.DateParameterOption] = field(repr=False)
     
     def __init__(
-        self, name: str, label: str, all_options: Sequence[Union[po.DateParameterOption, dict]], *, is_hidden: bool = False, 
-        user_attribute: Optional[str] = None, parent_name: Optional[str] = None
+        self, name: str, label: str, all_options: Sequence[Union[po.DateParameterOption, dict]], *,
+        description: str = "", user_attribute: Optional[str] = None, parent_name: Optional[str] = None
     ) -> None:
-        super().__init__("date", name, label, all_options, is_hidden=is_hidden, user_attribute=user_attribute, 
+        super().__init__("date", name, label, all_options, description=description, user_attribute=user_attribute, 
                          parent_name=parent_name)
 
     @staticmethod
@@ -265,6 +309,12 @@ class DateParameterConfig(_DateTypeParameterConfig):
         curr_option: po.DateParameterOption = next(self._get_options_iterator(user, parent_param))
         selected_date = curr_option._default_date if selection is None else selection
         return p.DateParameter(self, curr_option, selected_date)
+    
+    def get_api_field_info(self) -> APIParamFieldInfo:
+        examples = [str(x._default_date) for x in self.all_options]
+        return APIParamFieldInfo(
+            self.name, str, title=self.label, description=self.description, examples=examples, pattern=c.date_regex
+        )
 
 
 @dataclass
@@ -272,12 +322,13 @@ class DateRangeParameterConfig(_DateTypeParameterConfig):
     """
     Class to define configurations for single-select parameter widgets.
     """
+    all_options: Sequence[po.DateRangeParameterOption] = field(repr=False)
     
     def __init__(
-        self, name: str, label: str, all_options: Sequence[Union[po.DateRangeParameterOption, dict]], *, is_hidden: bool = False, 
-        user_attribute: Optional[str] = None, parent_name: Optional[str] = None
+        self, name: str, label: str, all_options: Sequence[Union[po.DateRangeParameterOption, dict]], *,
+        description: str = "", user_attribute: Optional[str] = None, parent_name: Optional[str] = None
     ) -> None:
-        super().__init__("date_range", name, label, all_options, is_hidden=is_hidden, user_attribute=user_attribute, 
+        super().__init__("date_range", name, label, all_options, description=description, user_attribute=user_attribute, 
                          parent_name=parent_name)
 
     @staticmethod
@@ -302,6 +353,12 @@ class DateRangeParameterConfig(_DateTypeParameterConfig):
             except ValueError as e:
                 self._raise_invalid_input_error(selection, "Date range parameter selection must be two dates joined by comma.", e)
         return p.DateRangeParameter(self, curr_option, selected_start_date, selected_end_date)
+    
+    def get_api_field_info(self) -> APIParamFieldInfo:
+        examples = [[str(x._default_start_date), str(x._default_end_date)] for x in self.all_options]
+        return APIParamFieldInfo(
+            self.name, list[str], title=self.label, description=self.description, examples=examples, max_length=2
+        )
 
 
 @dataclass
@@ -312,10 +369,10 @@ class _NumericParameterConfig(ParameterConfig):
 
     @abstractmethod
     def __init__(
-        self, widget_type: str, name: str, label: str, all_options: Sequence[Union[po.ParameterOption, dict]], *, is_hidden: bool = False, 
-        user_attribute: Optional[str] = None, parent_name: Optional[str] = None
+        self, widget_type: str, name: str, label: str, all_options: Sequence[Union[po.ParameterOption, dict]], *,
+        description: str = "", user_attribute: Optional[str] = None, parent_name: Optional[str] = None
     ) -> None:
-        super().__init__(widget_type, name, label, all_options, is_hidden=is_hidden, user_attribute=user_attribute, 
+        super().__init__(widget_type, name, label, all_options, description=description, user_attribute=user_attribute, 
                          parent_name=parent_name)
 
 
@@ -324,12 +381,13 @@ class NumberParameterConfig(_NumericParameterConfig):
     """
     Class to define configurations for single-select parameter widgets.
     """
+    all_options: Sequence[po.NumberParameterOption] = field(repr=False)
     
     def __init__(
-        self, name: str, label: str, all_options: Sequence[Union[po.NumberParameterOption, dict]], *, is_hidden: bool = False, 
-        user_attribute: Optional[str] = None, parent_name: Optional[str] = None
+        self, name: str, label: str, all_options: Sequence[Union[po.NumberParameterOption, dict]], *,
+        description: str = "", user_attribute: Optional[str] = None, parent_name: Optional[str] = None
     ) -> None:
-        super().__init__("number", name, label, all_options, is_hidden=is_hidden, user_attribute=user_attribute, 
+        super().__init__("number", name, label, all_options, description=description, user_attribute=user_attribute, 
                          parent_name=parent_name)
 
     @staticmethod
@@ -347,6 +405,12 @@ class NumberParameterConfig(_NumericParameterConfig):
         curr_option: po.NumberParameterOption = next(self._get_options_iterator(user, parent_param))
         selected_value = curr_option._default_value if selection is None else selection
         return p.NumberParameter(self, curr_option, selected_value)
+    
+    def get_api_field_info(self) -> APIParamFieldInfo:
+        examples = [x._default_value for x in self.all_options]
+        return APIParamFieldInfo(
+            self.name, float, title=self.label, description=self.description, examples=examples
+        )
 
 
 @dataclass
@@ -354,12 +418,13 @@ class NumberRangeParameterConfig(_NumericParameterConfig):
     """
     Class to define configurations for single-select parameter widgets.
     """
+    all_options: Sequence[po.NumberRangeParameterOption] = field(repr=False)
     
     def __init__(
-        self, name: str, label: str, all_options: Sequence[Union[po.NumberRangeParameterOption, dict]], *, is_hidden: bool = False, 
-        user_attribute: Optional[str] = None, parent_name: Optional[str] = None
+        self, name: str, label: str, all_options: Sequence[Union[po.NumberRangeParameterOption, dict]], *, 
+        description: str = "", user_attribute: Optional[str] = None, parent_name: Optional[str] = None
     ) -> None:
-        super().__init__("number_range", name, label, all_options, is_hidden=is_hidden, user_attribute=user_attribute, 
+        super().__init__("number_range", name, label, all_options, description=description, user_attribute=user_attribute, 
                          parent_name=parent_name)
 
     @staticmethod
@@ -384,6 +449,12 @@ class NumberRangeParameterConfig(_NumericParameterConfig):
             except ValueError as e:
                 self._raise_invalid_input_error(selection, "Number range parameter selection must be two numbers joined by comma.", e)
         return p.NumberRangeParameter(self, curr_option, selected_lower_value, selected_upper_value)
+    
+    def get_api_field_info(self) -> APIParamFieldInfo:
+        examples = [[x._default_lower_value, x._default_upper_value] for x in self.all_options]
+        return APIParamFieldInfo(
+            self.name, list[float], title=self.label, description=self.description, examples=examples, max_length=2
+        )
 
 
 @dataclass
@@ -396,9 +467,9 @@ class DataSourceParameterConfig(ParameterConfigBase):
 
     def __init__(
         self, parameter_type: Type[ParameterConfig], name: str, label: str, data_source: Union[d.DataSource, dict], *, 
-        extra_args: dict = {}, is_hidden: bool = False, user_attribute: Optional[str] = None, parent_name: Optional[str] = None
+        extra_args: dict = {}, description: str = "", user_attribute: Optional[str] = None, parent_name: Optional[str] = None
     ) -> None:
-        super().__init__("data_source", name, label, is_hidden=is_hidden, user_attribute=user_attribute, parent_name=parent_name)
+        super().__init__("data_source", name, label, description=description, user_attribute=user_attribute, parent_name=parent_name)
         self.parameter_type = parameter_type
         if isinstance(data_source, dict):
             data_source = parameter_type.DataSource(**data_source)

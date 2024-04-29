@@ -50,6 +50,7 @@ class TestSingleSelectParameter:
             "widget_type": "single_select",
             "name": "test",
             "label": "Test",
+            "description": "",
             "options": [
                 {"id": "ss0", "label": "My Label"},
                 {"id": "ss1", "label": "Another Label"}
@@ -120,6 +121,7 @@ class TestMultiSelectParameter:
             "widget_type": "multi_select",
             "name": "test",
             "label": "Test",
+            "description": "",
             "options": [
                 {"id": "ms0", "label": "Option 1"},
                 {"id": "ms1", "label": "Option 2"},
@@ -150,6 +152,7 @@ class TestDateParameter:
             "widget_type": "date",
             "name": "test",
             "label": "Test",
+            "description": "",
             "selected_date": "2021-01-01"
         }
         assert param1.to_json_dict0() == expected
@@ -173,6 +176,7 @@ class TestDateRangeParameter:
             "widget_type": "date_range",
             "name": "test_id",
             "label": "Test Label",
+            "description": "",
             "selected_start_date": "2022-06-14",
             "selected_end_date": "2023-03-15",
         }
@@ -201,6 +205,7 @@ class TestNumberParameter:
             "widget_type": "number",
             "name": "test",
             "label": "Test",
+            "description": "",
             "min_value": "0",
             "max_value": "10",
             "increment": "0.5",
@@ -232,6 +237,7 @@ class TestNumberRangeParameter:
             "widget_type": "number_range",
             "name": "test",
             "label": "Test",
+            "description": "",
             "min_value": "0",
             "max_value": "10",
             "increment": "0.5",

@@ -1,6 +1,5 @@
-from typing import Sequence, Optional, Union, Any, TypeVar, Callable
+from typing import Sequence, Optional, Union, TypeVar, Callable
 from pathlib import Path
-from pandas.api import types as pd_types
 import json, sqlite3, jinja2 as j2, pandas as pd
 
 from . import _constants as c
@@ -110,33 +109,6 @@ def normalize_name_for_api(name: str) -> str:
         The normalized name.
     """
     return name.replace('_', '-')
-
-
-def df_to_json0(df: pd.DataFrame, dimensions: list[str] = None) -> dict[str, Any]:
-    """
-    Convert a pandas DataFrame to the same JSON format that the dataset result API of Squirrels outputs.
-
-    Parameters:
-        df: The dataframe to convert into JSON
-        dimensions: The list of declared dimensions. If None, all non-numeric columns are assumed as dimensions
-
-    Returns:
-        The JSON response of a Squirrels dataset result API
-    """
-    in_df_json = json.loads(df.to_json(orient='table', index=False))
-    out_fields = []
-    non_numeric_fields = []
-    for in_column in in_df_json["schema"]["fields"]:
-        col_name: str = in_column["name"]
-        out_column = {"name": col_name, "type": in_column["type"]}
-        out_fields.append(out_column)
-        
-        if not pd_types.is_numeric_dtype(df[col_name].dtype):
-            non_numeric_fields.append(col_name)
-    
-    out_dimensions = non_numeric_fields if dimensions is None else dimensions
-    out_schema = {"fields": out_fields, "dimensions": out_dimensions}
-    return {"schema": out_schema, "data": in_df_json["data"]}
 
 
 def load_json_or_comma_delimited_str_as_list(input_str: Union[str, Sequence]) -> Sequence[str]:
