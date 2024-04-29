@@ -26,7 +26,7 @@ def main():
     init_parser.add_argument('--dbview', type=str, choices=c.FILE_TYPE_CHOICES, help='Create database view model as sql (default) or python file. Ignored if "--core" is not specified')
     init_parser.add_argument('--federate', type=str, choices=c.FILE_TYPE_CHOICES, help='Create federated model as sql (default) or python file. Ignored if "--core" is not specified')
     init_parser.add_argument('--auth', action='store_true', help=f'Include the {c.AUTH_FILE} file')
-    init_parser.add_argument('--sample-db', type=str, choices=c.DATABASE_CHOICES, help='Sample sqlite database to include')
+    init_parser.add_argument('--sample-db', type=str, choices=c.DATABASE_CHOICES + ["none"], help='Sample sqlite database to include')
 
     module_parser = subparsers.add_parser(c.DEPS_CMD, help=f'Load all packages specified in {c.MANIFEST_FILE} (from git)', add_help=False)
     module_parser.add_argument('-h', '--help', action="help", help="Show this help message and exit")

@@ -76,7 +76,7 @@ class Initializer:
                                  default=False),
                 inquirer.List(SAMPLE_DB, 
                               message="What sample sqlite database do you wish to use (if any)?",
-                              choices=["none"] + c.DATABASE_CHOICES)
+                              choices= c.DATABASE_CHOICES + ["none"])
             ]
             answers.update(inquirer.prompt(remaining_questions))
         
@@ -172,4 +172,6 @@ class Initializer:
                 self._copy_database_file(c.WEATHER_DB_NAME+".db")
             else:
                 raise NotImplementedError(f"No database found called '{sample_db}'")
+        elif sample_db is None:
+            self._copy_database_file(c.EXPENSES_DB_NAME+".db")
     
