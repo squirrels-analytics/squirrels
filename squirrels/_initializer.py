@@ -76,7 +76,7 @@ class Initializer:
                                  default=False),
                 inquirer.List(SAMPLE_DB, 
                               message="What sample sqlite database do you wish to use (if any)?",
-                              choices=["none"] + c.DATABASE_CHOICES)
+                              choices= c.DATABASE_CHOICES)
             ]
             answers.update(inquirer.prompt(remaining_questions))
         
@@ -165,7 +165,10 @@ class Initializer:
             self._copy_pyconfig_file(c.AUTH_FILE)
 
         sample_db = answers.get(SAMPLE_DB)
-        if sample_db is not None and sample_db != "none":
+        if sample_db is None: # None if not prompt mode and '--sample-db' option was not specified
+            sample_db = c.EXPENSES_DB_NAME
+        
+        if sample_db != c.NO_DB:
             if sample_db == c.EXPENSES_DB_NAME:
                 self._copy_database_file(c.EXPENSES_DB_NAME+".db")
             elif sample_db == c.WEATHER_DB_NAME:
