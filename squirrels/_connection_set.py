@@ -29,9 +29,9 @@ class ConnectionSet:
             raise u.ConfigurationError(f'Connection name "{conn_name}" was not configured') from e
         return connection_pool
     
-    def run_sql_query_from_conn_name(self, query: str, conn_name: str) -> pd.DataFrame:
+    def run_sql_query_from_conn_name(self, query: str, conn_name: str, placeholders: dict = {}) -> pd.DataFrame:
         engine = self._get_engine(conn_name)
-        df = pd.read_sql(query, engine)
+        df = pd.read_sql(query, engine, params=placeholders)
         return df
 
     def _dispose(self) -> None:

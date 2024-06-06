@@ -36,9 +36,7 @@ class PyModule:
         Returns:
             The attribute of the module
         """
-        func_or_class = default_attr
-        if self.module is not None and hasattr(self.module, attr_name):
-            func_or_class = getattr(self.module, attr_name)
+        func_or_class = getattr(self.module, attr_name, default_attr)
         if func_or_class is None and is_required:
             raise u.ConfigurationError(f"Module '{self.filepath}' missing required attribute '{attr_name}'")
         return func_or_class

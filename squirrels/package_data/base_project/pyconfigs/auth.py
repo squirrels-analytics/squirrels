@@ -1,13 +1,14 @@
-from typing import Union, Any
+from typing import Union
 from squirrels import User as UserBase, AuthArgs, WrongPassword
 
 
 class User(UserBase):
-    def set_attributes(self, user_dict: dict[str, Any]) -> None:
+    def set_attributes(self, **kwargs) -> None:
         """
-        Use this method to add custom attributes in the User model that don't exist in UserBase (username, is_internal, etc.)
+        Use this method to add custom attributes in the User model that don't exist in UserBase 
+        (i.e., anything that's not 'username' or 'is_internal')
         """
-        self.organization = user_dict["organization"]
+        self.role = kwargs["role"]
 
 
 def get_user_if_valid(sqrl: AuthArgs) -> Union[User, WrongPassword, None]:
@@ -23,22 +24,22 @@ def get_user_if_valid(sqrl: AuthArgs) -> Union[User, WrongPassword, None]:
         "johndoe": {
             "username": "johndoe",
             "is_admin": True,
-            "organization": "org1",
+            "role": "manager",
             "hashed_password": str(hash("I<3Squirrels"))
         },
         "mattdoe": {
             "username": "mattdoe",
             "is_admin": False,
-            "organization": "org2",
+            "role": "customer",
             "hashed_password": str(hash("abcd5678"))
         }
     }
 
-    user_dict = mock_users_db.get(sqrl.username)
-    if user_dict is None:
+    user_obj = mock_users_db.get(sqrl.username)
+    if user_obj is None:
         return None
     
-    if str(hash(sqrl.password)) == user_dict["hashed_password"]:
-        return User.Create(sqrl.username, user_dict, is_internal=user_dict["is_admin"])
+    if str(hash(sqrl.password)) == user_obj["hashed_password"]:
+        return User.Create(sqrl.username, is_internal=user_obj["is_admin"], role=user_obj["role"])
     else:
         return WrongPassword()

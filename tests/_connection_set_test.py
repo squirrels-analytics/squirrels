@@ -6,7 +6,7 @@ from squirrels import _connection_set as cs, _utils as u
 
 
 @pytest.fixture(scope="module")
-def connection_set() -> cs.ConnectionSet:
+def connection_set():
     pool1 = create_engine("sqlite://")
     conn1 = pool1.raw_connection()
     try:

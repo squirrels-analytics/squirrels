@@ -1,18 +1,18 @@
 ## Note: You can copy this file to the .squirrels folder in your home directory to make 
 ##   the configurations global for all squirrels projects on the current machine
 
-## Fake users for local development testing
+## Fake users for local development testing. Must have an 'auth.py' file with a 'User' model to use custom attributes like 'role'
 users:
-  johndoe:
+  alice:
     is_internal: True
     password: I<3Squirrels
-    full_name: John Doe
-    organization: org1
-  mattdoe:
+    full_name: Alice Doe
+    role: employee
+  bob:
     is_internal: False
     password: abcd5678
-    full_name: Matt Doe
-    organization: org2
+    full_name: Bob Doe
+    role: customer
 
 ## Custom environment variables / secrets
 env_vars:

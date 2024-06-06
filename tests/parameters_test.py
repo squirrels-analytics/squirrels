@@ -198,7 +198,7 @@ class TestNumberParameter:
             p.NumberParameter(config1, config1.all_options[0], Decimal("4.6"))
     
     def test_get_selected(self, param1: p.NumberParameter):
-        assert param1.get_selected_value() == "4.5"
+        assert param1.get_selected_value() == 4.5
 
     def test_to_json_dict(self, param1: p.NumberParameter):
         expected = {
@@ -206,10 +206,10 @@ class TestNumberParameter:
             "name": "test",
             "label": "Test",
             "description": "",
-            "min_value": "0",
-            "max_value": "10",
-            "increment": "0.5",
-            "selected_value": "4.5"
+            "min_value": 0,
+            "max_value": 10,
+            "increment": 0.5,
+            "selected_value": 4.5
         }
         assert param1.to_json_dict0() == expected
 
@@ -229,8 +229,8 @@ class TestNumberRangeParameter:
             p.NumberRangeParameter(config1, config1.all_options[0], "2.5", "6.7")
     
     def test_get_selected(self, param1: p.NumberRangeParameter):
-        assert param1.get_selected_lower_value() == "2.5"
-        assert param1.get_selected_upper_value() == "6.5"
+        assert param1.get_selected_lower_value() == 2.5
+        assert param1.get_selected_upper_value() == 6.5
 
     def test_to_json_dict(self, param1: p.NumberRangeParameter):
         expected = {
@@ -238,10 +238,10 @@ class TestNumberRangeParameter:
             "name": "test",
             "label": "Test",
             "description": "",
-            "min_value": "0",
-            "max_value": "10",
-            "increment": "0.5",
-            "selected_lower_value": "2.5",
-            "selected_upper_value": "6.5"
+            "min_value": 0,
+            "max_value": 10,
+            "increment": 0.5,
+            "selected_lower_value": 2.5,
+            "selected_upper_value": 6.5
         }
         assert param1.to_json_dict0() == expected

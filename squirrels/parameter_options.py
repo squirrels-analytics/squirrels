@@ -50,10 +50,6 @@ class ParameterOption(metaclass=ABCMeta):
         
         return True
     
-    @abstractmethod
-    def _to_json_dict(self):
-        return {}
-
 
 @dataclass
 class SelectParameterOption(ParameterOption):
@@ -143,9 +139,6 @@ class _DateTypeParameterOption(ParameterOption):
         except ValueError as e:
             raise ConfigurationError(f'Invalid format for date "{date_str}".') from e
     
-    def _to_json_dict(self):
-        return {}
-
 
 @dataclass
 class DateParameterOption(_DateTypeParameterOption):
@@ -256,9 +249,9 @@ class _NumericParameterOption(ParameterOption):
     
     def _to_json_dict(self):
         return {
-            "min_value": str(self._min_value),
-            "max_value": str(self._max_value),
-            "increment": str(self._increment)
+            "min_value": float(self._min_value),
+            "max_value": float(self._max_value),
+            "increment": float(self._increment)
         }
 
 
@@ -328,3 +321,30 @@ class NumberRangeParameterOption(_NumericParameterOption):
         self._default_lower_value = self._validate_value(default_lower_value) if default_lower_value is not None else self._min_value
         self._default_upper_value = self._validate_value(default_upper_value) if default_upper_value is not None else self._max_value
         self._validate_lower_upper_values("default_lower_value", self._default_lower_value, "default_upper_value", self._default_upper_value)
+
+
+@dataclass
+class TextParameterOption(ParameterOption):
+    """
+    Parameter option for default text values if it varies based on selection of another parameter
+
+    Attributes:
+        default_text: Default text for this option
+        user_groups: The user groups this parameter option would show for if "user_attribute" is specified in the Parameter factory
+        parent_option_ids: Set of parent option ids this parameter option would show for if "parent" is specified in the Parameter factory
+    """
+    _default_text: str # = field(default=None, kw_only=True)
+
+    def __init__(
+        self, *, default_text: str = "", user_groups: Union[Iterable[Any], str] = frozenset(), 
+        parent_option_ids: Union[Iterable[str], str] = frozenset(), **kwargs
+    ) -> None:
+        """
+        Constructor for TextParameterOption
+
+        Parameters:
+            ...see Attributes of TextParameterOption
+        """
+        super().__init__(user_groups=user_groups, parent_option_ids=parent_option_ids)
+        self._default_text = default_text
+    

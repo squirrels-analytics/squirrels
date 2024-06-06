@@ -1,5 +1,5 @@
 from __future__ import annotations
-from typing import Type, Sequence, Optional, Union, Any
+from typing import Callable, Type, Sequence, Optional, Union, Any
 from dataclasses import dataclass
 from datetime import datetime, date
 from decimal import Decimal
@@ -15,6 +15,10 @@ class Parameter(metaclass=ABCMeta):
     Abstract class for all parameter widgets
     """
     _config: pc.ParameterConfig
+
+    @abstractmethod
+    def is_enabled(self) -> bool:
+        return True
 
     @staticmethod
     @abstractmethod
@@ -88,10 +92,13 @@ class Parameter(metaclass=ABCMeta):
         """
         Helper method to convert the derived Parameter class into a JSON dictionary
         """
-        return self._config.to_json_dict0()
+        output = self._config.to_json_dict0()
+        if not self.is_enabled():
+            output["widget_type"] = "disabled"
+        return output
     
     @abstractmethod
-    def _get_response_model0(self) -> type[arm.ParameterModel]:
+    def _get_response_model0(self) -> type[arm.ParameterModelBase]:
         pass
     
     def _to_api_response_model0(self) -> arm.ParameterModel:
@@ -106,6 +113,9 @@ class _SelectionParameter(Parameter):
     def __post_init__(self):
         self._options = tuple(self._options)
 
+    def is_enabled(self) -> bool:
+        return len(self._options) > 0
+    
     @abstractmethod
     def _get_selected_ids_as_list(self) -> Sequence[str]:
         pass
@@ -492,11 +502,14 @@ class DateParameter(Parameter):
         curr_option: The current option showing for defaults based on user attribute and selection of parent
         selected_date: The selected date
     """
-    _curr_option: po.DateParameterOption
+    _curr_option: Optional[po.DateParameterOption]
     _selected_date: Union[date, str]
 
     def __post_init__(self):
         self._selected_date: date = self._validate_date(self._selected_date)
+    
+    def is_enabled(self) -> bool:
+        return self._curr_option is not None
     
     @staticmethod
     def _ParameterConfigType():
@@ -555,12 +568,14 @@ class DateParameter(Parameter):
             A dictionary for the JSON object
         """
         output = super().to_json_dict0()
-        output.update(self._curr_option._to_json_dict())
-        output['selected_date'] = self.get_selected_date(date_format="%Y-%m-%d")
+        if self.is_enabled():
+            output["selected_date"] = self.get_selected_date(date_format="%Y-%m-%d")
+        else:
+            output["selected_date"] = ""
         return output
     
     def _get_response_model0(self):
-        return arm.DateParameterModel
+        return arm.DateParameterModel if self.is_enabled() else arm.ParameterModelBase
 
 
 @dataclass
@@ -574,13 +589,16 @@ class DateRangeParameter(Parameter):
         selected_start_date: The selected start date
         selected_end_date: The selected end date
     """
-    _curr_option: po.DateRangeParameterOption
+    _curr_option: Optional[po.DateRangeParameterOption]
     _selected_start_date: Union[date, str]
     _selected_end_date: Union[date, str]
 
     def __post_init__(self):
         self._selected_start_date: date = self._validate_date(self._selected_start_date)
         self._selected_end_date: date = self._validate_date(self._selected_end_date)
+    
+    def is_enabled(self) -> bool:
+        return self._curr_option is not None
     
     @staticmethod
     def _ParameterConfigType():
@@ -665,13 +683,13 @@ class DateRangeParameter(Parameter):
             A dictionary for the JSON object
         """
         output = super().to_json_dict0()
-        output.update(self._curr_option._to_json_dict())
-        output['selected_start_date'] = self.get_selected_start_date(date_format="%Y-%m-%d")
-        output['selected_end_date'] = self.get_selected_end_date(date_format="%Y-%m-%d")
+        if self.is_enabled():
+            output["selected_start_date"] = self.get_selected_start_date(date_format="%Y-%m-%d")
+            output["selected_end_date"] = self.get_selected_end_date(date_format="%Y-%m-%d")
         return output
     
     def _get_response_model0(self):
-        return arm.DateRangeParameterModel
+        return arm.DateRangeParameterModel if self.is_enabled() else arm.ParameterModelBase
 
 
 @dataclass
@@ -684,11 +702,14 @@ class NumberParameter(Parameter):
         curr_option: The current option showing for defaults based on user attribute and selection of parent
         selected_value: The selected integer or decimal number
     """
-    _curr_option: po.NumberParameterOption
+    _curr_option: Optional[po.NumberParameterOption]
     _selected_value: po.Number
 
     def __post_init__(self):
         self._selected_value: Decimal = self._validate_number(self._selected_value, self._curr_option)
+    
+    def is_enabled(self) -> bool:
+        return self._curr_option is not None
     
     @staticmethod
     def _ParameterConfigType():
@@ -716,14 +737,14 @@ class NumberParameter(Parameter):
         single_param_option = po.NumberParameterOption(min_value, max_value, increment=increment, default_value=default_value)
         cls.Create(name, label, (single_param_option,), description=description)
     
-    def get_selected_value(self, **kwargs) -> str:
+    def get_selected_value(self, **kwargs) -> float:
         """
-        Get the selected number
+        Get the selected number (converted from Decimal to float)
 
         Returns:
-            A number parsable string of the selected number
+            float
         """
-        return str(self._selected_value)
+        return float(self._selected_value)
         
     def to_json_dict0(self):
         """
@@ -733,12 +754,13 @@ class NumberParameter(Parameter):
             A dictionary for the JSON object
         """
         output = super().to_json_dict0()
-        output.update(self._curr_option._to_json_dict())
-        output['selected_value'] = self.get_selected_value()
+        if self.is_enabled():
+            output.update(self._curr_option._to_json_dict())
+            output["selected_value"] = self.get_selected_value()
         return output
     
     def _get_response_model0(self):
-        return arm.NumberParameterModel
+        return arm.NumberParameterModel if self.is_enabled() else arm.ParameterModelBase
 
 
 @dataclass
@@ -752,13 +774,16 @@ class NumberRangeParameter(Parameter):
         selected_lower_value: The selected lower integer or decimal number
         selected_upper_value: The selected upper integer or decimal number
     """
-    _curr_option: po.NumberRangeParameterOption
+    _curr_option: Optional[po.NumberRangeParameterOption]
     _selected_lower_value: po.Number
     _selected_upper_value: po.Number
 
     def __post_init__(self):
         self._selected_lower_value: Decimal = self._validate_number(self._selected_lower_value, self._curr_option)
         self._selected_upper_value: Decimal = self._validate_number(self._selected_upper_value, self._curr_option)
+    
+    def is_enabled(self) -> bool:
+        return self._curr_option is not None
     
     @staticmethod
     def _ParameterConfigType():
@@ -786,27 +811,28 @@ class NumberRangeParameter(Parameter):
             default_upper_value: Default upper value for this option, and must be selectable based on min_value, max_value, and increment. 
                     Must also be greater than default_lower_value
         """
-        single_param_option = po.NumberRangeParameterOption(min_value, max_value, increment=increment, default_lower_value=default_lower_value, 
-                                                         default_upper_value=default_upper_value)
+        single_param_option = po.NumberRangeParameterOption(
+            min_value, max_value, increment=increment, default_lower_value=default_lower_value, default_upper_value=default_upper_value
+        )
         cls.Create(name, label, (single_param_option,), description=description)
     
-    def get_selected_lower_value(self, **kwargs) -> str:
+    def get_selected_lower_value(self, **kwargs) -> float:
         """
-        Get the selected lower value number
+        Get the selected lower value number (converted from Decimal to float)
 
         Returns:
-            A number parsable string of the selected number
+            float
         """
-        return str(self._selected_lower_value)
+        return float(self._selected_lower_value)
 
-    def get_selected_upper_value(self, **kwargs) -> str:
+    def get_selected_upper_value(self, **kwargs) -> float:
         """
-        Get the selected upper value number
+        Get the selected upper value number (converted from Decimal to float)
 
         Returns:
-            A number parsable string of the selected number
+            float
         """
-        return str(self._selected_upper_value)
+        return float(self._selected_upper_value)
 
     def to_json_dict0(self):
         """
@@ -816,10 +842,116 @@ class NumberRangeParameter(Parameter):
             A dictionary for the JSON object
         """
         output = super().to_json_dict0()
-        output.update(self._curr_option._to_json_dict())
-        output['selected_lower_value'] = self.get_selected_lower_value()
-        output['selected_upper_value'] = self.get_selected_upper_value()
+        if self._curr_option is not None:
+            output.update(self._curr_option._to_json_dict())
+            output['selected_lower_value'] = self.get_selected_lower_value()
+            output['selected_upper_value'] = self.get_selected_upper_value()
         return output
     
     def _get_response_model0(self):
-        return arm.NumberRangeParameterModel
+        return arm.NumberRangeParameterModel if self.is_enabled() else arm.ParameterModelBase
+
+
+@dataclass
+class _TextValue:
+    _value_do_not_touch: str
+
+    def apply(self, str_to_str_function: Callable[[str], str]) -> _TextValue:
+        new_value = str_to_str_function(self._value_do_not_touch)
+        assert isinstance(new_value, str), "Function provided must return string"
+        return _TextValue(new_value)
+    
+    def apply_percent_wrap(self) -> _TextValue:
+        return self.apply(lambda x: "%"+x+"%")
+    
+    def apply_as_bool(self, str_to_bool_function: Callable[[str], bool]) -> bool:
+        new_value = str_to_bool_function(self._value_do_not_touch)
+        assert isinstance(new_value, bool), "Function provided must return bool"
+        return new_value
+    
+    def apply_as_number(self, str_to_num_function: Callable[[str], Union[int, float]]) ->  Union[int, float]:
+        new_value = str_to_num_function(self._value_do_not_touch)
+        assert isinstance(new_value, (int, float)), "Function provided must return a number"
+        return new_value
+
+
+@dataclass
+class TextParameter(Parameter):
+    """
+    Class for text parameter widgets.
+    """
+    _curr_option: Optional[po.TextParameterOption]
+    _entered_text: str
+    
+    def is_enabled(self) -> bool:
+        return self._curr_option is not None
+
+    @staticmethod
+    def _ParameterConfigType():
+        return pc.TextParameterConfig
+    
+    @classmethod
+    def Create(
+        cls, name: str, label: str, all_options: Sequence[Union[po.TextParameterOption, dict]], *, description: str = "",
+        is_textarea: bool = False, user_attribute: Optional[str] = None, parent_name: Optional[str] = None, **kwargs
+    ) -> None:
+        """
+        Method for creating the configurations for a MultiSelectParameter that may include user attribute or parent
+
+        Parameters:
+            name: The name of the parameter
+            label: The display label for the parameter
+            all_options: All options associated to this parameter regardless of the user group or parent parameter option they depend on
+            description: Explains the meaning of the parameter
+            is_textarea: Whether the textbox field should be big. Optional, default is False.
+            user_attribute: The user attribute that may cascade the options for this parameter. Default is None
+            parent_name: Name of parent parameter that may cascade the options for this parameter. Default is None (no parent)
+        """
+        param_config = pc.TextParameterConfig(
+            name, label, all_options, description=description, is_textarea=is_textarea, user_attribute=user_attribute, 
+            parent_name=parent_name
+        )
+        ps.ParameterConfigsSetIO.obj.add(param_config)
+
+    @classmethod
+    def CreateSimple(
+        cls, name: str, label: str, *, description: str = "", default_text: str = "", is_textarea: bool = False, **kwargs
+    ) -> None:
+        """
+        Method for creating the configurations for a Parameter that doesn't involve user attributes or parent parameters
+        
+        * Note that the "Number" type denotes an int, a Decimal (from decimal module), or a string that can be parsed to Decimal
+        
+        Parameters:
+            name: The name of the parameter
+            label: The display label for the parameter
+            description: Explains the meaning of the parameter
+            default_text: Default input text for this option. Optional, default is empty string.
+            is_textarea: Whether the textbox field should be big. Optional, default is False.
+        """
+        single_param_option = po.TextParameterOption(default_text=default_text)
+        cls.Create(name, label, (single_param_option,), description=description, is_textarea=is_textarea)
+    
+    def get_entered_text(self, **kwargs) -> _TextValue:
+        """
+        Get the selected number
+
+        Returns:
+            A number parsable string of the selected number
+        """
+        return _TextValue(self._entered_text)
+        
+    def to_json_dict0(self):
+        """
+        Converts this parameter as a JSON object for the parameters API response
+
+        Returns:
+            A dictionary for the JSON object
+        """
+        output = super().to_json_dict0()
+        if self._curr_option is not None:
+            output['entered_text'] = self._entered_text
+        return output
+    
+    def _get_response_model0(self):
+        return arm.TextParameterModel if self.is_enabled() else arm.ParameterModelBase

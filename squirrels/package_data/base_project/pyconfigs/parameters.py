@@ -18,13 +18,21 @@ def main(sqrl: sr.ParametersArgs) -> None:
 
     ## Example of creating SingleSelectParameter and specifying each option by code
     group_by_options = [
-        sr.SelectParameterOption("g0", "Transaction", columns=["id", "date"]),
+        sr.SelectParameterOption("g0", "Transaction", columns=["masked_id", "date", "description"], aliases=["id", "date", "description"]),
         sr.SelectParameterOption("g1", "Date", columns=["date"]),
         sr.SelectParameterOption("g2", "Category", columns=["category"]),
         sr.SelectParameterOption("g3", "Subcategory", columns=["category", "subcategory"]),
     ]
     sr.SingleSelectParameter.Create(
         "group_by", "Group By", group_by_options, description="Dimension to aggregate by"
+    )
+
+    ## Example of creating a TextParameter
+    parent_name = "group_by"
+    text_options = [sr.TextParameterOption(parent_option_ids="g0")]
+    sr.TextParameter.Create(
+        "description_filter", "Description Contains", text_options, parent_name=parent_name,
+        description="Filter by transactions with this description"
     )
 
     ## Example of creating DateParameter
@@ -50,11 +58,12 @@ def main(sqrl: sr.ParametersArgs) -> None:
     )
 
     ## Example of creating MultiSelectParameter with parent from lookup query/table
+    parent_name = "category"
     subcategory_ds = sr.SelectDataSource(
         "seed_subcategories", "subcategory_id", "subcategory", from_seeds=True, parent_id_col="category_id"
     )
     sr.MultiSelectParameter.CreateFromSource(
-        "subcategory", "Subcategory Filter", subcategory_ds, parent_name="category",
+        "subcategory", "Subcategory Filter", subcategory_ds, parent_name=parent_name,
         description="The expense subcategories to filter by (available options based on selected 'Category Filter')"
     )
 

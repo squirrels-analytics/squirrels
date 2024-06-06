@@ -8,8 +8,8 @@ from squirrels._manifest import DatasetScope
 
 class AuthHelper:    
     class User(UserBase):
-        def set_attributes(self, user_dict: dict[str, Any]) -> None:
-            self.email = user_dict["email"]
+        def set_attributes(self, **kwargs) -> None:
+            self.email = kwargs["email"]
         
         def __eq__(self, other) -> bool:
             return type(other) is self.__class__ and self.__dict__ == other.__dict__
@@ -32,10 +32,10 @@ class AuthHelper:
 
         username, password = sqrl.username, sqrl.password
         if username in mock_db:
-            user_dict = mock_db[username]
-            if str(hash(password)) == user_dict["hashed_password"]:
-                is_admin = user_dict["is_admin"]
-                return self.User.Create(username, user_dict, is_internal=is_admin)
+            user_obj = mock_db[username]
+            if str(hash(password)) == user_obj["hashed_password"]:
+                is_admin = user_obj["is_admin"]
+                return self.User.Create(username, is_internal=is_admin, email=user_obj["email"])
             else:
                 return WrongPassword()
 
@@ -47,20 +47,17 @@ def auth() -> Authenticator:
 
 @pytest.fixture(scope="module")
 def john_doe_user() -> AuthHelper.User:
-    user_dict = {"email": "john.doe@email.com"}
-    return AuthHelper.User.Create("johndoe", user_dict, is_internal=True)
+    return AuthHelper.User.Create("johndoe", is_internal=True, email="john.doe@email.com")
 
 
 @pytest.fixture(scope="module")
 def matt_doe_user() -> AuthHelper.User:
-    user_dict = {"email": "matt.doe@email.com"}
-    return AuthHelper.User.Create("mattdoe", user_dict, is_internal=False)
+    return AuthHelper.User.Create("mattdoe", is_internal=False, email="matt.doe@email.com")
 
 
 @pytest.fixture(scope="module")
 def lisa_doe_user() -> AuthHelper.User:
-    user_dict = {"email": "lisadoe@org2.com"}
-    return AuthHelper.User.Create("lisadoe", user_dict, is_internal=True)
+    return AuthHelper.User.Create("lisadoe", is_internal=True, email="lisadoe@org2.com")
 
 
 @pytest.mark.parametrize('username,password,expected', [
