@@ -129,7 +129,7 @@ class Initializer:
                 substitutions = {key: get_content(val) for key, val in file_name_dict.items()}
                 
                 manifest_template = get_content(c.MANIFEST_JINJA_FILE)
-                manifest_content = u.render_string(manifest_template, substitutions)
+                manifest_content = u.render_string(manifest_template, **substitutions)
                 output_path = u.join_paths(base_proj_dir, TMP_FOLDER, c.MANIFEST_FILE)
                 with open(u.join_paths(output_path), "w") as f:
                     f.write(manifest_content)

@@ -18,42 +18,57 @@ packages: []
 {{ parameters -}}
 
 
-selection_test_sets:
-  - name: sample_test_set
-    user_attributes:     ## optional unless there are user attributes used by parameters or models
-      is_internal: True
-      organization: org1
-    parameters:          ## optional - for unspecified parameters, default value is used
-      group_by: g3
-      start_date: 2023-02-01
-      end_date: 2023-12-01
-      category: ["1"]
-
-
 datasets:
-  - name: dataset_example  ## model name uses same name unless "model" field is specified
+  - name: dataset_example                 ## model name uses same name unless "model" field is specified
     label: Dataset Example
-    scope: public          ## optional - one of 'public' (default), 'protected', or 'private'
-    parameters:            ## optional - if not specified, then all parameters are used
+    scope: public                         ## optional - one of 'public' (default), 'protected', or 'private'
+    parameters:                           ## optional - if not specified, then all parameters are used
       - group_by
+      - description_filter
       - start_date
       - end_date
       - category
       - subcategory
       - min_filter
       - max_filter
-    traits: {} ## optional
+    traits: {}                            ## optional - defaults to empty object
   
-  - name: private_dataset_example
+  - name: protected_dataset_example       ## requires auth.py file to work
     label: Dataset Example 2
     model: dataset_example
-    scope: private
+    scope: protected
     parameters:
       - group_by
+      - description_filter
       - date_range
       - category
       - subcategory
       - between_filter
+    default_test_set: auth_test1          ## optional - if not specified, uses setting 'selection_test_sets.default_name_used'
+
+
+selection_test_sets:
+  - name: no_auth_test1
+    datasets:                             ## optional section - if not provided, then test set is applicable for any dataset
+      - dataset_example
+    parameters:                           ## optional section - for unspecified parameters, default value is used
+      start_date: 2023-07-01              ## this parameter only exists for dataset 'dataset_example'
+  
+  - name: auth_test1
+    datasets:
+      - protected_dataset_example
+    user_attributes:                      ## optional section - required if using test set on non-public datasets
+      role: customer
+    parameters:
+      date_range: [2023-02-01,2023-12-01] ## this parameter only exists for dataset 'protected_dataset_example'
+    
+  - name: auth_test2
+    user_attributes:
+      username: alice                     ## optional - defaults to empty string
+      is_internal: True                   ## optional - defaults to False
+      role: manager
+    parameters:
+      group_by: g3                        ## this parameter exists for all datasets. "g3" is the id for option "subcategory"
 
 
 settings: {}

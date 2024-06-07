@@ -4,14 +4,14 @@ from dataclasses import dataclass, field
 from abc import ABCMeta, abstractmethod
 from enum import Enum
 from pathlib import Path
-import sqlite3, asyncio, os, shutil, pandas as pd
+import sqlite3, asyncio, os, shutil, pandas as pd, json
 import matplotlib.pyplot as plt, networkx as nx
 
 from . import _constants as c, _utils as u, _py_module as pm
 from .arguments.run_time_args import ContextArgs, ModelDepsArgs, ModelArgs
 from ._authenticator import User, Authenticator
 from ._connection_set import ConnectionSetIO
-from ._manifest import ManifestIO, DatasetsConfig
+from ._manifest import ManifestIO, DatasetsConfig, DatasetScope
 from ._parameter_sets import ParameterConfigsSetIO, ParameterSet
 from ._seeds import SeedsIO
 from ._timer import timer, time
@@ -139,16 +139,16 @@ class _Referable(metaclass=ABCMeta):
             query = f"SELECT * FROM {self.name}"
             return pd.read_sql(query, conn)
     
-    async def _trigger(self, conn: sqlite3.Connection) -> None:
+    async def _trigger(self, conn: sqlite3.Connection, placeholders: dict = {}) -> None:
         self.wait_count -= 1
         if (self.wait_count == 0):
-            await self.run_model(conn)
+            await self.run_model(conn, placeholders)
     
     @abstractmethod
-    async def run_model(self, conn: sqlite3.Connection) -> None:
+    async def run_model(self, conn: sqlite3.Connection, placeholders: dict = {}) -> None:
         coroutines = []
         for model in self.downstreams.values():
-            coroutines.append(model._trigger(conn))
+            coroutines.append(model._trigger(conn, placeholders))
         await asyncio.gather(*coroutines)
     
     def retrieve_dependent_query_models(self, dependent_model_names: set[str]) -> None:
@@ -176,10 +176,10 @@ class _Seed(_Referable):
     def get_terminal_nodes(self, depencency_path: set[str]) -> set[str]:
         return {self.name}
     
-    async def run_model(self, conn: sqlite3.Connection) -> None:
+    async def run_model(self, conn: sqlite3.Connection, placeholders: dict = {}) -> None:
         if self.needs_sql_table:
             await asyncio.to_thread(self._load_pandas_to_table, self.result, conn)
-        await super().run_model(conn)
+        await super().run_model(conn, placeholders)
 
 
 @dataclass
@@ -221,10 +221,11 @@ class _Model(_Referable):
         connection_name = self._get_dbview_conn_name()
         materialized = self._get_materialized()
         configuration = _SqlModelConfig(connection_name, materialized)
+        is_placeholder = lambda x: x in ctx_args._placeholders
         kwargs = {
-            "proj_vars": ctx_args.proj_vars, "env_vars": ctx_args.env_vars,
-            "user": ctx_args.user, "prms": ctx_args.prms, "traits": ctx_args.traits,
-            "ctx": ctx, "config": configuration.set_attribute
+            "proj_vars": ctx_args.proj_vars, "env_vars": ctx_args.env_vars, "user": ctx_args.user,
+            "prms": ctx_args.prms, "traits": ctx_args.traits, "ctx": ctx, "is_placeholder": is_placeholder,
+            "config": configuration.set_attribute, "prms_contain": ctx_args.prms_contain,
         }
         dependencies = set()
         if self.query_file.model_type == ModelType.FEDERATE:
@@ -234,7 +235,7 @@ class _Model(_Referable):
             kwargs["ref"] = ref
 
         try:
-            query = await asyncio.to_thread(u.render_string, raw_query, kwargs)
+            query = await asyncio.to_thread(u.render_string, raw_query, **kwargs)
         except Exception as e:
             raise u.FileExecutionError(f'Failed to compile sql model "{self.name}"', e)
         
@@ -251,9 +252,10 @@ class _Model(_Referable):
         
         dbview_conn_name = self._get_dbview_conn_name()
         connections = ConnectionSetIO.obj.get_engines_as_dict()
+        placeholders = ctx_args._placeholders.copy()
         ref = lambda x: self.upstreams[x].result
         sqrl_args = ModelArgs(ctx_args.proj_vars, ctx_args.env_vars, ctx_args.user, ctx_args.prms, ctx_args.traits, 
-                              ctx, dbview_conn_name, connections, ref, set(dependencies))
+                              ctx, dbview_conn_name, connections, placeholders, ref, set(dependencies))
             
         def compiled_query():
             try:
@@ -315,7 +317,7 @@ class _Model(_Referable):
         self.confirmed_no_cycles = True
         return terminal_nodes
 
-    async def _run_sql_model(self, conn: sqlite3.Connection) -> None:
+    async def _run_sql_model(self, conn: sqlite3.Connection, placeholders: dict = {}) -> None:
         assert(isinstance(self.compiled_query, _SqlModelQuery))
         config = self.compiled_query.config
         query = self.compiled_query.query
@@ -323,7 +325,7 @@ class _Model(_Referable):
         if self.query_file.model_type == ModelType.DBVIEW:
             def run_sql_query():
                 try:
-                    return ConnectionSetIO.obj.run_sql_query_from_conn_name(query, config.connection_name)
+                    return ConnectionSetIO.obj.run_sql_query_from_conn_name(query, config.connection_name, placeholders)
                 except RuntimeError as e:
                     raise u.FileExecutionError(f'Failed to run dbview sql model "{self.name}"', e)
             
@@ -335,7 +337,7 @@ class _Model(_Referable):
             def create_table():
                 create_query = config.get_sql_for_create(self.name, query)
                 try:
-                    return conn.execute(create_query)
+                    return conn.execute(create_query, placeholders)
                 except Exception as e:
                     raise u.FileExecutionError(f'Failed to run federate sql model "{self.name}"', e)
             
@@ -352,18 +354,18 @@ class _Model(_Referable):
         if self.needs_pandas or self.is_target:
             self.result = df
     
-    async def run_model(self, conn: sqlite3.Connection) -> None:
+    async def run_model(self, conn: sqlite3.Connection, placeholders: dict = {}) -> None:
         start = time.time()
         
         if self.query_file.query_type == QueryType.SQL:
-            await self._run_sql_model(conn)
+            await self._run_sql_model(conn, placeholders)
         elif self.query_file.query_type == QueryType.PYTHON:
             await self._run_python_model(conn)
         
         model_type = self.get_model_type().name.lower()
         timer.add_activity_time(f"running {model_type} model '{self.name}'", start)
         
-        await super().run_model(conn)
+        await super().run_model(conn, placeholders)
     
     def retrieve_dependent_query_models(self, dependent_model_names: set[str]) -> None:
         if self.name not in dependent_model_names:
@@ -413,7 +415,7 @@ class _DAG:
         timer.add_activity_time(f"validating no cycles in model dependencies", start)
         return terminal_nodes
 
-    async def _run_models(self, terminal_nodes: set[str]) -> None:
+    async def _run_models(self, terminal_nodes: set[str], placeholders: dict = {}) -> None:
         if u.use_duckdb():
             import duckdb
             conn = duckdb.connect()
@@ -424,7 +426,7 @@ class _DAG:
             coroutines = []
             for model_name in terminal_nodes:
                 model = self.models_dict[model_name]
-                coroutines.append(model.run_model(conn))
+                coroutines.append(model.run_model(conn, placeholders))
             await asyncio.gather(*coroutines)
         finally:
             conn.close()
@@ -432,7 +434,7 @@ class _DAG:
     async def execute(
         self, context_func: ContextFunc, user: Optional[User], selections: dict[str, str], *, request_version: Optional[int] = None,
         runquery: bool = True, recurse: bool = True
-    ) -> None:
+    ) -> dict[str, Any]:
         recurse = (recurse or runquery)
 
         self.apply_selections(user, selections, request_version=request_version)
@@ -443,8 +445,11 @@ class _DAG:
         
         terminal_nodes = self._get_terminal_nodes()
 
+        placeholders = ctx_args._placeholders.copy()
         if runquery:
-            await self._run_models(terminal_nodes)
+            await self._run_models(terminal_nodes, placeholders)
+
+        return placeholders
     
     def get_all_query_models(self) -> set[str]:
         all_model_names = set()
@@ -550,22 +555,45 @@ class ModelsIO:
         plt.close(fig)
 
     @classmethod
-    async def WriteDatasetOutputsGivenTestSet(cls, dataset: str, select: str, test_set: str, runquery: bool, recurse: bool) -> Any:
+    async def WriteDatasetOutputsGivenTestSet(
+        cls, dataset_conf: DatasetsConfig, select: str, test_set: Optional[str], runquery: bool, recurse: bool
+    ) -> Any:
+        dataset = dataset_conf.name
+        if test_set is None:
+            test_set = ManifestIO.obj.get_default_test_set(dataset)
+        error_msg_intro = f"Cannot compile dataset '{dataset}' with test set '{test_set}'."
+
         test_set_conf = ManifestIO.obj.selection_test_sets[test_set]
-        user_attributes = test_set_conf.user_attributes
-        selections = test_set_conf.parameters
+        user_attributes = test_set_conf.user_attributes.copy()
+        selections = test_set_conf.parameters.copy()
+        if test_set_conf.datasets is not None and dataset not in test_set_conf.datasets:
+            raise u.InvalidInputError(f"{error_msg_intro}\n Applicable datasets for test set '{test_set}' does not include dataset '{dataset}'.")
         
-        username, is_internal = user_attributes.get("username", ""), user_attributes.get("is_internal", False)
-        user_cls: type[User] = Authenticator.get_auth_helper().get_func_or_class("User", default_attr=User)
-        user = user_cls.Create(username, test_set_conf.user_attributes, is_internal=is_internal)
+        username, is_internal = user_attributes.pop("username", ""), user_attributes.pop("is_internal", False)
+        if test_set_conf.is_authenticated:
+            user_cls: type[User] = Authenticator.get_auth_helper().get_func_or_class("User", default_attr=User)
+            user = user_cls.Create(username, is_internal=is_internal, **user_attributes)
+        elif dataset_conf.scope == DatasetScope.PUBLIC:
+            user = None
+        else:
+            raise u.ConfigurationError(f"{error_msg_intro}\n Non-public datasets require a test set with 'user_attributes' section defined")
         
+        if dataset_conf.scope == DatasetScope.PRIVATE and not is_internal:
+            raise u.ConfigurationError(f"{error_msg_intro}\n Private datasets require a test set with user_attribute 'is_internal' set to true")
+
         # always_pandas is set to True for creating CSV files from results (when runquery is True)
         dag = cls.GenerateDAG(dataset, target_model_name=select, always_pandas=True)
-        await dag.execute(cls.context_func, user, selections, runquery=runquery, recurse=recurse)
+        placeholders = await dag.execute(cls.context_func, user, selections, runquery=runquery, recurse=recurse)
         
-        output_folder = u.join_paths(c.TARGET_FOLDER, c.COMPILE_FOLDER, test_set, dataset)
+        output_folder = u.join_paths(c.TARGET_FOLDER, c.COMPILE_FOLDER, dataset, test_set)
         if os.path.exists(output_folder):
             shutil.rmtree(output_folder)
+        os.makedirs(output_folder, exist_ok=True)
+        
+        def write_placeholders() -> None:
+            output_filepath = u.join_paths(output_folder, "placeholders.json")
+            with open(output_filepath, 'w') as f:
+                json.dump(placeholders, f, indent=4)
         
         def write_model_outputs(model: _Model) -> None:
             subfolder = c.DBVIEWS_FOLDER if model.query_file.model_type == ModelType.DBVIEW else c.FEDERATES_FOLDER
@@ -580,6 +608,7 @@ class ModelsIO:
                 output_filepath = u.join_paths(subpath, model.name+'.csv')
                 model.result.to_csv(output_filepath, index=False)
 
+        write_placeholders()
         all_model_names = dag.get_all_query_models()
         coroutines = [asyncio.to_thread(write_model_outputs, dag.models_dict[name]) for name in all_model_names]
         await asyncio.gather(*coroutines)
@@ -595,25 +624,23 @@ class ModelsIO:
         if all_test_sets:
             test_sets = ManifestIO.obj.selection_test_sets.keys()
         else:
-            if test_set is None:
-                test_set = ManifestIO.obj.settings.get(c.TEST_SET_DEFAULT_USED_SETTING, c.DEFAULT_TEST_SET_NAME)
             test_sets = [test_set]
         
         recurse = True
         dataset_configs = ManifestIO.obj.datasets
         if all_datasets:
-            selected_models = [(dataset.name, dataset.model) for dataset in dataset_configs.values()]
+            selected_models = [(dataset, dataset.model) for dataset in dataset_configs.values()]
         else:
             if select is None:
                 select = dataset_configs[dataset].model
             else:
                 recurse = False
-            selected_models = [(dataset, select)]
+            selected_models = [(dataset_configs[dataset], select)]
         
         coroutines = []
-        for tset in test_sets:
-            for dataset, select in selected_models:
-                coroutine = cls.WriteDatasetOutputsGivenTestSet(dataset, select, tset, runquery, recurse)
+        for dataset_conf, select in selected_models:
+            for test_set in test_sets:
+                coroutine = cls.WriteDatasetOutputsGivenTestSet(dataset_conf, select, test_set, runquery, recurse)
                 coroutines.append(coroutine)
         
         queries = await asyncio.gather(*coroutines)

@@ -130,7 +130,7 @@ class _ParameterConfigsSet:
                     param = param_conf.with_selection(selections.get(curr_name), user, parent)
                     parameters_by_name[curr_name] = param
                     if isinstance(param_conf, pc.SelectionParameterConfig):
-                        children = list(param_conf.children.keys())
+                        children = list(x for x in param_conf.children.keys() if x in dataset_params)
                 stack.pop()
                 stack.extend(children)
         

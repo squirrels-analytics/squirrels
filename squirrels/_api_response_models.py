@@ -1,4 +1,4 @@
-from typing import Annotated, Union
+from typing import Annotated, Union, Optional
 from pydantic import BaseModel, Field
 from datetime import datetime, date
 
@@ -16,19 +16,19 @@ class ParameterOptionModel(BaseModel):
     id: str
     label: str
 
-class ParameterModel(BaseModel):
+class ParameterModelBase(BaseModel):
     widget_type: str
     name: str
     label: str
     description: str
 
-class SelectParameterModel(ParameterModel):
+class SelectParameterModel(ParameterModelBase):
     options: list[ParameterOptionModel]
     trigger_refresh: bool
 
 class SingleSelectParameterModel(SelectParameterModel):
     widget_type: Annotated[str, Field(examples=["single_select"])]
-    selected_id: str
+    selected_id: Optional[str]
 
 class MultiSelectParameterModel(SelectParameterModel):
     widget_type: Annotated[str, Field(examples=["multi_select"])]
@@ -37,16 +37,16 @@ class MultiSelectParameterModel(SelectParameterModel):
     order_matters: bool
     selected_ids: list[str]
 
-class DateParameterModel(ParameterModel):
+class DateParameterModel(ParameterModelBase):
     widget_type: Annotated[str, Field(examples=["date"])]
     selected_date: date
 
-class DateRangeParameterModel(ParameterModel):
+class DateRangeParameterModel(ParameterModelBase):
     widget_type: Annotated[str, Field(examples=["date_range"])]
     selected_start_date: date
     selected_end_date: date
 
-class NumericParameterModel(ParameterModel):
+class NumericParameterModel(ParameterModelBase):
     min_value: Annotated[float, Field(examples=[0])]
     max_value: Annotated[float, Field(examples=[10])]
     increment: Annotated[float, Field(examples=[1])]
@@ -60,11 +60,16 @@ class NumberRangeParameterModel(NumericParameterModel):
     selected_lower_value: Annotated[float, Field(examples=[2])]
     selected_upper_value: Annotated[float, Field(examples=[8])]
 
+class TextParameterModel(ParameterModelBase):
+    widget_type: Annotated[str, Field(examples=["text"])]
+    entered_text: str
+    is_textarea: bool
+
 class ParametersModel(BaseModel):
     parameters: list[
         Union[
-            ParameterModel, SingleSelectParameterModel, MultiSelectParameterModel, DateParameterModel, DateRangeParameterModel,
-            NumberParameterModel, NumberRangeParameterModel
+            ParameterModelBase, SingleSelectParameterModel, MultiSelectParameterModel, DateParameterModel, DateRangeParameterModel,
+            NumberParameterModel, NumberRangeParameterModel, TextParameterModel
         ]
     ]
 

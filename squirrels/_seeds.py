@@ -27,7 +27,7 @@ class SeedsIO:
         csv_files = glob.glob(os.path.join(c.SEEDS_FOLDER, '**/*.csv'), recursive=True)
         for csv_file in csv_files:
             file_stem = os.path.splitext(os.path.basename(csv_file))[0]
-            df = pd.read_csv(csv_file)
+            df = pd.read_csv(csv_file, dtype=str, keep_default_na=False)
             seeds_dict[file_stem] = df
         
         cls.obj = Seeds(seeds_dict)

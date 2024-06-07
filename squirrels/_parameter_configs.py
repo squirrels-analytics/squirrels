@@ -65,7 +65,7 @@ class ParameterConfigBase(metaclass=ABCMeta):
     def _get_user_group(self, user: Optional[User]) -> Any:
         if self.user_attribute is not None:
             if user is None:
-                raise u.ConfigurationError(f"Public datasets (which allows non-authenticated users) cannot use parameter " +
+                raise u.ConfigurationError(f"Non-authenticated users (only allowed for public datasets) cannot use parameter " +
                                            f"'{self.name}' because 'user_attribute' is defined on this parameter.")
             return getattr(user, self.user_attribute)
         
@@ -75,7 +75,7 @@ class ParameterConfigBase(metaclass=ABCMeta):
         """
         return copy(self)
 
-    def to_json_dict0(self) -> arm.ParameterModel:
+    def to_json_dict0(self) -> arm.ParameterModelBase:
         return {
             "widget_type": self.widget_type, "name": self.name, "label": self.label, "description": self.description
         }
@@ -283,7 +283,7 @@ class _DateTypeParameterConfig(ParameterConfig):
 @dataclass
 class DateParameterConfig(_DateTypeParameterConfig):
     """
-    Class to define configurations for single-select parameter widgets.
+    Class to define configurations for date parameter widgets.
     """
     all_options: Sequence[po.DateParameterOption] = field(repr=False)
     
@@ -306,8 +306,8 @@ class DateParameterConfig(_DateTypeParameterConfig):
         self, selection: Optional[str], user: Optional[User], parent_param: Optional[p._SelectionParameter],
         *, request_version: Optional[int] = None
     ) -> p.DateParameter:
-        curr_option: po.DateParameterOption = next(self._get_options_iterator(user, parent_param))
-        selected_date = curr_option._default_date if selection is None else selection
+        curr_option: po.DateParameterOption = next(self._get_options_iterator(user, parent_param), None)
+        selected_date = curr_option._default_date if selection is None and curr_option is not None else selection
         return p.DateParameter(self, curr_option, selected_date)
     
     def get_api_field_info(self) -> APIParamFieldInfo:
@@ -320,7 +320,7 @@ class DateParameterConfig(_DateTypeParameterConfig):
 @dataclass
 class DateRangeParameterConfig(_DateTypeParameterConfig):
     """
-    Class to define configurations for single-select parameter widgets.
+    Class to define configurations for date range parameter widgets.
     """
     all_options: Sequence[po.DateRangeParameterOption] = field(repr=False)
     
@@ -343,10 +343,13 @@ class DateRangeParameterConfig(_DateTypeParameterConfig):
         self, selection: Optional[str], user: Optional[User], parent_param: Optional[p._SelectionParameter],
         *, request_version: Optional[int] = None
     ) -> p.DateParameter:
-        curr_option: po.DateRangeParameterOption = next(self._get_options_iterator(user, parent_param))
+        curr_option: po.DateRangeParameterOption = next(self._get_options_iterator(user, parent_param), None)
         if selection is None:
-            selected_start_date = curr_option._default_start_date
-            selected_end_date = curr_option._default_end_date
+            if curr_option is not None:
+                selected_start_date = curr_option._default_start_date
+                selected_end_date = curr_option._default_end_date
+            else:
+                selected_start_date, selected_end_date = None, None
         else:
             try:
                 selected_start_date, selected_end_date = u.load_json_or_comma_delimited_str_as_list(selection)
@@ -379,7 +382,7 @@ class _NumericParameterConfig(ParameterConfig):
 @dataclass
 class NumberParameterConfig(_NumericParameterConfig):
     """
-    Class to define configurations for single-select parameter widgets.
+    Class to define configurations for number parameter widgets.
     """
     all_options: Sequence[po.NumberParameterOption] = field(repr=False)
     
@@ -402,8 +405,8 @@ class NumberParameterConfig(_NumericParameterConfig):
         self, selection: Optional[str], user: Optional[User], parent_param: Optional[p._SelectionParameter],
         *, request_version: Optional[int] = None
     ) -> p.NumberParameter:
-        curr_option: po.NumberParameterOption = next(self._get_options_iterator(user, parent_param))
-        selected_value = curr_option._default_value if selection is None else selection
+        curr_option: po.NumberParameterOption = next(self._get_options_iterator(user, parent_param), None)
+        selected_value = curr_option._default_value if selection is None and curr_option is not None else selection
         return p.NumberParameter(self, curr_option, selected_value)
     
     def get_api_field_info(self) -> APIParamFieldInfo:
@@ -416,7 +419,7 @@ class NumberParameterConfig(_NumericParameterConfig):
 @dataclass
 class NumberRangeParameterConfig(_NumericParameterConfig):
     """
-    Class to define configurations for single-select parameter widgets.
+    Class to define configurations for number range parameter widgets.
     """
     all_options: Sequence[po.NumberRangeParameterOption] = field(repr=False)
     
@@ -439,10 +442,13 @@ class NumberRangeParameterConfig(_NumericParameterConfig):
         self, selection: Optional[str], user: Optional[User], parent_param: Optional[p._SelectionParameter],
         *, request_version: Optional[int] = None
     ) -> p.NumberRangeParameter:
-        curr_option: po.NumberRangeParameterOption = next(self._get_options_iterator(user, parent_param))
+        curr_option: po.NumberRangeParameterOption = next(self._get_options_iterator(user, parent_param), None)
         if selection is None:
-            selected_lower_value = curr_option._default_lower_value
-            selected_upper_value = curr_option._default_upper_value
+            if curr_option is not None:
+                selected_lower_value = curr_option._default_lower_value
+                selected_upper_value = curr_option._default_upper_value
+            else:
+                selected_lower_value, selected_upper_value = None, None
         else:
             try:
                 selected_lower_value, selected_upper_value = u.load_json_or_comma_delimited_str_as_list(selection)
@@ -453,7 +459,52 @@ class NumberRangeParameterConfig(_NumericParameterConfig):
     def get_api_field_info(self) -> APIParamFieldInfo:
         examples = [[x._default_lower_value, x._default_upper_value] for x in self.all_options]
         return APIParamFieldInfo(
-            self.name, list[float], title=self.label, description=self.description, examples=examples, max_length=2
+            self.name, list[str], title=self.label, description=self.description, examples=examples, max_length=2
+        )
+
+
+@dataclass
+class TextParameterConfig(ParameterConfig):
+    """
+    Class to define configurations for text parameter widgets.
+    """
+    all_options: Sequence[po.TextParameterOption] = field(repr=False)
+    is_textarea: bool
+    
+    def __init__(
+        self, name: str, label: str, all_options: Sequence[Union[po.TextParameterOption, dict]], *, 
+        description: str = "", is_textarea: bool = False, user_attribute: Optional[str] = None, 
+        parent_name: Optional[str] = None
+    ) -> None:
+        super().__init__("text", name, label, all_options, description=description, user_attribute=user_attribute, 
+                         parent_name=parent_name)
+        self.is_textarea = is_textarea
+
+    @staticmethod
+    def ParameterOption(*args, **kwargs):
+        return po.TextParameterOption(*args, **kwargs)
+    
+    @staticmethod
+    def DataSource(*args, **kwargs):
+        return d.TextDataSource(*args, **kwargs)
+    
+    def with_selection(
+        self, selection: Optional[str], user: Optional[User], parent_param: Optional[p._SelectionParameter],
+        *, request_version: Optional[int] = None
+    ) -> p.TextParameter:
+        curr_option: po.TextParameterOption = next(self._get_options_iterator(user, parent_param), None)
+        entered_text = curr_option._default_text if selection is None and curr_option is not None else selection
+        return p.TextParameter(self, curr_option, entered_text)
+
+    def to_json_dict0(self) -> dict:
+        output = super().to_json_dict0()
+        output['is_textarea'] = self.is_textarea
+        return output
+    
+    def get_api_field_info(self) -> APIParamFieldInfo:
+        examples = [x._default_text for x in self.all_options]
+        return APIParamFieldInfo(
+            self.name, str, title=self.label, description=self.description, examples=examples
         )
 
 

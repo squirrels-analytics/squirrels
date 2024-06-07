@@ -8,7 +8,7 @@ from tests.parameter_configs_tests._user_class import User
 
 @pytest.fixture(scope="module")
 def user() -> User:
-    return User.Create("user1", {"organization": "org3"})
+    return User.Create("user1", organization="org3")
 
 
 def add_param(data: dict[str, p.Parameter], param: p.Parameter):

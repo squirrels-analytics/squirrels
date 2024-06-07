@@ -23,7 +23,7 @@ class ConfigurationError(Exception):
 
 class FileExecutionError(ConfigurationError):
     def __init__(self, message: str, error: Exception, *args) -> None:
-        new_message = message + f"\n... Produced error message `{error}` (see above for more details)"
+        new_message = message + f"\n... Produced error message `{error}` (scroll up for more details on handled exception)"
         super().__init__(new_message, *args)
 
 
@@ -44,7 +44,7 @@ def join_paths(*paths: FilePath) -> Path:
 
 _j2_env = j2.Environment(loader=j2.FileSystemLoader('.'))
 
-def render_string(raw_str: str, kwargs: dict) -> str:
+def render_string(raw_str: str, **kwargs: dict) -> str:
     """
     Given a template string, render it with the given keyword arguments
 

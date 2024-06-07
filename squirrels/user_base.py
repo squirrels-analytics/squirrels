@@ -13,30 +13,20 @@ class User:
     """
     username: str
     is_internal: bool
-
-    def __init__(self, username: str, is_internal: bool):
-        """
-        Constructor for the User base class
-
-        Parameters:
-            ...see Attributes of User
-        """
-        self.username = username
-        self.is_internal = is_internal
     
     def __hash__(self) -> int:
         return hash(self.username)
     
-    def set_attributes(self, user_dict: dict[str, Any]) -> None:
+    def set_attributes(self, **kwargs) -> None:
         """
         Can be overwritten in "auth.py" to introduce custom attributes. Does nothing by default
         """
         pass
     
     @classmethod
-    def Create(cls, username: str, user_dict: dict[str, Any], *, is_internal: bool = False, **kwargs):
+    def Create(cls, username: str, *, is_internal: bool = False, **kwargs):
         user = cls(username, is_internal)
-        user.set_attributes(user_dict)
+        user.set_attributes(**kwargs)
         return user
     
     @classmethod

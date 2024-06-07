@@ -16,5 +16,5 @@ def main(sqrl: sr.ModelArgs) -> pd.DataFrame:
     form and return the result as a new pandas DataFrame.
     """
     df = sqrl.ref("database_view1")
-    group_by_cols: str = sqrl.ctx["group_by_cols_list"]
-    return df.sort_values(group_by_cols, ascending=False)
+    order_by_cols: str = sqrl.ctx["order_by_cols_list"]
+    return df.sort_values(order_by_cols, ascending=False)

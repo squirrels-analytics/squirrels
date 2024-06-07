@@ -1,5 +1,5 @@
 from typing import Optional
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from enum import Enum
 import yaml
 
@@ -96,16 +96,20 @@ class ParametersConfig(ManifestComponentConfig):
 @dataclass
 class TestSetsConfig(ManifestComponentConfig):
     name: str
-    user_attributes: dict
-    parameters: dict
+    datasets: Optional[list[str]] = None
+    is_authenticated: bool = False
+    user_attributes: dict = field(default_factory=dict)
+    parameters: dict = field(default_factory=dict)
 
     @classmethod
     def from_dict(cls, kwargs: dict):
         cls._validate_required(kwargs, [c.TEST_SET_NAME_KEY], c.TEST_SETS_KEY)
         name = str(kwargs[c.TEST_SET_NAME_KEY])
+        datasets = kwargs.get(c.TEST_SET_DATASETS_KEY)
+        is_authenticated = (c.TEST_SET_USER_ATTR_KEY in kwargs)
         user_attributes = kwargs.get(c.TEST_SET_USER_ATTR_KEY, {})
         parameters = kwargs.get(c.TEST_SET_PARAMETERS_KEY, {})
-        return cls(name, user_attributes, parameters)
+        return cls(name, datasets, is_authenticated, user_attributes, parameters)
 
 
 @dataclass
@@ -147,6 +151,7 @@ class DatasetsConfig(ManifestComponentConfig):
     scope: DatasetScope
     parameters: Optional[list[str]]
     traits: dict
+    default_test_set: Optional[str]
 
     @classmethod
     def from_dict(cls, kwargs: dict):
@@ -163,7 +168,8 @@ class DatasetsConfig(ManifestComponentConfig):
         
         parameters = kwargs.get(c.DATASET_PARAMETERS_KEY)
         traits = kwargs.get(c.DATASET_TRAITS_KEY, {})
-        return cls(name, label, model, scope, parameters, traits)
+        default_test_set = kwargs.get(c.DATASET_DEFAULT_TEST_SET_KEY)
+        return cls(name, label, model, scope, parameters, traits, default_test_set)
 
 
 @dataclass
@@ -216,6 +222,11 @@ class _ManifestConfig:
         datasets = cls._create_configs_as_dict(DatasetsConfig, kwargs, c.DATASETS_KEY, c.DATASET_NAME_KEY)
 
         return cls(proj_vars, packages, db_conns, params, test_sets, dbviews, federates, datasets, settings)
+    
+    def get_default_test_set(self, dataset_name: str) -> str:
+        default_1 = self.datasets[dataset_name].default_test_set
+        default_2 = self.settings.get(c.TEST_SET_DEFAULT_USED_SETTING, c.DEFAULT_TEST_SET_NAME)
+        return default_1 if default_1 is not None else default_2
 
 
 class ManifestIO:
@@ -227,8 +238,8 @@ class ManifestIO:
         
         start = time.time()
         raw_content = u.read_file(c.MANIFEST_FILE)
-        env_config = EnvironConfigIO.obj.get_all_env_vars()
-        content = u.render_string(raw_content, env_config)
+        env_vars = EnvironConfigIO.obj.get_all_env_vars()
+        content = u.render_string(raw_content, env_vars=env_vars, **env_vars) # TODO: deprecate **env_vars
         proj_config = yaml.safe_load(content)
         cls.obj = _ManifestConfig.from_dict(proj_config)
         timer.add_activity_time(f"loading {c.MANIFEST_FILE} file", start)

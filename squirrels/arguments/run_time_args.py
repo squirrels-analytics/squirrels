@@ -1,11 +1,11 @@
-from typing import Callable, Any
-from dataclasses import dataclass
+from typing import Union, Callable, Any
+from dataclasses import dataclass, field
 from sqlalchemy import Engine
 import pandas as pd
 
 from .init_time_args import ConnectionsArgs, ParametersArgs
 from ..user_base import User
-from ..parameters import Parameter
+from ..parameters import Parameter, _TextValue
 from .._connection_set import ConnectionSetIO
 from .. import _utils as u
 
@@ -22,6 +22,15 @@ class ContextArgs(ParametersArgs):
     user: User
     prms: dict[str, Parameter]
     traits: dict[str, Any]
+    _placeholders: dict[str, Any] = field(init=False, default_factory=dict)
+
+    def set_placeholder(self, placeholder: str, value: Union[_TextValue, Any]) -> None:
+        if isinstance(value, _TextValue):
+            value = value._value_do_not_touch
+        self._placeholders[placeholder] = value
+    
+    def prms_contain(self, param_name: str) -> bool:
+        return (param_name in self.prms and self.prms[param_name].is_enabled())
 
 
 @dataclass
@@ -33,6 +42,7 @@ class ModelDepsArgs(ContextArgs):
 class ModelArgs(ModelDepsArgs):
     connection_name: str
     connections: dict[str, Engine]
+    placeholders: dict[str, Any]
     _ref: Callable[[str], pd.DataFrame]
     dependencies: set[str]
 
@@ -53,7 +63,9 @@ class ModelArgs(ModelDepsArgs):
             A pandas DataFrame
         """
 
-    def run_external_sql(self, sql_query: str, *, connection_name: str = None, **kwargs) -> pd.DataFrame:
+    def run_external_sql(
+        self, sql_query: str, *, connection_name: str = None, **kwargs
+    ) -> pd.DataFrame:
         """
         Runs a SQL query against an external database, with option to specify the connection name
 
@@ -65,7 +77,7 @@ class ModelArgs(ModelDepsArgs):
             The query result as a pandas DataFrame
         """
         connection_name = self.connection_name if connection_name is None else connection_name
-        return ConnectionSetIO.obj.run_sql_query_from_conn_name(sql_query, connection_name)
+        return ConnectionSetIO.obj.run_sql_query_from_conn_name(sql_query, connection_name, self.placeholders)
 
     def run_sql_on_dataframes(self, sql_query: str, *, dataframes: dict[str, pd.DataFrame] = None, **kwargs) -> pd.DataFrame:
         """

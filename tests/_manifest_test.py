@@ -117,7 +117,7 @@ def test_invalid_db_conn_config(data: dict):
 ## Test sets config
 
 @pytest.mark.parametrize("data", [
-    {"user_attributes": {}, "parameters": {}}
+    {}
 ])
 def test_invalid_test_sets_config(data: dict):
     with pytest.raises(u.ConfigurationError):
@@ -274,8 +274,8 @@ def test_manifest_parameters(fixture: str, expected: list, request: pytest.Fixtu
 
 
 @pytest.mark.parametrize("fixture,expected", [
-    ("manifest_config1", {'default': m.TestSetsConfig(name='default', user_attributes={}, parameters={})}),
-    ("manifest_config2", {'default': m.TestSetsConfig(name='default', user_attributes={}, parameters={})})
+    ("manifest_config1", {'default': m.TestSetsConfig(name='default')}),
+    ("manifest_config2", {'default': m.TestSetsConfig(name='default')})
 ])
 def test_manifest_test_sets(fixture: str, expected: dict, request: pytest.FixtureRequest):
     manifest: m._ManifestConfig = request.getfixturevalue(fixture)
