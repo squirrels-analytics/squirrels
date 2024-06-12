@@ -47,10 +47,11 @@ class Authenticator:
         if not isinstance(real_user, WrongPassword):
             fake_users = EnvironConfigIO.obj.get_users()
             if username in fake_users and secrets.compare_digest(fake_users[username][c.USER_PWD_KEY], password):
-                fake_users[username].pop("username", "")
-                is_internal = fake_users[username].pop("is_internal", False)
+                fake_user = fake_users[username].copy()
+                fake_user.pop("username", "")
+                is_internal = fake_user.pop("is_internal", False)
                 try:
-                    return user_cls.Create(username, is_internal=is_internal, **fake_users[username])
+                    return user_cls.Create(username, is_internal=is_internal, **fake_user)
                 except Exception as e:
                     raise u.FileExecutionError(f'Failed to create user from User model in {c.AUTH_FILE}', e)
         
