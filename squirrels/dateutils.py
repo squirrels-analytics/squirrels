@@ -289,7 +289,7 @@ class DateModPipeline(DateModifier):
         incremented by a DateModifier step.
 
         If the step is positive and start date is less than end date, then it'll return an increasing list of
-        dates starting from the start date. If the step is positive and start date is less than end date, 
+        dates starting from the start date. If the step is negative and start date is greater than end date, 
         then it'll return a decreasing list of dates starting from the start date. Otherwise, an empty list
         is returned.
 
@@ -379,7 +379,7 @@ class DateStringModifier(_DateRepresentationModifier):
         to the modified date, incremented by a DateModifier step.
 
         If the step is positive and start date is less than end date, then it'll return an increasing list of
-        dates starting from the start date. If the step is positive and start date is less than end date, 
+        dates starting from the start date. If the step is negative and start date is greater than end date, 
         then it'll return a decreasing list of dates starting from the start date. Otherwise, an empty list
         is returned.
 
@@ -443,7 +443,7 @@ class TimestampModifier(_DateRepresentationModifier):
         to the modified date, incremented by a DateModifier step.
 
         If the step is positive and start date is less than end date, then it'll return an increasing list of
-        dates starting from the start date. If the step is positive and start date is less than end date, 
+        dates starting from the start date. If the step is negative and start date is greater than end date, 
         then it'll return a decreasing list of dates starting from the start date. Otherwise, an empty list
         is returned.
 

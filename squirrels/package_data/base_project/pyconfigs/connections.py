@@ -1,8 +1,8 @@
 from sqlalchemy import create_engine, Engine
-import squirrels as sr
+from squirrels import ConnectionsArgs
 
 
-def main(connections: dict[str, Engine], sqrl: sr.ConnectionsArgs) -> None:
+def main(connections: dict[str, Engine], sqrl: ConnectionsArgs) -> None:
     """
     Define sqlalchemy engines by adding them to the "connections" dictionary
     """
