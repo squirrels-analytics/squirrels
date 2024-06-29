@@ -209,7 +209,7 @@ class ApiServer:
             return get_dataset_from_request_path(request, -2)
         
         parameters_cache_size = ManifestIO.obj.settings.get(c.PARAMETERS_CACHE_SIZE_SETTING, 1024)
-        parameters_cache_ttl = ManifestIO.obj.settings.get(c.PARAMETERS_CACHE_TTL_SETTING, 0)
+        parameters_cache_ttl = ManifestIO.obj.settings.get(c.PARAMETERS_CACHE_TTL_SETTING, 60)
     
         async def get_parameters_helper(
             user: Optional[User], dataset: str, selections: Iterable[tuple[str, str]], request_version: Optional[int]
@@ -239,7 +239,7 @@ class ApiServer:
             return get_dataset_from_request_path(request, -1)
 
         results_cache_size = ManifestIO.obj.settings.get(c.RESULTS_CACHE_SIZE_SETTING, 128)
-        results_cache_ttl = ManifestIO.obj.settings.get(c.RESULTS_CACHE_TTL_SETTING, 0)
+        results_cache_ttl = ManifestIO.obj.settings.get(c.RESULTS_CACHE_TTL_SETTING, 60)
     
         async def get_results_helper(
             user: Optional[User], dataset: str, selections: Iterable[tuple[str, str]], request_version: Optional[int]
