@@ -5,9 +5,9 @@ description = "Squirrels - API Framework for Data Analytics"
 license = "MIT"
 authors = ["Tim Huang <tim.yuting@hotmail.com>"]
 readme = "README.md"
-homepage = "https://squirrels-nest.github.io"
-repository = "https://github.com/squirrels-nest/squirrels"
-documentation = "https://squirrels-nest.github.io"
+homepage = "https://squirrels-analytics.github.io"
+repository = "https://github.com/squirrels-analytics/squirrels"
+documentation = "https://squirrels-analytics.github.io"
 classifiers = [
     "Intended Audience :: Developers",
     "Topic :: Software Development :: Libraries :: Application Frameworks",
