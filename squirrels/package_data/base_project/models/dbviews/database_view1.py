@@ -17,7 +17,7 @@ def main(sqrl: ModelArgs) -> pd.DataFrame:
     
     ## Example with building and running a sql query
     masked_id = "id" if getattr(sqrl.user, "role", "") == "manager" else "'***'"
-    desc_cond = "description LIKE :desc_pattern" if "desc_pattern" in sqrl.placeholders else "true"
+    desc_cond = "description LIKE :desc_pattern" if sqrl.is_placeholder("desc_pattern") else "true"
     category_cond = f"category IN ({sqrl.ctx['categories']})" if sqrl.ctx["has_categories"] else "true"
     subcategory_cond = f"subcategory IN ({sqrl.ctx['subcategories']})" if sqrl.ctx["has_subcategories"] else "true"
     query = dedent(f"""

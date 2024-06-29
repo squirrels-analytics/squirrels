@@ -36,7 +36,7 @@ def test_set_attribute(fixture: str, kwargs: str, expected: m._SqlModelConfig, r
 
 @pytest.fixture(scope="module")
 def context_args():
-    return ContextArgs({}, {}, None, {}, {})
+    return ContextArgs({}, {}, None, {}, {}, {})
 
 
 @pytest.fixture(scope="module")

@@ -119,7 +119,9 @@ class _Referable(metaclass=ABCMeta):
     def get_model_type(self) -> ModelType:
         pass
 
-    async def compile(self, ctx: dict[str, Any], ctx_args: ContextArgs, models_dict: dict[str, _Referable], recurse: bool) -> None:
+    async def compile(
+        self, ctx: dict[str, Any], ctx_args: ContextArgs, placeholders: dict[str, Any], models_dict: dict[str, _Referable], recurse: bool
+    ) -> None:
         pass
 
     @abstractmethod
@@ -214,18 +216,20 @@ class _Model(_Referable):
             materialized = federate_config.materialized
         return Materialization[materialized.upper()]
     
-    async def _compile_sql_model(self, ctx: dict[str, Any], ctx_args: ContextArgs) -> tuple[_SqlModelQuery, set]:
+    async def _compile_sql_model(
+        self, ctx: dict[str, Any], ctx_args: ContextArgs, placeholders: dict[str, Any]
+    ) -> tuple[_SqlModelQuery, set]:
         assert(isinstance(self.query_file.raw_query, _RawSqlQuery))
+
         raw_query = self.query_file.raw_query.query
-        
         connection_name = self._get_dbview_conn_name()
         materialized = self._get_materialized()
         configuration = _SqlModelConfig(connection_name, materialized)
-        is_placeholder = lambda x: x in ctx_args._placeholders
+        is_placeholder = lambda x: x in placeholders
         kwargs = {
-            "proj_vars": ctx_args.proj_vars, "env_vars": ctx_args.env_vars, "user": ctx_args.user,
-            "prms": ctx_args.prms, "traits": ctx_args.traits, "ctx": ctx, "is_placeholder": is_placeholder,
-            "config": configuration.set_attribute, "prms_contain": ctx_args.prms_contain,
+            "proj_vars": ctx_args.proj_vars, "env_vars": ctx_args.env_vars, "user": ctx_args.user, "prms": ctx_args.prms, 
+            "traits": ctx_args.traits, "ctx": ctx, "is_placeholder": is_placeholder, "set_placeholder": ctx_args.set_placeholder,
+            "config": configuration.set_attribute, "is_param_enabled": ctx_args.param_exists
         }
         dependencies = set()
         if self.query_file.model_type == ModelType.FEDERATE:
@@ -242,9 +246,14 @@ class _Model(_Referable):
         compiled_query = _SqlModelQuery(query, configuration)
         return compiled_query, dependencies
     
-    async def _compile_python_model(self, ctx: dict[str, Any], ctx_args: ContextArgs) -> tuple[_PyModelQuery, set]:
+    async def _compile_python_model(
+        self, ctx: dict[str, Any], ctx_args: ContextArgs, placeholders: dict[str, Any]
+    ) -> tuple[_PyModelQuery, set]:
         assert(isinstance(self.query_file.raw_query, _RawPyQuery))
-        sqrl_args = ModelDepsArgs(ctx_args.proj_vars, ctx_args.env_vars, ctx_args.user, ctx_args.prms, ctx_args.traits, ctx)
+        
+        sqrl_args = ModelDepsArgs(
+            ctx_args.proj_vars, ctx_args.env_vars, ctx_args.user, ctx_args.prms, ctx_args.traits, placeholders, ctx
+        )
         try:
             dependencies = await asyncio.to_thread(self.query_file.raw_query.dependencies_func, sqrl_args)
         except Exception as e:
@@ -252,20 +261,24 @@ class _Model(_Referable):
         
         dbview_conn_name = self._get_dbview_conn_name()
         connections = ConnectionSetIO.obj.get_engines_as_dict()
-        placeholders = ctx_args._placeholders.copy()
         ref = lambda x: self.upstreams[x].result
-        sqrl_args = ModelArgs(ctx_args.proj_vars, ctx_args.env_vars, ctx_args.user, ctx_args.prms, ctx_args.traits, 
-                              ctx, dbview_conn_name, connections, placeholders, ref, set(dependencies))
+        sqrl_args = ModelArgs(
+            ctx_args.proj_vars, ctx_args.env_vars, ctx_args.user, ctx_args.prms, ctx_args.traits, placeholders, ctx, 
+            dbview_conn_name, connections, dependencies, ref
+        )
             
         def compiled_query():
             try:
-                return self.query_file.raw_query.query(sqrl=sqrl_args)
+                raw_query: _RawPyQuery = self.query_file.raw_query
+                return raw_query.query(sqrl=sqrl_args)
             except Exception as e:
                 raise u.FileExecutionError(f'Failed to run "{c.MAIN_FUNC}" function for python model "{self.name}"', e)
         
         return _PyModelQuery(compiled_query), dependencies
 
-    async def compile(self, ctx: dict[str, Any], ctx_args: ContextArgs, models_dict: dict[str, _Referable], recurse: bool) -> None:
+    async def compile(
+        self, ctx: dict[str, Any], ctx_args: ContextArgs, placeholders: dict[str, Any], models_dict: dict[str, _Referable], recurse: bool
+    ) -> None:
         if self.compiled_query is not None:
             return
         else:
@@ -274,9 +287,9 @@ class _Model(_Referable):
         start = time.time()
 
         if self.query_file.query_type == QueryType.SQL:
-            compiled_query, dependencies = await self._compile_sql_model(ctx, ctx_args)
+            compiled_query, dependencies = await self._compile_sql_model(ctx, ctx_args, placeholders)
         elif self.query_file.query_type == QueryType.PYTHON:
-            compiled_query, dependencies = await self._compile_python_model(ctx, ctx_args)
+            compiled_query, dependencies = await self._compile_python_model(ctx, ctx_args, placeholders)
         else:
             raise NotImplementedError(f"Query type not supported: {self.query_file.query_type}")
         
@@ -293,7 +306,7 @@ class _Model(_Referable):
         coroutines = []
         for dep_model in dep_models:
             self._add_upstream(dep_model)
-            coro = dep_model.compile(ctx, ctx_args, models_dict, recurse)
+            coro = dep_model.compile(ctx, ctx_args, placeholders, models_dict, recurse)
             coroutines.append(coro)
         await asyncio.gather(*coroutines)
     
@@ -380,14 +393,16 @@ class _DAG:
     target_model: _Referable
     models_dict: dict[str, _Referable]
     parameter_set: Optional[ParameterSet] = field(default=None, init=False)
+    placeholders: dict[str, Any] = field(init=False, default_factory=dict)
 
     def apply_selections(
         self, user: Optional[User], selections: dict[str, str], *, updates_only: bool = False, request_version: Optional[int] = None
     ) -> None:
         start = time.time()
         dataset_params = self.dataset.parameters
-        parameter_set = ParameterConfigsSetIO.obj.apply_selections(dataset_params, selections, user, updates_only=updates_only, 
-                                                                   request_version=request_version)
+        parameter_set = ParameterConfigsSetIO.obj.apply_selections(
+            dataset_params, selections, user, updates_only=updates_only, request_version=request_version
+        )
         self.parameter_set = parameter_set
         timer.add_activity_time(f"applying selections for dataset '{self.dataset.name}'", start)
     
@@ -396,7 +411,7 @@ class _DAG:
         context = {}
         param_args = ParameterConfigsSetIO.args
         prms = self.parameter_set.get_parameters_as_dict()
-        args = ContextArgs(param_args.proj_vars, param_args.env_vars, user, prms, self.dataset.traits)
+        args = ContextArgs(param_args.proj_vars, param_args.env_vars, user, prms, self.dataset.traits, self.placeholders)
         try:
             context_func(ctx=context, sqrl=args)
         except Exception as e:
@@ -405,7 +420,7 @@ class _DAG:
         return context, args
     
     async def _compile_models(self, context: dict[str, Any], ctx_args: ContextArgs, recurse: bool) -> None:
-        await self.target_model.compile(context, ctx_args, self.models_dict, recurse)
+        await self.target_model.compile(context, ctx_args, self.placeholders, self.models_dict, recurse)
     
     def _get_terminal_nodes(self) -> set[str]:
         start = time.time()

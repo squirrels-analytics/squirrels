@@ -856,20 +856,60 @@ class NumberRangeParameter(Parameter):
 class _TextValue:
     _value_do_not_touch: str
 
+    def __repr__(self):
+        raise u.ConfigurationError(
+            "Cannot convert the entered text of TextParameter directly to string type. Try using it through placeholders instead"
+        )
+
     def apply(self, str_to_str_function: Callable[[str], str]) -> _TextValue:
+        """
+        Transforms the entered text with a function that takes a string and returns a string. 
+        
+        This method returns a new object and leaves the original the same.
+
+        Parameters:
+            str_to_str_function: A function that accepts a string and returns a string
+
+        Returns:
+            A new TextValue with the transformed entered text
+        """
         new_value = str_to_str_function(self._value_do_not_touch)
         assert isinstance(new_value, str), "Function provided must return string"
         return _TextValue(new_value)
     
     def apply_percent_wrap(self) -> _TextValue:
+        """
+        Adds percent signs before and after the entered text, and returns a new object, leaving the original the same.
+
+        Returns:
+            A new TextValue with the transformed entered text
+        """
         return self.apply(lambda x: "%"+x+"%")
     
     def apply_as_bool(self, str_to_bool_function: Callable[[str], bool]) -> bool:
+        """
+        Transforms the entered text with a function that takes a string and returns a boolean.
+
+        Parameters:
+            str_to_bool_function: A function that accepts a string and returns a boolean.
+
+        Returns:
+            A boolean for the transformed value
+        """
         new_value = str_to_bool_function(self._value_do_not_touch)
         assert isinstance(new_value, bool), "Function provided must return bool"
         return new_value
     
     def apply_as_number(self, str_to_num_function: Callable[[str], Union[int, float]]) ->  Union[int, float]:
+        """
+        Transforms the entered text with a function that takes a string and returns an int or float.
+
+        Parameters:
+            str_to_num_function: A function that accepts a string and returns an int or float.
+
+        Returns:
+            An int or float for the transformed value
+        """
         new_value = str_to_num_function(self._value_do_not_touch)
         assert isinstance(new_value, (int, float)), "Function provided must return a number"
         return new_value
