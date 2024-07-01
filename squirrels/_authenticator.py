@@ -1,7 +1,7 @@
 from typing import Optional
 from datetime import datetime, timedelta, timezone
-from jose import JWTError, jwt
-import secrets
+from jwt.exceptions import InvalidTokenError
+import secrets, jwt
 
 from . import _utils as u, _constants as c
 from .arguments.run_time_args import AuthArgs
@@ -66,11 +66,11 @@ class Authenticator:
     def get_user_from_token(self, token: Optional[str]) -> Optional[User]:
         if token is not None:
             try:
-                payload = jwt.decode(token, self.secret_key, algorithms=[self.algorithm])
+                payload: dict = jwt.decode(token, self.secret_key, algorithms=[self.algorithm])
                 payload.pop("exp")
                 user_cls: User = self.auth_helper.get_func_or_class("User", default_attr=User)
                 return user_cls._FromDict(payload)
-            except JWTError:
+            except InvalidTokenError:
                 return None
 
     def can_user_access_scope(self, user: Optional[User], scope: DatasetScope) -> bool:

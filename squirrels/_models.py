@@ -4,7 +4,8 @@ from dataclasses import dataclass, field
 from abc import ABCMeta, abstractmethod
 from enum import Enum
 from pathlib import Path
-import sqlite3, asyncio, os, shutil, pandas as pd, json
+from sqlalchemy import create_engine, text, Connection
+import asyncio, os, shutil, pandas as pd, json
 import matplotlib.pyplot as plt, networkx as nx
 
 from . import _constants as c, _utils as u, _py_module as pm
@@ -128,26 +129,20 @@ class _Referable(metaclass=ABCMeta):
     def get_terminal_nodes(self, depencency_path: set[str]) -> set[str]:
         pass
         
-    def _load_pandas_to_table(self, df: pd.DataFrame, conn: sqlite3.Connection) -> None:
-        if u.use_duckdb():
-            conn.execute(f"CREATE TABLE {self.name} AS FROM df")
-        else:
-            df.to_sql(self.name, conn, index=False)
+    def _load_pandas_to_table(self, df: pd.DataFrame, conn: Connection) -> None:
+        df.to_sql(self.name, conn, index=False)
             
-    def _load_table_to_pandas(self, conn: sqlite3.Connection) -> pd.DataFrame:
-        if u.use_duckdb():
-            return conn.execute(f"FROM {self.name}").df()
-        else:
-            query = f"SELECT * FROM {self.name}"
-            return pd.read_sql(query, conn)
+    def _load_table_to_pandas(self, conn: Connection) -> pd.DataFrame:
+        query = f"SELECT * FROM {self.name}"
+        return pd.read_sql(query, conn)
     
-    async def _trigger(self, conn: sqlite3.Connection, placeholders: dict = {}) -> None:
+    async def _trigger(self, conn: Connection, placeholders: dict = {}) -> None:
         self.wait_count -= 1
         if (self.wait_count == 0):
             await self.run_model(conn, placeholders)
     
     @abstractmethod
-    async def run_model(self, conn: sqlite3.Connection, placeholders: dict = {}) -> None:
+    async def run_model(self, conn: Connection, placeholders: dict = {}) -> None:
         coroutines = []
         for model in self.downstreams.values():
             coroutines.append(model._trigger(conn, placeholders))
@@ -178,7 +173,7 @@ class _Seed(_Referable):
     def get_terminal_nodes(self, depencency_path: set[str]) -> set[str]:
         return {self.name}
     
-    async def run_model(self, conn: sqlite3.Connection, placeholders: dict = {}) -> None:
+    async def run_model(self, conn: Connection, placeholders: dict = {}) -> None:
         if self.needs_sql_table:
             await asyncio.to_thread(self._load_pandas_to_table, self.result, conn)
         await super().run_model(conn, placeholders)
@@ -330,7 +325,7 @@ class _Model(_Referable):
         self.confirmed_no_cycles = True
         return terminal_nodes
 
-    async def _run_sql_model(self, conn: sqlite3.Connection, placeholders: dict = {}) -> None:
+    async def _run_sql_model(self, conn: Connection, placeholders: dict = {}) -> None:
         assert(isinstance(self.compiled_query, _SqlModelQuery))
         config = self.compiled_query.config
         query = self.compiled_query.query
@@ -350,7 +345,7 @@ class _Model(_Referable):
             def create_table():
                 create_query = config.get_sql_for_create(self.name, query)
                 try:
-                    return conn.execute(create_query, placeholders)
+                    return conn.execute(text(create_query), placeholders)
                 except Exception as e:
                     raise u.FileExecutionError(f'Failed to run federate sql model "{self.name}"', e)
             
@@ -358,7 +353,7 @@ class _Model(_Referable):
             if self.needs_pandas or self.is_target:
                 self.result = await asyncio.to_thread(self._load_table_to_pandas, conn)
     
-    async def _run_python_model(self, conn: sqlite3.Connection) -> None:
+    async def _run_python_model(self, conn: Connection) -> None:
         assert(isinstance(self.compiled_query, _PyModelQuery))
 
         df = await asyncio.to_thread(self.compiled_query.query)
@@ -367,7 +362,7 @@ class _Model(_Referable):
         if self.needs_pandas or self.is_target:
             self.result = df
     
-    async def run_model(self, conn: sqlite3.Connection, placeholders: dict = {}) -> None:
+    async def run_model(self, conn: Connection, placeholders: dict = {}) -> None:
         start = time.time()
         
         if self.query_file.query_type == QueryType.SQL:
@@ -431,20 +426,17 @@ class _DAG:
         return terminal_nodes
 
     async def _run_models(self, terminal_nodes: set[str], placeholders: dict = {}) -> None:
-        if u.use_duckdb():
-            import duckdb
-            conn = duckdb.connect()
-        else:
-            conn = sqlite3.connect(":memory:", check_same_thread=False)
+        conn_url = "duckdb:///" if u.use_duckdb() else "sqlite:///?check_same_thread=False"
+        engine = create_engine(conn_url)
         
-        try:
+        with engine.connect() as conn:
             coroutines = []
             for model_name in terminal_nodes:
                 model = self.models_dict[model_name]
                 coroutines.append(model.run_model(conn, placeholders))
             await asyncio.gather(*coroutines)
-        finally:
-            conn.close()
+        
+        engine.dispose()
     
     async def execute(
         self, context_func: ContextFunc, user: Optional[User], selections: dict[str, str], *, request_version: Optional[int] = None,
