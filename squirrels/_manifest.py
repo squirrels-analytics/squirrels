@@ -214,19 +214,18 @@ class _ManifestConfig:
         params = [ParametersConfig.from_dict(x) for x in kwargs.get(c.PARAMETERS_KEY, [])]
 
         test_sets = cls._create_configs_as_dict(TestSetsConfig, kwargs, c.TEST_SETS_KEY, c.TEST_SET_NAME_KEY)
-        default_test_set: str = settings.get(c.TEST_SET_DEFAULT_USED_SETTING, c.DEFAULT_TEST_SET_NAME)
-        test_sets.setdefault(default_test_set, TestSetsConfig.from_dict({c.TEST_SET_NAME_KEY: default_test_set}))
-
         dbviews = cls._create_configs_as_dict(DbviewConfig, kwargs, c.DBVIEWS_KEY, c.DBVIEW_NAME_KEY)
         federates = cls._create_configs_as_dict(FederateConfig, kwargs, c.FEDERATES_KEY, c.FEDERATE_NAME_KEY)
         datasets = cls._create_configs_as_dict(DatasetsConfig, kwargs, c.DATASETS_KEY, c.DATASET_NAME_KEY)
 
         return cls(proj_vars, packages, db_conns, params, test_sets, dbviews, federates, datasets, settings)
     
-    def get_default_test_set(self, dataset_name: str) -> str:
+    def get_default_test_set(self, dataset_name: str) -> tuple[str, dict]:
         default_1 = self.datasets[dataset_name].default_test_set
         default_2 = self.settings.get(c.TEST_SET_DEFAULT_USED_SETTING, c.DEFAULT_TEST_SET_NAME)
-        return default_1 if default_1 is not None else default_2
+        default_name = default_1 if default_1 is not None else default_2
+        default_test_set = self.selection_test_sets.get(default_name, TestSetsConfig.from_dict({c.TEST_SET_NAME_KEY: default_name}))
+        return default_name, default_test_set
 
 
 class ManifestIO:

@@ -1,5 +1,5 @@
 from typing import Union, Callable, Optional, Any
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from sqlalchemy import Engine
 import pandas as pd
 
@@ -131,7 +131,7 @@ class ModelArgs(ModelDepsArgs):
 
         Parameters:
             sql_query: The SQL query to run
-            dataframes: A dictionary of table names to their pandas Dataframe
+            dataframes: A dictionary of table names to their pandas Dataframe. If None, uses results of dependent models
         
         Returns:
             The result as a pandas Dataframe from running the query

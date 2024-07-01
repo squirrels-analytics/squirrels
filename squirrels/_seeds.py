@@ -2,6 +2,7 @@ from dataclasses import dataclass
 import os, glob, pandas as pd
 
 from ._timer import timer, time
+from ._manifest import ManifestIO
 from . import _utils as u, _constants as c
 
 
@@ -22,12 +23,15 @@ class SeedsIO:
     @classmethod
     def LoadFiles(cls) -> None:
         start = time.time()
+        infer_schema: bool = ManifestIO.obj.settings.get(c.SEEDS_INFER_SCHEMA_SETTING, True)
+        na_values: list[str] = ManifestIO.obj.settings.get(c.SEEDS_NA_VALUES_SETTING, ["NA"])
+        csv_dtype = None if infer_schema else str
         
         seeds_dict = {}
         csv_files = glob.glob(os.path.join(c.SEEDS_FOLDER, '**/*.csv'), recursive=True)
         for csv_file in csv_files:
             file_stem = os.path.splitext(os.path.basename(csv_file))[0]
-            df = pd.read_csv(csv_file, dtype=str, keep_default_na=False)
+            df = pd.read_csv(csv_file, dtype=csv_dtype, keep_default_na=False, na_values=na_values)
             seeds_dict[file_stem] = df
         
         cls.obj = Seeds(seeds_dict)

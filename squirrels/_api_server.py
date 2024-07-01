@@ -51,16 +51,14 @@ def df_to_api_response0(df: pd.DataFrame, dimensions: list[str] = None) -> arm.D
 
 
 class ApiServer:
-    def __init__(self, no_cache: bool, debug: bool) -> None:
+    def __init__(self, no_cache: bool) -> None:
         """
         Constructor for ApiServer
 
         Parameters:
             no_cache (bool): Whether to disable caching
-            debug (bool): Set to True to show "hidden" parameters in the /parameters endpoint response
         """
         self.no_cache = no_cache
-        self.debug = debug
         self.dataset_configs = ManifestIO.obj.datasets
         
         token_expiry_minutes = ManifestIO.obj.settings.get(c.AUTH_TOKEN_EXPIRE_SETTING, 30)
@@ -209,7 +207,7 @@ class ApiServer:
             return get_dataset_from_request_path(request, -2)
         
         parameters_cache_size = ManifestIO.obj.settings.get(c.PARAMETERS_CACHE_SIZE_SETTING, 1024)
-        parameters_cache_ttl = ManifestIO.obj.settings.get(c.PARAMETERS_CACHE_TTL_SETTING, 0)
+        parameters_cache_ttl = ManifestIO.obj.settings.get(c.PARAMETERS_CACHE_TTL_SETTING, 60)
     
         async def get_parameters_helper(
             user: Optional[User], dataset: str, selections: Iterable[tuple[str, str]], request_version: Optional[int]
@@ -239,7 +237,7 @@ class ApiServer:
             return get_dataset_from_request_path(request, -1)
 
         results_cache_size = ManifestIO.obj.settings.get(c.RESULTS_CACHE_SIZE_SETTING, 128)
-        results_cache_ttl = ManifestIO.obj.settings.get(c.RESULTS_CACHE_TTL_SETTING, 0)
+        results_cache_ttl = ManifestIO.obj.settings.get(c.RESULTS_CACHE_TTL_SETTING, 60)
     
         async def get_results_helper(
             user: Optional[User], dataset: str, selections: Iterable[tuple[str, str]], request_version: Optional[int]

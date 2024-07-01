@@ -274,8 +274,8 @@ def test_manifest_parameters(fixture: str, expected: list, request: pytest.Fixtu
 
 
 @pytest.mark.parametrize("fixture,expected", [
-    ("manifest_config1", {'default': m.TestSetsConfig(name='default')}),
-    ("manifest_config2", {'default': m.TestSetsConfig(name='default')})
+    ("manifest_config1", {}),
+    ("manifest_config2", {})
 ])
 def test_manifest_test_sets(fixture: str, expected: dict, request: pytest.FixtureRequest):
     manifest: m._ManifestConfig = request.getfixturevalue(fixture)
