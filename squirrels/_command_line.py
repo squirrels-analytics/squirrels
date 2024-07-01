@@ -47,7 +47,6 @@ def main():
     run_parser = subparsers.add_parser(c.RUN_CMD, help='Run the API server', add_help=False)
     run_parser.add_argument('-h', '--help', action="help", help="Show this help message and exit")
     run_parser.add_argument('--no-cache', action='store_true', help='Do not cache any api results')
-    run_parser.add_argument('--debug', action='store_true', help='Show all "hidden parameters" in the parameters response')
     run_parser.add_argument('--host', type=str, default='127.0.0.1', help="The host to run on")
     run_parser.add_argument('--port', type=int, default=4465, help="The port to run on")
 
@@ -80,7 +79,7 @@ def main():
             ParameterConfigsSetIO.LoadFromFile()
             ModelsIO.LoadFiles()
             if args.command == c.RUN_CMD:
-                server = ApiServer(args.no_cache, args.debug)
+                server = ApiServer(args.no_cache)
                 server.run(args)
             elif args.command == c.COMPILE_CMD:
                 task = ModelsIO.WriteOutputs(args.dataset, args.all_datasets, args.select, args.test_set, args.all_test_sets, args.runquery)

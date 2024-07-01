@@ -51,16 +51,14 @@ def df_to_api_response0(df: pd.DataFrame, dimensions: list[str] = None) -> arm.D
 
 
 class ApiServer:
-    def __init__(self, no_cache: bool, debug: bool) -> None:
+    def __init__(self, no_cache: bool) -> None:
         """
         Constructor for ApiServer
 
         Parameters:
             no_cache (bool): Whether to disable caching
-            debug (bool): Set to True to show "hidden" parameters in the /parameters endpoint response
         """
         self.no_cache = no_cache
-        self.debug = debug
         self.dataset_configs = ManifestIO.obj.datasets
         
         token_expiry_minutes = ManifestIO.obj.settings.get(c.AUTH_TOKEN_EXPIRE_SETTING, 30)
