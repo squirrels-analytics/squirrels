@@ -574,16 +574,20 @@ class ModelsIO:
         cls, dataset_conf: DatasetsConfig, select: str, test_set: Optional[str], runquery: bool, recurse: bool
     ) -> Any:
         dataset = dataset_conf.name
-        if test_set is None:
-            test_set = ManifestIO.obj.get_default_test_set(dataset)
+        default_test_set, default_test_set_conf = ManifestIO.obj.get_default_test_set(dataset)
+        if test_set is None or test_set == default_test_set:
+            test_set, test_set_conf = default_test_set, default_test_set_conf
+        elif test_set in ManifestIO.obj.selection_test_sets:
+            test_set_conf = ManifestIO.obj.selection_test_sets[test_set]
+        else:
+            raise u.InvalidInputError(f"No test set named '{test_set}' was found when compiling dataset '{dataset}'. The test set must be defined if not default for dataset.")
+        
         error_msg_intro = f"Cannot compile dataset '{dataset}' with test set '{test_set}'."
-
-        test_set_conf = ManifestIO.obj.selection_test_sets[test_set]
-        user_attributes = test_set_conf.user_attributes.copy()
-        selections = test_set_conf.parameters.copy()
         if test_set_conf.datasets is not None and dataset not in test_set_conf.datasets:
             raise u.InvalidInputError(f"{error_msg_intro}\n Applicable datasets for test set '{test_set}' does not include dataset '{dataset}'.")
         
+        user_attributes = test_set_conf.user_attributes.copy()
+        selections = test_set_conf.parameters.copy()
         username, is_internal = user_attributes.pop("username", ""), user_attributes.pop("is_internal", False)
         if test_set_conf.is_authenticated:
             user_cls: type[User] = Authenticator.get_auth_helper().get_func_or_class("User", default_attr=User)
@@ -630,20 +634,26 @@ class ModelsIO:
 
         if recurse:
             cls.draw_dag(dag, output_folder)
+        
+        if isinstance(dag.target_model, _Model):
+            return dag.target_model.compiled_query.query # else return None
 
     @classmethod
     async def WriteOutputs(
-        cls, dataset: Optional[str], all_datasets: bool, select: Optional[str], test_set: Optional[str], all_test_sets: bool, 
+        cls, dataset: Optional[str], do_all_datasets: bool, select: Optional[str], test_set: Optional[str], do_all_test_sets: bool, 
         runquery: bool
     ) -> None:
-        if all_test_sets:
-            test_sets = ManifestIO.obj.selection_test_sets.keys()
-        else:
-            test_sets = [test_set]
+        
+        def get_applicable_test_sets(dataset: str) -> list[str]:
+            applicable_test_sets = []
+            for test_set_name, test_set_config in ManifestIO.obj.selection_test_sets.items():
+                if test_set_config.datasets is None or dataset in test_set_config.datasets:
+                    applicable_test_sets.append(test_set_name)
+            return applicable_test_sets
         
         recurse = True
         dataset_configs = ManifestIO.obj.datasets
-        if all_datasets:
+        if do_all_datasets:
             selected_models = [(dataset, dataset.model) for dataset in dataset_configs.values()]
         else:
             if select is None:
@@ -654,9 +664,13 @@ class ModelsIO:
         
         coroutines = []
         for dataset_conf, select in selected_models:
-            for test_set in test_sets:
-                coroutine = cls.WriteDatasetOutputsGivenTestSet(dataset_conf, select, test_set, runquery, recurse)
-                coroutines.append(coroutine)
+            if do_all_test_sets:
+                for test_set_name in get_applicable_test_sets(dataset_conf.name):
+                    coroutine = cls.WriteDatasetOutputsGivenTestSet(dataset_conf, select, test_set_name, runquery, recurse)
+                    coroutines.append(coroutine)
+            
+            coroutine = cls.WriteDatasetOutputsGivenTestSet(dataset_conf, select, test_set, runquery, recurse)
+            coroutines.append(coroutine)
         
         queries = await asyncio.gather(*coroutines)
         if not recurse and len(queries) == 1 and isinstance(queries[0], str):

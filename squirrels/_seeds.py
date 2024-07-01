@@ -23,8 +23,8 @@ class SeedsIO:
     @classmethod
     def LoadFiles(cls) -> None:
         start = time.time()
-        na_values: list[str] = ManifestIO.obj.settings.get(c.SEEDS_NA_VALUES_SETTING, ["NA"])
         infer_schema: bool = ManifestIO.obj.settings.get(c.SEEDS_INFER_SCHEMA_SETTING, True)
+        na_values: list[str] = ManifestIO.obj.settings.get(c.SEEDS_NA_VALUES_SETTING, ["NA"])
         csv_dtype = None if infer_schema else str
         
         seeds_dict = {}

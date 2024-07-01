@@ -19,8 +19,8 @@ Squirrels is an API framework that lets you create REST APIs for dynamic data an
 
 Here are a few of the things that squirrels can do:
 
-- Connect to any database by specifying its sqlalchemy url without code (in `squirrels.yml`) or by using its native connector library in python (in `connections.py`).
-- Configure API routes without code (in `squirrels.yml`) for all datasets.
+- Connect to any database by specifying its SQLAlchemy url (in `squirrels.yml`) or by using its native connector library in python (in `connections.py`).
+- Configure API routes for datasets (in `squirrels.yml`) without writing code.
 - Configure parameter widgets (types include single-select, multi-select, date, number, etc.) for your datasets (in `parameters.py`).
 - Use Jinja SQL templates (just like dbt!) or python functions (that return a pandas dataframe) to define dynamic query logic based on parameter selections.
 - Query multiple databases and join the results together in a final view in one API endpoint/dataset!
