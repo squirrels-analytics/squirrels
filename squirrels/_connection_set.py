@@ -39,7 +39,8 @@ class ConnectionSet:
         Disposes of all the engines in this ConnectionSet
         """
         for pool in self._engines.values():
-            pool.dispose()
+            if isinstance(pool, Engine):
+                pool.dispose()
 
 
 class ConnectionSetIO:

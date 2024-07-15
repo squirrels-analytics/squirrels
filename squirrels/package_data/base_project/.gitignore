@@ -7,5 +7,6 @@ venv/
 
 # squirrels files to ignore
 environcfg.yml
+env.yml
 target/
 sqrl_packages/

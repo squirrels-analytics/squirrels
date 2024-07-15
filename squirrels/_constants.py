@@ -79,13 +79,14 @@ ASSETS_FOLDER = 'assets'
 TEMPLATES_FOLDER = 'templates'
 
 ENVIRON_CONFIG_FILE = 'environcfg.yml'
+ENV_CONFIG_FILE = 'env.yml'
 MANIFEST_JINJA_FILE = 'squirrels.yml.j2'
 CONNECTIONS_YML_FILE = 'connections.yml'
 PARAMETERS_YML_FILE = 'parameters.yml'
 MANIFEST_FILE = 'squirrels.yml'
 LU_DATA_FILE = 'lu_data.xlsx'
 
-DATABASE_FOLDER = 'database'
+DATABASE_FOLDER = 'assets'
 PACKAGES_FOLDER = 'sqrl_packages'
 
 MODELS_FOLDER = 'models'
