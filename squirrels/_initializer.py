@@ -72,7 +72,7 @@ class Initializer:
 
             remaining_questions = [
                 inquirer.Confirm(AUTH,
-                                 message=f"Do you want to add the '{c.AUTH_FILE}' file?" ,
+                                 message=f"Do you want to add the '{c.AUTH_FILE}' file to enable custom API authentication?" ,
                                  default=False),
                 inquirer.List(SAMPLE_DB, 
                               message="What sample sqlite database do you wish to use (if any)?",
@@ -154,7 +154,7 @@ class Initializer:
                 raise NotImplementedError(f"Format '{parameters_format}' not supported for configuring widget parameters")
             
             self._copy_pyconfig_file(c.CONTEXT_FILE)
-            self._copy_file(c.ENVIRON_CONFIG_FILE)
+            self._copy_file(c.ENV_CONFIG_FILE)
             self._copy_seed_file(c.CATEGORY_SEED_FILE)
             self._copy_seed_file(c.SUBCATEGORY_SEED_FILE)
 

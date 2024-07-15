@@ -61,17 +61,19 @@ class EnvironConfigIO:
             except FileNotFoundError:
                 return {}
         
-        config1 = load_yaml(_GLOBAL_SQUIRRELS_CFG_FILE)
-        config2 = load_yaml(c.ENVIRON_CONFIG_FILE)
+        master_env_config = load_yaml(_GLOBAL_SQUIRRELS_CFG_FILE)
+        proj_env_config1 = load_yaml(c.ENVIRON_CONFIG_FILE)
+        proj_env_config2 = load_yaml(c.ENV_CONFIG_FILE)
 
-        for key in config2:
-            config1.setdefault(key, {})
-            config1[key].update(config2[key])
+        for project_config in [proj_env_config1, proj_env_config2]:
+            for key in project_config:
+                master_env_config.setdefault(key, {})
+                master_env_config[key].update(project_config[key])
         
-        users = config1.get(c.USERS_KEY, {})
-        env_vars = config1.get(c.ENV_VARS_KEY, {})
-        credentials = config1.get(c.CREDENTIALS_KEY, {})
-        secrets = config1.get(c.SECRETS_KEY, {})
+        users = master_env_config.get(c.USERS_KEY, {})
+        env_vars = master_env_config.get(c.ENV_VARS_KEY, {})
+        credentials = master_env_config.get(c.CREDENTIALS_KEY, {})
+        secrets = master_env_config.get(c.SECRETS_KEY, {})
 
         cls.obj = _EnvironConfig(users, env_vars, credentials, secrets)
         timer.add_activity_time(f"loading {c.ENVIRON_CONFIG_FILE} file", start)

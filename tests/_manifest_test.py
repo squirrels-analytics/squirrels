@@ -198,7 +198,7 @@ def test_dataset_scope(fixture: str, expected: m.DatasetScope, request: pytest.F
 
 
 @pytest.mark.parametrize("fixture,expected", [
-    ("dataset_config1", None),
+    ("dataset_config1", []),
     ("dataset_config2", [])
 ])
 def test_dataset_parameters(fixture: str, expected: Optional[list], request: pytest.FixtureRequest):
