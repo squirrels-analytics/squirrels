@@ -5,7 +5,8 @@ import os, yaml
 from . import _constants as c, _utils as u
 from ._timer import timer, time
 
-_GLOBAL_SQUIRRELS_CFG_FILE = u.join_paths(os.path.expanduser('~'), '.squirrels', c.ENVIRON_CONFIG_FILE)
+_GLOBAL_SQUIRRELS_CFG_FILE1 = u.join_paths(os.path.expanduser('~'), '.squirrels', c.ENVIRON_CONFIG_FILE)
+_GLOBAL_SQUIRRELS_CFG_FILE2 = u.join_paths(os.path.expanduser('~'), '.squirrels', c.ENV_CONFIG_FILE)
 
 
 @dataclass
@@ -61,19 +62,20 @@ class EnvironConfigIO:
             except FileNotFoundError:
                 return {}
         
-        master_env_config = load_yaml(_GLOBAL_SQUIRRELS_CFG_FILE)
+        master_env_config1 = load_yaml(_GLOBAL_SQUIRRELS_CFG_FILE1)
+        master_env_config2 = load_yaml(_GLOBAL_SQUIRRELS_CFG_FILE2)
         proj_env_config1 = load_yaml(c.ENVIRON_CONFIG_FILE)
         proj_env_config2 = load_yaml(c.ENV_CONFIG_FILE)
 
-        for project_config in [proj_env_config1, proj_env_config2]:
+        for project_config in [master_env_config2, proj_env_config1, proj_env_config2]:
             for key in project_config:
-                master_env_config.setdefault(key, {})
-                master_env_config[key].update(project_config[key])
+                master_env_config1.setdefault(key, {})
+                master_env_config1[key].update(project_config[key])
         
-        users = master_env_config.get(c.USERS_KEY, {})
-        env_vars = master_env_config.get(c.ENV_VARS_KEY, {})
-        credentials = master_env_config.get(c.CREDENTIALS_KEY, {})
-        secrets = master_env_config.get(c.SECRETS_KEY, {})
+        users = master_env_config1.get(c.USERS_KEY, {})
+        env_vars = master_env_config1.get(c.ENV_VARS_KEY, {})
+        credentials = master_env_config1.get(c.CREDENTIALS_KEY, {})
+        secrets = master_env_config1.get(c.SECRETS_KEY, {})
 
         cls.obj = _EnvironConfig(users, env_vars, credentials, secrets)
-        timer.add_activity_time(f"loading {c.ENVIRON_CONFIG_FILE} file", start)
+        timer.add_activity_time(f"loading {c.ENV_CONFIG_FILE} file", start)

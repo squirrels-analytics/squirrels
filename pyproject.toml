@@ -1,6 +1,6 @@
 [tool.poetry]
 name = "squirrels"
-version = "0.3.0"
+version = "0.3.1"
 description = "Squirrels - API Framework for Data Analytics"
 license = "Apache-2.0"
 authors = ["Tim Huang <tim.yuting@hotmail.com>"]

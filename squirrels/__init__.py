@@ -1,4 +1,4 @@
-__version__ = '0.3.0'
+__version__ = '0.3.1'
 
 from .arguments.init_time_args import ConnectionsArgs, ParametersArgs
 from .arguments.run_time_args import AuthArgs, ContextArgs, ModelDepsArgs, ModelArgs
