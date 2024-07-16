@@ -266,6 +266,12 @@ class ApiServer:
             curr_parameters_path = parameters_path.format(dataset=dataset_normalized)
             curr_results_path = results_path.format(dataset=dataset_normalized)
 
+            for param in dataset_cfg.parameters:
+                if param not in param_fields:
+                    all_params = list(param_fields.keys())
+                    raise u.ConfigurationError(f"Dataset '{dataset_name}' use parameter '{param}' which doesn't exist. Available parameters are:"
+                                               f"\n  {all_params}")
+
             QueryModelGet = make_dataclass("QueryParams", [
                 param_fields[param].as_query_info() for param in dataset_cfg.parameters
             ])

@@ -38,6 +38,24 @@ class _SqlModelConfig:
 
     ## Applicable for federated models
     materialized: Materialization
+    
+    def set_attribute(self, **kwargs) -> str:
+        connection_name = kwargs.get(c.DBVIEW_CONN_KEY)
+        if connection_name is not None: 
+            if not isinstance(connection_name, str):
+                raise u.ConfigurationError("The 'connection_name' argument of 'config' macro must be a string")
+            self.connection_name = connection_name
+        
+        materialized: str = kwargs.get(c.MATERIALIZED_KEY)
+        if materialized is not None:
+            if not isinstance(materialized, str):
+                raise u.ConfigurationError("The 'materialized' argument of 'config' macro must be a string")
+            try:
+                self.materialized = Materialization[materialized.upper()]
+            except KeyError as e:
+                valid_options = [x.name for x in Materialization]
+                raise u.ConfigurationError(f"The 'materialized' argument value '{materialized}' is not valid. Must be one of: {valid_options}") from e
+        return ""
 
     def get_sql_for_create(self, model_name: str, select_query: str) -> str:
         if self.materialized == Materialization.TABLE:
@@ -48,15 +66,6 @@ class _SqlModelConfig:
             raise NotImplementedError(f"Materialization option not supported: {self.materialized}")
         
         return create_prefix + select_query
-    
-    def set_attribute(self, **kwargs) -> str:
-        connection_name = kwargs.get(c.DBVIEW_CONN_KEY)
-        materialized = kwargs.get(c.MATERIALIZED_KEY)
-        if isinstance(connection_name, str):
-            self.connection_name = connection_name
-        if isinstance(materialized, str):
-            self.materialized = Materialization[materialized.upper()]
-        return ""
 
 
 ContextFunc = Callable[[dict[str, Any], ContextArgs], None]
@@ -220,7 +229,7 @@ class _Model(_Referable):
         connection_name = self._get_dbview_conn_name()
         materialized = self._get_materialized()
         configuration = _SqlModelConfig(connection_name, materialized)
-        is_placeholder = lambda x: x in placeholders
+        is_placeholder = lambda placeholder: placeholder in placeholders
         kwargs = {
             "proj_vars": ctx_args.proj_vars, "env_vars": ctx_args.env_vars, "user": ctx_args.user, "prms": ctx_args.prms, 
             "traits": ctx_args.traits, "ctx": ctx, "is_placeholder": is_placeholder, "set_placeholder": ctx_args.set_placeholder,
@@ -256,7 +265,7 @@ class _Model(_Referable):
         
         dbview_conn_name = self._get_dbview_conn_name()
         connections = ConnectionSetIO.obj.get_engines_as_dict()
-        ref = lambda x: self.upstreams[x].result
+        ref = lambda model: self.upstreams[model].result
         sqrl_args = ModelArgs(
             ctx_args.proj_vars, ctx_args.env_vars, ctx_args.user, ctx_args.prms, ctx_args.traits, placeholders, ctx, 
             dbview_conn_name, connections, dependencies, ref
@@ -496,7 +505,7 @@ class ModelsIO:
                 if extension == '.py':
                     query_type = QueryType.PYTHON
                     module = pm.PyModule(filepath)
-                    dependencies_func = module.get_func_or_class(c.DEP_FUNC, default_attr=lambda x: [])
+                    dependencies_func = module.get_func_or_class(c.DEP_FUNC, default_attr=lambda sqrl: [])
                     raw_query = _RawPyQuery(module.get_func_or_class(c.MAIN_FUNC), dependencies_func)
                 elif extension == '.sql':
                     query_type = QueryType.SQL
@@ -520,7 +529,7 @@ class ModelsIO:
         populate_raw_queries_for_type(federates_path, ModelType.FEDERATE)
 
         context_path = u.join_paths(c.PYCONFIGS_FOLDER, c.CONTEXT_FILE)
-        cls.context_func = pm.PyModule(context_path).get_func_or_class(c.MAIN_FUNC, default_attr=lambda x, y: None)
+        cls.context_func = pm.PyModule(context_path).get_func_or_class(c.MAIN_FUNC, default_attr=lambda ctx, sqrl: None)
         
         timer.add_activity_time("loading files for models and context.py", start)
 

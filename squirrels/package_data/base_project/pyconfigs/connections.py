@@ -8,7 +8,7 @@ def main(connections: dict[str, Engine], sqrl: ConnectionsArgs) -> None:
     """
     
     ## SQLAlchemy URL for a connection engine
-    conn_str = 'sqlite:///database/expenses.db' 
+    conn_str = 'sqlite:///./assets/expenses.db' 
 
     ## Can also leverage environment variables and credentials in the environcfg.yml file for connection details
     # conn_str_raw: str = sqrl.env_vars["sqlite_conn_str"]

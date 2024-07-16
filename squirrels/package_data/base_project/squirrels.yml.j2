@@ -51,7 +51,7 @@ selection_test_sets:
   - name: no_auth_test1
     datasets:                             ## optional section - if not provided, then test set is applicable for any dataset
       - dataset_example
-    parameters:                           ## optional section - for unspecified parameters, default value is used
+    parameters:                           ## optional section - if not provided, then assumes no parameters. For unspecified parameters, default value is used
       start_date: 2023-07-01              ## this parameter only exists for dataset 'dataset_example'
   
   - name: auth_test1
