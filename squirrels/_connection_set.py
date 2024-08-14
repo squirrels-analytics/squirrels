@@ -31,8 +31,11 @@ class ConnectionSet:
     
     def run_sql_query_from_conn_name(self, query: str, conn_name: str, placeholders: dict = {}) -> pd.DataFrame:
         engine = self._get_engine(conn_name)
-        df = pd.read_sql(query, engine, params=placeholders)
-        return df
+        try:
+            df = pd.read_sql(query, engine, params=placeholders)
+            return df
+        except Exception as e:
+            raise RuntimeError(e) from e
 
     def _dispose(self) -> None:
         """

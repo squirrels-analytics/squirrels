@@ -39,7 +39,7 @@ class Authenticator:
         try:
             real_user = get_user(self._get_auth_args(username, password)) if get_user is not None else None
         except Exception as e:
-            raise u.FileExecutionError(f'Failed to run "{c.GET_USER_FUNC}" in {c.AUTH_FILE}', e)
+            raise u.FileExecutionError(f'Failed to run "{c.GET_USER_FUNC}" in {c.AUTH_FILE}', e) from e
         
         if isinstance(real_user, User):
             return real_user
@@ -53,7 +53,7 @@ class Authenticator:
                 try:
                     return user_cls.Create(username, is_internal=is_internal, **fake_user)
                 except Exception as e:
-                    raise u.FileExecutionError(f'Failed to create user from User model in {c.AUTH_FILE}', e)
+                    raise u.FileExecutionError(f'Failed to create user from User model in {c.AUTH_FILE}', e) from e
         
         return None
     

@@ -63,7 +63,7 @@ class _SqlModelConfig:
         elif self.materialized == Materialization.VIEW:
             create_prefix = f"CREATE VIEW {model_name} AS\n"
         else:
-            raise NotImplementedError(f"Materialization option not supported: {self.materialized}")
+            raise u.ConfigurationError(f"Materialization option not supported: {self.materialized}")
         
         return create_prefix + select_query
 
@@ -233,7 +233,7 @@ class _Model(_Referable):
         kwargs = {
             "proj_vars": ctx_args.proj_vars, "env_vars": ctx_args.env_vars, "user": ctx_args.user, "prms": ctx_args.prms, 
             "traits": ctx_args.traits, "ctx": ctx, "is_placeholder": is_placeholder, "set_placeholder": ctx_args.set_placeholder,
-            "config": configuration.set_attribute, "is_param_enabled": ctx_args.param_exists
+            "config": configuration.set_attribute, "param_exists": ctx_args.param_exists
         }
         dependencies = set()
         if self.query_file.model_type == ModelType.FEDERATE:
@@ -245,7 +245,7 @@ class _Model(_Referable):
         try:
             query = await asyncio.to_thread(u.render_string, raw_query, **kwargs)
         except Exception as e:
-            raise u.FileExecutionError(f'Failed to compile sql model "{self.name}"', e)
+            raise u.FileExecutionError(f'Failed to compile sql model "{self.name}"', e) from e
         
         compiled_query = _SqlModelQuery(query, configuration)
         return compiled_query, dependencies
@@ -261,7 +261,7 @@ class _Model(_Referable):
         try:
             dependencies = await asyncio.to_thread(self.query_file.raw_query.dependencies_func, sqrl_args)
         except Exception as e:
-            raise u.FileExecutionError(f'Failed to run "{c.DEP_FUNC}" function for python model "{self.name}"', e)
+            raise u.FileExecutionError(f'Failed to run "{c.DEP_FUNC}" function for python model "{self.name}"', e) from e
         
         dbview_conn_name = self._get_dbview_conn_name()
         connections = ConnectionSetIO.obj.get_engines_as_dict()
@@ -276,7 +276,7 @@ class _Model(_Referable):
                 raw_query: _RawPyQuery = self.query_file.raw_query
                 return raw_query.query(sqrl=sqrl_args)
             except Exception as e:
-                raise u.FileExecutionError(f'Failed to run "{c.MAIN_FUNC}" function for python model "{self.name}"', e)
+                raise u.FileExecutionError(f'Failed to run "{c.MAIN_FUNC}" function for python model "{self.name}"', e) from e
         
         return _PyModelQuery(compiled_query), dependencies
 
@@ -295,7 +295,7 @@ class _Model(_Referable):
         elif self.query_file.query_type == QueryType.PYTHON:
             compiled_query, dependencies = await self._compile_python_model(ctx, ctx_args, placeholders)
         else:
-            raise NotImplementedError(f"Query type not supported: {self.query_file.query_type}")
+            raise u.ConfigurationError(f"Query type not supported: {self.query_file.query_type}")
         
         self.compiled_query = compiled_query
         self.wait_count = len(dependencies)
@@ -344,7 +344,7 @@ class _Model(_Referable):
                 try:
                     return ConnectionSetIO.obj.run_sql_query_from_conn_name(query, config.connection_name, placeholders)
                 except RuntimeError as e:
-                    raise u.FileExecutionError(f'Failed to run dbview sql model "{self.name}"', e)
+                    raise u.FileExecutionError(f'Failed to run dbview sql model "{self.name}"', e) from e
             
             df = await asyncio.to_thread(run_sql_query)
             await asyncio.to_thread(self._load_pandas_to_table, df, conn)
@@ -356,7 +356,7 @@ class _Model(_Referable):
                 try:
                     return conn.execute(text(create_query), placeholders)
                 except Exception as e:
-                    raise u.FileExecutionError(f'Failed to run federate sql model "{self.name}"', e)
+                    raise u.FileExecutionError(f'Failed to run federate sql model "{self.name}"', e) from e
             
             await asyncio.to_thread(create_table)
             if self.needs_pandas or self.is_target:
@@ -419,7 +419,7 @@ class _DAG:
         try:
             context_func(ctx=context, sqrl=args)
         except Exception as e:
-            raise u.FileExecutionError(f'Failed to run {c.CONTEXT_FILE} for dataset "{self.dataset.name}"', e)
+            raise u.FileExecutionError(f'Failed to run {c.CONTEXT_FILE} for dataset "{self.dataset.name}"', e) from e
         timer.add_activity_time(f"running context.py for dataset '{self.dataset.name}'", start)
         return context, args
     
@@ -581,11 +581,11 @@ class ModelsIO:
         elif test_set in ManifestIO.obj.selection_test_sets:
             test_set_conf = ManifestIO.obj.selection_test_sets[test_set]
         else:
-            raise u.InvalidInputError(f"No test set named '{test_set}' was found when compiling dataset '{dataset}'. The test set must be defined if not default for dataset.")
+            raise u.ConfigurationError(f"No test set named '{test_set}' was found when compiling dataset '{dataset}'. The test set must be defined if not default for dataset.")
         
         error_msg_intro = f"Cannot compile dataset '{dataset}' with test set '{test_set}'."
         if test_set_conf.datasets is not None and dataset not in test_set_conf.datasets:
-            raise u.InvalidInputError(f"{error_msg_intro}\n Applicable datasets for test set '{test_set}' does not include dataset '{dataset}'.")
+            raise u.ConfigurationError(f"{error_msg_intro}\n Applicable datasets for test set '{test_set}' does not include dataset '{dataset}'.")
         
         user_attributes = test_set_conf.user_attributes.copy()
         selections = test_set_conf.parameters.copy()

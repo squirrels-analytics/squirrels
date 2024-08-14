@@ -5,7 +5,7 @@ import pandas as pd
 
 from .init_time_args import ConnectionsArgs, ParametersArgs
 from ..user_base import User
-from ..parameters import Parameter, _TextValue
+from ..parameters import Parameter, TextValue
 from .._connection_set import ConnectionSetIO
 from .. import _utils as u
 
@@ -24,7 +24,7 @@ class ContextArgs(ParametersArgs):
     traits: dict[str, Any]
     _placeholders: dict[str, Any]
 
-    def set_placeholder(self, placeholder: str, value: Union[_TextValue, Any]) -> None:
+    def set_placeholder(self, placeholder: str, value: Union[TextValue, Any]) -> str:
         """
         Method to set a placeholder value.
 
@@ -32,9 +32,10 @@ class ContextArgs(ParametersArgs):
             placeholder: A string for the name of the placeholder
             value: The value of the placeholder. Can be of any type
         """
-        if isinstance(value, _TextValue):
+        if isinstance(value, TextValue):
             value = value._value_do_not_touch
         self._placeholders[placeholder] = value
+        return ""
     
     def param_exists(self, param_name: str) -> bool:
         """

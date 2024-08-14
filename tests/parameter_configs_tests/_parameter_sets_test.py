@@ -148,7 +148,6 @@ def test_parameter_set_to_json_dict(parameter_set1: ps.ParameterSet):
         ],
         "trigger_refresh": True,
         "show_select_all": True,
-        "is_dropdown": True,
         "order_matters": False,
         "selected_ids": []
     }

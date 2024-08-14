@@ -81,19 +81,15 @@ class ApiServer:
             except u.InvalidInputError as exc:
                 traceback.print_exc()
                 return JSONResponse(status_code=status.HTTP_400_BAD_REQUEST, 
-                                    content={"message": f"Invalid user input: {str(exc)}"})
+                                    content={"message": str(exc), "blame": "API client"})
             except u.ConfigurationError as exc:
                 traceback.print_exc()
                 return JSONResponse(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, 
-                                    content={"message": f"Squirrels configuration error: {str(exc)}"})
-            except NotImplementedError as exc:
-                traceback.print_exc()
-                return JSONResponse(status_code=status.HTTP_501_NOT_IMPLEMENTED, 
-                                    content={"message": f"Not implemented error: {str(exc)}"})
+                                    content={"message": f"An unexpected error occurred", "blame": "Squirrels project"})
             except Exception as exc:
                 traceback.print_exc()
                 return JSONResponse(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, 
-                                    content={"message": f"Server error: {str(exc)}"})
+                                    content={"message": f"An unexpected error occurred", "blame": "Squirrels framework"})
 
         app.add_middleware(
             CORSMiddleware, allow_origins=["*"], allow_credentials=True, allow_methods=["*"], allow_headers=["*"], 

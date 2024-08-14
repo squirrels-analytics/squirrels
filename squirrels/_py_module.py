@@ -57,4 +57,4 @@ def run_pyconfig_main(filename: str, kwargs: dict[str, Any] = {}) -> None:
         try:
             main_function(**kwargs)
         except Exception as e:
-            raise u.FileExecutionError(f'Failed to run python file "{filepath}"', e)
+            raise u.FileExecutionError(f'Failed to run python file "{filepath}"', e) from e

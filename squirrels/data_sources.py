@@ -196,7 +196,7 @@ class SelectDataSource(_SelectionDataSource):
         if ds_param.parameter_type == pc.SingleSelectParameterConfig:
             return pc.SingleSelectParameterConfig(
                 ds_param.name, ds_param.label, all_options, description=ds_param.description, 
-                user_attribute=ds_param.user_attribute, parent_name=ds_param.parent_name
+                user_attribute=ds_param.user_attribute, parent_name=ds_param.parent_name, **ds_param.extra_args
             )
         elif ds_param.parameter_type == pc.MultiSelectParameterConfig:
             return pc.MultiSelectParameterConfig(
@@ -250,14 +250,13 @@ class MultiSelectDataSource(_SelectionDataSource):
     DEPRECATED. Use "SelectDataSource" instead.
     """
     _show_select_all: bool # = field(default=True, kw_only=True)
-    _is_dropdown: bool # = field(default=True, kw_only=True)
     _order_matters: bool # = field(default=False, kw_only=True)
     _none_is_all: bool # = field(default=True, kw_only=True)
 
     def __init__(
             self, table_or_query: str, id_col: str, options_col: str, *, order_by_col: Optional[str] = None, 
             is_default_col: Optional[str] = None, custom_cols: dict[str, str] = {}, show_select_all: bool = True, 
-            is_dropdown: bool = True, order_matters: bool = False, none_is_all: bool = True, user_group_col: Optional[str] = None,
+            order_matters: bool = False, none_is_all: bool = True, user_group_col: Optional[str] = None,
             parent_id_col: Optional[str] = None, connection_name: Optional[str] = None, **kwargs
         ) -> None:
         """
@@ -270,7 +269,6 @@ class MultiSelectDataSource(_SelectionDataSource):
                          custom_cols=custom_cols, user_group_col=user_group_col, parent_id_col=parent_id_col, 
                          connection_name=connection_name)
         self._show_select_all = show_select_all
-        self._is_dropdown = is_dropdown
         self._order_matters = order_matters
         self._none_is_all = none_is_all
     
@@ -288,7 +286,7 @@ class MultiSelectDataSource(_SelectionDataSource):
         self._validate_parameter_type(ds_param, pc.MultiSelectParameterConfig)
         all_options = self._get_all_options(df)
         return pc.MultiSelectParameterConfig(
-            ds_param.name, ds_param.label, all_options, show_select_all=self._show_select_all, is_dropdown=self._is_dropdown,
+            ds_param.name, ds_param.label, all_options, show_select_all=self._show_select_all,
             order_matters=self._order_matters, none_is_all=self._none_is_all, description=ds_param.description, 
             user_attribute=ds_param.user_attribute, parent_name=ds_param.parent_name
         )
@@ -353,8 +351,10 @@ class DateDataSource(DataSource):
                                    parent_option_ids=self._get_key_from_record_as_list(self._parent_id_col, record))
             for _, record in records.items()
         )
-        return pc.DateParameterConfig(ds_param.name, ds_param.label, options, description=ds_param.description, 
-                                      user_attribute=ds_param.user_attribute, parent_name=ds_param.parent_name)
+        return pc.DateParameterConfig(
+            ds_param.name, ds_param.label, options, description=ds_param.description, user_attribute=ds_param.user_attribute, 
+            parent_name=ds_param.parent_name, **ds_param.extra_args
+        )
 
 
 @dataclass
@@ -420,8 +420,10 @@ class DateRangeDataSource(DataSource):
                                         parent_option_ids=self._get_key_from_record_as_list(self._parent_id_col, record))
             for _, record in records.items()
         )
-        return pc.DateRangeParameterConfig(ds_param.name, ds_param.label, options, description=ds_param.description, 
-                                           user_attribute=ds_param.user_attribute, parent_name=ds_param.parent_name)
+        return pc.DateRangeParameterConfig(
+            ds_param.name, ds_param.label, options, description=ds_param.description, user_attribute=ds_param.user_attribute, 
+            parent_name=ds_param.parent_name, **ds_param.extra_args
+        )
 
 
 @dataclass
@@ -509,8 +511,10 @@ class NumberDataSource(_NumericDataSource):
                                      parent_option_ids=self._get_key_from_record_as_list(self._parent_id_col, record))
             for _, record in records.items()
         )
-        return pc.NumberParameterConfig(ds_param.name, ds_param.label, options, description=ds_param.description,
-                                        user_attribute=ds_param.user_attribute, parent_name=ds_param.parent_name)
+        return pc.NumberParameterConfig(
+            ds_param.name, ds_param.label, options, description=ds_param.description, user_attribute=ds_param.user_attribute, 
+            parent_name=ds_param.parent_name, **ds_param.extra_args
+        )
 
 
 @dataclass
@@ -579,8 +583,10 @@ class NumberRangeDataSource(_NumericDataSource):
                                        parent_option_ids=self._get_key_from_record_as_list(self._parent_id_col, record))
             for _, record in records.items()
         )
-        return pc.NumberRangeParameterConfig(ds_param.name, ds_param.label, options, description=ds_param.description,
-                                          user_attribute=ds_param.user_attribute, parent_name=ds_param.parent_name)
+        return pc.NumberRangeParameterConfig(
+            ds_param.name, ds_param.label, options, description=ds_param.description, user_attribute=ds_param.user_attribute, 
+            parent_name=ds_param.parent_name, **ds_param.extra_args
+        )
 
 
 @dataclass
@@ -639,5 +645,7 @@ class TextDataSource(DataSource):
                                    parent_option_ids=self._get_key_from_record_as_list(self._parent_id_col, record))
             for _, record in records.items()
         )
-        return pc.TextParameterConfig(ds_param.name, ds_param.label, options, description=ds_param.description, 
-                                      user_attribute=ds_param.user_attribute, parent_name=ds_param.parent_name)
+        return pc.TextParameterConfig(
+            ds_param.name, ds_param.label, options, description=ds_param.description, user_attribute=ds_param.user_attribute, 
+            parent_name=ds_param.parent_name, **ds_param.extra_args
+        )
