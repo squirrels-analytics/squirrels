@@ -6,14 +6,14 @@ def main(sqrl: ParametersArgs) -> None:
     Create all widget parameters in this file. If two or more datasets use a different set of parameters, define them all
     here, and specify the subset of parameters used for each dataset in the "squirrels.yml" file.
 
-    Parameters are created by a factory method associated to some parameters class. For example (note the "Create"):
-    > p.SingleSelectParameter.Create(...)
+    Parameters are created by a factory method associated to the parameter class. For example, "CreateWithOptions" is the factory method used here:
+    > p.SingleSelectParameter.CreateWithOptions(...)
 
     The parameter classes available are:
     - SingleSelectParameter, MultiSelectParameter, DateParameter, DateRangeParameter, NumberParameter, NumberRangeParameter, TextParameter
     
     The factory methods available are:
-    - Create, CreateSimple, CreateFromSource
+    - CreateSimple, CreateWithOptions, CreateFromSource
     """
 
     ## Example of creating SingleSelectParameter and specifying each option by code

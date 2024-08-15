@@ -1027,8 +1027,6 @@ class TextParameter(Parameter):
         """
         Method for creating the configurations for a Parameter that doesn't involve user attributes or parent parameters
         
-        * Note that the "Number" type denotes an int, a Decimal (from decimal module), or a string that can be parsed to Decimal
-        
         Parameters:
             name: The name of the parameter
             label: The display label for the parameter
