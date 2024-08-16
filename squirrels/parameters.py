@@ -26,7 +26,7 @@ class Parameter(metaclass=ABCMeta):
         pass
     
     @classmethod
-    def Create(
+    def CreateWithOptions(
         cls, name: str, label: str, all_options: Sequence[Union[po.ParameterOption, dict]], *, description: str = "",
         user_attribute: Optional[str] = None, parent_name: Optional[str] = None, **kwargs
     ) -> None:
@@ -45,6 +45,16 @@ class Parameter(metaclass=ABCMeta):
         param_config = param_config_type(name, label, all_options, description=description, user_attribute=user_attribute, 
                                          parent_name=parent_name)
         ps.ParameterConfigsSetIO.obj.add(param_config)
+    
+    @classmethod
+    def Create(
+        cls, name: str, label: str, all_options: Sequence[Union[po.ParameterOption, dict]], *, description: str = "",
+        user_attribute: Optional[str] = None, parent_name: Optional[str] = None, **kwargs
+    ) -> None:
+        """
+        DEPRECATED. Use CreateWithOptions instead
+        """
+        cls.CreateWithOptions(name, label, all_options, description=description, user_attribute=user_attribute, parent_name=parent_name)
 
     @classmethod
     @abstractmethod
@@ -79,7 +89,7 @@ class Parameter(metaclass=ABCMeta):
         try:
             return datetime.strptime(input_date.strip(), "%Y-%m-%d").date() if isinstance(input_date, str) else input_date
         except ValueError as e:
-            self._config._raise_invalid_input_error(input_date, str(e), e)
+            self._config._raise_invalid_input_error(input_date, "Must be a date in YYYY-MM-DD format.", e)
     
     def _validate_number(self, input_number: po.Number, curr_option: po._NumericParameterOption) -> Decimal:
         try:
@@ -88,11 +98,14 @@ class Parameter(metaclass=ABCMeta):
             self._config._raise_invalid_input_error(input_number, str(e), e)
     
     @abstractmethod
-    def to_json_dict0(self) -> dict:
+    def _to_json_dict0(self) -> dict:
         """
         Helper method to convert the derived Parameter class into a JSON dictionary
         """
-        output = self._config.to_json_dict0()
+        output = {
+            "widget_type": self._config.widget_type, "name": self._config.name, 
+            "label": self._config.label, "description": self._config.description
+        }
         if not self.is_enabled():
             output["widget_type"] = "disabled"
         return output
@@ -101,8 +114,8 @@ class Parameter(metaclass=ABCMeta):
     def _get_response_model0(self) -> type[arm.ParameterModelBase]:
         pass
     
-    def _to_api_response_model0(self) -> arm.ParameterModel:
-        return self._get_response_model0().model_validate(self.to_json_dict0())
+    def _to_api_response_model0(self) -> arm.ParameterModelBase:
+        return self._get_response_model0().model_validate(self._to_json_dict0())
 
 
 @dataclass
@@ -125,11 +138,12 @@ class _SelectionParameter(Parameter):
             self._config._raise_invalid_input_error(selected_id, f"The selected id {selected_id} does not exist in available options.")
     
     @abstractmethod
-    def to_json_dict0(self) -> dict:
+    def _to_json_dict0(self) -> dict:
         """
         Helper method to convert the derived selection parameter class into a JSON object
         """
-        output = super().to_json_dict0()
+        output = super()._to_json_dict0()
+        output['trigger_refresh'] = self._config.trigger_refresh
         output['options'] = [x._to_json_dict() for x in self._options]
         return output
 
@@ -172,7 +186,7 @@ class SingleSelectParameter(_SelectionParameter):
             all_options: All options associated to this parameter regardless of the user group or parent parameter option they depend on
             description: Explains the meaning of the parameter
         """
-        cls.Create(name, label, all_options, description=description)
+        cls.CreateWithOptions(name, label, all_options, description=description)
 
     def get_selected(
         self, field: Optional[str] = None, *, default_field: Optional[str] = None, default: Any = None, **kwargs
@@ -243,14 +257,14 @@ class SingleSelectParameter(_SelectionParameter):
         else:
             return tuple()
     
-    def to_json_dict0(self) -> dict:
+    def _to_json_dict0(self) -> dict:
         """
         Converts this parameter as a JSON object for the parameters API response
 
         Returns:
             A dictionary for the JSON object
         """
-        output = super().to_json_dict0()
+        output = super()._to_json_dict0()
         output['selected_id'] = self._selected_id
         return output
     
@@ -282,9 +296,9 @@ class MultiSelectParameter(_SelectionParameter):
         return pc.MultiSelectParameterConfig
     
     @classmethod
-    def Create(
+    def CreateWithOptions(
         cls, name: str, label: str, all_options: Sequence[Union[po.SelectParameterOption, dict]], *, description: str = "",
-        show_select_all: bool = True, is_dropdown: bool = True, order_matters: bool = False, none_is_all: bool = True,
+        show_select_all: bool = True, order_matters: bool = False, none_is_all: bool = True,
         user_attribute: Optional[str] = None, parent_name: Optional[str] = None, **kwargs
     ) -> None:
         """
@@ -296,23 +310,35 @@ class MultiSelectParameter(_SelectionParameter):
             all_options: All options associated to this parameter regardless of the user group or parent parameter option they depend on
             description: Explains the meaning of the parameter
             show_select_all: Communicate to front-end whether to include a "select all" option
-            is_dropdown: Communicate to front-end whether the widget should be a dropdown with checkboxes
             order_matters: Communicate to front-end whether the order of the selections made matter
             none_is_all: Whether having no options selected is equivalent to all selectable options selected
             user_attribute: The user attribute that may cascade the options for this parameter. Default is None
             parent_name: Name of parent parameter that may cascade the options for this parameter. Default is None (no parent)
         """
         param_config = pc.MultiSelectParameterConfig(
-            name, label, all_options, 
-            show_select_all=show_select_all, is_dropdown=is_dropdown, order_matters=order_matters, none_is_all=none_is_all, 
-            description=description, user_attribute=user_attribute, parent_name=parent_name
+            name, label, all_options, description=description, user_attribute=user_attribute, parent_name=parent_name,
+            show_select_all=show_select_all, order_matters=order_matters, none_is_all=none_is_all
         )
         ps.ParameterConfigsSetIO.obj.add(param_config)
+    
+    @classmethod
+    def Create(
+        cls, name: str, label: str, all_options: Sequence[Union[po.SelectParameterOption, dict]], *, description: str = "",
+        show_select_all: bool = True, order_matters: bool = False, none_is_all: bool = True,
+        user_attribute: Optional[str] = None, parent_name: Optional[str] = None, **kwargs
+    ) -> None:
+        """
+        DEPRECATED. Use CreateWithOptions instead
+        """
+        cls.CreateWithOptions(
+            name, label, all_options, description=description, show_select_all=show_select_all,
+            order_matters=order_matters, none_is_all=none_is_all, user_attribute=user_attribute, parent_name=parent_name
+        )
 
     @classmethod
     def CreateSimple(
         cls, name: str, label: str, all_options: Sequence[po.SelectParameterOption], *, description: str = "",
-        show_select_all: bool = True, is_dropdown: bool = True, order_matters: bool = False, none_is_all: bool = True, **kwargs
+        show_select_all: bool = True, order_matters: bool = False, none_is_all: bool = True, **kwargs
     ) -> None:
         """
         Method for creating the configurations for a MultiSelectParameter that doesn't involve user attributes or parent parameters
@@ -323,19 +349,18 @@ class MultiSelectParameter(_SelectionParameter):
             all_options: All options associated to this parameter regardless of the user group or parent parameter option they depend on
             description: Explains the meaning of the parameter
             show_select_all: Communicate to front-end whether to include a "select all" option
-            is_dropdown: Communicate to front-end whether the widget should be a dropdown with checkboxes
             order_matters: Communicate to front-end whether the order of the selections made matter
             none_is_all: Whether having no options selected is equivalent to all selectable options selected
         """
-        cls.Create(
+        cls.CreateWithOptions(
             name, label, all_options, description=description,
-            show_select_all=show_select_all, s_dropdown=is_dropdown, order_matters=order_matters, none_is_all=none_is_all
+            show_select_all=show_select_all, order_matters=order_matters, none_is_all=none_is_all
         )
     
     @classmethod
     def CreateFromSource(
         cls, name: str, label: str, data_source: Union[d.SelectDataSource, dict], *, description: str = "",
-        show_select_all: bool = True, is_dropdown: bool = True, order_matters: bool = False, none_is_all: bool = True,
+        show_select_all: bool = True, order_matters: bool = False, none_is_all: bool = True,
         user_attribute: Optional[str] = None, parent_name: Optional[str] = None, **kwargs
     ) -> None:
         """
@@ -347,15 +372,13 @@ class MultiSelectParameter(_SelectionParameter):
             data_source: The lookup table to use for this parameter
             description: Explains the meaning of the parameter
             show_select_all: Communicate to front-end whether to include a "select all" option
-            is_dropdown: Communicate to front-end whether the widget should be a dropdown with checkboxes
             order_matters: Communicate to front-end whether the order of the selections made matter
             none_is_all: Whether having no options selected is equivalent to all selectable options selected
             user_attribute: The user attribute that may cascade the options for this parameter. Default is None
             parent_name: Name of parent parameter that may cascade the options for this parameter. Default is None (no parent)
         """
         extra_args = {
-            "show_select_all": show_select_all, "is_dropdown": is_dropdown, 
-            "order_matters": order_matters, "none_is_all": none_is_all
+            "show_select_all": show_select_all, "order_matters": order_matters, "none_is_all": none_is_all
         }
         param_config = pc.DataSourceParameterConfig(
             pc.MultiSelectParameterConfig, name, label, data_source, extra_args=extra_args, description=description, 
@@ -477,14 +500,16 @@ class MultiSelectParameter(_SelectionParameter):
     def _get_selected_ids_as_list(self, **kwargs) -> Sequence[str]:
         return self.get_selected_ids_as_list()
     
-    def to_json_dict0(self):
+    def _to_json_dict0(self):
         """
         Converts this parameter as a JSON object for the parameters API response
 
         Returns:
             A dictionary for the JSON object
         """
-        output = super().to_json_dict0()
+        output = super()._to_json_dict0()
+        output['show_select_all'] = self._config.show_select_all
+        output['order_matters'] = self._config.order_matters
         output['selected_ids'] = list(self._selected_ids)
         return output
     
@@ -502,6 +527,7 @@ class DateParameter(Parameter):
         curr_option: The current option showing for defaults based on user attribute and selection of parent
         selected_date: The selected date
     """
+    _config: pc.DateParameterConfig
     _curr_option: Optional[po.DateParameterOption]
     _selected_date: Union[date, str]
 
@@ -531,7 +557,7 @@ class DateParameter(Parameter):
             date_format: Format of the default date, default is '%Y-%m-%d'
         """
         single_param_option = po.DateParameterOption(default_date, date_format=date_format)
-        cls.Create(name, label, (single_param_option,), description=description)
+        cls.CreateWithOptions(name, label, (single_param_option,), description=description)
     
     def get_selected_date(self, *, date_format: str = None, **kwargs) -> str:
         """
@@ -558,7 +584,7 @@ class DateParameter(Parameter):
         """
         return self._enquote(self.get_selected_date(date_format=date_format))
     
-    def to_json_dict0(self):
+    def _to_json_dict0(self):
         """
         Converts this parameter as a JSON object for the parameters API response
 
@@ -567,7 +593,7 @@ class DateParameter(Parameter):
         Returns:
             A dictionary for the JSON object
         """
-        output = super().to_json_dict0()
+        output = super()._to_json_dict0()
         if self.is_enabled():
             output["selected_date"] = self.get_selected_date(date_format="%Y-%m-%d")
         else:
@@ -589,6 +615,7 @@ class DateRangeParameter(Parameter):
         selected_start_date: The selected start date
         selected_end_date: The selected end date
     """
+    _config: pc.DateRangeParameterConfig
     _curr_option: Optional[po.DateRangeParameterOption]
     _selected_start_date: Union[date, str]
     _selected_end_date: Union[date, str]
@@ -621,7 +648,7 @@ class DateRangeParameter(Parameter):
             date_format: Format of the default date, default is '%Y-%m-%d'
         """
         single_param_option = po.DateRangeParameterOption(default_start_date, default_end_date, date_format=date_format)
-        cls.Create(name, label, (single_param_option,), description=description)
+        cls.CreateWithOptions(name, label, (single_param_option,), description=description)
     
     def get_selected_start_date(self, *, date_format: str = None, **kwargs) -> str:
         """
@@ -673,7 +700,7 @@ class DateRangeParameter(Parameter):
         """
         return self._enquote(self.get_selected_end_date(date_format=date_format))
     
-    def to_json_dict0(self):
+    def _to_json_dict0(self):
         """
         Converts this parameter as a JSON object for the parameters API response
 
@@ -682,7 +709,7 @@ class DateRangeParameter(Parameter):
         Returns:
             A dictionary for the JSON object
         """
-        output = super().to_json_dict0()
+        output = super()._to_json_dict0()
         if self.is_enabled():
             output["selected_start_date"] = self.get_selected_start_date(date_format="%Y-%m-%d")
             output["selected_end_date"] = self.get_selected_end_date(date_format="%Y-%m-%d")
@@ -702,6 +729,7 @@ class NumberParameter(Parameter):
         curr_option: The current option showing for defaults based on user attribute and selection of parent
         selected_value: The selected integer or decimal number
     """
+    _config: pc.NumberParameterConfig
     _curr_option: Optional[po.NumberParameterOption]
     _selected_value: po.Number
 
@@ -735,7 +763,7 @@ class NumberParameter(Parameter):
             default_value: Default value for this option, and must be selectable based on min_value, max_value, and increment
         """
         single_param_option = po.NumberParameterOption(min_value, max_value, increment=increment, default_value=default_value)
-        cls.Create(name, label, (single_param_option,), description=description)
+        cls.CreateWithOptions(name, label, (single_param_option,), description=description)
     
     def get_selected_value(self, **kwargs) -> float:
         """
@@ -746,14 +774,14 @@ class NumberParameter(Parameter):
         """
         return float(self._selected_value)
         
-    def to_json_dict0(self):
+    def _to_json_dict0(self):
         """
         Converts this parameter as a JSON object for the parameters API response
 
         Returns:
             A dictionary for the JSON object
         """
-        output = super().to_json_dict0()
+        output = super()._to_json_dict0()
         if self.is_enabled():
             output.update(self._curr_option._to_json_dict())
             output["selected_value"] = self.get_selected_value()
@@ -774,6 +802,7 @@ class NumberRangeParameter(Parameter):
         selected_lower_value: The selected lower integer or decimal number
         selected_upper_value: The selected upper integer or decimal number
     """
+    _config: pc.NumberRangeParameterConfig
     _curr_option: Optional[po.NumberRangeParameterOption]
     _selected_lower_value: po.Number
     _selected_upper_value: po.Number
@@ -814,7 +843,7 @@ class NumberRangeParameter(Parameter):
         single_param_option = po.NumberRangeParameterOption(
             min_value, max_value, increment=increment, default_lower_value=default_lower_value, default_upper_value=default_upper_value
         )
-        cls.Create(name, label, (single_param_option,), description=description)
+        cls.CreateWithOptions(name, label, (single_param_option,), description=description)
     
     def get_selected_lower_value(self, **kwargs) -> float:
         """
@@ -834,14 +863,14 @@ class NumberRangeParameter(Parameter):
         """
         return float(self._selected_upper_value)
 
-    def to_json_dict0(self):
+    def _to_json_dict0(self):
         """
         Converts this parameter as a JSON object for the parameters API response
 
         Returns:
             A dictionary for the JSON object
         """
-        output = super().to_json_dict0()
+        output = super()._to_json_dict0()
         if self._curr_option is not None:
             output.update(self._curr_option._to_json_dict())
             output['selected_lower_value'] = self.get_selected_lower_value()
@@ -853,15 +882,15 @@ class NumberRangeParameter(Parameter):
 
 
 @dataclass
-class _TextValue:
+class TextValue:
     _value_do_not_touch: str
 
     def __repr__(self):
         raise u.ConfigurationError(
-            "Cannot convert the entered text of TextParameter directly to string type. Try using it through placeholders instead"
+            "Cannot convert TextValue directly to string (to avoid SQL injection). Try using it through placeholders instead"
         )
 
-    def apply(self, str_to_str_function: Callable[[str], str]) -> _TextValue:
+    def apply(self, str_to_str_function: Callable[[str], str]) -> TextValue:
         """
         Transforms the entered text with a function that takes a string and returns a string. 
         
@@ -874,10 +903,11 @@ class _TextValue:
             A new TextValue with the transformed entered text
         """
         new_value = str_to_str_function(self._value_do_not_touch)
-        assert isinstance(new_value, str), "Function provided must return string"
-        return _TextValue(new_value)
+        if not isinstance(new_value, str):
+            raise u.ConfigurationError("Function provided must return string")
+        return TextValue(new_value)
     
-    def apply_percent_wrap(self) -> _TextValue:
+    def apply_percent_wrap(self) -> TextValue:
         """
         Adds percent signs before and after the entered text, and returns a new object, leaving the original the same.
 
@@ -897,7 +927,8 @@ class _TextValue:
             A boolean for the transformed value
         """
         new_value = str_to_bool_function(self._value_do_not_touch)
-        assert isinstance(new_value, bool), "Function provided must return bool"
+        if not isinstance(new_value, bool):
+            raise u.ConfigurationError("Function provided must return bool")
         return new_value
     
     def apply_as_number(self, str_to_num_function: Callable[[str], Union[int, float]]) ->  Union[int, float]:
@@ -911,7 +942,23 @@ class _TextValue:
             An int or float for the transformed value
         """
         new_value = str_to_num_function(self._value_do_not_touch)
-        assert isinstance(new_value, (int, float)), "Function provided must return a number"
+        if not isinstance(new_value, (int, float)):
+            raise u.ConfigurationError("Function provided must return a number")
+        return new_value
+    
+    def apply_as_datetime(self, str_to_datetime_function: Callable[[str], datetime]) -> datetime:
+        """
+        Transforms the entered text with a function that takes a string and returns a datetime object.
+
+        Parameters:
+            str_to_datetime_function: A function that accepts a string and returns a datetime object.
+
+        Returns:
+            A datetime object for the transformed value
+        """
+        new_value = str_to_datetime_function(self._value_do_not_touch)
+        if not isinstance(new_value, datetime):
+            raise u.ConfigurationError("Function provided must return datetime")
         return new_value
 
 
@@ -920,8 +967,16 @@ class TextParameter(Parameter):
     """
     Class for text parameter widgets.
     """
+    _config: pc.TextParameterConfig
     _curr_option: Optional[po.TextParameterOption]
     _entered_text: str
+
+    def __post_init__(self):
+        try:
+            if self.is_enabled():
+                self._entered_text = self._config.validate_entered_text(self._entered_text)
+        except u.ConfigurationError as e:
+            self._config._raise_invalid_input_error(self._entered_text, str(e), e)
     
     def is_enabled(self) -> bool:
         return self._curr_option is not None
@@ -931,9 +986,9 @@ class TextParameter(Parameter):
         return pc.TextParameterConfig
     
     @classmethod
-    def Create(
+    def CreateWithOptions(
         cls, name: str, label: str, all_options: Sequence[Union[po.TextParameterOption, dict]], *, description: str = "",
-        is_textarea: bool = False, user_attribute: Optional[str] = None, parent_name: Optional[str] = None, **kwargs
+        input_type: str = "text", user_attribute: Optional[str] = None, parent_name: Optional[str] = None, **kwargs
     ) -> None:
         """
         Method for creating the configurations for a MultiSelectParameter that may include user attribute or parent
@@ -943,52 +998,114 @@ class TextParameter(Parameter):
             label: The display label for the parameter
             all_options: All options associated to this parameter regardless of the user group or parent parameter option they depend on
             description: Explains the meaning of the parameter
-            is_textarea: Whether the textbox field should be big. Optional, default is False.
+            input_type: The type of input field to use. Must be one of "text", "textarea", "number", "color", "date", "datetime-local", "month", "time", and "password". Optional, default is "text". More information on input types other than "textarea" can be found at https://www.w3schools.com/html/html_form_input_types.asp. More information on "textarea" can be found at https://www.w3schools.com/tags/tag_textarea.asp
             user_attribute: The user attribute that may cascade the options for this parameter. Default is None
             parent_name: Name of parent parameter that may cascade the options for this parameter. Default is None (no parent)
         """
         param_config = pc.TextParameterConfig(
-            name, label, all_options, description=description, is_textarea=is_textarea, user_attribute=user_attribute, 
+            name, label, all_options, description=description, input_type=input_type, user_attribute=user_attribute, 
             parent_name=parent_name
         )
         ps.ParameterConfigsSetIO.obj.add(param_config)
+    
+    @classmethod
+    def Create(
+        cls, name: str, label: str, all_options: Sequence[Union[po.SelectParameterOption, dict]], *, description: str = "",
+        input_type: str = "text", user_attribute: Optional[str] = None, parent_name: Optional[str] = None, **kwargs
+    ) -> None:
+        """
+        DEPRECATED. Use CreateWithOptions instead
+        """
+        cls.CreateWithOptions(
+            name, label, all_options, description=description, input_type=input_type, user_attribute=user_attribute, parent_name=parent_name
+        )
 
     @classmethod
     def CreateSimple(
-        cls, name: str, label: str, *, description: str = "", default_text: str = "", is_textarea: bool = False, **kwargs
+        cls, name: str, label: str, *, description: str = "", default_text: str = "", input_type: str = "text", **kwargs
     ) -> None:
         """
         Method for creating the configurations for a Parameter that doesn't involve user attributes or parent parameters
-        
-        * Note that the "Number" type denotes an int, a Decimal (from decimal module), or a string that can be parsed to Decimal
         
         Parameters:
             name: The name of the parameter
             label: The display label for the parameter
             description: Explains the meaning of the parameter
             default_text: Default input text for this option. Optional, default is empty string.
-            is_textarea: Whether the textbox field should be big. Optional, default is False.
+            input_type: The type of input field to use. Must be one of "text", "textarea", "number", "color", "date", "datetime-local", "month", "time", and "password". Optional, default is "text". More information on input types other than "textarea" can be found at https://www.w3schools.com/html/html_form_input_types.asp. More information on "textarea" can be found at https://www.w3schools.com/tags/tag_textarea.asp
         """
         single_param_option = po.TextParameterOption(default_text=default_text)
-        cls.Create(name, label, (single_param_option,), description=description, is_textarea=is_textarea)
+        cls.CreateWithOptions(name, label, (single_param_option,), description=description, input_type=input_type)
     
-    def get_entered_text(self, **kwargs) -> _TextValue:
+    @classmethod
+    def CreateFromSource(
+        cls, name: str, label: str, data_source: Union[d.TextDataSource, dict], *, description: str = "",
+        input_type: str = "text", user_attribute: Optional[str] = None, parent_name: Optional[str] = None, **kwargs
+    ) -> None:
         """
-        Get the selected number
+        Method for creating the configurations for a MultiSelectParameter that uses a SelectDataSource to receive the options
+
+        Parameters:
+            name: The name of the parameter
+            label: The display label for the parameter
+            data_source: The lookup table to use for this parameter
+            description: Explains the meaning of the parameter
+            input_type: The type of input field to use. Options are one of "text", "textarea", "number", "color", "date", "datetime-local", "month", "time", and "password". Optional, default is "text". More information on input types other than "textarea" can be found at https://www.w3schools.com/html/html_form_input_types.asp. More information on "textarea" can be found at https://www.w3schools.com/tags/tag_textarea.asp
+            user_attribute: The user attribute that may cascade the options for this parameter. Default is None
+            parent_name: Name of parent parameter that may cascade the options for this parameter. Default is None (no parent)
+        """
+        extra_args = {
+            "input_type": input_type
+        }
+        param_config = pc.DataSourceParameterConfig(
+            pc.TextParameterConfig, name, label, data_source, extra_args=extra_args, description=description, 
+            user_attribute=user_attribute, parent_name=parent_name
+        )
+        ps.ParameterConfigsSetIO.obj.add(param_config)
+    
+    def get_entered_text(self, **kwargs) -> TextValue:
+        """
+        Get the entered text. Returns a TextValue object that cannot be converted to string except through placeholders.
 
         Returns:
-            A number parsable string of the selected number
+            A TextValue object
         """
-        return _TextValue(self._entered_text)
+        return TextValue(self._entered_text)
+    
+    def get_entered_int(self, **kwargs) -> int:
+        """
+        Get the entered integer. The TextParameter must be a "number" input type
+
+        Returns: int
+        """
+        if self._config.input_type != "number":
+            raise u.ConfigurationError("Method 'get_entered_int' requires TextParameter to have input type 'number'")
+        text = self.get_entered_text()
+        return text.apply_as_number(int)
+    
+    def get_entered_datetime(self, **kwargs) -> datetime:
+        """
+        Get the entered datetime. The TextParameter input type must be one of ["date", "datetime-local", "month", "time"]
+
+        Returns: datetime
+        """
+        applicable_input_types = ["date", "datetime-local", "month", "time"]
+        if self._config.input_type not in applicable_input_types:
+            raise u.ConfigurationError(f"Method 'get_entered_datetime' requires TextParameter to have one of these input types: {applicable_input_types}")
+        text = self.get_entered_text()
+
+        date_formats = { "date": "%Y-%m-%d", "datetime-local": "%Y-%m-%dT%H:%M", "month": "%Y-%m", "time": "%H:%M" }
+        return text.apply_as_datetime(lambda x: datetime.strptime(x, date_formats[self._config.input_type]))
         
-    def to_json_dict0(self):
+    def _to_json_dict0(self):
         """
         Converts this parameter as a JSON object for the parameters API response
 
         Returns:
             A dictionary for the JSON object
         """
-        output = super().to_json_dict0()
+        output = super()._to_json_dict0()
+        output['input_type'] = self._config.input_type
         if self._curr_option is not None:
             output['entered_text'] = self._entered_text
         return output

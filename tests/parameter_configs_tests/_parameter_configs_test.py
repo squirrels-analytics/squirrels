@@ -47,19 +47,6 @@ class TestMultiSelectParameterConfig:
         with pytest.raises(u.InvalidInputError):
             ms_config_basic.with_selection('["ms0","ms2"]', user=user, parent_param=None)
 
-    def test_to_json_dict(self, ms_config_basic: pc.MultiSelectParameterConfig):
-        expected = {
-            "widget_type": "multi_select",
-            "name": "multi_select_basic",
-            "label": "Multi Select Basic",
-            "description": "",
-            "trigger_refresh": False,
-            "show_select_all": True,
-            "is_dropdown": True,
-            "order_matters": False
-        }
-        assert ms_config_basic.to_json_dict0() == expected
-
 
 class TestSingleSelectParameterConfig:
     def test_with_selection1(
@@ -90,16 +77,6 @@ class TestSingleSelectParameterConfig:
     ):
         with pytest.raises(u.InvalidInputError):
             ss_config_with_ms_parent.with_selection('ss1', user, ms_param_basic)
-
-    def test_to_json_dict(self, ss_config_with_ms_parent: pc.SingleSelectParameterConfig):
-        expected = {
-            "widget_type": "single_select",
-            "name": "single_select_with_ms_parent",
-            "label": "Single With Parent 1",
-            "description": "",
-            "trigger_refresh": False
-        }
-        assert ss_config_with_ms_parent.to_json_dict0() == expected
 
 
 class TestDateParameterConfig:

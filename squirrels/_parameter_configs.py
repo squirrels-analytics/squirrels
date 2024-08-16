@@ -1,11 +1,12 @@
 from __future__ import annotations
 from typing import Annotated, Type, Optional, Union, Sequence, Iterator, Any
+from datetime import datetime
 from dataclasses import dataclass, field
 from abc import ABCMeta, abstractmethod
 from copy import copy
 from fastapi import Query
 from pydantic.fields import Field, FieldInfo
-import pandas as pd
+import pandas as pd, re
 
 from . import parameter_options as po, parameters as p, data_sources as d, _api_response_models as arm, _utils as u, _constants as c
 from .user_base import User
@@ -74,11 +75,6 @@ class ParameterConfigBase(metaclass=ABCMeta):
         Use for unit testing only
         """
         return copy(self)
-
-    def to_json_dict0(self) -> arm.ParameterModelBase:
-        return {
-            "widget_type": self.widget_type, "name": self.name, "label": self.label, "description": self.description
-        }
 
 
 @dataclass
@@ -171,11 +167,6 @@ class SelectionParameterConfig(ParameterConfig):
         other.children = self.children.copy()
         return other
 
-    def to_json_dict0(self) -> dict:
-        output = super().to_json_dict0()
-        output['trigger_refresh'] = self.trigger_refresh
-        return output
-
 
 @dataclass
 class SingleSelectParameterConfig(SelectionParameterConfig):
@@ -220,19 +211,17 @@ class MultiSelectParameterConfig(SelectionParameterConfig):
     Class to define configurations for multi-select parameter widgets.
     """
     show_select_all: bool # = field(default=True, kw_only=True)
-    is_dropdown: bool # = field(default=True, kw_only=True)
     order_matters: bool # = field(default=False, kw_only=True)
     none_is_all: bool # = field(default=True, kw_only=True)
 
     def __init__(
         self, name: str, label: str, all_options: Sequence[Union[po.SelectParameterOption, dict]], *, description: str = "", 
-        show_select_all: bool = True, is_dropdown: bool = True, order_matters: bool = False, none_is_all: bool = True,
+        show_select_all: bool = True, order_matters: bool = False, none_is_all: bool = True,
         user_attribute: Optional[str] = None, parent_name: Optional[str] = None
     ) -> None:
         super().__init__("multi_select", name, label, all_options, description=description, user_attribute=user_attribute, 
                          parent_name=parent_name)
         self.show_select_all = show_select_all
-        self.is_dropdown = is_dropdown
         self.order_matters = order_matters
         self.none_is_all = none_is_all
     
@@ -250,13 +239,6 @@ class MultiSelectParameterConfig(SelectionParameterConfig):
         else:
             selected_ids = u.load_json_or_comma_delimited_str_as_list(selection)
         return p.MultiSelectParameter(self, options, selected_ids)
-
-    def to_json_dict0(self) -> dict:
-        output = super().to_json_dict0()
-        output['show_select_all'] = self.show_select_all
-        output['is_dropdown'] = self.is_dropdown
-        output['order_matters'] = self.order_matters
-        return output
     
     def get_api_field_info(self) -> APIParamFieldInfo:
         identifiers = [x._identifier for x in self.all_options]
@@ -354,7 +336,7 @@ class DateRangeParameterConfig(_DateTypeParameterConfig):
             try:
                 selected_start_date, selected_end_date = u.load_json_or_comma_delimited_str_as_list(selection)
             except ValueError as e:
-                self._raise_invalid_input_error(selection, "Date range parameter selection must be two dates joined by comma.", e)
+                self._raise_invalid_input_error(selection, "Date range parameter selection must be two dates.", e)
         return p.DateRangeParameter(self, curr_option, selected_start_date, selected_end_date)
     
     def get_api_field_info(self) -> APIParamFieldInfo:
@@ -442,7 +424,7 @@ class NumberRangeParameterConfig(_NumericParameterConfig):
         self, selection: Optional[str], user: Optional[User], parent_param: Optional[p._SelectionParameter],
         *, request_version: Optional[int] = None
     ) -> p.NumberRangeParameter:
-        curr_option: po.NumberRangeParameterOption = next(self._get_options_iterator(user, parent_param), None)
+        curr_option: Optional[po.NumberRangeParameterOption] = next(self._get_options_iterator(user, parent_param), None)
         if selection is None:
             if curr_option is not None:
                 selected_lower_value = curr_option._default_lower_value
@@ -453,7 +435,7 @@ class NumberRangeParameterConfig(_NumericParameterConfig):
             try:
                 selected_lower_value, selected_upper_value = u.load_json_or_comma_delimited_str_as_list(selection)
             except ValueError as e:
-                self._raise_invalid_input_error(selection, "Number range parameter selection must be two numbers joined by comma.", e)
+                self._raise_invalid_input_error(selection, "Number range parameter selection must be two numbers.", e)
         return p.NumberRangeParameter(self, curr_option, selected_lower_value, selected_upper_value)
     
     def get_api_field_info(self) -> APIParamFieldInfo:
@@ -469,16 +451,54 @@ class TextParameterConfig(ParameterConfig):
     Class to define configurations for text parameter widgets.
     """
     all_options: Sequence[po.TextParameterOption] = field(repr=False)
-    is_textarea: bool
+    input_type: str
     
     def __init__(
-        self, name: str, label: str, all_options: Sequence[Union[po.TextParameterOption, dict]], *, 
-        description: str = "", is_textarea: bool = False, user_attribute: Optional[str] = None, 
-        parent_name: Optional[str] = None
+        self, name: str, label: str, all_options: Sequence[Union[po.TextParameterOption, dict]], *, description: str = "", 
+        input_type: str = "text", user_attribute: Optional[str] = None, parent_name: Optional[str] = None
     ) -> None:
         super().__init__("text", name, label, all_options, description=description, user_attribute=user_attribute, 
                          parent_name=parent_name)
-        self.is_textarea = is_textarea
+        
+        allowed_input_types = ["text", "textarea", "number", "date", "datetime-local", "month", "time", "color", "password"]
+        if input_type not in allowed_input_types:
+            raise u.ConfigurationError(f"Invalid input type '{input_type}' for text parameter '{name}'. Must be one of {allowed_input_types}.")
+
+        self.input_type = input_type
+        for option in self.all_options:
+            self.validate_entered_text(option._default_text)
+    
+    def validate_entered_text(self, entered_text: str) -> str:
+        if self.input_type == "number":
+            try:
+                int(entered_text)
+            except ValueError as e:
+                raise self._raise_invalid_input_error(entered_text, "Must be an integer (without decimals).", e)
+        elif self.input_type == "date":
+            try:
+                datetime.strptime(entered_text, "%Y-%m-%d")
+            except ValueError as e:
+                raise self._raise_invalid_input_error(entered_text, "Must be a date in YYYY-MM-DD format.", e)
+        elif self.input_type == "datetime-local":
+            try:
+                datetime.strptime(entered_text, "%Y-%m-%dT%H:%M")
+            except ValueError as e:
+                raise self._raise_invalid_input_error(entered_text, "Must be a date in YYYY-MM-DDThh:mm format (e.g. 2020-01-01T07:00).", e)
+        elif self.input_type == "month":
+            try:
+                datetime.strptime(entered_text, "%Y-%m")
+            except ValueError as e:
+                raise self._raise_invalid_input_error(entered_text, "Must be a date in YYYY-MM format.", e)
+        elif self.input_type == "time":
+            try:
+                datetime.strptime(entered_text, "%H:%M")
+            except ValueError as e:
+                raise self._raise_invalid_input_error(entered_text, "Must be a time in hh:mm format.", e)
+        elif self.input_type == "color":
+            if not re.match(r"^#[0-9a-fA-F]{6}$", entered_text):
+                raise self._raise_invalid_input_error(entered_text, "Must be a valid color hex code (e.g. #000000).")
+        
+        return entered_text
 
     @staticmethod
     def ParameterOption(*args, **kwargs):
@@ -495,11 +515,6 @@ class TextParameterConfig(ParameterConfig):
         curr_option: po.TextParameterOption = next(self._get_options_iterator(user, parent_param), None)
         entered_text = curr_option._default_text if selection is None and curr_option is not None else selection
         return p.TextParameter(self, curr_option, entered_text)
-
-    def to_json_dict0(self) -> dict:
-        output = super().to_json_dict0()
-        output['is_textarea'] = self.is_textarea
-        return output
     
     def get_api_field_info(self) -> APIParamFieldInfo:
         examples = [x._default_text for x in self.all_options]

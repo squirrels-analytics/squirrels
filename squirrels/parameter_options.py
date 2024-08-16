@@ -3,6 +3,7 @@ from dataclasses import dataclass, field
 from decimal import Decimal, InvalidOperation as InvalidDecimalConversion
 from datetime import datetime, date
 from abc import ABCMeta, abstractmethod
+import re
 
 from ._utils import ConfigurationError
 
@@ -214,9 +215,9 @@ class _NumericParameterOption(ParameterOption):
     ) -> None:
         super().__init__(user_groups=user_groups, parent_option_ids=parent_option_ids)
         try:
-            self._min_value = Decimal(min_value)
-            self._max_value = Decimal(max_value)
-            self._increment = Decimal(increment)
+            self._min_value = Decimal(str(min_value))
+            self._max_value = Decimal(str(max_value))
+            self._increment = Decimal(str(increment))
         except InvalidDecimalConversion as e:
             raise ConfigurationError(f'Could not convert either min, max, or increment to number') from e
         
@@ -235,7 +236,7 @@ class _NumericParameterOption(ParameterOption):
 
     def _validate_value(self, value: Number) -> Decimal:
         try:
-            value = Decimal(value)
+            value = Decimal(str(value))
         except InvalidDecimalConversion as e:
             raise ConfigurationError(f'Could not convert "{value}" to number', e)
         

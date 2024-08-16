@@ -102,7 +102,7 @@ class TestMultiSelectDataSource:
     @pytest.fixture(scope="class")
     def data_source(self) -> d.MultiSelectDataSource:
         return d.MultiSelectDataSource(
-            "table_name", "test_id", "test_options", show_select_all=False, is_dropdown=False, order_matters=True, none_is_all=False, 
+            "table_name", "test_id", "test_options", show_select_all=False, order_matters=True, none_is_all=False, 
             parent_id_col="test_parent_id"
         )
     
@@ -121,7 +121,7 @@ class TestMultiSelectDataSource:
             po.SelectParameterOption('2', 'two', parent_option_ids=['1'])
         ]
         expected = pc.MultiSelectParameterConfig(
-            'name', 'Label', param_options, show_select_all=False, is_dropdown=False, order_matters=True, none_is_all=False
+            'name', 'Label', param_options, show_select_all=False, order_matters=True, none_is_all=False
         )
         assert param == expected
 

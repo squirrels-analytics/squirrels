@@ -33,7 +33,6 @@ class SingleSelectParameterModel(SelectParameterModel):
 class MultiSelectParameterModel(SelectParameterModel):
     widget_type: Annotated[str, Field(examples=["multi_select"])]
     show_select_all: bool
-    is_dropdown: bool
     order_matters: bool
     selected_ids: list[str]
 
@@ -63,7 +62,7 @@ class NumberRangeParameterModel(NumericParameterModel):
 class TextParameterModel(ParameterModelBase):
     widget_type: Annotated[str, Field(examples=["text"])]
     entered_text: str
-    is_textarea: bool
+    input_type: str
 
 class ParametersModel(BaseModel):
     parameters: list[

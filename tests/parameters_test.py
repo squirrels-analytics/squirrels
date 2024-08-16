@@ -58,7 +58,7 @@ class TestSingleSelectParameter:
             "trigger_refresh": False,
             "selected_id": "ss0"
         }
-        assert param1.to_json_dict0() == expected
+        assert param1._to_json_dict0() == expected
 
 
 class TestMultiSelectParameter:
@@ -129,11 +129,10 @@ class TestMultiSelectParameter:
             ],
             "trigger_refresh": False,
             "show_select_all": True,
-            "is_dropdown": True,
             "order_matters": False,
             "selected_ids": ['ms1', 'ms2']
         }
-        assert param1.to_json_dict0() == expected
+        assert param1._to_json_dict0() == expected
 
 
 class TestDateParameter:
@@ -155,7 +154,7 @@ class TestDateParameter:
             "description": "",
             "selected_date": "2021-01-01"
         }
-        assert param1.to_json_dict0() == expected
+        assert param1._to_json_dict0() == expected
 
 
 class TestDateRangeParameter:
@@ -180,7 +179,7 @@ class TestDateRangeParameter:
             "selected_start_date": "2022-06-14",
             "selected_end_date": "2023-03-15",
         }
-        assert param1.to_json_dict0() == expected
+        assert param1._to_json_dict0() == expected
 
 
 class TestNumberParameter:
@@ -211,7 +210,7 @@ class TestNumberParameter:
             "increment": 0.5,
             "selected_value": 4.5
         }
-        assert param1.to_json_dict0() == expected
+        assert param1._to_json_dict0() == expected
 
 
 class TestNumberRangeParameter:
@@ -244,4 +243,4 @@ class TestNumberRangeParameter:
             "selected_lower_value": 2.5,
             "selected_upper_value": 6.5
         }
-        assert param1.to_json_dict0() == expected
+        assert param1._to_json_dict0() == expected

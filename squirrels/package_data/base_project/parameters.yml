@@ -1,6 +1,6 @@
 parameters:
   - type: SingleSelectParameter
-    factory: Create                                       ## one of 'Create', 'CreateSimple', or 'CreateFromSource'
+    factory: CreateWithOptions                            ## one of 'CreateSimple', 'CreateWithOptions', or 'CreateFromSource'
     arguments:                                            ## arguments to specify depend on values for 'type' and 'factory'
       name: group_by
       label: Group By
@@ -26,40 +26,40 @@ parameters:
       parent_name: null                                   ## optional, default, exists for all parameter types
   
   - type: TextParameter
-    factory: Create
+    factory: CreateWithOptions
     arguments:
       name: description_filter
       label: Description Contains
-      description: Filter by transactions with this description
+      description: Substring of description to filter transactions by
       parent_name: group_by
       all_options:
         - parent_option_ids: g0
   
   - type: DateParameter
-    factory: Create
+    factory: CreateWithOptions
     arguments:
       name: start_date
       label: Start Date
-      description: Filter by transactions after this date
+      description: Start date to filter transactions by
       all_options:
         - default_date: 2023-01-01
           date_format: '%Y-%m-%d'                         ## optional, default, format comes from python datetime, exists for Date and DateRange parameter options
   
   - type: DateParameter
-    factory: Create
+    factory: CreateWithOptions
     arguments:
       name: end_date
       label: End Date
-      description: Filter by transactions before this date
+      description: End date to filter transactions by
       all_options:
         - default_date: 2023-12-31
   
   - type: DateRangeParameter
-    factory: Create
+    factory: CreateWithOptions
     arguments:
       name: date_range
       label: Date Range
-      description: Filter by transactions within this date range
+      description: Date range to filter transactions by
       all_options:
         - default_start_date: 2023-01-01
           default_end_date: 2023-12-31
@@ -69,7 +69,7 @@ parameters:
     arguments:
       name: category
       label: Category Filter
-      description: The expense categories to filter by
+      description: The expense categories to filter transactions by
       data_source:
         table_or_query: seed_categories
         id_col: category_id
@@ -88,7 +88,7 @@ parameters:
     arguments:
       name: subcategory
       label: Subcategory Filter
-      description: The expense subcategories to filter by (available options based on selected 'Category Filter')
+      description: The expense subcategories to filter transactions by (available options are based on selected value(s) of 'Category Filter')
       parent_name: category
       data_source:
         table_or_query: seed_subcategories
@@ -98,11 +98,11 @@ parameters:
         parent_id_col: category_id                        ## optional, default is null, exists for all parameter types
   
   - type: NumberParameter
-    factory: Create
+    factory: CreateWithOptions
     arguments:
       name: min_filter
       label: Amounts Greater Than
-      description: Filter by transactions greater than this amount
+      description: Number to filter on transactions with an amount greater than this value
       all_options:
         - min_value: 0
           max_value: 500
@@ -114,7 +114,7 @@ parameters:
     arguments:
       name: max_filter
       label: Amounts Less Than
-      description: Filter by transactions less than this amount
+      description: Number to filter on transactions with an amount less than this value
       data_source:
         table_or_query: "SELECT 0 as min_value, max(-amount) as max_value, 10 as increment FROM transactions WHERE category <> 'Income'"
         min_value_col: min_value
@@ -124,11 +124,11 @@ parameters:
         id_col: null                                      ## optional, default, required for SingleSelect and MultiSelect, optional for all others
   
   - type: NumberRangeParameter
-    factory: Create
+    factory: CreateWithOptions
     arguments:
       name: between_filter
       label: Amounts Between
-      description: Filter by transaction amounts within this range
+      description: Number range to filter on transactions with an amount within this range
       all_options:
         - min_value: 0
           max_value: 500
