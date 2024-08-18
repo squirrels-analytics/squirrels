@@ -152,4 +152,5 @@ DEP_FUNC = "dependencies"
 MAIN_FUNC = "main"
 
 # Regex
-date_regex = r'^\d{4}\-\d{2}\-\d{2}$'
+date_regex = r"^\d{4}\-\d{2}\-\d{2}$"
+color_regex = r"^#[0-9a-fA-F]{6}$"

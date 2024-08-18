@@ -59,10 +59,6 @@ class ApiServer:
             no_cache (bool): Whether to disable caching
         """
         self.no_cache = no_cache
-        self.dataset_configs = ManifestIO.obj.datasets
-        
-        token_expiry_minutes = ManifestIO.obj.settings.get(c.AUTH_TOKEN_EXPIRE_SETTING, 30)
-        self.authenticator = Authenticator(token_expiry_minutes)
     
     def run(self, uvicorn_args: list[str]) -> None:
         """
@@ -72,7 +68,31 @@ class ApiServer:
             uvicorn_args: List of arguments to pass to uvicorn.run. Currently only supports "host" and "port"
         """
         start = time.time()
-        app = FastAPI()
+        
+        tags_metadata = [
+            {
+                "name": "Project Metadata",
+                "description": "Get information on project such as name, version, and other API endpoints",
+            },
+            {
+                "name": "Login",
+                "description": "Submit username and password, and get token for authentication",
+            },
+            {
+                "name": "Catalogs",
+                "description": "Get catalog of datasets with endpoints for their parameters and results",
+            }
+        ]
+        for dataset_name in ManifestIO.obj.datasets:
+            tags_metadata.append({
+                "name": f"Dataset '{dataset_name}'",
+                "description": f"Get parameters or results for dataset '{dataset_name}'",
+            })
+        
+        app = FastAPI(
+            title=f"Squirrels APIs for '{ManifestIO.obj.project_variables.get_label()}'", openapi_tags=tags_metadata,
+            description="For specifying parameter selections to dataset APIs, you can choose between using query parameters with the GET method or using request body with the POST method"
+        )
 
         @app.middleware("http")
         async def catch_exceptions_middleware(request: Request, call_next):
@@ -118,25 +138,18 @@ class ApiServer:
             
             return result
 
-        REQUEST_VERSION_REQUEST_HEADER = "squirrels-request-version"
         def get_request_version_header(headers: Mapping):
+            REQUEST_VERSION_REQUEST_HEADER = "squirrels-request-version"
             return get_versioning_request_header(headers, REQUEST_VERSION_REQUEST_HEADER)
         
-        RESPONSE_VERSION_REQUEST_HEADER = "squirrels-response-version"
         def process_based_on_response_version_header(headers: Mapping, processes: dict[str, Callable[[], T]]) -> T:
+            RESPONSE_VERSION_REQUEST_HEADER = "squirrels-response-version"
             response_version = get_versioning_request_header(headers, RESPONSE_VERSION_REQUEST_HEADER)
             if response_version is None or response_version >= 0:
                 return processes[0]()
             else:
                 raise u.InvalidInputError(f'Invalid value for "{RESPONSE_VERSION_REQUEST_HEADER}" header: {response_version}')
         
-        def can_user_access_dataset(user: Optional[User], dataset: str):
-            try:
-                dataset_scope = self.dataset_configs[dataset].scope
-            except KeyError as e:
-                raise u.InvalidInputError(f'Invalid dataset name: "{dataset}"')
-            return self.authenticator.can_user_access_scope(user, dataset_scope)
-
         async def apply_dataset_api_function(
             api_function: Callable[..., Coroutine[Any, Any, T]], user: Optional[User], dataset: str, headers: Mapping, params: Mapping
         ) -> T:
@@ -175,27 +188,58 @@ class ApiServer:
             url_path: str = request.scope['route'].path
             return url_path.split('/')[section]
         
-        # Login
+        # Login & Authorization
+        token_expiry_minutes = ManifestIO.obj.settings.get(c.AUTH_TOKEN_EXPIRE_SETTING, 30)
+        authenticator = Authenticator(token_expiry_minutes)
+
         token_path = base_path + '/token'
 
         oauth2_scheme = OAuth2PasswordBearer(tokenUrl=token_path, auto_error=False)
 
-        @app.post(token_path)
+        @app.post(token_path, tags=["Login"])
         async def login_for_access_token(form_data: OAuth2PasswordRequestForm = Depends()) -> arm.LoginReponse:
-            user: Optional[User] = self.authenticator.authenticate_user(form_data.username, form_data.password)
+            user: Optional[User] = authenticator.authenticate_user(form_data.username, form_data.password)
             if not user:
                 raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, 
                                     detail="Incorrect username or password",
                                     headers={"WWW-Authenticate": "Bearer"})
-            access_token, expiry = self.authenticator.create_access_token(user)
+            access_token, expiry = authenticator.create_access_token(user)
             return arm.LoginReponse(access_token=access_token, token_type="bearer", username=user.username, expiry_time=expiry)
         
         async def get_current_user(response: Response, token: str = Depends(oauth2_scheme)) -> Optional[User]:
-            user = self.authenticator.get_user_from_token(token)
+            user = authenticator.get_user_from_token(token)
             username = "" if user is None else user.username
             response.headers["Applied-Username"] = username
             return user
 
+        def can_user_access_dataset(user: Optional[User], dataset: str):
+            try:
+                dataset_scope = ManifestIO.obj.datasets[dataset].scope
+            except KeyError as e:
+                raise u.InvalidInputError(f'Invalid dataset name: "{dataset}"') from e
+            return authenticator.can_user_access_scope(user, dataset_scope)
+
+        # Datasets Catalog API
+        datasets_path = base_path + '/datasets'
+
+        def get_datasets0(user: Optional[User]) -> arm.DatasetsCatalogModel:
+            datasets_info = []
+            for dataset_name, dataset_config in ManifestIO.obj.datasets.items():
+                if can_user_access_dataset(user, dataset_name):
+                    dataset_normalized = u.normalize_name_for_api(dataset_name)
+                    datasets_info.append(arm.DatasetInfoModel(
+                        name=dataset_name, label=dataset_config.label,
+                        parameters_path=parameters_path.format(dataset=dataset_normalized),
+                        result_path=results_path.format(dataset=dataset_normalized)
+                    ))
+            return arm.DatasetsCatalogModel(datasets=datasets_info)
+        
+        @app.get(datasets_path, tags=["Catalogs"], summary="Get list of datasets available for user")
+        def get_datasets(request: Request, user: Optional[User] = Depends(get_current_user)) -> arm.DatasetsCatalogModel:
+            return process_based_on_response_version_header(request.headers, {
+                0: lambda: get_datasets0(user)
+            })
+        
         # Parameters API Helpers
         parameters_path = base_path + '/dataset/{dataset}/parameters'
         
@@ -257,7 +301,7 @@ class ApiServer:
         param_fields = ParameterConfigsSetIO.obj.get_all_api_field_info()
         
         # Dataset Parameters and Results APIs
-        for dataset_name, dataset_cfg in self.dataset_configs.items():
+        for dataset_name, dataset_cfg in ManifestIO.obj.datasets.items():
             dataset_normalized = u.normalize_name_for_api(dataset_name)
             curr_parameters_path = parameters_path.format(dataset=dataset_normalized)
             curr_results_path = results_path.format(dataset=dataset_normalized)
@@ -277,7 +321,7 @@ class ApiServer:
                 param: param_fields[param].as_body_info() for param in dataset_cfg.parameters
             })
         
-            @app.get(curr_parameters_path, response_class=JSONResponse)
+            @app.get(curr_parameters_path, tags=[f"Dataset '{dataset_name}'"], response_class=JSONResponse)
             async def get_parameters(
                 request: Request, params: AnnotatedQueryModel, user: Optional[User] = Depends(get_current_user) # type: ignore
             ) -> arm.ParametersModel:
@@ -287,7 +331,7 @@ class ApiServer:
                 timer.add_activity_time("GET REQUEST total time for PARAMETERS endpoint", start)
                 return result
 
-            @app.post(curr_parameters_path, response_class=JSONResponse)
+            @app.post(curr_parameters_path, tags=[f"Dataset '{dataset_name}'"], response_class=JSONResponse)
             async def get_parameters_with_post(
                 request: Request, params: QueryModelPost, user: Optional[User] = Depends(get_current_user) # type: ignore
             ) -> arm.ParametersModel:
@@ -298,7 +342,7 @@ class ApiServer:
                 timer.add_activity_time("POST REQUEST total time for PARAMETERS endpoint", start)
                 return result
             
-            @app.get(curr_results_path, response_class=JSONResponse)
+            @app.get(curr_results_path, tags=[f"Dataset '{dataset_name}'"], response_class=JSONResponse)
             async def get_results(
                 request: Request, params: AnnotatedQueryModel, user: Optional[User] = Depends(get_current_user) # type: ignore
             ) -> arm.DatasetResultModel:
@@ -308,7 +352,7 @@ class ApiServer:
                 timer.add_activity_time("GET REQUEST total time for DATASET endpoint", start)
                 return result
             
-            @app.post(curr_results_path, response_class=JSONResponse)
+            @app.post(curr_results_path, tags=[f"Dataset '{dataset_name}'"], response_class=JSONResponse)
             async def get_results_with_post(
                 request: Request, params: QueryModelPost, user: Optional[User] = Depends(get_current_user) # type: ignore
             ) -> arm.DatasetResultModel:
@@ -319,30 +363,9 @@ class ApiServer:
                 timer.add_activity_time("POST REQUEST total time for DATASET endpoint", start)
                 return result
         
-        # Datasets Catalog API
-        datasets_path = base_path + '/datasets'
-
-        def get_datasets0(user: Optional[User]) -> arm.DatasetsCatalogModel:
-            datasets_info = []
-            for dataset_name, dataset_config in self.dataset_configs.items():
-                if can_user_access_dataset(user, dataset_name):
-                    dataset_normalized = u.normalize_name_for_api(dataset_name)
-                    datasets_info.append(arm.DatasetInfoModel(
-                        name=dataset_name, label=dataset_config.label,
-                        parameters_path=parameters_path.format(dataset=dataset_normalized),
-                        result_path=results_path.format(dataset=dataset_normalized)
-                    ))
-            return arm.DatasetsCatalogModel(datasets=datasets_info)
-        
-        @app.get(datasets_path)
-        def get_datasets(request: Request, user: Optional[User] = Depends(get_current_user)) -> arm.DatasetsCatalogModel:
-            return process_based_on_response_version_header(request.headers, {
-                0: lambda: get_datasets0(user)
-            })
-        
-        # Projects Catalog API
-        def get_catalog0() -> arm.CatalogModel:
-            return arm.CatalogModel(projects=[arm.ProjectModel(
+        # Project Metadata API
+        def get_project_metadata0() -> arm.ProjectMetadataModel:
+            return arm.ProjectMetadataModel(projects=[arm.ProjectModel(
                 name=ManifestIO.obj.project_variables.get_name(),
                 label=ManifestIO.obj.project_variables.get_label(),
                 versions=[arm.ProjectVersionModel(
@@ -353,20 +376,20 @@ class ApiServer:
                 )]
             )])
         
-        @app.get(squirrels_version_path, response_class=JSONResponse)
-        async def get_catalog(request: Request) -> arm.CatalogModel:
+        @app.get(squirrels_version_path, tags=["Project Metadata"], response_class=JSONResponse)
+        async def get_project_metadata(request: Request) -> arm.ProjectMetadataModel:
             return process_based_on_response_version_header(request.headers, {
-                0: lambda: get_catalog0()
+                0: lambda: get_project_metadata0()
             })
         
-        # Squirrels UI
+        # Squirrels Testing UI
         static_dir = u.join_paths(os.path.dirname(__file__), c.PACKAGE_DATA_FOLDER, c.ASSETS_FOLDER)
         app.mount('/'+c.ASSETS_FOLDER, StaticFiles(directory=static_dir), name=c.ASSETS_FOLDER)
 
         templates_dir = u.join_paths(os.path.dirname(__file__), c.PACKAGE_DATA_FOLDER, c.TEMPLATES_FOLDER)
         templates = Jinja2Templates(directory=templates_dir)
 
-        @app.get('/', response_class=HTMLResponse)
+        @app.get('/', summary="Get the Squirrels Testing UI", response_class=HTMLResponse)
         async def get_ui(request: Request):
             return templates.TemplateResponse('index.html', {
                 'request': request, 'catalog_path': squirrels_version_path, 'token_path': token_path

@@ -66,7 +66,7 @@ class ConnectionSetIO:
             for config in ManifestIO.obj.connections.values():
                 engines[config.name] = create_engine(config.url)
             
-            proj_vars = ManifestIO.obj.project_variables
+            proj_vars = ManifestIO.obj.project_variables.data
             env_vars = EnvironConfigIO.obj.get_all_env_vars()
             get_credential = EnvironConfigIO.obj.get_credential
             cls.args = ConnectionsArgs(proj_vars, env_vars, get_credential)

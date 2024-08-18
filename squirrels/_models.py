@@ -12,7 +12,7 @@ from . import _constants as c, _utils as u, _py_module as pm
 from .arguments.run_time_args import ContextArgs, ModelDepsArgs, ModelArgs
 from ._authenticator import User, Authenticator
 from ._connection_set import ConnectionSetIO
-from ._manifest import ManifestIO, DatasetsConfig, DatasetScope
+from ._manifest import ManifestIO, DatasetsConfig, DatasetScope, TestSetsConfig
 from ._parameter_sets import ParameterConfigsSetIO, ParameterSet
 from ._seeds import SeedsIO
 from ._timer import timer, time
@@ -46,7 +46,7 @@ class _SqlModelConfig:
                 raise u.ConfigurationError("The 'connection_name' argument of 'config' macro must be a string")
             self.connection_name = connection_name
         
-        materialized: str = kwargs.get(c.MATERIALIZED_KEY)
+        materialized: Optional[str] = kwargs.get(c.MATERIALIZED_KEY)
         if materialized is not None:
             if not isinstance(materialized, str):
                 raise u.ConfigurationError("The 'materialized' argument of 'config' macro must be a string")
@@ -638,19 +638,20 @@ class ModelsIO:
         
         if isinstance(dag.target_model, _Model):
             return dag.target_model.compiled_query.query # else return None
+    
+    @classmethod
+    def _get_applicable_test_sets(cls, selection_test_sets: dict[str, TestSetsConfig], dataset: str) -> list[str]:
+        applicable_test_sets = []
+        for test_set_name, test_set_config in selection_test_sets.items():
+            if test_set_config.datasets is None or dataset in test_set_config.datasets:
+                applicable_test_sets.append(test_set_name)
+        return applicable_test_sets
 
     @classmethod
     async def WriteOutputs(
         cls, dataset: Optional[str], do_all_datasets: bool, select: Optional[str], test_set: Optional[str], do_all_test_sets: bool, 
         runquery: bool
     ) -> None:
-        
-        def get_applicable_test_sets(dataset: str) -> list[str]:
-            applicable_test_sets = []
-            for test_set_name, test_set_config in ManifestIO.obj.selection_test_sets.items():
-                if test_set_config.datasets is None or dataset in test_set_config.datasets:
-                    applicable_test_sets.append(test_set_name)
-            return applicable_test_sets
         
         recurse = True
         dataset_configs = ManifestIO.obj.datasets
@@ -666,7 +667,7 @@ class ModelsIO:
         coroutines = []
         for dataset_conf, select in selected_models:
             if do_all_test_sets:
-                for test_set_name in get_applicable_test_sets(dataset_conf.name):
+                for test_set_name in cls._get_applicable_test_sets(ManifestIO.obj.selection_test_sets, dataset_conf.name):
                     coroutine = cls.WriteDatasetOutputsGivenTestSet(dataset_conf, select, test_set_name, runquery, recurse)
                     coroutines.append(coroutine)
             

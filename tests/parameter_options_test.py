@@ -60,8 +60,19 @@ def test_invalid_date_parameter_options():
     with pytest.raises(u.ConfigurationError):
         po.DateParameterOption('20200101')
     with pytest.raises(u.ConfigurationError):
+        po.DateParameterOption('2021-02-29')
+    with pytest.raises(u.ConfigurationError):
         po.DateRangeParameterOption('2023-01-01', '2022-01-01')
-    
+
+
+def test_valid_date_parameter_options():
+    try:
+        po.DateParameterOption('2020-01-01')
+        po.DateParameterOption('01012020', date_format='%m%d%Y')
+    except Exception:
+        pytest.fail("Unexpected exception")
+
+
 def test_invalid_number_parameter_options():
     with pytest.raises(u.ConfigurationError):
         po.NumberParameterOption(10, 0)
@@ -75,6 +86,15 @@ def test_invalid_number_parameter_options():
         po.NumberParameterOption(0, 4, increment=3)
     with pytest.raises(u.ConfigurationError):
         po.NumberParameterOption(0, 4, increment=2, default_value=3)
+
+
+def test_valid_number_parameter_option():
+    try:
+        po.NumberParameterOption(0, 4, default_value=3)
+        po.NumberParameterOption(0.8, 3.6, increment=0.4, default_value=2)
+    except Exception:
+        pytest.fail("Unexpected exception")
+
 
 def test_invalid_numrange_parameter_options():
     with pytest.raises(u.ConfigurationError):

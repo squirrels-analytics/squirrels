@@ -166,7 +166,7 @@ def use_duckdb() -> bool:
     return (ManifestIO.obj.settings.get(c.IN_MEMORY_DB_SETTING, c.SQLITE) == c.DUCKDB)
 
 
-def run_sql_on_dataframes(sql_query: str, dataframes: dict[str, pd.DataFrame]) -> pd.DataFrame:
+def run_sql_on_dataframes(sql_query: str, dataframes: dict[str, pd.DataFrame], *, do_use_duckdb: Optional[bool] = None) -> pd.DataFrame:
     """
     Runs a SQL query against a collection of dataframes
 
@@ -177,7 +177,7 @@ def run_sql_on_dataframes(sql_query: str, dataframes: dict[str, pd.DataFrame]) -
     Returns:
         The result as a pandas Dataframe from running the query
     """
-    do_use_duckdb = use_duckdb()
+    do_use_duckdb = use_duckdb() if do_use_duckdb is None else do_use_duckdb
     if do_use_duckdb:
         import duckdb
         conn = duckdb.connect()

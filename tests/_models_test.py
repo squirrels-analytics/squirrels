@@ -142,10 +142,10 @@ def compiled_dag_with_cycle(modelA, modelB1, modelB2, modelC1b, modelC2, modelSe
 
 
 def test_compile(compiled_dag: m._DAG):
-    modelA = compiled_dag.models_dict["modelA"]
-    modelB1 = compiled_dag.models_dict["modelB1"]
-    modelB2 = compiled_dag.models_dict["modelB2"]
-    modelC2 = compiled_dag.models_dict["modelC2"]
+    modelA: m._Model = compiled_dag.models_dict["modelA"]
+    modelB1: m._Model = compiled_dag.models_dict["modelB1"]
+    modelB2: m._Model = compiled_dag.models_dict["modelB2"]
+    modelC2: m._Model = compiled_dag.models_dict["modelC2"]
     assert modelA.compiled_query.query == "SELECT * FROM modelB1 JOIN modelB2 USING (row_id)"
     assert modelA.upstreams == {"modelB1": modelB1, "modelB2": modelB2}
     assert modelA.downstreams == {}
@@ -155,7 +155,7 @@ def test_compile(compiled_dag: m._DAG):
     try:
         terminal_nodes = compiled_dag._get_terminal_nodes()
     except u.ConfigurationError:
-        raise AssertionError()
+        pytest.fail("Unexpected exception")
     
     assert terminal_nodes == {"modelC1", "modelC2", "modelSeed"}
 
@@ -180,3 +180,20 @@ def test_run_models(compiled_dag: m._DAG):
     
     assert modelA.result.equals(pd.DataFrame({"row_id": ["a", "b", "c"], "valB": [1, 2, 3], "valC": [10, 20, 30]}))
     assert (end - start) < 2.5
+
+
+@pytest.fixture(scope="module")
+def selection_test_sets1() -> dict[str, m.TestSetsConfig]:
+    return {
+        "test_set1": m.TestSetsConfig("test_set1"),
+        "test_set2": m.TestSetsConfig("test_set2", datasets=["modelA"]),
+        "test_set3": m.TestSetsConfig("test_set3", datasets=["modelB"]),
+    }
+
+
+@pytest.mark.parametrize("fixture,dataset,expected", [
+    ("selection_test_sets1", "modelA", ["test_set1", "test_set2"]),
+])
+def test_get_applicable_test_sets(fixture: str, dataset: str, expected: list[str], request: pytest.FixtureRequest):
+    selection_test_sets: dict[str, m.TestSetsConfig] = request.getfixturevalue(fixture)
+    assert m.ModelsIO._get_applicable_test_sets(selection_test_sets, dataset) == expected

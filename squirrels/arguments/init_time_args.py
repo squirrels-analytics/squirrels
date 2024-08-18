@@ -4,16 +4,21 @@ from dataclasses import dataclass
 
 @dataclass
 class BaseArguments:
-    proj_vars: dict[str, Any]
-    env_vars: dict[str, Any]
+    _proj_vars: dict[str, Any]
+    _env_vars: dict[str, Any]
+
+    @property
+    def proj_vars(self) -> dict[str, Any]:
+        return self._proj_vars.copy()
+    
+    @property
+    def env_vars(self) -> dict[str, Any]:
+        return self._env_vars.copy()
 
 
 @dataclass
 class ConnectionsArgs(BaseArguments):
     _get_credential: Callable[[str], tuple[str, str]]
-
-    def __post_init__(self):
-        self.get_credential = self._get_credential
 
     def get_credential(self, key: Optional[str]) -> tuple[str, str]:
         """
@@ -27,6 +32,7 @@ class ConnectionsArgs(BaseArguments):
         Returns:
             A tuple of 2 strings
         """
+        return self._get_credential(key)
 
 
 @dataclass
