@@ -7,7 +7,7 @@ from .parameter_options import SelectParameterOption, DateParameterOption, DateR
 from .parameter_options import NumberParameterOption, NumberRangeParameterOption, TextParameterOption
 
 from .parameters import SingleSelectParameter, MultiSelectParameter, DateParameter, DateRangeParameter
-from .parameters import NumberParameter, NumberRangeParameter, TextParameter
+from .parameters import NumberParameter, NumberRangeParameter, TextParameter, TextValue
 
 from .data_sources import SingleSelectDataSource, MultiSelectDataSource, SelectDataSource, DateDataSource, DateRangeDataSource
 from .data_sources import NumberDataSource, NumberRangeDataSource, TextDataSource

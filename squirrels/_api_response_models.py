@@ -10,6 +10,18 @@ class LoginReponse(BaseModel):
     expiry_time: datetime
 
 
+## Datasets Catalog Response Models
+
+class DatasetInfoModel(BaseModel):
+    name: Annotated[str, Field(examples=["mydataset"])]
+    label: Annotated[str, Field(examples=["My Dataset"])]
+    parameters_path: Annotated[str, Field(examples=["/squirrels-v0/myproject/v1/dataset/mydataset/parameters"])]
+    result_path: Annotated[str, Field(examples=["/squirrels-v0/myproject/v1/dataset/mydataset"])]
+
+class DatasetsCatalogModel(BaseModel):
+    datasets: list[DatasetInfoModel]
+
+
 ## Parameters Response Models
 
 class ParameterOptionModel(BaseModel):
@@ -62,7 +74,7 @@ class NumberRangeParameterModel(NumericParameterModel):
 class TextParameterModel(ParameterModelBase):
     widget_type: Annotated[str, Field(examples=["text"])]
     entered_text: str
-    input_type: str
+    input_type: Annotated[str, Field(examples=["text", "textarea", "number", "date", "datetime-local", "month", "time", "color", "password"])]
 
 class ParametersModel(BaseModel):
     parameters: list[
@@ -101,17 +113,5 @@ class ProjectModel(BaseModel):
     label: Annotated[str, Field(examples=["My Project"])]
     versions: list[ProjectVersionModel]
 
-class CatalogModel(BaseModel):
+class ProjectMetadataModel(BaseModel):
     projects: list[ProjectModel]
-
-
-## Datasets Catalog Response Models
-
-class DatasetInfoModel(BaseModel):
-    name: Annotated[str, Field(examples=["mydataset"])]
-    label: Annotated[str, Field(examples=["My Dataset"])]
-    parameters_path: Annotated[str, Field(examples=["/squirrels-v0/myproject/v1/dataset/mydataset/parameters"])]
-    result_path: Annotated[str, Field(examples=["/squirrels-v0/myproject/v1/dataset/mydataset"])]
-
-class DatasetsCatalogModel(BaseModel):
-    datasets: list[DatasetInfoModel]

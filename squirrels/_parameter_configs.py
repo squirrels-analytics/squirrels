@@ -495,7 +495,7 @@ class TextParameterConfig(ParameterConfig):
             except ValueError as e:
                 raise self._raise_invalid_input_error(entered_text, "Must be a time in hh:mm format.", e)
         elif self.input_type == "color":
-            if not re.match(r"^#[0-9a-fA-F]{6}$", entered_text):
+            if not re.match(c.color_regex, entered_text):
                 raise self._raise_invalid_input_error(entered_text, "Must be a valid color hex code (e.g. #000000).")
         
         return entered_text

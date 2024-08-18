@@ -41,3 +41,6 @@ def test_run_sql_query_from_conn_name(connection_set: cs.ConnectionSet):
         "avg_number": [15.0, 30.0]
     })
     assert df.equals(expected_df)
+
+    with pytest.raises(RuntimeError):
+        connection_set.run_sql_query_from_conn_name("SELECT invalid_column FROM test", "db2")

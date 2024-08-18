@@ -18,7 +18,7 @@ class ManifestComponentConfig:
     
     @classmethod
     def from_dict(cls, kwargs: dict):
-        return cls()
+        raise NotImplementedError()
 
 
 @dataclass

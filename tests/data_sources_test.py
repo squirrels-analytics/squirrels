@@ -205,3 +205,18 @@ class TestNumRangeDataSource:
         ]
         expected = pc.NumberRangeParameterConfig('name', 'Label', param_options)
         assert param == expected
+
+
+class TestTextDataSource:
+    @pytest.fixture(scope="class")
+    def data_source(self) -> d.TextDataSource:
+        return d.TextDataSource('table', default_text_col='test_default')
+
+    def test_convert(self, data_source: d.TextDataSource):
+        df = pd.DataFrame([{ 'test_default': "Hello World" }])
+        ds_param = pc.DataSourceParameterConfig(pc.TextParameterConfig, 'name', 'Label', data_source)
+        param: pc.TextParameterConfig = ds_param.convert(df)
+        param_options = [po.TextParameterOption(default_text="Hello World")]
+        expected = pc.TextParameterConfig('name', 'Label', param_options)
+        assert param == expected
+    

@@ -1,5 +1,5 @@
 from copy import copy
-from datetime import date
+from datetime import datetime, date
 from decimal import Decimal
 import pytest
 
@@ -244,3 +244,132 @@ class TestNumberRangeParameter:
             "selected_upper_value": 6.5
         }
         assert param1._to_json_dict0() == expected
+
+
+class TestTextValue:
+    @pytest.fixture(scope="class")
+    def text_value1(self):
+        return p.TextValue("test")
+
+    @pytest.fixture(scope="class")
+    def text_value2(self):
+        return p.TextValue("2024-01-01")
+    
+    def test_apply(self, text_value1: p.TextValue):
+        assert text_value1.apply(lambda x: x + "1") == p.TextValue("test1")
+    
+    def test_invalid_apply(self, text_value1: p.TextValue):
+        with pytest.raises(u.ConfigurationError):
+            text_value1.apply(lambda x: len(x))
+    
+    def test_apply_percent_wrap(self, text_value1: p.TextValue):
+        assert text_value1.apply_percent_wrap() == p.TextValue("%test%")
+    
+    def test_apply_as_bool(self, text_value1: p.TextValue):
+        assert text_value1.apply_as_bool(lambda x: len(x) > 3) == True
+        assert text_value1.apply_as_bool(lambda x: len(x) > 4) == False
+    
+    def test_invalid_apply_as_bool(self, text_value1: p.TextValue):
+        with pytest.raises(u.ConfigurationError):
+            text_value1.apply_as_bool(lambda x: x)
+    
+    def test_apply_as_int(self, text_value1: p.TextValue):
+        assert text_value1.apply_as_number(lambda x: len(x)) == 4
+    
+    def test_invalid_apply_as_int(self, text_value1: p.TextValue):
+        with pytest.raises(u.ConfigurationError):
+            text_value1.apply_as_number(lambda x: x)
+    
+    def test_apply_as_datetime(self, text_value2: p.TextValue):
+        assert text_value2.apply_as_datetime(lambda x: datetime.strptime(x, "%Y-%m-%d")) == datetime(2024, 1, 1)
+    
+    def test_invalid_apply_as_datetime(self, text_value2: p.TextValue):
+        with pytest.raises(u.ConfigurationError):
+            text_value2.apply_as_datetime(lambda x: x)
+
+
+class TestTextParameter:
+    def create_param(self, default_text: str, input_type: str) -> p.TextParameter:
+        options = (po.TextParameterOption(default_text=default_text),)
+        config = pc.TextParameterConfig("test", "Test", options, input_type=input_type)
+        return p.TextParameter(config, config.all_options[0], default_text)
+    
+    @pytest.mark.parametrize("default_text,input_type", [
+        ("", "number"),
+        ("0.1", "number"),
+        ("", "date"),
+        ("", "datetime-local"),
+        ("2024-01-01T00:00:00", "datetime-local"),
+        ("", "month"),
+        ("2024-01-01", "month"),
+        ("", "time"),
+        ("24:00", "time"),
+        ("", "color"),
+        ("#00000G", "color")
+    ])
+    def test_invalid_init(self, default_text: str, input_type: str):
+        with pytest.raises(u.InvalidInputError):
+            self.create_param(default_text, input_type)
+    
+    @pytest.mark.parametrize("default_text,input_type", [
+        ("", "text"),
+        ("", "textarea"),
+        ("", "password"),
+        ("10", "number"),
+        ("2024-01-01", "date"),
+        ("2024-01-01T00:00", "datetime-local"),
+        ("2024-01", "month"),
+        ("00:00", "time"),
+        ("#000000", "color")
+    ])
+    def test_valid_init(self, default_text: str, input_type: str):
+        try:
+            self.create_param(default_text, input_type)
+        except Exception:
+            pytest.fail("Unexpected exception")
+    
+    def test_get_entered_text(self):
+        param = self.create_param("my entered text", "text")
+        assert param.get_entered_text() == p.TextValue("my entered text")
+
+    def test_get_entered_int(self):
+        param = self.create_param("1000", "number")
+        assert param.get_entered_int() == 1000
+    
+    @pytest.mark.parametrize("default_text,input_type", [
+        ("", "text"),
+        ("", "textarea"),
+        ("", "password"),
+        ("2024-01-01", "date"),
+        ("2024-01-01T00:00", "datetime-local"),
+        ("2024-01", "month"),
+        ("00:00", "time"),
+        ("#000000", "color")
+    ])
+    def test_invalid_get_entered_int(self, default_text: str, input_type: str):
+        param = self.create_param(default_text, input_type)
+        with pytest.raises(u.ConfigurationError):
+            param.get_entered_int()
+
+    @pytest.mark.parametrize("default_text,input_type,expected", [
+        ("2024-01-05", "date", datetime(2024, 1, 5, 0, 0)),
+        ("2024-01-05T15:15", "datetime-local", datetime(2024, 1, 5, 15, 15)),
+        ("2024-01", "month", datetime(2024, 1, 1, 0, 0)),
+        ("15:15", "time", datetime(1900, 1, 1, 15, 15))
+    ])
+    def test_get_entered_datetime(self, default_text: str, input_type: str, expected: datetime):
+        param = self.create_param(default_text, input_type)
+        assert param.get_entered_datetime() == expected
+    
+    @pytest.mark.parametrize("default_text,input_type", [
+        ("", "text"),
+        ("", "textarea"),
+        ("", "password"),
+        ("10", "number"),
+        ("#000000", "color")
+    ])
+    def test_invalid_get_entered_datetime(self, default_text: str, input_type: str):
+        param = self.create_param(default_text, input_type)
+        with pytest.raises(u.ConfigurationError):
+            param.get_entered_datetime()
+    

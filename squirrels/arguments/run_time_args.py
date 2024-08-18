@@ -12,17 +12,33 @@ from .. import _utils as u
 
 @dataclass
 class AuthArgs(ConnectionsArgs):
-    connections: dict[str, Engine]
+    _connections: dict[str, Engine]
     username: str
     password: str
+
+    @property
+    def connections(self) -> Engine:
+        return self._connections.copy()
 
 
 @dataclass
 class ContextArgs(ParametersArgs):
-    user: User
-    prms: dict[str, Parameter]
-    traits: dict[str, Any]
+    user: Optional[User]
+    _prms: dict[str, Parameter]
+    _traits: dict[str, Any]
     _placeholders: dict[str, Any]
+
+    @property
+    def prms(self) -> dict[str, Parameter]:
+        return self._prms.copy()
+    
+    @property
+    def traits(self) -> dict[str, Any]:
+        return self._traits.copy()
+
+    @property
+    def placeholders(self) -> dict[str, Any]:
+        return self._placeholders.copy()
 
     def set_placeholder(self, placeholder: str, value: Union[TextValue, Any]) -> str:
         """
@@ -53,7 +69,11 @@ class ContextArgs(ParametersArgs):
 
 @dataclass
 class ModelDepsArgs(ContextArgs):
-    ctx: dict[str, Any]
+    _ctx: dict[str, Any]
+
+    @property
+    def ctx(self) -> dict[str, Any]:
+        return self._ctx.copy()
 
 
 @dataclass
@@ -126,7 +146,7 @@ class ModelArgs(ModelDepsArgs):
         connection_name = self.connection_name if connection_name is None else connection_name
         return ConnectionSetIO.obj.run_sql_query_from_conn_name(sql_query, connection_name, self._placeholders)
 
-    def run_sql_on_dataframes(self, sql_query: str, *, dataframes: dict[str, pd.DataFrame] = None, **kwargs) -> pd.DataFrame:
+    def run_sql_on_dataframes(self, sql_query: str, *, dataframes: Optional[dict[str, pd.DataFrame]] = None, **kwargs) -> pd.DataFrame:
         """
         Uses a dictionary of dataframes to execute a SQL query in an embedded in-memory database (sqlite or duckdb based on setting)
 

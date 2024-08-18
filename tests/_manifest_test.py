@@ -7,9 +7,9 @@ from squirrels import _manifest as m, _utils as u
 ## Project variables config
 
 @pytest.mark.parametrize("data", [
-    {"major_version": 1},
-    {"name": "my_name", "major_version": "1"},
-    {"name": "my_name"}
+    {"major_version": 1}, # missing name
+    {"name": "my_name", "major_version": "1"}, # major_version not int
+    {"name": "my_name"}, # missing major_version
 ])
 def test_invalid_proj_vars(data: dict):
     with pytest.raises(u.ConfigurationError):
@@ -40,8 +40,8 @@ def test_proj_vars_get_label(fixture: str, expected: str, request: pytest.Fixtur
 ## Package config
 
 @pytest.mark.parametrize("data", [
-    {"git": "test.git", "directory": "test"},
-    {"directory": "test", "revision": "0.1.0"}
+    {"git": "test.git", "directory": "test"}, # missing revision
+    {"directory": "test", "revision": "0.1.0"}, # missing git
 ])
 def test_invalid_package_config(data: dict):
     with pytest.raises(u.ConfigurationError):
@@ -79,8 +79,8 @@ def test_package_directory(fixture: str, expected: str, request: pytest.FixtureR
 ## DB connection config
 
 @pytest.mark.parametrize("data", [
-    {"name": "default"},
-    {"url": "my/url"}
+    {"name": "default"}, # missing url
+    {"url": "my/url"}, # missing name
 ])
 def test_invalid_db_conn_config(data: dict):
     with pytest.raises(u.ConfigurationError):
@@ -93,8 +93,15 @@ def db_conn_config1() -> m.DbConnConfig:
     return m.DbConnConfig.from_dict(data)
 
 
+@pytest.fixture(scope="module")
+def db_conn_config2() -> m.DbConnConfig:
+    data = {"name": "default", "url": "{username}:{password}/my/url"}
+    return m.DbConnConfig.from_dict(data)
+
+
 @pytest.mark.parametrize("fixture,expected", [
-    ("db_conn_config1", "user1:pass1/my/url")
+    ("db_conn_config1", "user1:pass1/my/url"),
+    ("db_conn_config2", ":/my/url")
 ])
 def test_db_conn_url(fixture: str, expected: str, request: pytest.FixtureRequest):
     db_conn: m.DbConnConfig = request.getfixturevalue(fixture)
@@ -104,30 +111,50 @@ def test_db_conn_url(fixture: str, expected: str, request: pytest.FixtureRequest
 ## Parameters config
 
 @pytest.mark.parametrize("data", [
-    {"name": "my_name", "type": "SingleSelectParameter", "factory": "Create"},
-    {"name": "my_name", "type": "SingleSelectParameter", "args": {}},
-    {"name": "my_name", "factory": "Create", "args": {}},
-    {"type": "SingleSelectParameter", "factory": "Create", "args": {}}
+    {"type": "SingleSelectParameter", "factory": "CreateSimple"}, # missing arguments
+    {"type": "SingleSelectParameter", "arguments": {}}, # missing factory
+    {"factory": "CreateSimple", "arguments": {}}, # missing type
 ])
 def test_invalid_db_conn_config(data: dict):
     with pytest.raises(u.ConfigurationError):
-        m.DbConnConfig.from_dict(data)
+        m.ParametersConfig.from_dict(data)
 
 
 ## Test sets config
 
 @pytest.mark.parametrize("data", [
-    {}
+    {} # missing name
 ])
 def test_invalid_test_sets_config(data: dict):
     with pytest.raises(u.ConfigurationError):
         m.TestSetsConfig.from_dict(data)
 
 
+@pytest.fixture(scope="module")
+def test_sets_config1() -> m.TestSetsConfig:
+    data = {"name": "test_set1"}
+    return m.TestSetsConfig.from_dict(data)
+
+
+@pytest.fixture(scope="module")
+def test_sets_config2() -> m.TestSetsConfig:
+    data = {"name": "test_set2", "user_attributes": {}}
+    return m.TestSetsConfig.from_dict(data)
+
+
+@pytest.mark.parametrize("fixture,expected", [
+    ("test_sets_config1", False),
+    ("test_sets_config2", True)
+])
+def test_is_authenticated(fixture: str, expected: bool, request: pytest.FixtureRequest):
+    test_sets: m.TestSetsConfig = request.getfixturevalue(fixture)
+    assert test_sets.is_authenticated == expected
+
+
 ## Dbview config
 
 @pytest.mark.parametrize("data", [
-    {"connection_name": "default"}
+    {"connection_name": "default"} # missing name
 ])
 def test_invalid_dbview_config(data: dict):
     with pytest.raises(u.ConfigurationError):
@@ -137,7 +164,7 @@ def test_invalid_dbview_config(data: dict):
 ## Federate config
 
 @pytest.mark.parametrize("data", [
-    {"materialized": "table"}
+    {"materialized": "table"} # missing name
 ])
 def test_invalid_federate_config(data: dict):
     with pytest.raises(u.ConfigurationError):
@@ -147,8 +174,8 @@ def test_invalid_federate_config(data: dict):
 ## Dataset config
 
 @pytest.mark.parametrize("data", [
-    {"label": "My Dataset", "scope": "public"},
-    {"name": "my_dataset", "label": "My Dataset", "scope": "not_exist"}
+    {"label": "My Dataset", "scope": "public"}, # missing name
+    {"name": "my_dataset", "label": "My Dataset", "scope": "not_exist"} # invalid scope
 ])
 def test_invalid_dataset_config(data: dict):
     with pytest.raises(u.ConfigurationError):
@@ -165,7 +192,7 @@ def dataset_config1() -> m.DatasetsConfig:
 def dataset_config2() -> m.DatasetsConfig:
     data = {
         "name": "my_dataset", "label": "My Dataset", "model": "my_model", "scope": "protected", 
-        "parameters": [], "traits": {"key": "value"}
+        "parameters": [], "traits": {"key": "value"}, "default_test_set": "default"
     }
     return m.DatasetsConfig.from_dict(data)
 
@@ -218,7 +245,7 @@ def test_dataset_args(fixture: str, expected: dict, request: pytest.FixtureReque
 ## Full manifest config
 
 @pytest.mark.parametrize("data", [
-    {}
+    {} # missing project_variables
 ])
 def test_invalid_manifest_config(data: dict):
     with pytest.raises(u.ConfigurationError):
@@ -241,7 +268,8 @@ def manifest_config2() -> m._ManifestConfig:
         "selection_test_sets": [],
         "dbviews": [],
         "federates": [],
-        "datasets": []
+        "datasets": [],
+        "settings": {}
     }
     return m._ManifestConfig.from_dict(data)
 
@@ -305,5 +333,14 @@ def test_manifest_federates(fixture: str, expected: dict, request: pytest.Fixtur
     ("manifest_config2", {})
 ])
 def test_manifest_datasets(fixture: str, expected: dict, request: pytest.FixtureRequest):
+    manifest: m._ManifestConfig = request.getfixturevalue(fixture)
+    assert manifest.datasets == expected
+
+
+@pytest.mark.parametrize("fixture,expected", [
+    ("manifest_config1", {}),
+    ("manifest_config2", {})
+])
+def test_manifest_settings(fixture: str, expected: dict, request: pytest.FixtureRequest):
     manifest: m._ManifestConfig = request.getfixturevalue(fixture)
     assert manifest.datasets == expected
