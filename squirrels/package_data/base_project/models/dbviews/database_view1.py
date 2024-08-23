@@ -24,7 +24,8 @@ def main(sqrl: ModelArgs) -> pd.DataFrame:
         WITH
         transactions_with_masked_id AS (
             SELECT *, 
-                {masked_id} as masked_id
+                {masked_id} as masked_id,
+                STRFTIME('%Y-%m', date) AS month
             FROM transactions
         )
         SELECT {sqrl.ctx["select_dim_cols"]}

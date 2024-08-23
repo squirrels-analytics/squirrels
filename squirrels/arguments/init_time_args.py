@@ -26,7 +26,7 @@ class ConnectionsArgs(BaseArguments):
 
         If key is None, returns tuple of empty strings ("", "")
 
-        Parameters:
+        Arguments:
             key: The credentials key
         
         Returns:

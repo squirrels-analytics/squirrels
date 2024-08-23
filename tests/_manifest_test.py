@@ -269,6 +269,7 @@ def manifest_config2() -> m._ManifestConfig:
         "dbviews": [],
         "federates": [],
         "datasets": [],
+        "dashboards": [],
         "settings": {}
     }
     return m._ManifestConfig.from_dict(data)
@@ -335,6 +336,15 @@ def test_manifest_federates(fixture: str, expected: dict, request: pytest.Fixtur
 def test_manifest_datasets(fixture: str, expected: dict, request: pytest.FixtureRequest):
     manifest: m._ManifestConfig = request.getfixturevalue(fixture)
     assert manifest.datasets == expected
+
+
+@pytest.mark.parametrize("fixture,expected", [
+    ("manifest_config1", {}),
+    ("manifest_config2", {})
+])
+def test_manifest_dashboards(fixture: str, expected: dict, request: pytest.FixtureRequest):
+    manifest: m._ManifestConfig = request.getfixturevalue(fixture)
+    assert manifest.dashboards == expected
 
 
 @pytest.mark.parametrize("fixture,expected", [

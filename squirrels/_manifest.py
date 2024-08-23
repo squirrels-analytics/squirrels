@@ -143,33 +143,64 @@ class DatasetScope(Enum):
     PROTECTED = 1
     PRIVATE = 2
 
+
 @dataclass
-class DatasetsConfig(ManifestComponentConfig):
+class AnalyticsOutputManifestConfig(ManifestComponentConfig):
     name: str
     label: str
-    model: str
+    description: str
     scope: DatasetScope
     parameters: list[str]
-    traits: dict
-    default_test_set: Optional[str]
+    
+    def __hash__(self) -> int:
+        raise NotImplementedError()
 
     @classmethod
     def from_dict(cls, kwargs: dict):
         cls._validate_required(kwargs, [c.DATASET_NAME_KEY], c.DATASETS_KEY)
         name = str(kwargs[c.DATASET_NAME_KEY])
-        label = str(kwargs.get(c.DATASET_LABEL_KEY, name))
-        model = str(kwargs.get(c.DATASET_MODEL_KEY, name))
-        scope_raw = kwargs.get(c.DATASET_SCOPE_KEY)
+        label = str(kwargs.get(c.DATASET_DASH_LABEL_KEY, name))
+        description = str(kwargs.get(c.DATASET_DASH_DESCRIPTION_KEY, name))
+
+        scope_raw = kwargs.get(c.DATASET_DASH_SCOPE_KEY, "public")
         try:
-            scope = DatasetScope[str(scope_raw).upper()] if scope_raw is not None else DatasetScope.PUBLIC
+            scope = DatasetScope[str(scope_raw).upper()]
         except KeyError as e:
             scope_list = [scope.name.lower() for scope in DatasetScope]
-            raise u.ConfigurationError(f'Scope not found for dataset "{name}". Scope must be one of {scope_list}') from e
+            raise u.ConfigurationError(f'Scope not found for dataset or dashboard "{name}". Scope must be one of {scope_list}') from e
         
-        parameters = kwargs.get(c.DATASET_PARAMETERS_KEY, [])
+        parameters = kwargs.get(c.DATASET_DASH_PARAMETERS_KEY, [])
+        return name, label, description, scope, parameters
+
+
+@dataclass
+class DatasetsConfig(AnalyticsOutputManifestConfig):
+    model: str
+    traits: dict
+    default_test_set: Optional[str]
+    
+    def __hash__(self) -> int:
+        return hash("dataset_"+self.name)
+
+    @classmethod
+    def from_dict(cls, kwargs: dict):
+        name, label, description, scope, parameters = super().from_dict(kwargs)
+        model = str(kwargs.get(c.DATASET_MODEL_KEY, name))
         traits = kwargs.get(c.DATASET_TRAITS_KEY, {})
         default_test_set = kwargs.get(c.DATASET_DEFAULT_TEST_SET_KEY)
-        return cls(name, label, model, scope, parameters, traits, default_test_set)
+        return cls(name, label, description, scope, parameters, model, traits, default_test_set)
+
+
+@dataclass
+class DashboardsConfig(AnalyticsOutputManifestConfig):
+    
+    def __hash__(self) -> int:
+        return hash("dashboard_"+self.name)
+    
+    @classmethod
+    def from_dict(cls, kwargs: dict):
+        name, label, description, scope, parameters = super().from_dict(kwargs)
+        return cls(name, label, description, scope, parameters)
 
 
 @dataclass
@@ -182,6 +213,7 @@ class _ManifestConfig:
     dbviews: dict[str, DbviewConfig]
     federates: dict[str, FederateConfig]
     datasets: dict[str, DatasetsConfig]
+    dashboards: dict[str, DashboardsConfig]
     settings: dict
 
     @classmethod
@@ -217,8 +249,9 @@ class _ManifestConfig:
         dbviews = cls._create_configs_as_dict(DbviewConfig, kwargs, c.DBVIEWS_KEY, c.DBVIEW_NAME_KEY)
         federates = cls._create_configs_as_dict(FederateConfig, kwargs, c.FEDERATES_KEY, c.FEDERATE_NAME_KEY)
         datasets = cls._create_configs_as_dict(DatasetsConfig, kwargs, c.DATASETS_KEY, c.DATASET_NAME_KEY)
+        dashboards = cls._create_configs_as_dict(DashboardsConfig, kwargs, c.DASHBOARDS_KEY, c.DASHBOARD_NAME_KEY)
 
-        return cls(proj_vars, packages, db_conns, params, test_sets, dbviews, federates, datasets, settings)
+        return cls(proj_vars, packages, db_conns, params, test_sets, dbviews, federates, datasets, dashboards, settings)
     
     def get_default_test_set(self, dataset_name: str) -> tuple[str, dict]:
         default_1 = self.datasets[dataset_name].default_test_set

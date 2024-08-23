@@ -33,7 +33,7 @@ class Parameter(metaclass=ABCMeta):
         """
         Method for creating the configurations for a Parameter that may include user attribute or parent
 
-        Parameters:
+        Arguments:
             name: The name of the parameter
             label: The display label for the parameter
             all_options: All options associated to this parameter regardless of the user group or parent parameter option they depend on
@@ -69,7 +69,7 @@ class Parameter(metaclass=ABCMeta):
         """
         Method for creating the configurations for any Parameter that uses a DataSource to receive the options
 
-        Parameters:
+        Arguments:
             name: The name of the parameter
             label: The display label for the parameter
             data_source: The lookup table to use for this parameter
@@ -180,7 +180,7 @@ class SingleSelectParameter(_SelectionParameter):
         """
         Method for creating the configurations for a Parameter that doesn't involve user attributes or parent parameters
 
-        Parameters:
+        Arguments:
             name: The name of the parameter
             label: The display label for the parameter
             all_options: All options associated to this parameter regardless of the user group or parent parameter option they depend on
@@ -194,7 +194,7 @@ class SingleSelectParameter(_SelectionParameter):
         """
         Gets the selected single-select option or selected custom field
 
-        Parameters:
+        Arguments:
             field: If field is not None, the method gets this field from the "custom_fields" attribute of the selected option. 
                 Otherwise, returns the class object of the selected option
             default_field: If field does not exist for a parameter option and default_field is not None, the default_field is used 
@@ -304,7 +304,7 @@ class MultiSelectParameter(_SelectionParameter):
         """
         Method for creating the configurations for a MultiSelectParameter that may include user attribute or parent
 
-        Parameters:
+        Arguments:
             name: The name of the parameter
             label: The display label for the parameter
             all_options: All options associated to this parameter regardless of the user group or parent parameter option they depend on
@@ -343,7 +343,7 @@ class MultiSelectParameter(_SelectionParameter):
         """
         Method for creating the configurations for a MultiSelectParameter that doesn't involve user attributes or parent parameters
 
-        Parameters:
+        Arguments:
             name: The name of the parameter
             label: The display label for the parameter
             all_options: All options associated to this parameter regardless of the user group or parent parameter option they depend on
@@ -366,7 +366,7 @@ class MultiSelectParameter(_SelectionParameter):
         """
         Method for creating the configurations for a MultiSelectParameter that uses a SelectDataSource to receive the options
 
-        Parameters:
+        Arguments:
             name: The name of the parameter
             label: The display label for the parameter
             data_source: The lookup table to use for this parameter
@@ -404,7 +404,7 @@ class MultiSelectParameter(_SelectionParameter):
         """
         Gets the sequence of the selected option(s) or a sequence of selected custom fields
 
-        Parameters:
+        Arguments:
             field: If field is not None, the method gets this field from the "custom_fields" attribute of the selected options. 
                 Otherwise, returns the class objects of the selected options
             default_field: If field does not exist for a parameter option and default_field is not None, the default_field is used 
@@ -549,7 +549,7 @@ class DateParameter(Parameter):
         """
         Method for creating the configurations for a Parameter that doesn't involve user attributes or parent parameters
 
-        Parameters:
+        Arguments:
             name: The name of the parameter
             label: The display label for the parameter
             default_date: Default date for this option
@@ -563,7 +563,7 @@ class DateParameter(Parameter):
         """
         Gets selected date as string
 
-        Parameters:
+        Arguments:
             date_format: The date format (see Python's datetime formats). If not specified, self.date_format is used
 
         Returns:
@@ -576,7 +576,7 @@ class DateParameter(Parameter):
         """
         Gets selected date as string surrounded by single quotes
 
-        Parameters:
+        Arguments:
             date_format: The date format (see Python's datetime formats). If not specified, self.date_format is used
 
         Returns:
@@ -639,7 +639,7 @@ class DateRangeParameter(Parameter):
         """
         Method for creating the configurations for a Parameter that doesn't involve user attributes or parent parameters
 
-        Parameters:
+        Arguments:
             name: The name of the parameter
             label: The display label for the parameter
             default_start_date: Default start date for this option
@@ -654,7 +654,7 @@ class DateRangeParameter(Parameter):
         """
         Gets selected start date as string
 
-        Parameters:
+        Arguments:
             date_format: The date format (see Python's datetime formats). If not specified, self.date_format is used
 
         Returns:
@@ -667,7 +667,7 @@ class DateRangeParameter(Parameter):
         """
         Gets selected start date as string surrounded by single quotes
 
-        Parameters:
+        Arguments:
             date_format: The date format (see Python's datetime formats). If not specified, self.date_format is used
 
         Returns:
@@ -679,7 +679,7 @@ class DateRangeParameter(Parameter):
         """
         Gets selected end date as string
 
-        Parameters:
+        Arguments:
             date_format: The date format (see Python's datetime formats). If not specified, self.date_format is used
 
         Returns:
@@ -692,7 +692,7 @@ class DateRangeParameter(Parameter):
         """
         Gets selected end date as string surrounded by single quotes
 
-        Parameters:
+        Arguments:
             date_format: The date format (see Python's datetime formats). If not specified, self.date_format is used
 
         Returns:
@@ -753,7 +753,7 @@ class NumberParameter(Parameter):
         
         * Note that the "Number" type denotes an int, a Decimal (from decimal module), or a string that can be parsed to Decimal
         
-        Parameters:
+        Arguments:
             name: The name of the parameter
             label: The display label for the parameter
             min_value: Minimum selectable value
@@ -829,7 +829,7 @@ class NumberRangeParameter(Parameter):
         
         * Note that the "Number" type denotes an int, a Decimal (from decimal module), or a string that can be parsed to Decimal
 
-        Parameters:
+        Arguments:
             name: The name of the parameter
             label: The display label for the parameter
             min_value: Minimum selectable value
@@ -896,7 +896,7 @@ class TextValue:
         
         This method returns a new object and leaves the original the same.
 
-        Parameters:
+        Arguments:
             str_to_str_function: A function that accepts a string and returns a string
 
         Returns:
@@ -920,7 +920,7 @@ class TextValue:
         """
         Transforms the entered text with a function that takes a string and returns a boolean.
 
-        Parameters:
+        Arguments:
             str_to_bool_function: A function that accepts a string and returns a boolean.
 
         Returns:
@@ -935,7 +935,7 @@ class TextValue:
         """
         Transforms the entered text with a function that takes a string and returns an int or float.
 
-        Parameters:
+        Arguments:
             str_to_num_function: A function that accepts a string and returns an int or float.
 
         Returns:
@@ -950,7 +950,7 @@ class TextValue:
         """
         Transforms the entered text with a function that takes a string and returns a datetime object.
 
-        Parameters:
+        Arguments:
             str_to_datetime_function: A function that accepts a string and returns a datetime object.
 
         Returns:
@@ -993,7 +993,7 @@ class TextParameter(Parameter):
         """
         Method for creating the configurations for a MultiSelectParameter that may include user attribute or parent
 
-        Parameters:
+        Arguments:
             name: The name of the parameter
             label: The display label for the parameter
             all_options: All options associated to this parameter regardless of the user group or parent parameter option they depend on
@@ -1027,7 +1027,7 @@ class TextParameter(Parameter):
         """
         Method for creating the configurations for a Parameter that doesn't involve user attributes or parent parameters
         
-        Parameters:
+        Arguments:
             name: The name of the parameter
             label: The display label for the parameter
             description: Explains the meaning of the parameter
@@ -1045,7 +1045,7 @@ class TextParameter(Parameter):
         """
         Method for creating the configurations for a MultiSelectParameter that uses a SelectDataSource to receive the options
 
-        Parameters:
+        Arguments:
             name: The name of the parameter
             label: The display label for the parameter
             data_source: The lookup table to use for this parameter

@@ -34,7 +34,7 @@ class ParameterOption(metaclass=ABCMeta):
         """
         Checks if this option is valid given the selected parent options and user group of user if applicable.
         
-        Parameters:
+        Arguments:
             user_group: The value of the user's "user group attribute". Only None when "user_attribute" is not specified
                 for the Parameter factory. Note that when user is None but "user_attribute" is specified, an error is thrown
             selected_parent_option_ids: List of selected option ids from the parent parameter. Only None when the Parameter
@@ -77,7 +77,7 @@ class SelectParameterOption(ParameterOption):
         """
         Constructor for SelectParameterOption
 
-        Parameters:
+        Arguments:
             ...see Attributes of SelectParameterOption
             **kwargs: Any additional keyword arguments specified (except the ones above) gets included into custom_fields as well
         """
@@ -93,7 +93,7 @@ class SelectParameterOption(ParameterOption):
         """
         Get field value from the custom_fields attribute
 
-        Parameters:
+        Arguments:
             field: The key to use to fetch the custom field from "custom_fields"
             default_field: If value at "field" key does not exist in "custom_fields", then this is used instead as the field (if not None)
             default: If value at "field" or "default_field" (if not None) key does not exist in "custom_fields", then this value 
@@ -161,7 +161,7 @@ class DateParameterOption(_DateTypeParameterOption):
         """
         Constructor for DateParameterOption
 
-        Parameters:
+        Arguments:
             ...see Attributes of DateParameterOption
         """
         super().__init__(date_format=date_format, user_groups=user_groups, parent_option_ids=parent_option_ids)
@@ -190,7 +190,7 @@ class DateRangeParameterOption(_DateTypeParameterOption):
         """
         Constructor for DateRangeParameterOption
 
-        Parameters:
+        Arguments:
             ...see Attributes of DateRangeParameterOption
         """
         super().__init__(date_format=date_format, user_groups=user_groups, parent_option_ids=parent_option_ids)
@@ -280,7 +280,7 @@ class NumberParameterOption(_NumericParameterOption):
         
         * Note that the "Number" type denotes an int, a Decimal (from decimal module), or a string that can be parsed to Decimal
 
-        Parameters:
+        Arguments:
             ...see Attributes of NumberParameterOption
         """
         super().__init__(min_value, max_value, increment=increment, user_groups=user_groups, parent_option_ids=parent_option_ids)
@@ -315,7 +315,7 @@ class NumberRangeParameterOption(_NumericParameterOption):
         
         * Note that the "Number" type denotes an int, a Decimal (from decimal module), or a string that can be parsed to Decimal
 
-        Parameters:
+        Arguments:
             ...see Attributes of NumberRangeParameterOption
         """
         super().__init__(min_value, max_value, increment=increment, user_groups=user_groups, parent_option_ids=parent_option_ids)
@@ -343,7 +343,7 @@ class TextParameterOption(ParameterOption):
         """
         Constructor for TextParameterOption
 
-        Parameters:
+        Arguments:
             ...see Attributes of TextParameterOption
         """
         super().__init__(user_groups=user_groups, parent_option_ids=parent_option_ids)

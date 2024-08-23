@@ -10,7 +10,7 @@ class PyModule:
         """
         Constructor for PyModule, an abstract module for a file that may or may not exist
         
-        Parameters:
+        Arguments:
             filepath (str | pathlib.Path): The file path to the python module
             is_required: If true, throw an error if the file path doesn't exist
         """
@@ -28,7 +28,7 @@ class PyModule:
         """
         Get an attribute of the module. Usually a python function or class.
 
-        Parameters:
+        Arguments:
             attr_name: The attribute name
             default_attr: The default function or class to use if the attribute cannot be found
             is_required: If true, throw an error if the attribute cannot be found, unless default_attr is not None
@@ -46,7 +46,7 @@ def run_pyconfig_main(filename: str, kwargs: dict[str, Any] = {}) -> None:
     """
     Given a python file in the 'pyconfigs' folder, run its main function
     
-    Parameters:
+    Arguments:
         filename: The name of the file to run main function
         kwargs: Dictionary of the main function arguments
     """

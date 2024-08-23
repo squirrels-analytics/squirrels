@@ -33,7 +33,7 @@ def join_paths(*paths: FilePath) -> Path:
     """
     Joins paths together.
 
-    Parameters:
+    Arguments:
         paths (str | pathlib.Path): The paths to join.
 
     Returns:
@@ -48,7 +48,7 @@ def render_string(raw_str: str, **kwargs: dict) -> str:
     """
     Given a template string, render it with the given keyword arguments
 
-    Parameters:
+    Arguments:
         raw_str: The template string
         kwargs: The keyword arguments
 
@@ -72,7 +72,7 @@ def read_file(filepath: FilePath, *, is_required: bool = True) -> Optional[str]:
     """
     Reads a file and return its content if required
 
-    Parameters:
+    Arguments:
         filepath (str | pathlib.Path): The path to the file to read
         is_required: If true, throw error if file doesn't exist
 
@@ -89,7 +89,7 @@ def normalize_name(name: str) -> str:
     """
     Normalizes names to the convention of the squirrels manifest file.
 
-    Parameters:
+    Arguments:
         name: The name to normalize.
 
     Returns:
@@ -102,7 +102,7 @@ def normalize_name_for_api(name: str) -> str:
     """
     Normalizes names to the REST API convention.
 
-    Parameters:
+    Arguments:
         name: The name to normalize.
 
     Returns:
@@ -115,7 +115,7 @@ def load_json_or_comma_delimited_str_as_list(input_str: Union[str, Sequence]) ->
     """
     Given a string, load it as a list either by json string or comma delimited value
 
-    Parameters:
+    Arguments:
         input_str: The input string
     
     Returns:
@@ -143,7 +143,7 @@ def process_if_not_none(input_val: Optional[X], processor: Callable[[X], Y]) -> 
     """
     Given a input value and a function that processes the value, return the output of the function unless input is None
 
-    Parameters:
+    Arguments:
         input_val: The input value
         processor: The function that processes the input value
     
@@ -170,7 +170,7 @@ def run_sql_on_dataframes(sql_query: str, dataframes: dict[str, pd.DataFrame], *
     """
     Runs a SQL query against a collection of dataframes
 
-    Parameters:
+    Arguments:
         sql_query: The SQL query to run
         dataframes: A dictionary of table names to their pandas Dataframe
     

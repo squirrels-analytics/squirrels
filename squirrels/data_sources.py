@@ -173,7 +173,7 @@ class SelectDataSource(_SelectionDataSource):
         """
         Constructor for SelectDataSource
 
-        Parameters:
+        Arguments:
             ...see Attributes of SelectDataSource
         """
         super().__init__(
@@ -185,7 +185,7 @@ class SelectDataSource(_SelectionDataSource):
         """
         Method to convert the associated DataSourceParameter into a SingleSelectParameterConfig or MultiSelectParameterConfig
 
-        Parameters:
+        Arguments:
             ds_param: The parameter to convert
             df: The dataframe containing the parameter options data
 
@@ -221,7 +221,7 @@ class SingleSelectDataSource(_SelectionDataSource):
         """
         Constructor for SelectDataSource
 
-        Parameters:
+        Arguments:
             ...see Attributes of SelectDataSource
         """
         super().__init__(table_or_query, id_col, options_col, order_by_col=order_by_col, is_default_col=is_default_col,
@@ -232,7 +232,7 @@ class SingleSelectDataSource(_SelectionDataSource):
         """
         Method to convert the associated DataSourceParameter into a SingleSelectParameterConfig
 
-        Parameters:
+        Arguments:
             ds_param: The parameter to convert
             df: The dataframe containing the parameter options data
 
@@ -262,7 +262,7 @@ class MultiSelectDataSource(_SelectionDataSource):
         """
         Constructor for SingleSelectDataSource
 
-        Parameters:
+        Arguments:
             ...see Attributes of SingleSelectDataSource
         """
         super().__init__(table_or_query, id_col, options_col, order_by_col=order_by_col, is_default_col=is_default_col,
@@ -276,7 +276,7 @@ class MultiSelectDataSource(_SelectionDataSource):
         """
         Method to convert the associated DataSourceParameter into a MultiSelectParameterConfig
 
-        Parameters:
+        Arguments:
             ds_param: The parameter to convert
             df: The dataframe containing the parameter options data
 
@@ -318,7 +318,7 @@ class DateDataSource(DataSource):
         """
         Constructor for DateDataSource
 
-        Parameters:
+        Arguments:
             ...see Attributes of DateDataSource
         """
         super().__init__(
@@ -332,7 +332,7 @@ class DateDataSource(DataSource):
         """
         Method to convert the associated DataSourceParameter into a DateParameterConfig
 
-        Parameters:
+        Arguments:
             ds_param: The parameter to convert
             df: The dataframe containing the parameter options data
 
@@ -385,7 +385,7 @@ class DateRangeDataSource(DataSource):
         """
         Constructor for DateRangeDataSource
 
-        Parameters:
+        Arguments:
             ...see Attributes of DateRangeDataSource
         """
         super().__init__(
@@ -400,7 +400,7 @@ class DateRangeDataSource(DataSource):
         """
         Method to convert the associated DataSourceParameter into a DateRangeParameterConfig
 
-        Parameters:
+        Arguments:
             ds_param: The parameter to convert
             df: The dataframe containing the parameter options data
 
@@ -477,7 +477,7 @@ class NumberDataSource(_NumericDataSource):
         """
         Constructor for NumberDataSource
 
-        Parameters:
+        Arguments:
             ...see Attributes of NumberDataSource
         """
         super().__init__(
@@ -490,7 +490,7 @@ class NumberDataSource(_NumericDataSource):
         """
         Method to convert the associated DataSourceParameter into a NumberParameterConfig
 
-        Parameters:
+        Arguments:
             ds_param: The parameter to convert
             df: The dataframe containing the parameter options data
 
@@ -547,7 +547,7 @@ class NumberRangeDataSource(_NumericDataSource):
         """
         Constructor for NumRangeDataSource
 
-        Parameters:
+        Arguments:
             ...see Attributes of NumRangeDataSource
         """
         super().__init__(
@@ -561,7 +561,7 @@ class NumberRangeDataSource(_NumericDataSource):
         """
         Method to convert the associated DataSourceParameter into a NumberRangeParameterConfig
 
-        Parameters:
+        Arguments:
             ds_param: The parameter to convert
             df: The dataframe containing the parameter options data
 
@@ -613,7 +613,7 @@ class TextDataSource(DataSource):
         """
         Constructor for DateDataSource
 
-        Parameters:
+        Arguments:
             ...see Attributes of DateDataSource
         """
         super().__init__(
@@ -626,7 +626,7 @@ class TextDataSource(DataSource):
         """
         Method to convert the associated DataSourceParameter into a TextParameterConfig
 
-        Parameters:
+        Arguments:
             ds_param: The parameter to convert
             df: The dataframe containing the parameter options data
 

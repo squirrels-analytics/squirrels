@@ -1,7 +1,7 @@
 __version__ = '0.3.3'
 
 from .arguments.init_time_args import ConnectionsArgs, ParametersArgs
-from .arguments.run_time_args import AuthArgs, ContextArgs, ModelDepsArgs, ModelArgs
+from .arguments.run_time_args import AuthArgs, ContextArgs, ModelDepsArgs, ModelArgs, DashboardArgs
 
 from .parameter_options import SelectParameterOption, DateParameterOption, DateRangeParameterOption
 from .parameter_options import NumberParameterOption, NumberRangeParameterOption, TextParameterOption

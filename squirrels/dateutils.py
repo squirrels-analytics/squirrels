@@ -42,7 +42,7 @@ class DateModifier(metaclass=ABCMeta):
         """
         Method to be overwritten, modifies the input date
 
-        Parameters:
+        Arguments:
             date: The input date to modify.
 
         Returns:
@@ -261,7 +261,7 @@ class DateModPipeline(DateModifier):
         Create a new sequence of DateModifier by joining the date modifiers in this class 
         with the input date_modifiers
 
-        Parameters:
+        Arguments:
             date_modifiers: The new date modifier sequence to join
 
         Returns:
@@ -274,7 +274,7 @@ class DateModPipeline(DateModifier):
         """
         Create a new DateModPipeline with more date modifiers
 
-        Parameters:
+        Arguments:
             date_modifiers: The additional date modifiers to add
 
         Returns:
@@ -293,7 +293,7 @@ class DateModPipeline(DateModifier):
         then it'll return a decreasing list of dates starting from the start date. Otherwise, an empty list
         is returned.
 
-        Parameters:
+        Arguments:
             start_date: The input date (it's the first date in the output list if step moves towards end date)
             step: The increment to take (specified as an offset DateModifier). Offset cannot be zero
 
@@ -346,7 +346,7 @@ class DateStringModifier(_DateRepresentationModifier):
         """
         Create a new DateStringModifier with more date modifiers
 
-        Parameters:
+        Arguments:
             date_modifiers: The additional date modifiers to add
 
         Returns:
@@ -363,7 +363,7 @@ class DateStringModifier(_DateRepresentationModifier):
         """
         Modifies the input date string with the date modifiers
 
-        Parameters:
+        Arguments:
             date_str: The input date string
             input_format: The input date format. Defaults to the same as output date format
         
@@ -383,7 +383,7 @@ class DateStringModifier(_DateRepresentationModifier):
         then it'll return a decreasing list of dates starting from the start date. Otherwise, an empty list
         is returned.
 
-        Parameters:
+        Arguments:
             start_date_str: The input date string (it's the first date in the output list if step moves towards end date)
             step: The increment to take (specified as an offset DateModifier). Offset cannot be zero
             input_format: The input date format. Defaults to the same as output date format
@@ -414,7 +414,7 @@ class TimestampModifier(_DateRepresentationModifier):
         """
         Create a new TimestampModifier with more date modifiers
 
-        Parameters:
+        Arguments:
             date_modifiers: The additional date modifiers to add
 
         Returns:
@@ -427,7 +427,7 @@ class TimestampModifier(_DateRepresentationModifier):
         """
         Modifies the input timestamp with the date modifiers
 
-        Parameters:
+        Arguments:
             timestamp: The input timestamp as float
         
         Returns:
@@ -447,7 +447,7 @@ class TimestampModifier(_DateRepresentationModifier):
         then it'll return a decreasing list of dates starting from the start date. Otherwise, an empty list
         is returned.
 
-        Parameters:
+        Arguments:
             start_timestamp: The input timestamp as float (it's the first date in the output list if step moves towards end date)
             step: The increment to take (specified as an offset DateModifier). Offset cannot be zero
 

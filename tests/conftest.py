@@ -38,6 +38,7 @@ def my_initial_code():
         dbviews={},
         federates={},
         datasets={},
+        dashboards={},
         settings={}
     )
 

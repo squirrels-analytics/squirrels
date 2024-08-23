@@ -47,6 +47,15 @@ datasets:
     default_test_set: auth_test1          ## optional - if not specified, uses setting 'selection_test_sets.default_name_used'
 
 
+dashboards:
+  - name: dashboard_example
+    label: Dashboard Example
+    scope: public
+    parameters:
+      - date_range
+      - category
+
+
 selection_test_sets:
   - name: no_auth_test1
     datasets:                             ## optional section - if not provided, then test set is applicable for any dataset
