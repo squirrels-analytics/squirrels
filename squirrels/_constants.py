@@ -4,78 +4,7 @@ DEPS_CMD = 'deps'
 COMPILE_CMD = 'compile'
 RUN_CMD = 'run'
 
-# Manifest file keys
-PROJ_VARS_KEY = 'project_variables'
-PROJECT_NAME_KEY = 'name'
-PROJECT_LABEL_KEY = 'label'
-MAJOR_VERSION_KEY = 'major_version'
-
-PACKAGES_KEY = 'packages'
-PACKAGE_GIT_KEY = 'git'
-PACKAGE_DIRECTORY_KEY = 'directory'
-PACKAGE_REVISION_KEY = 'revision'
-
-DB_CONNECTIONS_KEY = 'connections'
-DB_CONN_NAME_KEY = 'name'
-DB_CONN_CRED_KEY = 'credential'
-DB_CONN_URL_KEY = 'url'
-
-DBVIEWS_KEY = 'dbviews'
-DBVIEW_NAME_KEY = 'name'
-DBVIEW_CONN_KEY = 'connection_name'
-DEFAULT_DB_CONN = 'default'
-
-FEDERATES_KEY = 'federates'
-FEDERATE_NAME_KEY = 'name'
-MATERIALIZED_KEY = 'materialized'
-DEFAULT_TABLE_MATERIALIZE = 'table'
-
-PARAMETERS_KEY = 'parameters'
-PARAMETER_NAME_KEY = 'name'
-PARAMETER_TYPE_KEY = 'type'
-PARAMETER_FACTORY_KEY = 'factory'
-PARAMETER_ARGS_KEY = 'arguments'
-
-TEST_SETS_KEY = 'selection_test_sets'
-TEST_SET_NAME_KEY = 'name'
-DEFAULT_TEST_SET_NAME = 'default'
-TEST_SET_DATASETS_KEY = 'datasets'
-TEST_SET_USER_ATTR_KEY = 'user_attributes'
-TEST_SET_PARAMETERS_KEY = 'parameters'
-
-DATASETS_KEY = 'datasets'
-DATASET_NAME_KEY = 'name'
-DATASET_MODEL_KEY = 'model'
-DATASET_PARAMETERS_KEY = 'parameters'
-DATASET_TRAITS_KEY = 'traits'
-DATASET_DEFAULT_TEST_SET_KEY = 'default_test_set'
-
-DASHBOARDS_KEY = 'dashboards'
-DASHBOARD_NAME_KEY = 'name'
-
-DATASET_DASH_LABEL_KEY = 'label'
-DATASET_DASH_DESCRIPTION_KEY = 'description'
-DATASET_DASH_PARAMETERS_KEY = 'parameters'
-
-DATASET_DASH_SCOPE_KEY = 'scope'
-PUBLIC_SCOPE = 'public'
-PROTECTED_SCOPE = 'protected'
-PRIVATE_SCOPE = 'private'
-
-SETTINGS_KEY = 'settings'
-
 # Environment config keys
-USERS_KEY = 'users'
-USER_NAME_KEY = 'username'
-USER_PWD_KEY = 'password'
-
-ENV_VARS_KEY = 'env_vars'
-
-CREDENTIALS_KEY = 'credentials'
-USERNAME_KEY = 'username'
-PASSWORD_KEY = 'password'
-
-SECRETS_KEY = 'secrets'
 JWT_SECRET_KEY = 'jwt_secret'
 
 # Folder/File names
@@ -84,13 +13,12 @@ BASE_PROJECT_FOLDER = 'base_project'
 ASSETS_FOLDER = 'assets'
 TEMPLATES_FOLDER = 'templates'
 
-ENVIRON_CONFIG_FILE = 'environcfg.yml'
 ENV_CONFIG_FILE = 'env.yml'
 MANIFEST_JINJA_FILE = 'squirrels.yml.j2'
 CONNECTIONS_YML_FILE = 'connections.yml'
 PARAMETERS_YML_FILE = 'parameters.yml'
+DASHBOARDS_YML_FILE = 'dashboards.yml'
 MANIFEST_FILE = 'squirrels.yml'
-LU_DATA_FILE = 'lu_data.xlsx'
 
 DATABASE_FOLDER = 'assets'
 PACKAGES_FOLDER = 'sqrl_packages'
@@ -102,6 +30,9 @@ DATABASE_VIEW_PY_FILE = 'database_view1.py'
 FEDERATES_FOLDER = 'federates'
 FEDERATE_SQL_NAME = 'dataset_example.sql'
 FEDERATE_PY_NAME = 'dataset_example.py'
+
+DASHBOARDS_FOLDER = 'dashboards'
+SAMPLE_DASHBOARD_FILE = 'dashboard_example1.py'
 
 PYCONFIGS_FOLDER = 'pyconfigs'
 AUTH_FILE = 'auth.py'
@@ -126,9 +57,13 @@ DATASETS_CACHE_SIZE_SETTING = 'datasets.cache.size'
 DATASETS_CACHE_TTL_SETTING = 'datasets.cache.ttl_minutes'
 DASHBOARDS_CACHE_SIZE_SETTING = 'dashboards.cache.size'
 DASHBOARDS_CACHE_TTL_SETTING = 'dashboards.cache.ttl_minutes'
+DASHBOARDS_FORMAT_SETTING = 'dashboards.default_format'
 TEST_SET_DEFAULT_USED_SETTING = 'selection_test_sets.default_name_used'
+DEFAULT_TEST_SET_NAME = 'default'
 DB_CONN_DEFAULT_USED_SETTING = 'connections.default_name_used'
+DEFAULT_DB_CONN = 'default'
 DEFAULT_MATERIALIZE_SETTING = 'defaults.federates.materialized'
+DEFAULT_MATERIALIZE = 'table'
 SEEDS_INFER_SCHEMA_SETTING = 'seeds.infer_schema'
 SEEDS_NA_VALUES_SETTING = 'seeds.na_values'
 IN_MEMORY_DB_SETTING = 'in_memory_database'
@@ -155,6 +90,10 @@ EXPENSES_DB_NAME = 'expenses'
 WEATHER_DB_NAME = 'weather'
 NO_DB = 'none'
 DATABASE_CHOICES = [EXPENSES_DB_NAME, WEATHER_DB_NAME, NO_DB]
+
+# Dashboard formats
+PNG = "png"
+HTML = "html"
 
 # Function names
 GET_USER_FUNC = "get_user_if_valid"

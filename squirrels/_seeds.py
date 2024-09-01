@@ -21,7 +21,7 @@ class SeedsIO:
     obj: Seeds
 
     @classmethod
-    def LoadFiles(cls) -> None:
+    def load_files(cls) -> None:
         start = time.time()
         infer_schema: bool = ManifestIO.obj.settings.get(c.SEEDS_INFER_SCHEMA_SETTING, True)
         na_values: list[str] = ManifestIO.obj.settings.get(c.SEEDS_NA_VALUES_SETTING, ["NA"])

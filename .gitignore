@@ -1,7 +1,7 @@
 *sandbox.*
 playground*
 site/
-venv/ 
+.venv/ 
 
 # pyenv files
 .python-version

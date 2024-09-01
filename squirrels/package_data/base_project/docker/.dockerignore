@@ -1,8 +1,13 @@
-__pycache__
-venv/
-.git
+**/__pycache__/
+
+# common virtual environment names
+.venv/
 
 # squirrels files to ignore
-environcfg.yml
+env.yml
 target/
 sqrl_packages/
+
+# additional files for docker to ignore
+Dockerfile
+.git/

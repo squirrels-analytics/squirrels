@@ -51,7 +51,7 @@ class ConnectionSetIO:
     obj: ConnectionSet
 
     @classmethod
-    def LoadFromFile(cls):
+    def load_from_file(cls):
         """
         Takes the DB connection engines from both the squirrels.yml and connections.py files and merges them
         into a single ConnectionSet
@@ -66,17 +66,17 @@ class ConnectionSetIO:
             for config in ManifestIO.obj.connections.values():
                 engines[config.name] = create_engine(config.url)
             
-            proj_vars = ManifestIO.obj.project_variables.data
+            proj_vars = ManifestIO.obj.project_variables.model_dump()
             env_vars = EnvironConfigIO.obj.get_all_env_vars()
             get_credential = EnvironConfigIO.obj.get_credential
             cls.args = ConnectionsArgs(proj_vars, env_vars, get_credential)
             pm.run_pyconfig_main(c.CONNECTIONS_FILE, {"connections": engines, "sqrl": cls.args})
         except Exception as e:
-            cls.Dispose()
+            cls.dispose()
             raise e
         
         timer.add_activity_time("creating sqlalchemy engines", start)
 
     @classmethod
-    def Dispose(cls):
+    def dispose(cls):
         cls.obj._dispose()

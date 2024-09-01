@@ -1,4 +1,4 @@
-from typing import Sequence, Optional, Union, TypeVar, Callable
+from typing import Sequence, Optional, Union, TypeVar, Callable, Any
 from pathlib import Path
 import json, sqlite3, jinja2 as j2, pandas as pd
 
@@ -44,7 +44,7 @@ def join_paths(*paths: FilePath) -> Path:
 
 _j2_env = j2.Environment(loader=j2.FileSystemLoader('.'))
 
-def render_string(raw_str: str, **kwargs: dict) -> str:
+def render_string(raw_str: str, **kwargs) -> str:
     """
     Given a template string, render it with the given keyword arguments
 
@@ -59,16 +59,7 @@ def render_string(raw_str: str, **kwargs: dict) -> str:
     return template.render(kwargs)
 
 
-T = TypeVar('T')
-def __process_file_handler(file_handler: Callable[[FilePath], T], filepath: FilePath, is_required: bool) -> Optional[T]:
-    try:
-        return file_handler(filepath)
-    except FileNotFoundError as e:
-        if is_required:
-            raise ConfigurationError(f"Required file not found: '{str(filepath)}'") from e
-
-
-def read_file(filepath: FilePath, *, is_required: bool = True) -> Optional[str]:
+def read_file(filepath: FilePath) -> str:
     """
     Reads a file and return its content if required
 
@@ -79,10 +70,11 @@ def read_file(filepath: FilePath, *, is_required: bool = True) -> Optional[str]:
     Returns:
         Content of the file, or None if doesn't exist and not required
     """
-    def file_handler(filepath: FilePath):
+    try:
         with open(filepath, 'r') as f:
             return f.read()
-    return __process_file_handler(file_handler, filepath, is_required)
+    except FileNotFoundError as e:
+        raise ConfigurationError(f"Required file not found: '{str(filepath)}'") from e
 
 
 def normalize_name(name: str) -> str:
@@ -180,17 +172,17 @@ def run_sql_on_dataframes(sql_query: str, dataframes: dict[str, pd.DataFrame], *
     do_use_duckdb = use_duckdb() if do_use_duckdb is None else do_use_duckdb
     if do_use_duckdb:
         import duckdb
-        conn = duckdb.connect()
+        duckdb_conn = duckdb.connect()
     else:
         conn = sqlite3.connect(":memory:")
     
     try:
         for name, df in dataframes.items():
             if do_use_duckdb:
-                conn.execute(f"CREATE TABLE {name} AS FROM df")
+                duckdb_conn.execute(f"CREATE TABLE {name} AS FROM df")
             else:
                 df.to_sql(name, conn, index=False)
         
-        return conn.execute(sql_query).df() if do_use_duckdb else pd.read_sql(sql_query, conn)
+        return duckdb_conn.execute(sql_query).df() if do_use_duckdb else pd.read_sql(sql_query, conn)
     finally:
-        conn.close()
+        duckdb_conn.close() if do_use_duckdb else conn.close()

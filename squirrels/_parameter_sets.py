@@ -35,10 +35,10 @@ class _ParameterConfigsSet:
     """
     Pool of parameter configs, can create multiple for unit testing purposes
     """
-    _data: dict[str, pc.ParameterConfig] = field(default_factory=OrderedDict)
+    _data: dict[str, pc.ParameterConfigBase] = field(default_factory=OrderedDict)
     _data_source_params: dict[str, pc.DataSourceParameterConfig] = field(default_factory=dict)
         
-    def get(self, name: Optional[str]) -> Optional[pc.ParameterConfig]:
+    def get(self, name: Optional[str]) -> Optional[pc.ParameterConfigBase]:
         try:
             return self._data[name] if name is not None else None
         except KeyError as e:
@@ -60,6 +60,7 @@ class _ParameterConfigsSet:
                 name = stack[-1]
                 if name not in done:
                     param = self._data_source_params.get(name, self.get(name))
+                    assert param is not None
                     parent_name = param.parent_name
                     if parent_name is not None and parent_name not in done:
                         stack.append(parent_name)
@@ -107,7 +108,7 @@ class _ParameterConfigsSet:
         *, updates_only: bool = False, request_version: Optional[int] = None
     ) -> ParameterSet:
         if dataset_params is None:
-            dataset_params = self._data.keys()
+            dataset_params = list(self._data.keys())
         
         parameters_by_name: dict[str, p.Parameter] = {}
         params_to_process = selections.keys() if selections and updates_only else dataset_params
@@ -119,6 +120,7 @@ class _ParameterConfigsSet:
                 children = []
                 if curr_name not in parameters_by_name:
                     param_conf = self.get(curr_name)
+                    assert isinstance(param_conf, pc.ParameterConfig)
                     parent_name = param_conf.parent_name
                     if parent_name is None:
                         parent = None
@@ -127,6 +129,7 @@ class _ParameterConfigsSet:
                         continue
                     else:
                         parent = parameters_by_name.get(parent_name)
+                    assert isinstance(parent, p._SelectionParameter) or parent is None
                     param = param_conf.with_selection(selections.get(curr_name), user, parent)
                     parameters_by_name[curr_name] = param
                     if isinstance(param_conf, pc.SelectionParameterConfig):
@@ -138,7 +141,11 @@ class _ParameterConfigsSet:
         return ParameterSet(ordered_parameters)
     
     def get_all_api_field_info(self) -> dict[str, pc.APIParamFieldInfo]:
-        return {param: config.get_api_field_info() for param, config in self._data.items()}
+        api_field_infos = {}
+        for param, config in self._data.items():
+            assert isinstance(config, pc.ParameterConfig)
+            api_field_infos[param] = config.get_api_field_info()
+        return api_field_infos
 
 
 class ParameterConfigsSetIO:
@@ -149,7 +156,7 @@ class ParameterConfigsSetIO:
     obj: _ParameterConfigsSet
     
     @classmethod
-    def _GetDfDictFromDataSources(cls) -> dict[str, pd.DataFrame]:
+    def _get_df_dict_from_data_sources(cls) -> dict[str, pd.DataFrame]:
         def get_dataframe(ds_param_config: pc.DataSourceParameterConfig) -> tuple[str, pd.DataFrame]:
             return ds_param_config.name, ds_param_config.get_dataframe(ConnectionSetIO.obj, SeedsIO.obj)
         
@@ -160,24 +167,24 @@ class ParameterConfigsSetIO:
         return df_dict
     
     @classmethod
-    def _AddFromDict(cls, param_config: ParametersConfig) -> None:
+    def _add_from_dict(cls, param_config: ParametersConfig) -> None:
         ptype = getattr(p, param_config.type)
         factory = getattr(ptype, param_config.factory)
         factory(**param_config.arguments)
     
     @classmethod
-    def LoadFromFile(cls) -> None:
+    def load_from_file(cls) -> None:
         start = time.time()
         cls.obj = _ParameterConfigsSet()
 
         for param_as_dict in ManifestIO.obj.parameters:
-            cls._AddFromDict(param_as_dict)
+            cls._add_from_dict(param_as_dict)
         
         conn_args = ConnectionSetIO.args
         cls.args = ParametersArgs(conn_args.proj_vars, conn_args.env_vars)
         pm.run_pyconfig_main(c.PARAMETERS_FILE, {"sqrl": cls.args})
         
-        df_dict = cls._GetDfDictFromDataSources()
+        df_dict = cls._get_df_dict_from_data_sources()
         cls.obj._post_process_params(df_dict)
         
         timer.add_activity_time("loading parameters", start)

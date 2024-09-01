@@ -136,7 +136,7 @@ class _SelectionDataSource(DataSource):
                 result[key] = record[val]
             return result
         
-        records: dict[str, dict[str, Any]] = df_agg.to_dict("index")
+        records = df_agg.to_dict("index")
         return tuple(
             po.SelectParameterOption(str(id), str(record[self._options_col]), 
                                      is_default=get_is_default(record), custom_fields=get_custom_fields(record),
@@ -344,7 +344,7 @@ class DateDataSource(DataSource):
         columns = [self._default_date_col]
         df_agg = self._get_aggregated_df(df, columns)
 
-        records: dict[str, dict[str, Any]] = df_agg.to_dict("index")
+        records = df_agg.to_dict("index")
         options = tuple(
             po.DateParameterOption(str(record[self._default_date_col]), date_format=self._date_format, 
                                    user_groups=self._get_key_from_record_as_list(self._user_group_col, record), 
@@ -412,7 +412,7 @@ class DateRangeDataSource(DataSource):
         columns = [self._default_start_date_col, self._default_end_date_col]
         df_agg = self._get_aggregated_df(df, columns)
 
-        records: dict[str, dict[str, Any]] = df_agg.to_dict("index")
+        records = df_agg.to_dict("index")
         options = tuple(
             po.DateRangeParameterOption(str(record[self._default_start_date_col]), str(record[self._default_end_date_col]),
                                         date_format=self._date_format, 
@@ -502,7 +502,7 @@ class NumberDataSource(_NumericDataSource):
         columns = [self._min_value_col, self._max_value_col, self._increment_col, self._default_value_col]
         df_agg = self._get_aggregated_df(df, columns)
 
-        records: dict[str, dict[str, Any]] = df_agg.to_dict("index")
+        records = df_agg.to_dict("index")
         options = tuple(
             po.NumberParameterOption(record[self._min_value_col], record[self._max_value_col], 
                                      increment=self._get_key_from_record(self._increment_col, record, 1),
@@ -573,7 +573,7 @@ class NumberRangeDataSource(_NumericDataSource):
         columns = [self._min_value_col, self._max_value_col, self._increment_col, self._default_lower_value_col, self._default_upper_value_col]
         df_agg = self._get_aggregated_df(df, columns)
 
-        records: dict[str, Any] = df_agg.to_dict("index")
+        records = df_agg.to_dict("index")
         options = tuple(
             po.NumberRangeParameterOption(record[self._min_value_col], record[self._max_value_col], 
                                        increment=self._get_key_from_record(self._increment_col, record, 1),
@@ -638,7 +638,7 @@ class TextDataSource(DataSource):
         columns = [self._default_text_col]
         df_agg = self._get_aggregated_df(df, columns)
 
-        records: dict[str, dict[str, Any]] = df_agg.to_dict("index")
+        records = df_agg.to_dict("index")
         options = tuple(
             po.TextParameterOption(default_text=str(record[self._default_text_col]), 
                                    user_groups=self._get_key_from_record_as_list(self._user_group_col, record), 

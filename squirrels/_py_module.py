@@ -17,12 +17,13 @@ class PyModule:
         self.filepath = str(filepath)
         try:
             spec = importlib.util.spec_from_file_location(self.filepath, self.filepath)
+            assert spec is not None and spec.loader is not None
             self.module = importlib.util.module_from_spec(spec)
             spec.loader.exec_module(self.module)
         except FileNotFoundError as e:
             if is_required:
                 raise u.ConfigurationError(f"Required file not found: '{self.filepath}'") from e
-            self.module: Optional[ModuleType] = default_class
+            self.module = default_class
     
     def get_func_or_class(self, attr_name: str, *, default_attr: Any = None, is_required: bool = True) -> Any:
         """

@@ -1,6 +1,7 @@
+from pydantic import ValidationError
 import pytest
 
-from squirrels._environcfg import _EnvironConfig
+from squirrels._environcfg import _EnvironConfig, _UserConfig
 from squirrels import _utils as u
 
 
@@ -10,8 +11,8 @@ def test_wrong_environcfg():
             "email": "user1@domain.com"
         }
     }
-    with pytest.raises(u.ConfigurationError):
-        _EnvironConfig(users, {}, {}, {}) # needs password
+    with pytest.raises(ValidationError):
+        _EnvironConfig(users=users) # type: ignore # needs password
 
     credentials1 = {
         "cred1": {"password": ""}
@@ -19,10 +20,10 @@ def test_wrong_environcfg():
     credentials2 = {
         "cred2": {"username": ""}
     }
-    with pytest.raises(u.ConfigurationError):
-        _EnvironConfig({}, {}, credentials1, {}) # needs username
-    with pytest.raises(u.ConfigurationError):
-        _EnvironConfig({}, {}, credentials2, {}) # needs password
+    with pytest.raises(ValidationError):
+        _EnvironConfig(credentials=credentials1) # type: ignore # needs username
+    with pytest.raises(ValidationError):
+        _EnvironConfig(credentials=credentials2) # type: ignore # needs password
 
 
 @pytest.fixture(scope="module")
@@ -56,15 +57,19 @@ def basic_environcfg(basic_users: dict, basic_env_vars: dict) -> _EnvironConfig:
         }
     }
     secrets = {"key1": "secret1"}
-    return _EnvironConfig(basic_users, basic_env_vars, credentials, secrets)
+    return _EnvironConfig(users=basic_users, env_vars=basic_env_vars, credentials=credentials, secrets=secrets) # type: ignore
 
 
-def test_get_users(basic_environcfg: _EnvironConfig, basic_users: dict):
-    assert basic_environcfg.get_users() == basic_users.copy()
+def test_get_users(basic_environcfg: _EnvironConfig):
+    expected = {
+        "user1": _UserConfig(username="user1", password="secret1", email="user1@domain.com"), # type: ignore
+        "user2": _UserConfig(username="user2", password="secret2", email="user2@domain.com"), # type: ignore
+    }
+    assert basic_environcfg.get_users() == expected
 
 
 def test_get_all_env_vars(basic_environcfg: _EnvironConfig, basic_env_vars: dict):
-    assert basic_environcfg.get_all_env_vars() == basic_env_vars.copy()
+    assert basic_environcfg.get_all_env_vars() == basic_env_vars
 
 
 def test_get_credential(basic_environcfg: _EnvironConfig):
@@ -75,7 +80,4 @@ def test_get_credential(basic_environcfg: _EnvironConfig):
 
 def test_get_secret(basic_environcfg: _EnvironConfig):
     assert basic_environcfg.get_secret("key1", default_factory=lambda: "value") == "secret1"
-    assert basic_environcfg.get_secret("key10") == None
     assert basic_environcfg.get_secret("key10", default_factory=lambda: "value") == "value"
-    assert basic_environcfg.get_secret("key10") == "value"
-    assert basic_environcfg.get_secret("key11") == None

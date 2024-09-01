@@ -118,14 +118,14 @@ class TestTimestampModifier:
     @pytest.mark.parametrize('modifiers,input_date,expected_date', [
         ([d.DayIdxOfQuarter(1), d.DayIdxOfWeek(-1), d.OffsetMonths(-2)], 1684123200, 1675314000),
     ])
-    def test_modify(self, modifiers: list[d.DateModifier], input_date: str, expected_date: str):
+    def test_modify(self, modifiers: list[d.DateModifier], input_date: float, expected_date: float):
         assert d.TimestampModifier(modifiers).modify(input_date) == expected_date
     
     @pytest.mark.parametrize('modifiers,more_modifiers,input_date,expected_date1,expected_date2', [
         ([d.DayIdxOfQuarter(1)], (d.DayIdxOfWeek(-1), d.OffsetMonths(-2)), 1684123200, 1680321600, 1675314000),
     ])
     def test_with_more_modifiers(self, modifiers: list[d.DateModifier], more_modifiers: list[d.DateModifier], 
-                                 input_date: str, expected_date1: str, expected_date2: str):
+                                 input_date: float, expected_date1: float, expected_date2: float):
         date_str_modifier = d.TimestampModifier(modifiers)
         new_date_str_modifier = date_str_modifier.with_more_modifiers(more_modifiers)
         assert date_str_modifier.modify(input_date) == expected_date1

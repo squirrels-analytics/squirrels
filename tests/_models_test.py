@@ -2,6 +2,7 @@ import pytest, asyncio, pandas as pd, time
 
 from squirrels import _models as m, _utils as u
 from squirrels.arguments.run_time_args import ContextArgs
+from squirrels._manifest import DatasetConfig
 
 
 @pytest.fixture(scope="function")
@@ -28,7 +29,7 @@ def test_get_sql_for_create(fixture: str, query: str, expected: str, request: py
     ("sql_model_config1", {"materialized": "taBle"}, m._SqlModelConfig("my_conn_name", m.Materialization.TABLE)),
     ("sql_model_config2", {"connection_name": "Test"}, m._SqlModelConfig("Test", m.Materialization.TABLE))
 ])
-def test_set_attribute(fixture: str, kwargs: str, expected: m._SqlModelConfig, request: pytest.FixtureRequest):
+def test_set_attribute(fixture: str, kwargs: dict[str, str], expected: m._SqlModelConfig, request: pytest.FixtureRequest):
     sql_model_config: m._SqlModelConfig = request.getfixturevalue(fixture)
     assert sql_model_config.set_attribute(**kwargs) == ""
     assert sql_model_config == expected
@@ -120,32 +121,33 @@ def modelC2(modelC2_query_file):
 
 @pytest.fixture(scope="function")
 def modelSeed():
-    return m._Seed("modelSeed", None)
+    return m._Seed("modelSeed", pd.DataFrame())
 
 
 @pytest.fixture(scope="function")
 def compiled_dag(modelA, modelB1, modelB2, modelC1a, modelC2, modelSeed, context_args):
-    models: list[m._Model] = [modelA, modelB1, modelB2, modelC1a, modelC2, modelSeed]
+    models: list[m._Referable] = [modelA, modelB1, modelB2, modelC1a, modelC2, modelSeed]
     models_dict = {mod.name: mod for mod in models}
-    dag = m._DAG(None, modelA, models_dict)
+    dag = m._DAG(DatasetConfig(name="test"), modelA, models_dict)
     asyncio.run(dag._compile_models({}, context_args, True))
     return dag
 
 
 @pytest.fixture(scope="function")
 def compiled_dag_with_cycle(modelA, modelB1, modelB2, modelC1b, modelC2, modelSeed, context_args):
-    models: list[m._Model] = [modelA, modelB1, modelB2, modelC1b, modelC2, modelSeed]
+    models: list[m._Referable] = [modelA, modelB1, modelB2, modelC1b, modelC2, modelSeed]
     models_dict = {mod.name: mod for mod in models}
-    dag = m._DAG(None, modelA, models_dict)
+    dag = m._DAG(DatasetConfig(name="test"), modelA, models_dict)
     asyncio.run(dag._compile_models({}, context_args, True))
     return dag
 
 
 def test_compile(compiled_dag: m._DAG):
-    modelA: m._Model = compiled_dag.models_dict["modelA"]
-    modelB1: m._Model = compiled_dag.models_dict["modelB1"]
-    modelB2: m._Model = compiled_dag.models_dict["modelB2"]
-    modelC2: m._Model = compiled_dag.models_dict["modelC2"]
+    assert isinstance(modelA := compiled_dag.models_dict["modelA"], m._Model)
+    assert isinstance(modelB1 := compiled_dag.models_dict["modelB1"], m._Model)
+    assert isinstance(modelB2 := compiled_dag.models_dict["modelB2"], m._Model)
+    assert isinstance(modelC2 := compiled_dag.models_dict["modelC2"], m._Model)
+    assert isinstance(modelA.compiled_query, m._Query)
     assert modelA.compiled_query.query == "SELECT * FROM modelB1 JOIN modelB2 USING (row_id)"
     assert modelA.upstreams == {"modelB1": modelB1, "modelB2": modelB2}
     assert modelA.downstreams == {}
@@ -178,16 +180,16 @@ def test_run_models(compiled_dag: m._DAG):
     asyncio.run(compiled_dag._run_models(terminal_nodes))
     end = time.time()
     
-    assert modelA.result.equals(pd.DataFrame({"row_id": ["a", "b", "c"], "valB": [1, 2, 3], "valC": [10, 20, 30]}))
+    assert pd.DataFrame(modelA.result).equals(pd.DataFrame({"row_id": ["a", "b", "c"], "valB": [1, 2, 3], "valC": [10, 20, 30]}))
     assert (end - start) < 2.5
 
 
 @pytest.fixture(scope="module")
 def selection_test_sets1() -> dict[str, m.TestSetsConfig]:
     return {
-        "test_set1": m.TestSetsConfig("test_set1"),
-        "test_set2": m.TestSetsConfig("test_set2", datasets=["modelA"]),
-        "test_set3": m.TestSetsConfig("test_set3", datasets=["modelB"]),
+        "test_set1": m.TestSetsConfig(name="test_set1"),
+        "test_set2": m.TestSetsConfig(name="test_set2", datasets=["modelA"]),
+        "test_set3": m.TestSetsConfig(name="test_set3", datasets=["modelB"]),
     }
 
 

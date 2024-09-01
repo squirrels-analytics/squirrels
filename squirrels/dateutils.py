@@ -267,7 +267,7 @@ class DateModPipeline(DateModifier):
         Returns:
             A new sequence of DateModifier
         """
-        joined_modifiers = self._date_modifiers + tuple(date_modifiers)
+        joined_modifiers = tuple(self._date_modifiers) + tuple(date_modifiers)
         return joined_modifiers
 
     def with_more_modifiers(self, date_modifiers: Sequence[DateModifier]):
@@ -283,7 +283,7 @@ class DateModPipeline(DateModifier):
         joined_modifiers = self.get_joined_modifiers(date_modifiers)
         return DateModPipeline(joined_modifiers)
     
-    def get_date_list(self, start_date: Date, step: _OffsetUnits) -> Sequence[Date]:
+    def get_date_list(self, start_date: Date, step: DateModifier) -> Sequence[Date]:
         """
         This method modifies the input date, and returns all dates from the input date to the modified date, 
         incremented by a DateModifier step.
@@ -300,10 +300,11 @@ class DateModPipeline(DateModifier):
         Returns:
             A list of datetime objects
         """
+        assert isinstance(step, _OffsetUnits)
         if step.offset == 0:
             raise u.ConfigurationError(f"The length of 'step' must not be zero")
         
-        output = []
+        output: Sequence[Date] = []
         end_date = self.modify(start_date)
         curr_date = start_date
         is_not_done_positive_step = lambda: curr_date <= end_date and step.offset > 0
@@ -355,11 +356,11 @@ class DateStringModifier(_DateRepresentationModifier):
         joined_modifiers = self.date_modifier.get_joined_modifiers(date_modifiers)
         return DateStringModifier(joined_modifiers, self._date_format)
     
-    def _get_input_date_obj(self, date_str: str, input_format: str = None) -> Date:
+    def _get_input_date_obj(self, date_str: str, input_format: str | None = None) -> Date:
         input_format = self._date_format if input_format is None else input_format
         return datetime.strptime(date_str, input_format).date()
 
-    def modify(self, date_str: str, input_format: str = None) -> str:
+    def modify(self, date_str: str, input_format: str | None = None) -> str:
         """
         Modifies the input date string with the date modifiers
 
@@ -373,7 +374,7 @@ class DateStringModifier(_DateRepresentationModifier):
         date_obj = self._get_input_date_obj(date_str, input_format)
         return self.date_modifier.modify(date_obj).strftime(self._date_format)
     
-    def get_date_list(self, start_date_str: str, step: DateModifier, input_format: str = None) -> Sequence[str]:
+    def get_date_list(self, start_date_str: str, step: DateModifier, input_format: str | None = None) -> Sequence[str]:
         """
         This method modifies the input date string, and returns all dates as strings from the input date 
         to the modified date, incremented by a DateModifier step.
@@ -391,6 +392,7 @@ class DateStringModifier(_DateRepresentationModifier):
         Returns:
             A list of date strings
         """
+        assert isinstance(step, _OffsetUnits)
         curr_date = self._get_input_date_obj(start_date_str, input_format)
         output = self.date_modifier.get_date_list(curr_date, step)
         return [x.strftime(self._date_format) for x in output]
@@ -433,9 +435,10 @@ class TimestampModifier(_DateRepresentationModifier):
         Returns:
             The resulting timestamp
         """
-        date_obj = datetime.fromtimestamp(timestamp)
-        modified_date: datetime = self.date_modifier.modify(date_obj)
-        return modified_date.timestamp()
+        date_obj = datetime.fromtimestamp(timestamp).date()
+        modified_date = self.date_modifier.modify(date_obj)
+        modified_datetime = datetime.combine(modified_date, datetime.min.time())
+        return modified_datetime.timestamp()
     
     def get_date_list(self, start_timestamp: float, step: DateModifier) -> Sequence[float]:
         """
@@ -454,6 +457,6 @@ class TimestampModifier(_DateRepresentationModifier):
         Returns:
             A list of timestamp as floats
         """
-        curr_date = datetime.fromtimestamp(start_timestamp)
-        output: Sequence[datetime] = self.date_modifier.get_date_list(curr_date, step)
-        return [x.timestamp() for x in output]
+        curr_date = datetime.fromtimestamp(start_timestamp).date()
+        output = self.date_modifier.get_date_list(curr_date, step)
+        return [datetime.combine(x, datetime.min.time()).timestamp() for x in output]

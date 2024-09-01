@@ -1,4 +1,4 @@
-__version__ = '0.3.3'
+__version__ = '0.4.0'
 
 from .arguments.init_time_args import ConnectionsArgs, ParametersArgs
 from .arguments.run_time_args import AuthArgs, ContextArgs, ModelDepsArgs, ModelArgs, DashboardArgs
@@ -13,3 +13,5 @@ from .data_sources import SingleSelectDataSource, MultiSelectDataSource, SelectD
 from .data_sources import NumberDataSource, NumberRangeDataSource, TextDataSource
 
 from .user_base import User, WrongPassword
+
+from .dashboards import Dashboard, PngDashboard, HtmlDashboard
