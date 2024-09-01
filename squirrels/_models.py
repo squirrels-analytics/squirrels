@@ -1,5 +1,5 @@
 from __future__ import annotations
-from typing import Optional, Callable, Iterable, Any
+from typing import Iterable, Callable, Any
 from dataclasses import dataclass, field
 from abc import ABCMeta, abstractmethod
 from enum import Enum
@@ -12,7 +12,7 @@ from . import _constants as c, _utils as u, _py_module as pm
 from .arguments.run_time_args import ContextArgs, ModelDepsArgs, ModelArgs
 from ._authenticator import User, Authenticator
 from ._connection_set import ConnectionSetIO
-from ._manifest import ManifestIO, DatasetsConfig, DatasetScope, TestSetsConfig
+from ._manifest import ManifestIO, DatasetConfig, DatasetScope, TestSetsConfig
 from ._parameter_sets import ParameterConfigsSetIO, ParameterSet
 from ._seeds import SeedsIO
 from ._timer import timer, time
@@ -39,14 +39,12 @@ class _SqlModelConfig:
     ## Applicable for federated models
     materialized: Materialization
     
-    def set_attribute(self, **kwargs) -> str:
-        connection_name = kwargs.get(c.DBVIEW_CONN_KEY)
+    def set_attribute(self, *, connection_name: str | None = None, materialized: str | None = None, **kwargs) -> str:
         if connection_name is not None: 
             if not isinstance(connection_name, str):
                 raise u.ConfigurationError("The 'connection_name' argument of 'config' macro must be a string")
             self.connection_name = connection_name
         
-        materialized: Optional[str] = kwargs.get(c.MATERIALIZED_KEY)
         if materialized is not None:
             if not isinstance(materialized, str):
                 raise u.ConfigurationError("The 'materialized' argument of 'config' macro must be a string")
@@ -58,13 +56,7 @@ class _SqlModelConfig:
         return ""
 
     def get_sql_for_create(self, model_name: str, select_query: str) -> str:
-        if self.materialized == Materialization.TABLE:
-            create_prefix = f"CREATE TABLE {model_name} AS\n"
-        elif self.materialized == Materialization.VIEW:
-            create_prefix = f"CREATE VIEW {model_name} AS\n"
-        else:
-            raise u.ConfigurationError(f"Materialization option not supported: {self.materialized}")
-        
+        create_prefix = f"CREATE {self.materialized.name} {model_name} AS\n"
         return create_prefix + select_query
 
 
@@ -81,8 +73,8 @@ class _RawSqlQuery(_RawQuery):
 
 @dataclass(frozen=True)
 class _RawPyQuery(_RawQuery):
-    query: Callable[[Any], pd.DataFrame]
-    dependencies_func: Callable[[Any], Iterable]
+    query: Callable[[ModelArgs], pd.DataFrame]
+    dependencies_func: Callable[[ModelDepsArgs], Iterable[str]]
 
 
 @dataclass
@@ -118,7 +110,7 @@ class _Referable(metaclass=ABCMeta):
 
     needs_sql_table: bool = field(default=False, init=False)
     needs_pandas: bool = field(default=False, init=False)
-    result: Optional[pd.DataFrame] = field(default=None, init=False, repr=False)
+    result: pd.DataFrame | None = field(default=None, init=False, repr=False)
 
     wait_count: int = field(default=0, init=False, repr=False)
     confirmed_no_cycles: bool = field(default=False, init=False)
@@ -168,7 +160,8 @@ class _Referable(metaclass=ABCMeta):
             if len(path_lengths) > 0:
                 self.max_path_len_to_target = max(path_lengths)
             else:
-                self.max_path_len_to_target = 0 if self.is_target else None
+                assert self.is_target
+                self.max_path_len_to_target = 0
         return self.max_path_len_to_target
 
 
@@ -192,7 +185,7 @@ class _Seed(_Referable):
 class _Model(_Referable):
     query_file: _QueryFile
 
-    compiled_query: Optional[_Query] = field(default=None, init=False)
+    compiled_query: _Query | None = field(default=None, init=False)
 
     def get_model_type(self) -> ModelType:
         return self.query_file.model_type
@@ -212,10 +205,10 @@ class _Model(_Referable):
             return ManifestIO.obj.settings.get(c.DB_CONN_DEFAULT_USED_SETTING, c.DEFAULT_DB_CONN)
         return dbview_config.connection_name
 
-    def _get_materialized(self) -> str:
+    def _get_materialized(self) -> Materialization:
         federate_config = ManifestIO.obj.federates.get(self.name)
         if federate_config is None or federate_config.materialized is None:
-            materialized = ManifestIO.obj.settings.get(c.DEFAULT_MATERIALIZE_SETTING, c.DEFAULT_TABLE_MATERIALIZE)
+            materialized = ManifestIO.obj.settings.get(c.DEFAULT_MATERIALIZE_SETTING, c.DEFAULT_MATERIALIZE)
         else:
             materialized = federate_config.materialized
         return Materialization[materialized.upper()]
@@ -252,8 +245,8 @@ class _Model(_Referable):
     
     async def _compile_python_model(
         self, ctx: dict[str, Any], ctx_args: ContextArgs, placeholders: dict[str, Any]
-    ) -> tuple[_PyModelQuery, set]:
-        assert(isinstance(self.query_file.raw_query, _RawPyQuery))
+    ) -> tuple[_PyModelQuery, Iterable]:
+        assert isinstance(self.query_file.raw_query, _RawPyQuery)
         
         sqrl_args = ModelDepsArgs(
             ctx_args.proj_vars, ctx_args.env_vars, ctx_args.user, ctx_args.prms, ctx_args.traits, placeholders, ctx
@@ -265,7 +258,7 @@ class _Model(_Referable):
         
         dbview_conn_name = self._get_dbview_conn_name()
         connections = ConnectionSetIO.obj.get_engines_as_dict()
-        ref = lambda model: self.upstreams[model].result
+        ref: Callable[[str], pd.DataFrame] = lambda model: pd.DataFrame(self.upstreams[model].result)
         sqrl_args = ModelArgs(
             ctx_args.proj_vars, ctx_args.env_vars, ctx_args.user, ctx_args.prms, ctx_args.traits, placeholders, ctx, 
             dbview_conn_name, connections, dependencies, ref
@@ -273,8 +266,9 @@ class _Model(_Referable):
             
         def compiled_query():
             try:
+                assert isinstance(self.query_file.raw_query, _RawPyQuery)
                 raw_query: _RawPyQuery = self.query_file.raw_query
-                return raw_query.query(sqrl=sqrl_args)
+                return raw_query.query(sqrl_args)
             except Exception as e:
                 raise u.FileExecutionError(f'Failed to run "{c.MAIN_FUNC}" function for python model "{self.name}"', e) from e
         
@@ -298,7 +292,7 @@ class _Model(_Referable):
             raise u.ConfigurationError(f"Query type not supported: {self.query_file.query_type}")
         
         self.compiled_query = compiled_query
-        self.wait_count = len(dependencies)
+        self.wait_count = len(set(dependencies))
 
         model_type = self.get_model_type().name.lower()
         timer.add_activity_time(f"compiling {model_type} model '{self.name}'", start)
@@ -393,14 +387,14 @@ class _Model(_Referable):
 
 @dataclass
 class _DAG:
-    dataset: DatasetsConfig
+    dataset: DatasetConfig
     target_model: _Referable
     models_dict: dict[str, _Referable]
-    parameter_set: Optional[ParameterSet] = field(default=None, init=False)
+    parameter_set: ParameterSet | None = field(default=None, init=False)
     placeholders: dict[str, Any] = field(init=False, default_factory=dict)
 
     def apply_selections(
-        self, user: Optional[User], selections: dict[str, str], *, updates_only: bool = False, request_version: Optional[int] = None
+        self, user: User | None, selections: dict[str, str], *, updates_only: bool = False, request_version: int | None = None
     ) -> None:
         start = time.time()
         dataset_params = self.dataset.parameters
@@ -410,14 +404,15 @@ class _DAG:
         self.parameter_set = parameter_set
         timer.add_activity_time(f"applying selections for dataset '{self.dataset.name}'", start)
     
-    def _compile_context(self, context_func: ContextFunc, user: Optional[User]) -> tuple[dict[str, Any], ContextArgs]:
+    def _compile_context(self, context_func: ContextFunc, user: User | None) -> tuple[dict[str, Any], ContextArgs]:
         start = time.time()
         context = {}
         param_args = ParameterConfigsSetIO.args
+        assert isinstance(self.parameter_set, ParameterSet)
         prms = self.parameter_set.get_parameters_as_dict()
         args = ContextArgs(param_args.proj_vars, param_args.env_vars, user, prms, self.dataset.traits, self.placeholders)
         try:
-            context_func(ctx=context, sqrl=args)
+            context_func(context, args)
         except Exception as e:
             raise u.FileExecutionError(f'Failed to run {c.CONTEXT_FILE} for dataset "{self.dataset.name}"', e) from e
         timer.add_activity_time(f"running context.py for dataset '{self.dataset.name}'", start)
@@ -448,7 +443,7 @@ class _DAG:
         engine.dispose()
     
     async def execute(
-        self, context_func: ContextFunc, user: Optional[User], selections: dict[str, str], *, request_version: Optional[int] = None,
+        self, context_func: ContextFunc, user: User | None, selections: dict[str, str], *, request_version: int | None = None,
         runquery: bool = True, recurse: bool = True
     ) -> dict[str, Any]:
         recurse = (recurse or runquery)
@@ -493,7 +488,7 @@ class ModelsIO:
     context_func: ContextFunc
 
     @classmethod
-    def LoadFiles(cls) -> None:
+    def load_files(cls) -> None:
         start = time.time()
         cls.raw_queries_by_model = {}
 
@@ -534,7 +529,7 @@ class ModelsIO:
         timer.add_activity_time("loading files for models and context.py", start)
 
     @classmethod
-    def GenerateDAG(cls, dataset: str, *, target_model_name: Optional[str] = None, always_pandas: bool = False) -> _DAG:
+    def generate_dag(cls, dataset: str, *, target_model_name: str | None = None, always_pandas: bool = False) -> _DAG:
         seeds_dict = SeedsIO.obj.get_dataframes()
 
         models_dict: dict[str, _Referable] = {key: _Seed(key, df) for key, df in seeds_dict.items()}
@@ -557,7 +552,7 @@ class ModelsIO:
         
         fig, _ = plt.subplots()
         pos = nx.multipartite_layout(G, subset_key="layer")
-        colors = [color_map[node[1]] for node in G.nodes(data="model_type")]
+        colors = [color_map[node[1]] for node in G.nodes(data="model_type")] # type: ignore
         nx.draw(G, pos=pos, node_shape='^', node_size=1000, node_color=colors, arrowsize=20)
         
         y_values = [val[1] for val in pos.values()]
@@ -571,15 +566,14 @@ class ModelsIO:
         plt.close(fig)
 
     @classmethod
-    async def WriteDatasetOutputsGivenTestSet(
-        cls, dataset_conf: DatasetsConfig, select: str, test_set: Optional[str], runquery: bool, recurse: bool
-    ) -> Any:
+    async def write_dataset_outputs_given_test_set(
+        cls, dataset_conf: DatasetConfig, select: str, test_set: str | None, runquery: bool, recurse: bool
+    ) -> Any | None:
         dataset = dataset_conf.name
-        default_test_set, default_test_set_conf = ManifestIO.obj.get_default_test_set(dataset)
-        if test_set is None or test_set == default_test_set:
-            test_set, test_set_conf = default_test_set, default_test_set_conf
-        elif test_set in ManifestIO.obj.selection_test_sets:
+        if test_set in ManifestIO.obj.selection_test_sets:
             test_set_conf = ManifestIO.obj.selection_test_sets[test_set]
+        elif test_set is None or test_set == (default_test_set_conf := ManifestIO.obj.get_default_test_set(dataset)).name:
+            test_set, test_set_conf = default_test_set_conf.name, default_test_set_conf
         else:
             raise u.ConfigurationError(f"No test set named '{test_set}' was found when compiling dataset '{dataset}'. The test set must be defined if not default for dataset.")
         
@@ -602,7 +596,7 @@ class ModelsIO:
             raise u.ConfigurationError(f"{error_msg_intro}\n Private datasets require a test set with user_attribute 'is_internal' set to true")
 
         # always_pandas is set to True for creating CSV files from results (when runquery is True)
-        dag = cls.GenerateDAG(dataset, target_model_name=select, always_pandas=True)
+        dag = cls.generate_dag(dataset, target_model_name=select, always_pandas=True)
         placeholders = await dag.execute(cls.context_func, user, selections, runquery=runquery, recurse=recurse)
         
         output_folder = u.join_paths(c.TARGET_FOLDER, c.COMPILE_FOLDER, dataset, test_set)
@@ -615,7 +609,8 @@ class ModelsIO:
             with open(output_filepath, 'w') as f:
                 json.dump(placeholders, f, indent=4)
         
-        def write_model_outputs(model: _Model) -> None:
+        def write_model_outputs(model: _Referable) -> None:
+            assert isinstance(model, _Model)
             subfolder = c.DBVIEWS_FOLDER if model.query_file.model_type == ModelType.DBVIEW else c.FEDERATES_FOLDER
             subpath = u.join_paths(output_folder, subfolder)
             os.makedirs(subpath, exist_ok=True)
@@ -636,7 +631,7 @@ class ModelsIO:
         if recurse:
             cls.draw_dag(dag, output_folder)
         
-        if isinstance(dag.target_model, _Model):
+        if isinstance(dag.target_model, _Model) and dag.target_model.compiled_query is not None:
             return dag.target_model.compiled_query.query # else return None
     
     @classmethod
@@ -648,8 +643,8 @@ class ModelsIO:
         return applicable_test_sets
 
     @classmethod
-    async def WriteOutputs(
-        cls, dataset: Optional[str], do_all_datasets: bool, select: Optional[str], test_set: Optional[str], do_all_test_sets: bool, 
+    async def write_outputs(
+        cls, dataset: str | None, do_all_datasets: bool, select: str | None, test_set: str | None, do_all_test_sets: bool, 
         runquery: bool
     ) -> None:
         
@@ -658,6 +653,7 @@ class ModelsIO:
         if do_all_datasets:
             selected_models = [(dataset, dataset.model) for dataset in dataset_configs.values()]
         else:
+            assert isinstance(dataset, str)
             if select is None:
                 select = dataset_configs[dataset].model
             else:
@@ -668,10 +664,10 @@ class ModelsIO:
         for dataset_conf, select in selected_models:
             if do_all_test_sets:
                 for test_set_name in cls._get_applicable_test_sets(ManifestIO.obj.selection_test_sets, dataset_conf.name):
-                    coroutine = cls.WriteDatasetOutputsGivenTestSet(dataset_conf, select, test_set_name, runquery, recurse)
+                    coroutine = cls.write_dataset_outputs_given_test_set(dataset_conf, select, test_set_name, runquery, recurse)
                     coroutines.append(coroutine)
             
-            coroutine = cls.WriteDatasetOutputsGivenTestSet(dataset_conf, select, test_set, runquery, recurse)
+            coroutine = cls.write_dataset_outputs_given_test_set(dataset_conf, select, test_set, runquery, recurse)
             coroutines.append(coroutine)
         
         queries = await asyncio.gather(*coroutines)

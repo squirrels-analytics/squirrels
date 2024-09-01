@@ -47,6 +47,9 @@ datasets:
     default_test_set: auth_test1          ## optional - if not specified, uses setting 'selection_test_sets.default_name_used'
 
 
+{{ dashboards -}}
+
+
 selection_test_sets:
   - name: no_auth_test1
     datasets:                             ## optional section - if not provided, then test set is applicable for any dataset
@@ -77,8 +80,11 @@ settings: {}
 #   auth.token.expire_minutes: 30
 #   parameters.cache.size: 1024
 #   parameters.cache.ttl_minutes: 60
-#   results.cache.size: 128
-#   results.cache.ttl_minutes: 60
+#   datasets.cache.size: 128
+#   datasets.cache.ttl_minutes: 60
+#   dashboards.cache.size: 128
+#   dashboards.cache.ttl_minutes: 60
+#   dashboards.default_format: png
 #   selection_test_sets.default_name_used: default
 #   connections.default_name_used: default
 #   defaults.federates.materialized: table

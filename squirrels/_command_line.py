@@ -1,5 +1,7 @@
 from argparse import ArgumentParser
 import sys, time, asyncio
+
+from squirrels._dashboards_io import DashboardsIO
 sys.path.append('.')
 
 from . import _constants as c
@@ -25,6 +27,7 @@ def main():
     init_parser.add_argument('--parameters', type=str, choices=c.CONF_FORMAT_CHOICES, help=f'Configure parameters as python (default) or yaml. Ignored if "--core" is not specified')
     init_parser.add_argument('--dbview', type=str, choices=c.FILE_TYPE_CHOICES, help='Create database view model as sql (default) or python file. Ignored if "--core" is not specified')
     init_parser.add_argument('--federate', type=str, choices=c.FILE_TYPE_CHOICES, help='Create federated model as sql (default) or python file. Ignored if "--core" is not specified')
+    init_parser.add_argument('--dashboard', action='store_true', help=f'Include a sample dashboard file')
     init_parser.add_argument('--auth', action='store_true', help=f'Include the {c.AUTH_FILE} file')
     init_parser.add_argument('--sample-db', type=str, choices=c.DATABASE_CHOICES, help='Sample sqlite database to include')
 
@@ -59,6 +62,7 @@ def main():
     from ._models import ModelsIO
     from ._initializer import Initializer
     from ._manifest import ManifestIO
+    from ._environcfg import EnvironConfigIO
     from ._package_loader import PackageLoaderIO
     from ._connection_set import ConnectionSetIO
     from ._parameter_sets import ParameterConfigsSetIO
@@ -69,25 +73,28 @@ def main():
     elif args.command == c.INIT_CMD:
         Initializer(args.overwrite).init_project(args)
     elif args.command == c.DEPS_CMD:
-        ManifestIO.LoadFromFile()
-        PackageLoaderIO.LoadPackages(reload=True)
+        EnvironConfigIO.load_from_file()
+        ManifestIO.load_from_file()
+        PackageLoaderIO.load_packages(reload=True)
     elif args.command in [c.RUN_CMD, c.COMPILE_CMD]:
-        ManifestIO.LoadFromFile()
-        SeedsIO.LoadFiles()
-        ConnectionSetIO.LoadFromFile()
+        EnvironConfigIO.load_from_file()
+        ManifestIO.load_from_file()
+        SeedsIO.load_files()
+        ConnectionSetIO.load_from_file()
         try:
-            ParameterConfigsSetIO.LoadFromFile()
-            ModelsIO.LoadFiles()
+            ParameterConfigsSetIO.load_from_file()
+            ModelsIO.load_files()
             if args.command == c.RUN_CMD:
+                DashboardsIO.load_files()
                 server = ApiServer(args.no_cache)
                 server.run(args)
             elif args.command == c.COMPILE_CMD:
-                task = ModelsIO.WriteOutputs(args.dataset, args.all_datasets, args.select, args.test_set, args.all_test_sets, args.runquery)
+                task = ModelsIO.write_outputs(args.dataset, args.all_datasets, args.select, args.test_set, args.all_test_sets, args.runquery)
                 asyncio.run(task)
         except KeyboardInterrupt:
             pass
         finally:
-            ConnectionSetIO.Dispose()
+            ConnectionSetIO.dispose()
     elif args.command is None:
         print(f'Command is missing. Enter "squirrels -h" for help.')
     else:

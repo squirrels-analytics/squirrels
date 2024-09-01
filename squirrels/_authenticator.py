@@ -25,9 +25,9 @@ class Authenticator:
         self.secret_key = self._get_secret_key()
         self.algorithm = "HS256"
 
-    def _get_secret_key(self):
+    def _get_secret_key(self) -> str:
         secret_key = EnvironConfigIO.obj.get_secret(c.JWT_SECRET_KEY, default_factory=lambda: secrets.token_hex(32))
-        return secret_key
+        return str(secret_key)
     
     def _get_auth_args(self, username: str, password: str):
         conn_args, connections = ConnectionSetIO.args, ConnectionSetIO.obj.get_engines_as_dict()
@@ -46,8 +46,8 @@ class Authenticator:
         
         if not isinstance(real_user, WrongPassword):
             fake_users = EnvironConfigIO.obj.get_users()
-            if username in fake_users and secrets.compare_digest(fake_users[username][c.USER_PWD_KEY], password):
-                fake_user = fake_users[username].copy()
+            if username in fake_users and secrets.compare_digest(fake_users[username].password, password):
+                fake_user = fake_users[username].model_dump()
                 fake_user.pop("username", "")
                 is_internal = fake_user.pop("is_internal", False)
                 try:

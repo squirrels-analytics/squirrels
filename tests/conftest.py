@@ -27,10 +27,10 @@ def my_initial_code():
             "password": "pass1"
         }
     }
-    EnvironConfigIO.obj = _EnvironConfig(users, {}, credentials, {})
+    EnvironConfigIO.obj = _EnvironConfig(users=users, credentials=credentials) # type: ignore
 
     m.ManifestIO.obj = m._ManifestConfig(
-        project_variables=m.ProjectVarsConfig({"name":"", "major_version": 0}),
+        project_variables=m.ProjectVarsConfig(name="", major_version=0),
         packages=[],
         connections={},
         parameters=[],
@@ -38,8 +38,9 @@ def my_initial_code():
         dbviews={},
         federates={},
         datasets={},
+        dashboards={},
         settings={}
     )
 
-    ConnectionSetIO.args = ConnectionsArgs({}, {}, None)
+    ConnectionSetIO.args = ConnectionsArgs({}, {}, lambda x: ("", ""))
     ConnectionSetIO.obj = ConnectionSet({})

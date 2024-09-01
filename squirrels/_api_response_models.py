@@ -1,4 +1,4 @@
-from typing import Annotated, Union, Optional
+from typing import Annotated
 from pydantic import BaseModel, Field
 from datetime import datetime, date
 
@@ -10,16 +10,24 @@ class LoginReponse(BaseModel):
     expiry_time: datetime
 
 
-## Datasets Catalog Response Models
+## Datasets / Dashboards Catalog Response Models
 
-class DatasetInfoModel(BaseModel):
+class DatasetItemModel(BaseModel):
     name: Annotated[str, Field(examples=["mydataset"])]
     label: Annotated[str, Field(examples=["My Dataset"])]
     parameters_path: Annotated[str, Field(examples=["/squirrels-v0/myproject/v1/dataset/mydataset/parameters"])]
     result_path: Annotated[str, Field(examples=["/squirrels-v0/myproject/v1/dataset/mydataset"])]
 
-class DatasetsCatalogModel(BaseModel):
-    datasets: list[DatasetInfoModel]
+class DashboardItemModel(BaseModel):
+    name: Annotated[str, Field(examples=["mydashboard"])]
+    label: Annotated[str, Field(examples=["My Dashboard"])]
+    parameters_path: Annotated[str, Field(examples=["/squirrels-v0/myproject/v1/dashboard/mydashboard/parameters"])]
+    result_path: Annotated[str, Field(examples=["/squirrels-v0/myproject/v1/dashboard/mydashboard"])]
+    result_format: Annotated[str, Field(examples=["png", "html"])]
+
+class CatalogModel(BaseModel):
+    datasets: list[DatasetItemModel]
+    dashboards: list[DashboardItemModel]
 
 
 ## Parameters Response Models
@@ -40,7 +48,7 @@ class SelectParameterModel(ParameterModelBase):
 
 class SingleSelectParameterModel(SelectParameterModel):
     widget_type: Annotated[str, Field(examples=["single_select"])]
-    selected_id: Optional[str]
+    selected_id: str | None
 
 class MultiSelectParameterModel(SelectParameterModel):
     widget_type: Annotated[str, Field(examples=["multi_select"])]
@@ -78,10 +86,8 @@ class TextParameterModel(ParameterModelBase):
 
 class ParametersModel(BaseModel):
     parameters: list[
-        Union[
-            ParameterModelBase, SingleSelectParameterModel, MultiSelectParameterModel, DateParameterModel, DateRangeParameterModel,
-            NumberParameterModel, NumberRangeParameterModel, TextParameterModel
-        ]
+        ParameterModelBase | SingleSelectParameterModel | MultiSelectParameterModel | DateParameterModel | DateRangeParameterModel |
+        NumberParameterModel | NumberRangeParameterModel | TextParameterModel
     ]
 
 
@@ -100,18 +106,15 @@ class DatasetResultModel(BaseModel):
     data: Annotated[list[dict], Field(examples=[[{"mycol": "myval"}]])]
 
 
-## Catalog Response Models
+## Project Metadata Response Models
 
 class ProjectVersionModel(BaseModel):
     major_version: int
     minor_versions: list[int]
     token_path: Annotated[str, Field(examples=["/squirrels-v0/myproject/v1/token"])]
-    datasets_path: Annotated[str, Field(examples=["/squirrels-v0/myproject/v1/datasets"])]
+    data_catalog_path: Annotated[str, Field(examples=["/squirrels-v0/myproject/v1/datasets"])]
 
 class ProjectModel(BaseModel):
     name: Annotated[str, Field(examples=["myproject"])]
     label: Annotated[str, Field(examples=["My Project"])]
     versions: list[ProjectVersionModel]
-
-class ProjectMetadataModel(BaseModel):
-    projects: list[ProjectModel]

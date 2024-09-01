@@ -1,81 +1,85 @@
-from typing import Any, Optional, Callable
-from dataclasses import dataclass
+from pathlib import Path
+from typing import Any, Callable
+from pydantic import BaseModel, Field, field_validator, ValidationError
 import os, yaml
 
 from . import _constants as c, _utils as u
 from ._timer import timer, time
 
-_GLOBAL_SQUIRRELS_CFG_FILE1 = u.join_paths(os.path.expanduser('~'), '.squirrels', c.ENVIRON_CONFIG_FILE)
-_GLOBAL_SQUIRRELS_CFG_FILE2 = u.join_paths(os.path.expanduser('~'), '.squirrels', c.ENV_CONFIG_FILE)
+_GLOBAL_SQUIRRELS_CFG_FILE = u.join_paths(os.path.expanduser('~'), '.squirrels', c.ENV_CONFIG_FILE)
 
 
-@dataclass
-class _EnvironConfig:
-    _users: dict[str, dict[str, Any]]
-    _env_vars: dict[str, str]
-    _credentials: dict[str, dict[str, str]]
-    _secrets: dict[str, str]
+class _UserConfig(BaseModel, extra="allow"):
+    username: str
+    password: str
+    is_internal: bool = False
+
+
+class _CredentialsConfig(BaseModel):
+    username: str
+    password: str
+
+
+class _EnvironConfig(BaseModel):
+    users: dict[str, _UserConfig] = Field(default_factory=dict)
+    env_vars: dict[str, str] = Field(default_factory=dict)
+    credentials: dict[str, _CredentialsConfig] = Field(default_factory=dict)
+    secrets: dict[str, Any | None] = Field(default_factory=dict)
+
+    @field_validator("users", mode="before")
+    @classmethod
+    def inject_username(cls, users: dict[str, dict[str, Any]]) -> dict[str, dict[str, Any]]:
+        processed_users = {}
+        for username, user in users.items():
+            processed_users[username] = {"username": username, **user}
+        return processed_users
     
-    def __post_init__(self):
-        for username, user in self._users.items():
-            user[c.USER_NAME_KEY] = username
-            if c.USER_PWD_KEY not in user:
-                raise u.ConfigurationError(f"All users must have password in environcfg.yml")
-        
-        for key, cred in self._credentials.items():
-            if c.USERNAME_KEY not in cred or c.PASSWORD_KEY not in cred:
-                raise u.ConfigurationError(f'Either "{c.USERNAME_KEY}" or "{c.PASSWORD_KEY}" was not specified for credential "{key}"')
-    
-    def get_users(self) -> dict[str, dict[str, Any]]:
-        return self._users.copy()
+    def get_users(self) -> dict[str, _UserConfig]:
+        return self.users.copy()
     
     def get_all_env_vars(self) -> dict[str, str]:
-        return self._env_vars.copy()
+        return self.env_vars.copy()
     
-    def get_credential(self, key: Optional[str]) -> tuple[str, str]:
+    def get_credential(self, key: str | None) -> tuple[str, str]:
         if not key:
             return "", ""
 
         try:
-            credential = self._credentials[key]
+            credential = self.credentials[key]
         except KeyError as e:
             raise u.ConfigurationError(f'No credentials configured for "{key}"') from e
     
-        return credential[c.USERNAME_KEY], credential[c.PASSWORD_KEY]
+        return credential.username, credential.password
     
-    def get_secret(self, key: str, *, default_factory: Optional[Callable[[],str]] = None) -> str:
-        if not self._secrets.get(key) and default_factory is not None:
-            self._secrets[key] = default_factory()
-        return self._secrets.get(key)
+    def get_secret(self, key: str, default_factory: Callable[[], Any]) -> Any:
+        if self.secrets.get(key) is None:
+            self.secrets[key] = default_factory()
+        return self.secrets[key]
 
 
 class EnvironConfigIO:
     obj: _EnvironConfig
     
     @classmethod
-    def LoadFromFile(cls):
+    def load_from_file(cls):
         start = time.time()
-        def load_yaml(filename: str) -> dict[str, dict]:
+        def load_yaml(filename: str | Path) -> dict[str, dict]:
             try:
                 with open(filename, 'r') as f:
                     return yaml.safe_load(f)
             except FileNotFoundError:
                 return {}
         
-        master_env_config1 = load_yaml(_GLOBAL_SQUIRRELS_CFG_FILE1)
-        master_env_config2 = load_yaml(_GLOBAL_SQUIRRELS_CFG_FILE2)
-        proj_env_config1 = load_yaml(c.ENVIRON_CONFIG_FILE)
-        proj_env_config2 = load_yaml(c.ENV_CONFIG_FILE)
+        master_env_config = load_yaml(_GLOBAL_SQUIRRELS_CFG_FILE)
+        proj_env_config = load_yaml(c.ENV_CONFIG_FILE)
 
-        for project_config in [master_env_config2, proj_env_config1, proj_env_config2]:
-            for key in project_config:
-                master_env_config1.setdefault(key, {})
-                master_env_config1[key].update(project_config[key])
+        for key in proj_env_config:
+            master_env_config.setdefault(key, {})
+            master_env_config[key].update(proj_env_config[key])
         
-        users = master_env_config1.get(c.USERS_KEY, {})
-        env_vars = master_env_config1.get(c.ENV_VARS_KEY, {})
-        credentials = master_env_config1.get(c.CREDENTIALS_KEY, {})
-        secrets = master_env_config1.get(c.SECRETS_KEY, {})
-
-        cls.obj = _EnvironConfig(users, env_vars, credentials, secrets)
+        try:
+            cls.obj = _EnvironConfig(**master_env_config)
+        except ValidationError as e:
+            raise u.ConfigurationError(f"Failed to process {c.ENV_CONFIG_FILE} file. " + str(e)) from e
+        
         timer.add_activity_time(f"loading {c.ENV_CONFIG_FILE} file", start)

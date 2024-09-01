@@ -1,4 +1,3 @@
-from typing import Any
 from squirrels import User as UserBase
 
 

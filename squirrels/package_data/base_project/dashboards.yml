@@ -1,0 +1,11 @@
+dashboards:
+  - name: dashboard_example1
+    label: Dashboard Example
+    scope: public
+    format: png                           ## optional - one of 'png' or 'html' - if not specified, uses setting 'dashboards.default_format'
+    parameters:
+      - start_date
+      - end_date
+      - category
+
+

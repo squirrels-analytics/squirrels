@@ -5,11 +5,12 @@ transactions_with_masked_id AS (
         id as masked_id
 {%- else %}
         '***' as masked_id
-{%- endif %}
+{%- endif %},
+        STRFTIME('%Y-%m', date) AS month
     FROM transactions
 )
 SELECT {{ ctx.select_dim_cols }}
-    , sum(-amount) as total_amount
+    , SUM(-amount) as total_amount
 FROM transactions_with_masked_id
 WHERE date >= :start_date
     AND date <= :end_date

@@ -260,7 +260,7 @@ class TestTextValue:
     
     def test_invalid_apply(self, text_value1: p.TextValue):
         with pytest.raises(u.ConfigurationError):
-            text_value1.apply(lambda x: len(x))
+            text_value1.apply(lambda x: len(x)) # type: ignore
     
     def test_apply_percent_wrap(self, text_value1: p.TextValue):
         assert text_value1.apply_percent_wrap() == p.TextValue("%test%")
@@ -271,21 +271,21 @@ class TestTextValue:
     
     def test_invalid_apply_as_bool(self, text_value1: p.TextValue):
         with pytest.raises(u.ConfigurationError):
-            text_value1.apply_as_bool(lambda x: x)
+            text_value1.apply_as_bool(lambda x: x) # type: ignore
     
     def test_apply_as_int(self, text_value1: p.TextValue):
         assert text_value1.apply_as_number(lambda x: len(x)) == 4
     
     def test_invalid_apply_as_int(self, text_value1: p.TextValue):
         with pytest.raises(u.ConfigurationError):
-            text_value1.apply_as_number(lambda x: x)
+            text_value1.apply_as_number(lambda x: x) # type: ignore
     
     def test_apply_as_datetime(self, text_value2: p.TextValue):
         assert text_value2.apply_as_datetime(lambda x: datetime.strptime(x, "%Y-%m-%d")) == datetime(2024, 1, 1)
     
     def test_invalid_apply_as_datetime(self, text_value2: p.TextValue):
         with pytest.raises(u.ConfigurationError):
-            text_value2.apply_as_datetime(lambda x: x)
+            text_value2.apply_as_datetime(lambda x: x) # type: ignore
 
 
 class TestTextParameter:

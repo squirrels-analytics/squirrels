@@ -20,6 +20,7 @@ def main(sqrl: ParametersArgs) -> None:
     group_by_options = [
         po.SelectParameterOption("g0", "Transaction", columns=["masked_id", "date", "description"], aliases=["id", "date", "description"]),
         po.SelectParameterOption("g1", "Date", columns=["date"]),
+        po.SelectParameterOption("g4", "Month", columns=["month"]),
         po.SelectParameterOption("g2", "Category", columns=["category"]),
         po.SelectParameterOption("g3", "Subcategory", columns=["category", "subcategory"]),
     ]

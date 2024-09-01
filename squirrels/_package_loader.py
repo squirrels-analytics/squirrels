@@ -8,7 +8,7 @@ from ._timer import timer
 class PackageLoaderIO:
 
     @classmethod
-    def LoadPackages(cls, *, reload: bool = False) -> None:
+    def load_packages(cls, *, reload: bool = False) -> None:
         start = time.time()
         # If reload, delete the modules directory (if it exists). It will be recreated later
         if reload and os.path.exists(c.PACKAGES_FOLDER):
@@ -19,8 +19,8 @@ class PackageLoaderIO:
             target_dir = f"{c.PACKAGES_FOLDER}/{repo.directory}"
             if not os.path.exists(target_dir):
                 try:
-                    git.Repo.clone_from(repo.git_url, target_dir, branch=repo.revision, depth=1)
+                    git.Repo.clone_from(repo.git, target_dir, branch=repo.revision, depth=1)
                 except git.GitCommandError as e:
-                    raise u.ConfigurationError(f"Git clone of package failed for this repository: {repo.git_url}") from e
+                    raise u.ConfigurationError(f"Git clone of package failed for this repository: {repo.git}") from e
         
         timer.add_activity_time("loading packages", start)

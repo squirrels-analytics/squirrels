@@ -91,7 +91,7 @@ def test_invalid_number_parameter_options():
 def test_valid_number_parameter_option():
     try:
         po.NumberParameterOption(0, 4, default_value=3)
-        po.NumberParameterOption(0.8, 3.6, increment=0.4, default_value=2)
+        po.NumberParameterOption("0.8", "3.6", increment="0.4", default_value=2)
     except Exception:
         pytest.fail("Unexpected exception")
 

@@ -136,7 +136,7 @@ class _SelectionDataSource(DataSource):
                 result[key] = record[val]
             return result
         
-        records: dict[str, dict[str, Any]] = df_agg.to_dict("index")
+        records = df_agg.to_dict("index")
         return tuple(
             po.SelectParameterOption(str(id), str(record[self._options_col]), 
                                      is_default=get_is_default(record), custom_fields=get_custom_fields(record),
@@ -173,7 +173,7 @@ class SelectDataSource(_SelectionDataSource):
         """
         Constructor for SelectDataSource
 
-        Parameters:
+        Arguments:
             ...see Attributes of SelectDataSource
         """
         super().__init__(
@@ -185,7 +185,7 @@ class SelectDataSource(_SelectionDataSource):
         """
         Method to convert the associated DataSourceParameter into a SingleSelectParameterConfig or MultiSelectParameterConfig
 
-        Parameters:
+        Arguments:
             ds_param: The parameter to convert
             df: The dataframe containing the parameter options data
 
@@ -221,7 +221,7 @@ class SingleSelectDataSource(_SelectionDataSource):
         """
         Constructor for SelectDataSource
 
-        Parameters:
+        Arguments:
             ...see Attributes of SelectDataSource
         """
         super().__init__(table_or_query, id_col, options_col, order_by_col=order_by_col, is_default_col=is_default_col,
@@ -232,7 +232,7 @@ class SingleSelectDataSource(_SelectionDataSource):
         """
         Method to convert the associated DataSourceParameter into a SingleSelectParameterConfig
 
-        Parameters:
+        Arguments:
             ds_param: The parameter to convert
             df: The dataframe containing the parameter options data
 
@@ -262,7 +262,7 @@ class MultiSelectDataSource(_SelectionDataSource):
         """
         Constructor for SingleSelectDataSource
 
-        Parameters:
+        Arguments:
             ...see Attributes of SingleSelectDataSource
         """
         super().__init__(table_or_query, id_col, options_col, order_by_col=order_by_col, is_default_col=is_default_col,
@@ -276,7 +276,7 @@ class MultiSelectDataSource(_SelectionDataSource):
         """
         Method to convert the associated DataSourceParameter into a MultiSelectParameterConfig
 
-        Parameters:
+        Arguments:
             ds_param: The parameter to convert
             df: The dataframe containing the parameter options data
 
@@ -318,7 +318,7 @@ class DateDataSource(DataSource):
         """
         Constructor for DateDataSource
 
-        Parameters:
+        Arguments:
             ...see Attributes of DateDataSource
         """
         super().__init__(
@@ -332,7 +332,7 @@ class DateDataSource(DataSource):
         """
         Method to convert the associated DataSourceParameter into a DateParameterConfig
 
-        Parameters:
+        Arguments:
             ds_param: The parameter to convert
             df: The dataframe containing the parameter options data
 
@@ -344,7 +344,7 @@ class DateDataSource(DataSource):
         columns = [self._default_date_col]
         df_agg = self._get_aggregated_df(df, columns)
 
-        records: dict[str, dict[str, Any]] = df_agg.to_dict("index")
+        records = df_agg.to_dict("index")
         options = tuple(
             po.DateParameterOption(str(record[self._default_date_col]), date_format=self._date_format, 
                                    user_groups=self._get_key_from_record_as_list(self._user_group_col, record), 
@@ -385,7 +385,7 @@ class DateRangeDataSource(DataSource):
         """
         Constructor for DateRangeDataSource
 
-        Parameters:
+        Arguments:
             ...see Attributes of DateRangeDataSource
         """
         super().__init__(
@@ -400,7 +400,7 @@ class DateRangeDataSource(DataSource):
         """
         Method to convert the associated DataSourceParameter into a DateRangeParameterConfig
 
-        Parameters:
+        Arguments:
             ds_param: The parameter to convert
             df: The dataframe containing the parameter options data
 
@@ -412,7 +412,7 @@ class DateRangeDataSource(DataSource):
         columns = [self._default_start_date_col, self._default_end_date_col]
         df_agg = self._get_aggregated_df(df, columns)
 
-        records: dict[str, dict[str, Any]] = df_agg.to_dict("index")
+        records = df_agg.to_dict("index")
         options = tuple(
             po.DateRangeParameterOption(str(record[self._default_start_date_col]), str(record[self._default_end_date_col]),
                                         date_format=self._date_format, 
@@ -477,7 +477,7 @@ class NumberDataSource(_NumericDataSource):
         """
         Constructor for NumberDataSource
 
-        Parameters:
+        Arguments:
             ...see Attributes of NumberDataSource
         """
         super().__init__(
@@ -490,7 +490,7 @@ class NumberDataSource(_NumericDataSource):
         """
         Method to convert the associated DataSourceParameter into a NumberParameterConfig
 
-        Parameters:
+        Arguments:
             ds_param: The parameter to convert
             df: The dataframe containing the parameter options data
 
@@ -502,7 +502,7 @@ class NumberDataSource(_NumericDataSource):
         columns = [self._min_value_col, self._max_value_col, self._increment_col, self._default_value_col]
         df_agg = self._get_aggregated_df(df, columns)
 
-        records: dict[str, dict[str, Any]] = df_agg.to_dict("index")
+        records = df_agg.to_dict("index")
         options = tuple(
             po.NumberParameterOption(record[self._min_value_col], record[self._max_value_col], 
                                      increment=self._get_key_from_record(self._increment_col, record, 1),
@@ -547,7 +547,7 @@ class NumberRangeDataSource(_NumericDataSource):
         """
         Constructor for NumRangeDataSource
 
-        Parameters:
+        Arguments:
             ...see Attributes of NumRangeDataSource
         """
         super().__init__(
@@ -561,7 +561,7 @@ class NumberRangeDataSource(_NumericDataSource):
         """
         Method to convert the associated DataSourceParameter into a NumberRangeParameterConfig
 
-        Parameters:
+        Arguments:
             ds_param: The parameter to convert
             df: The dataframe containing the parameter options data
 
@@ -573,7 +573,7 @@ class NumberRangeDataSource(_NumericDataSource):
         columns = [self._min_value_col, self._max_value_col, self._increment_col, self._default_lower_value_col, self._default_upper_value_col]
         df_agg = self._get_aggregated_df(df, columns)
 
-        records: dict[str, Any] = df_agg.to_dict("index")
+        records = df_agg.to_dict("index")
         options = tuple(
             po.NumberRangeParameterOption(record[self._min_value_col], record[self._max_value_col], 
                                        increment=self._get_key_from_record(self._increment_col, record, 1),
@@ -613,7 +613,7 @@ class TextDataSource(DataSource):
         """
         Constructor for DateDataSource
 
-        Parameters:
+        Arguments:
             ...see Attributes of DateDataSource
         """
         super().__init__(
@@ -626,7 +626,7 @@ class TextDataSource(DataSource):
         """
         Method to convert the associated DataSourceParameter into a TextParameterConfig
 
-        Parameters:
+        Arguments:
             ds_param: The parameter to convert
             df: The dataframe containing the parameter options data
 
@@ -638,7 +638,7 @@ class TextDataSource(DataSource):
         columns = [self._default_text_col]
         df_agg = self._get_aggregated_df(df, columns)
 
-        records: dict[str, dict[str, Any]] = df_agg.to_dict("index")
+        records = df_agg.to_dict("index")
         options = tuple(
             po.TextParameterOption(default_text=str(record[self._default_text_col]), 
                                    user_groups=self._get_key_from_record_as_list(self._user_group_col, record), 

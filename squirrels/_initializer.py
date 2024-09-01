@@ -10,13 +10,13 @@ class Initializer:
     def __init__(self, overwrite: bool):
         self.overwrite = overwrite
 
-    def _path_exists(self, filepath: str) -> bool:
+    def _path_exists(self, filepath: u.FilePath) -> bool:
         if not self.overwrite and os.path.exists(filepath):
             print(f'File "{filepath}" already exists. Creation skipped.')
             return True
         return False
     
-    def _copy_file(self, filepath: str, *, src_folder: str = ""):
+    def _copy_file(self, filepath: u.FilePath, *, src_folder: str = ""):
         if not self._path_exists(filepath):
             dest_dir = os.path.dirname(filepath)
             if dest_dir != "":
@@ -38,10 +38,13 @@ class Initializer:
     
     def _copy_seed_file(self, filepath: str):
         self._copy_file(u.join_paths(c.SEEDS_FOLDER, filepath))
+    
+    def _copy_dashboard_file(self, filepath: str):
+        self._copy_file(u.join_paths(c.DASHBOARDS_FOLDER, filepath))
 
     def init_project(self, args):
-        options = ["core", "connections", "parameters", "dbview", "federate", "auth", "sample_db"]
-        CORE, CONNECTIONS, PARAMETERS, DBVIEW, FEDERATE, AUTH, SAMPLE_DB = options
+        options = ["core", "connections", "parameters", "dbview", "federate", "dashboard", "auth", "sample_db"]
+        CORE, CONNECTIONS, PARAMETERS, DBVIEW, FEDERATE, DASHBOARD, AUTH, SAMPLE_DB = options
         TMP_FOLDER = "tmp"
 
         answers = { x: getattr(args, x) for x in options }
@@ -52,6 +55,7 @@ class Initializer:
                                  default=True)
             ]
             answers = inquirer.prompt(core_questions)
+            assert isinstance(answers, dict)
             
             if answers.get(CORE, False):
                 conditional_questions = [
@@ -68,9 +72,14 @@ class Initializer:
                                   message="What's the file format for the federated model?",
                                   choices=c.FILE_TYPE_CHOICES),
                 ]
-                answers.update(inquirer.prompt(conditional_questions))
+                more_answers = inquirer.prompt(conditional_questions)
+                assert isinstance(more_answers,  dict)
+                answers.update(more_answers)
 
             remaining_questions = [
+                inquirer.Confirm(DASHBOARD,
+                                 message=f"Do you want to include a dashboard example?" ,
+                                 default=False),
                 inquirer.Confirm(AUTH,
                                  message=f"Do you want to add the '{c.AUTH_FILE}' file to enable custom API authentication?" ,
                                  default=False),
@@ -78,7 +87,9 @@ class Initializer:
                               message="What sample sqlite database do you wish to use (if any)?",
                               choices= c.DATABASE_CHOICES)
             ]
-            answers.update(inquirer.prompt(remaining_questions))
+            remaining_answers = inquirer.prompt(remaining_questions)
+            assert isinstance(remaining_answers, dict)
+            answers.update(remaining_answers)
         
         if answers.get(CONNECTIONS) is None:
             answers[CONNECTIONS] = c.YML_FORMAT
@@ -124,7 +135,8 @@ class Initializer:
                 
                 file_name_dict = {
                     "parameters": c.PARAMETERS_YML_FILE if parameters_use_yaml else None, 
-                    "connections": c.CONNECTIONS_YML_FILE if connections_use_yaml else None
+                    "connections": c.CONNECTIONS_YML_FILE if connections_use_yaml else None,
+                    "dashboards": c.DASHBOARDS_YML_FILE if answers.get(DASHBOARD, False) else None
                 }
                 substitutions = {key: get_content(val) for key, val in file_name_dict.items()}
                 
@@ -160,6 +172,9 @@ class Initializer:
 
             self._copy_dbview_file(db_view_file)
             self._copy_federate_file(federate_file)
+        
+        if answers.get(DASHBOARD, False):
+            self._copy_dashboard_file(c.SAMPLE_DASHBOARD_FILE)
         
         if answers.get(AUTH, False):
             self._copy_pyconfig_file(c.AUTH_FILE)
