@@ -24,8 +24,29 @@ class Parameter(metaclass=ABCMeta):
 
     @staticmethod
     @abstractmethod
-    def _ParameterConfigType() -> Type:
+    def _ParameterConfigType() -> Type[pc.ParameterConfig]:
         pass
+    
+    @classmethod
+    def _CreateWithOptionsHelper(
+        cls, name: str, label: str, all_options: Sequence[po.ParameterOption | dict], *, description: str = "",
+        user_attribute: str | None = None, parent_name: str | None = None, **kwargs
+    ) -> None:
+        param_config_type = cls._ParameterConfigType()
+        param_config = param_config_type(
+            name, label, all_options, description=description, user_attribute=user_attribute, parent_name=parent_name, **kwargs
+        )
+        ps.ParameterConfigsSetIO.obj.add(param_config)
+    
+    @classmethod
+    def Create(
+        cls, name: str, label: str, all_options: Sequence[po.ParameterOption | dict], *, description: str = "",
+        user_attribute: str | None = None, parent_name: str | None = None, **kwargs
+    ) -> None:
+        """
+        DEPRECATED. Use CreateWithOptions instead
+        """
+        cls._CreateWithOptionsHelper(name, label, all_options, description=description, user_attribute=user_attribute, parent_name=parent_name)
     
     @classmethod
     def CreateWithOptions(
@@ -43,26 +64,23 @@ class Parameter(metaclass=ABCMeta):
             user_attribute: The user attribute that may cascade the options for this parameter. Default is None
             parent_name: Name of parent parameter that may cascade the options for this parameter. Default is None (no parent)
         """
-        param_config_type = cls._ParameterConfigType()
-        param_config = param_config_type(
-            name, label, all_options, description=description, user_attribute=user_attribute, parent_name=parent_name
-        )
-        ps.ParameterConfigsSetIO.obj.add(param_config)
-    
-    @classmethod
-    def Create(
-        cls, name: str, label: str, all_options: Sequence[po.ParameterOption | dict], *, description: str = "",
-        user_attribute: str | None = None, parent_name: str | None = None, **kwargs
-    ) -> None:
-        """
-        DEPRECATED. Use CreateWithOptions instead
-        """
-        cls.CreateWithOptions(name, label, all_options, description=description, user_attribute=user_attribute, parent_name=parent_name)
+        cls._CreateWithOptionsHelper(name, label, all_options, description=description, user_attribute=user_attribute, parent_name=parent_name)
 
     @classmethod
     @abstractmethod
     def CreateSimple(cls, name: str, label: str, *args, description: str = "", **kwargs) -> None:
         pass
+
+    @classmethod
+    def _CreateFromSourceHelper(
+        cls, name: str, label: str, data_source: d.DataSource | dict, *, extra_args: dict = {}, description: str = "", 
+        user_attribute: str | None = None, parent_name: str | None = None
+    ) -> None:
+        param_config = pc.DataSourceParameterConfig(
+            cls._ParameterConfigType(), name, label, data_source, description=description, user_attribute=user_attribute, 
+            parent_name=parent_name, extra_args=extra_args
+        )
+        ps.ParameterConfigsSetIO.obj.add(param_config)
     
     @classmethod
     def CreateFromSource(
@@ -80,10 +98,7 @@ class Parameter(metaclass=ABCMeta):
             user_attribute: The user attribute that may cascade the options for this parameter. Default is None
             parent_name: Name of parent parameter that may cascade the options for this parameter. Default is None (no parent)
         """
-        param_config_type = cls._ParameterConfigType()
-        param_config = pc.DataSourceParameterConfig(param_config_type, name, label, data_source, description=description, 
-                                                    user_attribute=user_attribute, parent_name=parent_name)
-        ps.ParameterConfigsSetIO.obj.add(param_config)
+        cls._CreateFromSourceHelper(name, label, data_source, description=description, user_attribute=user_attribute, parent_name=parent_name)
         
     def _enquote(self, value: str) -> str:
         return "'" + value.replace("'", "''") + "'" 
@@ -272,7 +287,7 @@ class SingleSelectParameter(_SelectionParameter):
         return output
     
     def _get_response_model0(self):
-        return arm.SingleSelectParameterModel
+        return arm.SingleSelectParameterModel if self.is_enabled() else arm.NoneParameterModel
 
 
 @dataclass
@@ -318,11 +333,10 @@ class MultiSelectParameter(_SelectionParameter):
             user_attribute: The user attribute that may cascade the options for this parameter. Default is None
             parent_name: Name of parent parameter that may cascade the options for this parameter. Default is None (no parent)
         """
-        param_config = pc.MultiSelectParameterConfig(
+        cls._CreateWithOptionsHelper(
             name, label, all_options, description=description, user_attribute=user_attribute, parent_name=parent_name,
             show_select_all=show_select_all, order_matters=order_matters, none_is_all=none_is_all
         )
-        ps.ParameterConfigsSetIO.obj.add(param_config)
     
     @classmethod
     def Create(
@@ -333,9 +347,9 @@ class MultiSelectParameter(_SelectionParameter):
         """
         DEPRECATED. Use CreateWithOptions instead
         """
-        cls.CreateWithOptions(
-            name, label, all_options, description=description, show_select_all=show_select_all,
-            order_matters=order_matters, none_is_all=none_is_all, user_attribute=user_attribute, parent_name=parent_name
+        cls._CreateWithOptionsHelper(
+            name, label, all_options, description=description, user_attribute=user_attribute, parent_name=parent_name, 
+            show_select_all=show_select_all, order_matters=order_matters, none_is_all=none_is_all
         )
 
     @classmethod
@@ -383,11 +397,10 @@ class MultiSelectParameter(_SelectionParameter):
         extra_args = {
             "show_select_all": show_select_all, "order_matters": order_matters, "none_is_all": none_is_all
         }
-        param_config = pc.DataSourceParameterConfig(
-            pc.MultiSelectParameterConfig, name, label, data_source, extra_args=extra_args, description=description, 
+        cls._CreateFromSourceHelper(
+            name, label, data_source, extra_args=extra_args, description=description,
             user_attribute=user_attribute, parent_name=parent_name
         )
-        ps.ParameterConfigsSetIO.obj.add(param_config)
 
     def has_non_empty_selection(self) -> bool:
         """
@@ -517,7 +530,7 @@ class MultiSelectParameter(_SelectionParameter):
         return output
     
     def _get_response_model0(self):
-        return arm.MultiSelectParameterModel
+        return arm.MultiSelectParameterModel if self.is_enabled() else arm.NoneParameterModel
 
 
 @dataclass
@@ -606,7 +619,7 @@ class DateParameter(Parameter):
         return output
     
     def _get_response_model0(self):
-        return arm.DateParameterModel if self.is_enabled() else arm.ParameterModelBase
+        return arm.DateParameterModel if self.is_enabled() else arm.NoneParameterModel
 
 
 @dataclass
@@ -725,7 +738,7 @@ class DateRangeParameter(Parameter):
         return output
     
     def _get_response_model0(self):
-        return arm.DateRangeParameterModel if self.is_enabled() else arm.ParameterModelBase
+        return arm.DateRangeParameterModel if self.is_enabled() else arm.NoneParameterModel
 
 
 @dataclass
@@ -799,7 +812,7 @@ class NumberParameter(Parameter):
         return output
     
     def _get_response_model0(self):
-        return arm.NumberParameterModel if self.is_enabled() else arm.ParameterModelBase
+        return arm.NumberParameterModel if self.is_enabled() else arm.NoneParameterModel
 
 
 @dataclass
@@ -894,7 +907,7 @@ class NumberRangeParameter(Parameter):
         return output
     
     def _get_response_model0(self):
-        return arm.NumberRangeParameterModel if self.is_enabled() else arm.ParameterModelBase
+        return arm.NumberRangeParameterModel if self.is_enabled() else arm.NoneParameterModel
 
 
 @dataclass
@@ -996,7 +1009,7 @@ class TextParameter(Parameter):
     
     def is_enabled(self) -> bool:
         return self._curr_option is not None
-
+    
     @staticmethod
     def _ParameterConfigType():
         return pc.TextParameterConfig
@@ -1018,11 +1031,9 @@ class TextParameter(Parameter):
             user_attribute: The user attribute that may cascade the options for this parameter. Default is None
             parent_name: Name of parent parameter that may cascade the options for this parameter. Default is None (no parent)
         """
-        param_config = pc.TextParameterConfig(
-            name, label, all_options, description=description, input_type=input_type, user_attribute=user_attribute, 
-            parent_name=parent_name
+        cls._CreateWithOptionsHelper(
+            name, label, all_options, description=description, input_type=input_type, user_attribute=user_attribute, parent_name=parent_name
         )
-        ps.ParameterConfigsSetIO.obj.add(param_config)
     
     @classmethod
     def Create(
@@ -1032,7 +1043,7 @@ class TextParameter(Parameter):
         """
         DEPRECATED. Use CreateWithOptions instead
         """
-        cls.CreateWithOptions(
+        cls._CreateWithOptionsHelper(
             name, label, all_options, description=description, input_type=input_type, user_attribute=user_attribute, parent_name=parent_name
         )
 
@@ -1073,11 +1084,9 @@ class TextParameter(Parameter):
         extra_args = {
             "input_type": input_type
         }
-        param_config = pc.DataSourceParameterConfig(
-            pc.TextParameterConfig, name, label, data_source, extra_args=extra_args, description=description, 
-            user_attribute=user_attribute, parent_name=parent_name
+        cls._CreateFromSourceHelper(
+            name, label, data_source, extra_args=extra_args, description=description, user_attribute=user_attribute, parent_name=parent_name
         )
-        ps.ParameterConfigsSetIO.obj.add(param_config)
     
     def get_entered_text(self, **kwargs) -> TextValue:
         """
@@ -1128,4 +1137,4 @@ class TextParameter(Parameter):
         return output
     
     def _get_response_model0(self):
-        return arm.TextParameterModel if self.is_enabled() else arm.ParameterModelBase
+        return arm.TextParameterModel if self.is_enabled() else arm.NoneParameterModel

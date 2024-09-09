@@ -22,7 +22,7 @@ class ConnectionsArgs(BaseArguments):
 
     def get_credential(self, key: str | None) -> tuple[str, str]:
         """
-        Return (username, password) tuple configured for credentials key in environcfg.yaml
+        Return (username, password) tuple configured for credentials key in env.yaml
 
         If key is None, returns tuple of empty strings ("", "")
 

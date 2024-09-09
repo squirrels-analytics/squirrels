@@ -18,7 +18,7 @@ def get_user_if_valid(sqrl: AuthArgs) -> Union[User, WrongPassword, None]:
     Return:
         - User instance - if username and password are correct
         - WrongPassword() - if username exists but password is incorrect
-        - None - if the username doesn't exist (and search for username will continue for "fake users" configured in environcfg.yml)
+        - None - if the username doesn't exist (and search for username will continue for "fake users" configured in env.yml)
     """
     mock_users_db = {
         "johndoe": {

@@ -1,4 +1,3 @@
-import base64
 from typing import Coroutine, Mapping, Callable, TypeVar, Annotated, Any
 from dataclasses import make_dataclass, asdict
 from fastapi import Depends, FastAPI, Request, HTTPException, Response, status
@@ -23,7 +22,7 @@ from ._parameter_sets import ParameterSet
 from ._models import ModelsIO
 from ._dashboards_io import DashboardsIO
 from .arguments.run_time_args import DashboardArgs
-from .dashboards import Dashboard
+from .dashboards import _Dashboard
 
 mimetypes.add_type('application/javascript', '.js')
 
@@ -85,7 +84,7 @@ class ApiServer:
             },
             {
                 "name": "Catalogs",
-                "description": "Get catalog of datasets with endpoints for their parameters and results",
+                "description": "Get catalog of datasets and dashboards with endpoints for their parameters and results",
             }
         ]
 
@@ -114,6 +113,11 @@ class ApiServer:
                 traceback.print_exc()
                 return JSONResponse(status_code=status.HTTP_400_BAD_REQUEST, 
                                     content={"message": str(exc), "blame": "API client"})
+            except u.FileExecutionError as exc:
+                traceback.print_exception(exc.error)
+                print(str(exc))
+                return JSONResponse(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, 
+                                    content={"message": f"An unexpected error occurred", "blame": "Squirrels project"})
             except u.ConfigurationError as exc:
                 traceback.print_exc()
                 return JSONResponse(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, 
@@ -256,7 +260,7 @@ class ApiServer:
                 if authenticator.can_user_access_scope(user, config.scope):
                     name_normalized = u.normalize_name_for_api(name)
                     dataset_items.append(arm.DatasetItemModel(
-                        name=name, label=config.label,
+                        name=name, label=config.label, description=config.description,
                         parameters_path=dataset_parameters_path.format(dataset=name_normalized),
                         result_path=dataset_results_path.format(dataset=name_normalized)
                     ))
@@ -265,8 +269,9 @@ class ApiServer:
             for name, config in ManifestIO.obj.dashboards.items():
                 if authenticator.can_user_access_scope(user, config.scope):
                     name_normalized = u.normalize_name_for_api(name)
+                    dashboard_format = DashboardsIO.get_dashboard_format(name)
                     dashboard_items.append(arm.DashboardItemModel(
-                        name=name, label=config.label, result_format=config.format,
+                        name=name, label=config.label, description=config.description, result_format=dashboard_format,
                         parameters_path=dashboard_parameters_path.format(dashboard=name_normalized),
                         result_path=dashboard_results_path.format(dashboard=name_normalized)
                     ))
@@ -356,7 +361,7 @@ class ApiServer:
         # Dashboard Results API Helpers
         async def get_dashboard_results_helper(
             dashboard_config: DashboardConfig, user: User | None, selections: frozenset[tuple[str, Any]], request_version: int | None
-        ) -> Dashboard:
+        ) -> _Dashboard:
             async def get_dataset(dataset_name: str, fixed_params: dict[str, Any]) -> pd.DataFrame:
                 final_selections = {**dict(selections), **fixed_params}
                 dag = ModelsIO.generate_dag(dataset_name)
@@ -368,13 +373,13 @@ class ApiServer:
             return await DashboardsIO.get_dashboard(dashboard_config.name, args)
 
         settings = ManifestIO.obj.settings
-        dashboard_results_cache_size = settings.get(c.DASHBOARDS_CACHE_SIZE_SETTING, settings.get(c.RESULTS_CACHE_SIZE_SETTING, 128))
-        dashboard_results_cache_ttl = settings.get(c.DASHBOARDS_CACHE_TTL_SETTING, settings.get(c.RESULTS_CACHE_TTL_SETTING, 60))
+        dashboard_results_cache_size = settings.get(c.DASHBOARDS_CACHE_SIZE_SETTING, 128)
+        dashboard_results_cache_ttl = settings.get(c.DASHBOARDS_CACHE_TTL_SETTING, 60)
         dashboard_results_cache = TTLCache(maxsize=dashboard_results_cache_size, ttl=dashboard_results_cache_ttl*60)
 
         async def get_dashboard_results_cachable(
             dashboard_config: DashboardConfig, user: User | None, selections: frozenset[tuple[str, Any]], request_version: int | None
-        ) -> Dashboard:
+        ) -> _Dashboard:
             return await do_cachable_action(dashboard_results_cache, get_dashboard_results_helper, dashboard_config, user, selections, request_version)
         
         async def get_dashboard_results_definition(
@@ -383,11 +388,11 @@ class ApiServer:
             get_dashboard_function = get_dashboard_results_helper if self.no_cache else get_dashboard_results_cachable
             selections, request_version = get_selections_and_request_version(dashboard_config, user, params, headers)
             dashboard = await get_dashboard_function(dashboard_config, user, selections, request_version)
-            if dashboard.format == c.PNG:
-                assert isinstance(dashboard.content, bytes)
-                result = Response(dashboard.content, media_type="image/png")
-            elif dashboard.format == c.HTML:
-                result = HTMLResponse(dashboard.content)
+            if dashboard._format == c.PNG:
+                assert isinstance(dashboard._content, bytes)
+                result = Response(dashboard._content, media_type="image/png")
+            elif dashboard._format == c.HTML:
+                result = HTMLResponse(dashboard._content)
             else:
                 raise NotImplementedError()
             return result
@@ -429,7 +434,7 @@ class ApiServer:
                 timer.add_activity_time("POST REQUEST total time for PARAMETERS endpoint", start)
                 return result
             
-            @app.get(curr_results_path, tags=[f"Dataset '{dataset_name}'"], response_class=JSONResponse)
+            @app.get(curr_results_path, tags=[f"Dataset '{dataset_name}'"], description=dataset_config.description, response_class=JSONResponse)
             async def get_dataset_results(
                 request: Request, params: QueryModelForGet, user: User | None = Depends(get_current_user) # type: ignore
             ) -> arm.DatasetResultModel:
@@ -439,7 +444,7 @@ class ApiServer:
                 timer.add_activity_time("GET REQUEST total time for DATASET RESULTS endpoint", start)
                 return result
             
-            @app.post(curr_results_path, tags=[f"Dataset '{dataset_name}'"], response_class=JSONResponse)
+            @app.post(curr_results_path, tags=[f"Dataset '{dataset_name}'"], description=dataset_config.description, response_class=JSONResponse)
             async def get_dataset_results_with_post(
                 request: Request, params: QueryModelForPost, user: User | None = Depends(get_current_user) # type: ignore
             ) -> arm.DatasetResultModel:
@@ -481,7 +486,7 @@ class ApiServer:
                 timer.add_activity_time("POST REQUEST total time for PARAMETERS endpoint", start)
                 return result
             
-            @app.get(curr_results_path, tags=[f"Dashboard '{dashboard_name}'"], response_class=Response)
+            @app.get(curr_results_path, tags=[f"Dashboard '{dashboard_name}'"], description=dashboard_config.description, response_class=Response)
             async def get_dashboard_results(
                 request: Request, params: QueryModelForGet, user: User | None = Depends(get_current_user) # type: ignore
             ) -> Response:
@@ -491,7 +496,7 @@ class ApiServer:
                 timer.add_activity_time("GET REQUEST total time for DASHBOARD RESULTS endpoint", start)
                 return result
 
-            @app.post(curr_results_path, tags=[f"Dashboard '{dashboard_name}'"], response_class=Response)
+            @app.post(curr_results_path, tags=[f"Dashboard '{dashboard_name}'"], description=dashboard_config.description, response_class=Response)
             async def get_dashboard_results_with_post(
                 request: Request, params: QueryModelForPost, user: User | None = Depends(get_current_user) # type: ignore
             ) -> Response:

@@ -152,16 +152,16 @@ class _Referable(metaclass=ABCMeta):
     def retrieve_dependent_query_models(self, dependent_model_names: set[str]) -> None:
         pass
     
-    def get_max_path_length_to_target(self) -> int:
+    def get_max_path_length_to_target(self) -> int | None:
         if not hasattr(self, "max_path_len_to_target"):
             path_lengths = []
             for child_model in self.downstreams.values():
-                path_lengths.append(child_model.get_max_path_length_to_target()+1)
+                assert isinstance(child_model_path_length := child_model.get_max_path_length_to_target(), int)
+                path_lengths.append(child_model_path_length+1)
             if len(path_lengths) > 0:
                 self.max_path_len_to_target = max(path_lengths)
             else:
-                assert self.is_target
-                self.max_path_len_to_target = 0
+                self.max_path_len_to_target = 0 if self.is_target else None
         return self.max_path_len_to_target
 
 
@@ -214,7 +214,7 @@ class _Model(_Referable):
         return Materialization[materialized.upper()]
     
     async def _compile_sql_model(
-        self, ctx: dict[str, Any], ctx_args: ContextArgs, placeholders: dict[str, Any]
+        self, ctx: dict[str, Any], ctx_args: ContextArgs, placeholders: dict[str, Any], models_dict: dict[str, _Referable]
     ) -> tuple[_SqlModelQuery, set]:
         assert(isinstance(self.query_file.raw_query, _RawSqlQuery))
 
@@ -230,9 +230,11 @@ class _Model(_Referable):
         }
         dependencies = set()
         if self.query_file.model_type == ModelType.FEDERATE:
-            def ref(name):
-                dependencies.add(name)
-                return name
+            def ref(dependent_model_name):
+                if dependent_model_name not in models_dict:
+                    raise u.ConfigurationError(f'Model "{self.name}" references unknown model "{dependent_model_name}"')
+                dependencies.add(dependent_model_name)
+                return dependent_model_name
             kwargs["ref"] = ref
 
         try:
@@ -244,7 +246,7 @@ class _Model(_Referable):
         return compiled_query, dependencies
     
     async def _compile_python_model(
-        self, ctx: dict[str, Any], ctx_args: ContextArgs, placeholders: dict[str, Any]
+        self, ctx: dict[str, Any], ctx_args: ContextArgs, placeholders: dict[str, Any], models_dict: dict[str, _Referable]
     ) -> tuple[_PyModelQuery, Iterable]:
         assert isinstance(self.query_file.raw_query, _RawPyQuery)
         
@@ -253,12 +255,20 @@ class _Model(_Referable):
         )
         try:
             dependencies = await asyncio.to_thread(self.query_file.raw_query.dependencies_func, sqrl_args)
+            for dependent_model_name in dependencies:
+                if dependent_model_name not in models_dict:
+                    raise u.ConfigurationError(f'Model "{self.name}" references unknown model "{dependent_model_name}"')
         except Exception as e:
             raise u.FileExecutionError(f'Failed to run "{c.DEP_FUNC}" function for python model "{self.name}"', e) from e
         
         dbview_conn_name = self._get_dbview_conn_name()
         connections = ConnectionSetIO.obj.get_engines_as_dict()
-        ref: Callable[[str], pd.DataFrame] = lambda model: pd.DataFrame(self.upstreams[model].result)
+
+        def ref(dependent_model_name):
+            if dependent_model_name not in self.upstreams:
+                raise u.ConfigurationError(f'Model "{self.name}" must include model "{dependent_model_name}" as a dependency to use')
+            return pd.DataFrame(self.upstreams[dependent_model_name].result)
+        
         sqrl_args = ModelArgs(
             ctx_args.proj_vars, ctx_args.env_vars, ctx_args.user, ctx_args.prms, ctx_args.traits, placeholders, ctx, 
             dbview_conn_name, connections, dependencies, ref
@@ -285,9 +295,9 @@ class _Model(_Referable):
         start = time.time()
 
         if self.query_file.query_type == QueryType.SQL:
-            compiled_query, dependencies = await self._compile_sql_model(ctx, ctx_args, placeholders)
+            compiled_query, dependencies = await self._compile_sql_model(ctx, ctx_args, placeholders, models_dict)
         elif self.query_file.query_type == QueryType.PYTHON:
-            compiled_query, dependencies = await self._compile_python_model(ctx, ctx_args, placeholders)
+            compiled_query, dependencies = await self._compile_python_model(ctx, ctx_args, placeholders, models_dict)
         else:
             raise u.ConfigurationError(f"Query type not supported: {self.query_file.query_type}")
         
@@ -570,9 +580,10 @@ class ModelsIO:
         cls, dataset_conf: DatasetConfig, select: str, test_set: str | None, runquery: bool, recurse: bool
     ) -> Any | None:
         dataset = dataset_conf.name
+        default_test_set_conf = ManifestIO.obj.get_default_test_set(dataset)
         if test_set in ManifestIO.obj.selection_test_sets:
             test_set_conf = ManifestIO.obj.selection_test_sets[test_set]
-        elif test_set is None or test_set == (default_test_set_conf := ManifestIO.obj.get_default_test_set(dataset)).name:
+        elif test_set is None or test_set == default_test_set_conf.name:
             test_set, test_set_conf = default_test_set_conf.name, default_test_set_conf
         else:
             raise u.ConfigurationError(f"No test set named '{test_set}' was found when compiling dataset '{dataset}'. The test set must be defined if not default for dataset.")

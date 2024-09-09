@@ -139,17 +139,12 @@ class TestDashboardConfig:
     @pytest.fixture(scope="class")
     def dashboard_config2(self) -> m.DashboardConfig:
         data = {
-            "name": "my_dashboard", "label": "My Dataset", "scope": "protected", "parameters": [], "format": "html"
+            "name": "my_dashboard", "label": "My Dataset", "scope": "protected", "parameters": []
         }
         return m.DashboardConfig(**data)
-
-    @pytest.mark.parametrize("fixture,expected", [
-        ("dashboard_config1", ""),
-        ("dashboard_config2", "html")
-    ])
-    def test_dataset_args(self, fixture: str, expected: dict, request: pytest.FixtureRequest):
-        dashboard: m.DashboardConfig = request.getfixturevalue(fixture)
-        assert dashboard.format == expected
+    
+    def test_hash(self, dashboard_config1: m.DashboardConfig):
+        assert hash(dashboard_config1) == hash("dashboard_my_dashboard")
 
 
 class TestTestSetsConfig:

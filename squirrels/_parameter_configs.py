@@ -1,5 +1,5 @@
 from __future__ import annotations
-from typing import TypeVar, Annotated, Type, Sequence, Iterator, Any
+from typing import Generic, TypeVar, Annotated, Type, Sequence, Iterator, Any
 from typing_extensions import Self
 from datetime import datetime
 from dataclasses import dataclass, field
@@ -81,29 +81,35 @@ class ParameterConfigBase(metaclass=ABCMeta):
 
 
 @dataclass
-class ParameterConfig(ParameterConfigBase):
+class ParameterConfig(Generic[ParamOptionType], ParameterConfigBase):
     """
     Abstract class for all parameter classes (except DataSourceParameters)
     """
+    _all_options: Sequence[ParamOptionType] = field(repr=False)
 
     @abstractmethod
     def __init__(
-        self, widget_type: str, name: str, label: str, *, description: str = "", 
+        self, name: str, label: str, all_options: Sequence[ParamOptionType | dict], *, description: str = "", 
         user_attribute: str | None = None, parent_name: str | None = None
     ) -> None:
-        super().__init__(widget_type, name, label, description=description, user_attribute=user_attribute, parent_name=parent_name)
+        super().__init__(self.widget_type(), name, label, description=description, user_attribute=user_attribute, parent_name=parent_name)
+        self._all_options = tuple(self._to_param_option(x) for x in all_options)
 
     def _to_param_option(self, option: ParamOptionType | dict) -> ParamOptionType:
-        return self.__class__.ParameterOption(**option) if isinstance(option, dict) else option
-    
+        return self.ParameterOption(**option) if isinstance(option, dict) else option
+
     @property
+    def all_options(self) -> Sequence[ParamOptionType]:
+        return self._all_options
+
+    @staticmethod
     @abstractmethod
-    def all_options(self) -> Sequence[po.ParameterOption]:
+    def widget_type() -> str:
         pass
 
     @staticmethod
     @abstractmethod
-    def ParameterOption(*args, **kwargs) -> ParamOptionType: # type: ignore
+    def ParameterOption(*args, **kwargs) -> ParamOptionType:
         pass
 
     @staticmethod
@@ -134,27 +140,21 @@ class ParameterConfig(ParameterConfigBase):
 
 
 @dataclass
-class SelectionParameterConfig(ParameterConfig):
+class SelectionParameterConfig(ParameterConfig[po.SelectParameterOption]):
     """
     Abstract class for select parameter classes (single-select, multi-select, etc)
     """
-    _all_options: Sequence[po.SelectParameterOption] = field(repr=False)
     children: dict[str, ParameterConfigBase] = field(default_factory=dict, init=False, repr=False)
     trigger_refresh: bool = field(default=False, init=False)
 
     @abstractmethod
     def __init__(
-        self, widget_type: str, name: str, label: str, all_options: Sequence[po.SelectParameterOption | dict], *,
+        self, name: str, label: str, all_options: Sequence[po.SelectParameterOption | dict], *,
         description: str = "", user_attribute: str | None = None, parent_name: str | None = None
     ) -> None:
-        super().__init__(widget_type, name, label, description=description, user_attribute=user_attribute, parent_name=parent_name)
-        self._all_options = tuple(self._to_param_option(x) for x in all_options)
+        super().__init__(name, label, all_options, description=description, user_attribute=user_attribute, parent_name=parent_name)
         self.children: dict[str, ParameterConfigBase] = dict()
         self.trigger_refresh = False
-
-    @property
-    def all_options(self) -> Sequence[po.SelectParameterOption]:
-        return self._all_options
 
     @staticmethod
     def ParameterOption(*args, **kwargs):
@@ -189,9 +189,11 @@ class SingleSelectParameterConfig(SelectionParameterConfig):
         self, name: str, label: str, all_options: Sequence[po.SelectParameterOption | dict], *, description: str = "", 
         user_attribute: str | None = None, parent_name: str | None = None
     ) -> None:
-        super().__init__(
-            "single_select", name, label, all_options, description=description, user_attribute=user_attribute, parent_name=parent_name
-        )
+        super().__init__(name, label, all_options, description=description, user_attribute=user_attribute, parent_name=parent_name)
+    
+    @staticmethod
+    def widget_type() -> str:
+        return "single_select"
      
     @staticmethod
     def DataSource(*args, **kwargs):
@@ -232,11 +234,15 @@ class MultiSelectParameterConfig(SelectionParameterConfig):
         user_attribute: str | None = None, parent_name: str | None = None
     ) -> None:
         super().__init__(
-            "multi_select", name, label, all_options, description=description, user_attribute=user_attribute, parent_name=parent_name
+            name, label, all_options, description=description, user_attribute=user_attribute, parent_name=parent_name
         )
         self.show_select_all = show_select_all
         self.order_matters = order_matters
         self.none_is_all = none_is_all
+    
+    @staticmethod
+    def widget_type() -> str:
+        return "multi_select"
     
     @staticmethod
     def DataSource(*args, **kwargs):
@@ -261,21 +267,21 @@ class MultiSelectParameterConfig(SelectionParameterConfig):
 
 
 @dataclass
-class _DateTypeParameterConfig(ParameterConfig):
+class _DateTypeParameterConfig(ParameterConfig[ParamOptionType]):
     """
     Abstract class for date and date range parameter configs
     """
 
     @abstractmethod
     def __init__(
-        self, widget_type: str, name: str, label: str, *, description: str = "", 
+        self, name: str, label: str, all_options: Sequence[ParamOptionType | dict], *, description: str = "", 
         user_attribute: str | None = None, parent_name: str | None = None
     ) -> None:
-        super().__init__(widget_type, name, label, description=description, user_attribute=user_attribute, parent_name=parent_name)
+        super().__init__(name, label, all_options, description=description, user_attribute=user_attribute, parent_name=parent_name)
 
 
 @dataclass
-class DateParameterConfig(_DateTypeParameterConfig):
+class DateParameterConfig(_DateTypeParameterConfig[po.DateParameterOption]):
     """
     Class to define configurations for date parameter widgets.
     """
@@ -285,12 +291,11 @@ class DateParameterConfig(_DateTypeParameterConfig):
         self, name: str, label: str, all_options: Sequence[po.DateParameterOption | dict], *, 
         description: str = "", user_attribute: str | None = None, parent_name: str | None = None
     ) -> None:
-        super().__init__("date", name, label, description=description, user_attribute=user_attribute, parent_name=parent_name)
-        self._all_options = tuple(self._to_param_option(x) for x in all_options)
+        super().__init__(name, label, all_options, description=description, user_attribute=user_attribute, parent_name=parent_name)
     
-    @property
-    def all_options(self) -> Sequence[po.DateParameterOption]:
-        return self._all_options
+    @staticmethod
+    def widget_type() -> str:
+        return "date"
 
     @staticmethod
     def ParameterOption(*args, **kwargs):
@@ -316,7 +321,7 @@ class DateParameterConfig(_DateTypeParameterConfig):
 
 
 @dataclass
-class DateRangeParameterConfig(_DateTypeParameterConfig):
+class DateRangeParameterConfig(_DateTypeParameterConfig[po.DateRangeParameterOption]):
     """
     Class to define configurations for date range parameter widgets.
     """
@@ -326,12 +331,11 @@ class DateRangeParameterConfig(_DateTypeParameterConfig):
         self, name: str, label: str, all_options: Sequence[po.DateRangeParameterOption | dict], *,
         description: str = "", user_attribute: str | None = None, parent_name: str | None = None
     ) -> None:
-        super().__init__("date_range", name, label, description=description, user_attribute=user_attribute, parent_name=parent_name)
-        self._all_options = tuple(self._to_param_option(x) for x in all_options)
+        super().__init__(name, label, all_options, description=description, user_attribute=user_attribute, parent_name=parent_name)
     
-    @property
-    def all_options(self) -> Sequence[po.DateRangeParameterOption]:
-        return self._all_options
+    @staticmethod
+    def widget_type() -> str:
+        return "date_range"
 
     @staticmethod
     def ParameterOption(*args, **kwargs):
@@ -367,21 +371,21 @@ class DateRangeParameterConfig(_DateTypeParameterConfig):
 
 
 @dataclass
-class _NumericParameterConfig(ParameterConfig):
+class _NumericParameterConfig(ParameterConfig[ParamOptionType]):
     """
     Abstract class for number and number range parameter configs
     """
 
     @abstractmethod
     def __init__(
-        self, widget_type: str, name: str, label: str, *, description: str = "", 
+        self, name: str, label: str, all_options: Sequence[ParamOptionType | dict], *, description: str = "", 
         user_attribute: str | None = None, parent_name: str | None = None
     ) -> None:
-        super().__init__(widget_type, name, label, description=description, user_attribute=user_attribute, parent_name=parent_name)
+        super().__init__(name, label, all_options, description=description, user_attribute=user_attribute, parent_name=parent_name)
 
 
 @dataclass
-class NumberParameterConfig(_NumericParameterConfig):
+class NumberParameterConfig(_NumericParameterConfig[po.NumberParameterOption]):
     """
     Class to define configurations for number parameter widgets.
     """
@@ -391,12 +395,11 @@ class NumberParameterConfig(_NumericParameterConfig):
         self, name: str, label: str, all_options: Sequence[po.NumberParameterOption | dict], *,
         description: str = "", user_attribute: str | None = None, parent_name: str | None = None
     ) -> None:
-        super().__init__("number", name, label, description=description, user_attribute=user_attribute, parent_name=parent_name)
-        self._all_options = tuple(self._to_param_option(x) for x in all_options)
-
-    @property
-    def all_options(self) -> Sequence[po.NumberParameterOption]:
-        return self._all_options
+        super().__init__(name, label, all_options, description=description, user_attribute=user_attribute, parent_name=parent_name)
+    
+    @staticmethod
+    def widget_type() -> str:
+        return "number"
     
     @staticmethod
     def ParameterOption(*args, **kwargs):
@@ -422,7 +425,7 @@ class NumberParameterConfig(_NumericParameterConfig):
 
 
 @dataclass
-class NumberRangeParameterConfig(_NumericParameterConfig):
+class NumberRangeParameterConfig(_NumericParameterConfig[po.NumberRangeParameterOption]):
     """
     Class to define configurations for number range parameter widgets.
     """
@@ -432,12 +435,11 @@ class NumberRangeParameterConfig(_NumericParameterConfig):
         self, name: str, label: str, all_options: Sequence[po.NumberRangeParameterOption | dict], *, 
         description: str = "", user_attribute: str | None = None, parent_name: str | None = None
     ) -> None:
-        super().__init__("number_range", name, label, description=description, user_attribute=user_attribute, parent_name=parent_name)
-        self._all_options = tuple(self._to_param_option(x) for x in all_options)
+        super().__init__(name, label, all_options, description=description, user_attribute=user_attribute, parent_name=parent_name)
     
-    @property
-    def all_options(self) -> Sequence[po.NumberRangeParameterOption]:
-        return self._all_options
+    @staticmethod
+    def widget_type() -> str:
+        return "number_range"
 
     @staticmethod
     def ParameterOption(*args, **kwargs):
@@ -473,7 +475,7 @@ class NumberRangeParameterConfig(_NumericParameterConfig):
 
 
 @dataclass
-class TextParameterConfig(ParameterConfig):
+class TextParameterConfig(ParameterConfig[po.TextParameterOption]):
     """
     Class to define configurations for text parameter widgets.
     """
@@ -484,8 +486,7 @@ class TextParameterConfig(ParameterConfig):
         self, name: str, label: str, all_options: Sequence[po.TextParameterOption | dict], *, description: str = "", 
         input_type: str = "text", user_attribute: str | None = None, parent_name: str | None = None
     ) -> None:
-        super().__init__("text", name, label, description=description, user_attribute=user_attribute, parent_name=parent_name)
-        self._all_options = tuple(self._to_param_option(x) for x in all_options)
+        super().__init__(name, label, all_options, description=description, user_attribute=user_attribute, parent_name=parent_name)
         
         allowed_input_types = ["text", "textarea", "number", "date", "datetime-local", "month", "time", "color", "password"]
         if input_type not in allowed_input_types:
@@ -494,10 +495,6 @@ class TextParameterConfig(ParameterConfig):
         self.input_type = input_type
         for option in self._all_options:
             self.validate_entered_text(option._default_text)
-    
-    @property
-    def all_options(self) -> Sequence[po.TextParameterOption]:
-        return self._all_options
     
     def validate_entered_text(self, entered_text: str) -> str:
         if self.input_type == "number":
@@ -530,6 +527,10 @@ class TextParameterConfig(ParameterConfig):
                 raise self._invalid_input_error(entered_text, "Must be a valid color hex code (e.g. #000000).")
         
         return entered_text
+    
+    @staticmethod
+    def widget_type() -> str:
+        return "text"
 
     @staticmethod
     def ParameterOption(*args, **kwargs):

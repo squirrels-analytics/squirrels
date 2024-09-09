@@ -2,6 +2,6 @@
 connections:
   - name: default
     credential: null
-    url: {{ env_vars.sqlite_conn_str }}   ## using Jinja to substitute environment variable from environcfg.yml
+    url: {{ env_vars.sqlite_conn_str }}   ## using Jinja to substitute environment variable from env.yml
 
 

@@ -1,50 +1,39 @@
 from typing import Any, Literal
 from abc import ABCMeta, abstractmethod
-from matplotlib.figure import Figure
-import io, pandas as pd
+import matplotlib.figure, io
 
 from . import _constants as c
 
 
-class Dashboard(metaclass=ABCMeta):
+class _Dashboard(metaclass=ABCMeta):
     """
-    Abstract parent class for all Dashboard classes. 
-    
-    Current Dashboard classes include: 
-    
-    [PNGDashboard, HTMLDashboard]
+    Abstract parent class for all Dashboard classes.
     """
-
+    
     @property
     @abstractmethod
-    def content(self) -> Any:
-        """
-        The contents of the dashboard
-        """
+    def _content(self) -> Any:
         pass
     
     @property
     @abstractmethod
-    def format(self) -> str:
-        """
-        The output format for the dashboard provided through the API response
-        """
+    def _format(self) -> str:
         pass
 
 
-class PngDashboard(Dashboard):
+class PngDashboard(_Dashboard):
     """
     Instantiate a Dashboard in PNG format from a matplotlib figure or bytes
     """
     
-    def __init__(self, content: Figure | io.BytesIO | bytes) -> None:
+    def __init__(self, content: matplotlib.figure.Figure | io.BytesIO | bytes) -> None:
         """
-        Constructor for PNGDashboard
+        Constructor for PngDashboard
 
         Arguments:
             content: The content of the dashboard as a matplotlib.figure.Figure or bytes
         """
-        if isinstance(content, Figure):
+        if isinstance(content, matplotlib.figure.Figure):
             buffer = io.BytesIO()
             content.savefig(buffer, format=c.PNG)
             content = buffer.getvalue()
@@ -52,25 +41,25 @@ class PngDashboard(Dashboard):
         if isinstance(content, io.BytesIO):
             content = content.getvalue()
         
-        self._content = content
+        self.content = content
 
     @property
-    def content(self) -> bytes:
-        return self._content
+    def _content(self) -> bytes:
+        return self.content
     
     @property
-    def format(self) -> Literal['png']:
+    def _format(self) -> Literal['png']:
         return c.PNG
     
 
-class HtmlDashboard(Dashboard):
+class HtmlDashboard(_Dashboard):
     """
     Instantiate a Dashboard from an HTML string
     """
 
     def __init__(self, content: io.StringIO | str) -> None:
         """
-        Constructor for HTMLDashboard
+        Constructor for HtmlDashboard
 
         Arguments:
             content: The content of the dashboard as HTML string
@@ -78,12 +67,12 @@ class HtmlDashboard(Dashboard):
         if isinstance(content, io.StringIO):
             content = content.getvalue()
         
-        self._content = content
+        self.content = content
 
     @property
-    def content(self) -> str:
-        return self._content
+    def _content(self) -> str:
+        return self.content
     
     @property
-    def format(self) -> Literal['html']:
+    def _format(self) -> Literal['html']:
         return c.HTML

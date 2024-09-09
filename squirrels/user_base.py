@@ -43,5 +43,5 @@ class WrongPassword:
     """
     Return this object if the username was found but the password was incorrect
 
-    This ensures that if the username exists as a real user, we won't continue to use the environcfg.yml file to authenticate
+    This ensures that if the username exists as a real user, we won't continue to use the env.yml file to authenticate
     """

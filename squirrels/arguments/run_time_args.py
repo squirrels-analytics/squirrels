@@ -30,7 +30,7 @@ class AuthArgs(ConnectionsArgs):
 class DashboardArgs(ParametersArgs):
     _get_dataset: Callable[[str, dict[str, Any]], Coroutine[Any, Any, pd.DataFrame]]
 
-    async def dataset(self, name: str, fixed_parameters: dict[str, Any]) -> pd.DataFrame:
+    async def dataset(self, name: str, *, fixed_parameters: dict[str, Any] = {}) -> pd.DataFrame:
         """
         Get dataset as DataFrame given dataset name.
 

@@ -14,4 +14,4 @@ from .data_sources import NumberDataSource, NumberRangeDataSource, TextDataSourc
 
 from .user_base import User, WrongPassword
 
-from .dashboards import Dashboard, PngDashboard, HtmlDashboard
+from .dashboards import PngDashboard, HtmlDashboard

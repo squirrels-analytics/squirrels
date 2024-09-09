@@ -21,10 +21,12 @@ class ConfigurationError(Exception):
     """
     pass
 
-class FileExecutionError(ConfigurationError):
+class FileExecutionError(Exception):
     def __init__(self, message: str, error: Exception, *args) -> None:
-        new_message = message + f"\n... Produced error message `{error}` (scroll up for more details on handled exception)"
+        t = "  "
+        new_message = f"\n" + message + f"\n{t}Produced error message:\n{t}{t}{error} (see above for more details on handled exception)"
         super().__init__(new_message, *args)
+        self.error = error
 
 
 ## Utility functions/variables

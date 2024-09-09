@@ -107,17 +107,9 @@ class DatasetConfig(AnalyticsOutputConfig):
 
 
 class DashboardConfig(AnalyticsOutputConfig):
-    format: str = ""
     
     def __hash__(self) -> int:
         return hash("dashboard_"+self.name)
-    
-    @model_validator(mode="after")
-    def validate_format(self) -> Self:
-        valid_formats = [c.PNG, c.HTML]
-        if self.format != "" and self.format not in valid_formats:
-            raise ValueError(f'Invalid format "{self.format}" for dashboard "{self.name}". Format must be one of: {valid_formats}')
-        return self
 
 
 class TestSetsConfig(_ConfigWithNameBaseModel):
@@ -175,14 +167,6 @@ class _ManifestConfig(BaseModel):
         default_name = default_name_1 if default_name_1 else default_name_2
         default_test_set = self.selection_test_sets.get(default_name, TestSetsConfig(name=default_name))
         return default_test_set
-    
-    def get_dashboard_format(self, dashboard_name: str) -> str:
-        """
-        Raises KeyError if dashboard name doesn't exist
-        """
-        default_format = self.settings.get(c.DASHBOARDS_FORMAT_SETTING, c.PNG)
-        dashboard_format = self.dashboards[dashboard_name].format
-        return dashboard_format if dashboard_format else default_format
 
 
 class ManifestIO:

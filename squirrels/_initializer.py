@@ -180,14 +180,15 @@ class Initializer:
             self._copy_pyconfig_file(c.AUTH_FILE)
 
         sample_db = answers.get(SAMPLE_DB)
-        if sample_db is None: # None if not prompt mode and '--sample-db' option was not specified
-            sample_db = c.EXPENSES_DB_NAME
+        if sample_db is None: # sample_db is None when not prompt mode and '--sample-db' option was not specified
+            sample_db = c.EXPENSES_DB_NAME if answers.get(CORE, False) else c.NO_DB
         
-        if sample_db != c.NO_DB:
-            if sample_db == c.EXPENSES_DB_NAME:
-                self._copy_database_file(c.EXPENSES_DB_NAME+".db")
-            elif sample_db == c.WEATHER_DB_NAME:
-                self._copy_database_file(c.WEATHER_DB_NAME+".db")
-            else:
-                raise NotImplementedError(f"No database found called '{sample_db}'")
+        if sample_db == c.NO_DB:
+            pass
+        elif sample_db == c.EXPENSES_DB_NAME:
+            self._copy_database_file(c.EXPENSES_DB_NAME+".db")
+        elif sample_db == c.WEATHER_DB_NAME:
+            self._copy_database_file(c.WEATHER_DB_NAME+".db")
+        else:
+            raise NotImplementedError(f"No database found called '{sample_db}'")
     
