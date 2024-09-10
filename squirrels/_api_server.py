@@ -14,13 +14,14 @@ import os, mimetypes, traceback, json, pandas as pd
 
 from . import _constants as c, _utils as u, _api_response_models as arm
 from ._version import sq_major_version
-from ._manifest import ManifestIO, DatasetConfig, DashboardConfig, AnalyticsOutputConfig
+from ._environcfg import EnvironConfig
+from ._manifest import ManifestConfig, DatasetConfig, DashboardConfig, AnalyticsOutputConfig
 from ._parameter_sets import ParameterConfigsSetIO
 from ._authenticator import User, Authenticator
 from ._timer import timer, time
 from ._parameter_sets import ParameterSet
 from ._models import ModelsIO
-from ._dashboards_io import DashboardsIO
+from ._dashboards_io import DashboardFunction
 from .arguments.run_time_args import DashboardArgs
 from .dashboards import _Dashboard
 
@@ -55,7 +56,9 @@ def df_to_api_response0(df: pd.DataFrame, dimensions: list[str] | None = None) -
 
 
 class ApiServer:
-    def __init__(self, no_cache: bool) -> None:
+    def __init__(
+        self, no_cache: bool, env_cfg: EnvironConfig, manifest_cfg: ManifestConfig, dashboards: dict[str, DashboardFunction]
+    ) -> None:
         """
         Constructor for ApiServer
 
@@ -63,6 +66,9 @@ class ApiServer:
             no_cache (bool): Whether to disable caching
         """
         self.no_cache = no_cache
+        self.env_cfg = env_cfg
+        self.manifest_cfg = manifest_cfg
+        self.dashboards = dashboards
     
     def run(self, uvicorn_args: Namespace) -> None:
         """
@@ -88,20 +94,20 @@ class ApiServer:
             }
         ]
 
-        for dataset_name in ManifestIO.obj.datasets:
+        for dataset_name in self.manifest_cfg.datasets:
             tags_metadata.append({
                 "name": f"Dataset '{dataset_name}'",
                 "description": f"Get parameters or results for dataset '{dataset_name}'",
             })
         
-        for dashboard_name in ManifestIO.obj.dashboards:
+        for dashboard_name in self.manifest_cfg.dashboards:
             tags_metadata.append({
                 "name": f"Dashboard '{dashboard_name}'",
                 "description": f"Get parameters or results for dashboard '{dashboard_name}'",
             })
         
         app = FastAPI(
-            title=f"Squirrels APIs for '{ManifestIO.obj.project_variables.label}'", openapi_tags=tags_metadata,
+            title=f"Squirrels APIs for '{self.manifest_cfg.project_variables.label}'", openapi_tags=tags_metadata,
             description="For specifying parameter selections to dataset APIs, you can choose between using query parameters with the GET method or using request body with the POST method"
         )
 
@@ -133,7 +139,7 @@ class ApiServer:
         )
 
         squirrels_version_path = f'/squirrels-v{sq_major_version}'
-        partial_base_path = f'/{ManifestIO.obj.project_variables.name}/v{ManifestIO.obj.project_variables.major_version}'
+        partial_base_path = f'/{self.manifest_cfg.project_variables.name}/v{self.manifest_cfg.project_variables.major_version}'
         base_path = squirrels_version_path + u.normalize_name_for_api(partial_base_path)
         
         # Helpers
@@ -216,16 +222,16 @@ class ApiServer:
         def get_dataset_manifest_config(request: Request, section: int) -> DatasetConfig:
             dataset_raw = get_section_from_request_path(request, section)
             dataset = u.normalize_name(dataset_raw)
-            return ManifestIO.obj.datasets[dataset]
+            return self.manifest_cfg.datasets[dataset]
 
         def get_dashboard_manifest_config(request: Request, section: int) -> DashboardConfig:
             dashboard_raw = get_section_from_request_path(request, section)
             dashboard = u.normalize_name(dashboard_raw)
-            return ManifestIO.obj.dashboards[dashboard]
+            return self.manifest_cfg.dashboards[dashboard]
         
         # Login & Authorization
-        token_expiry_minutes = ManifestIO.obj.settings.get(c.AUTH_TOKEN_EXPIRE_SETTING, 30)
-        authenticator = Authenticator(token_expiry_minutes)
+        token_expiry_minutes = self.manifest_cfg.settings.get(c.AUTH_TOKEN_EXPIRE_SETTING, 30)
+        authenticator = Authenticator(self.env_cfg, token_expiry_minutes)
 
         token_path = base_path + '/token'
 
@@ -256,7 +262,7 @@ class ApiServer:
         
         def get_data_catalog0(user: User | None) -> arm.CatalogModel:
             dataset_items: list[arm.DatasetItemModel] = []
-            for name, config in ManifestIO.obj.datasets.items():
+            for name, config in self.manifest_cfg.datasets.items():
                 if authenticator.can_user_access_scope(user, config.scope):
                     name_normalized = u.normalize_name_for_api(name)
                     dataset_items.append(arm.DatasetItemModel(
@@ -266,10 +272,10 @@ class ApiServer:
                     ))
             
             dashboard_items: list[arm.DashboardItemModel] = []
-            for name, config in ManifestIO.obj.dashboards.items():
+            for name, config in self.manifest_cfg.dashboards.items():
                 if authenticator.can_user_access_scope(user, config.scope):
                     name_normalized = u.normalize_name_for_api(name)
-                    dashboard_format = DashboardsIO.get_dashboard_format(name)
+                    dashboard_format = self.dashboards[name].get_dashboard_format()
                     dashboard_items.append(arm.DashboardItemModel(
                         name=name, label=config.label, description=config.description, result_format=dashboard_format,
                         parameters_path=dashboard_parameters_path.format(dashboard=name_normalized),
@@ -301,7 +307,7 @@ class ApiServer:
             )
             return param_set
 
-        settings = ManifestIO.obj.settings
+        settings = self.manifest_cfg.settings
         parameters_cache_size = settings.get(c.PARAMETERS_CACHE_SIZE_SETTING, 1024)
         parameters_cache_ttl = settings.get(c.PARAMETERS_CACHE_TTL_SETTING, 60)
         params_cache = TTLCache(maxsize=parameters_cache_size, ttl=parameters_cache_ttl*60)
@@ -334,11 +340,11 @@ class ApiServer:
         async def get_dataset_results_helper(
             dataset_config: DatasetConfig, user: User | None, selections: frozenset[tuple[str, Any]], request_version: int | None
         ) -> pd.DataFrame:
-            dag = ModelsIO.generate_dag(dataset_config.name)
+            dag = ModelsIO.generate_dag(self.manifest_cfg, dataset_config.name)
             await dag.execute(ModelsIO.context_func, user, dict(selections), request_version=request_version)
             return pd.DataFrame(dag.target_model.result)
 
-        settings = ManifestIO.obj.settings
+        settings = self.manifest_cfg.settings
         dataset_results_cache_size = settings.get(c.DATASETS_CACHE_SIZE_SETTING, settings.get(c.RESULTS_CACHE_SIZE_SETTING, 128))
         dataset_results_cache_ttl = settings.get(c.DATASETS_CACHE_TTL_SETTING, settings.get(c.RESULTS_CACHE_TTL_SETTING, 60))
         dataset_results_cache = TTLCache(maxsize=dataset_results_cache_size, ttl=dataset_results_cache_ttl*60)
@@ -364,15 +370,15 @@ class ApiServer:
         ) -> _Dashboard:
             async def get_dataset(dataset_name: str, fixed_params: dict[str, Any]) -> pd.DataFrame:
                 final_selections = {**dict(selections), **fixed_params}
-                dag = ModelsIO.generate_dag(dataset_name)
+                dag = ModelsIO.generate_dag(self.manifest_cfg, dataset_name)
                 await dag.execute(ModelsIO.context_func, user, final_selections, request_version=request_version)
                 return pd.DataFrame(dag.target_model.result)
             
             param_args = ParameterConfigsSetIO.args
             args = DashboardArgs(param_args.proj_vars, param_args.env_vars, get_dataset)
-            return await DashboardsIO.get_dashboard(dashboard_config.name, args)
+            return await self.dashboards[dashboard_config.name].get_dashboard(args)
 
-        settings = ManifestIO.obj.settings
+        settings = self.manifest_cfg.settings
         dashboard_results_cache_size = settings.get(c.DASHBOARDS_CACHE_SIZE_SETTING, 128)
         dashboard_results_cache_ttl = settings.get(c.DASHBOARDS_CACHE_TTL_SETTING, 60)
         dashboard_results_cache = TTLCache(maxsize=dashboard_results_cache_size, ttl=dashboard_results_cache_ttl*60)
@@ -398,7 +404,7 @@ class ApiServer:
             return result
         
         # Dataset Parameters and Results APIs
-        for dataset_name, dataset_config in ManifestIO.obj.datasets.items():
+        for dataset_name, dataset_config in self.manifest_cfg.datasets.items():
             dataset_normalized = u.normalize_name_for_api(dataset_name)
             curr_parameters_path = dataset_parameters_path.format(dataset=dataset_normalized)
             curr_results_path = dataset_results_path.format(dataset=dataset_normalized)
@@ -456,7 +462,7 @@ class ApiServer:
                 return result
         
         # Dashboard Parameters and Results APIs
-        for dashboard_name, dashboard_config in ManifestIO.obj.dashboards.items():
+        for dashboard_name, dashboard_config in self.manifest_cfg.dashboards.items():
             dashboard_normalized = u.normalize_name_for_api(dashboard_name)
             curr_parameters_path = dashboard_parameters_path.format(dashboard=dashboard_normalized)
             curr_results_path = dashboard_results_path.format(dashboard=dashboard_normalized)
@@ -510,10 +516,10 @@ class ApiServer:
         # Project Metadata API
         def get_project_metadata0() -> arm.ProjectModel:
             return arm.ProjectModel(
-                name=ManifestIO.obj.project_variables.name,
-                label=ManifestIO.obj.project_variables.label,
+                name=self.manifest_cfg.project_variables.name,
+                label=self.manifest_cfg.project_variables.label,
                 versions=[arm.ProjectVersionModel(
-                    major_version=ManifestIO.obj.project_variables.major_version,
+                    major_version=self.manifest_cfg.project_variables.major_version,
                     minor_versions=[0],
                     token_path=token_path,
                     data_catalog_path=data_catalog_path

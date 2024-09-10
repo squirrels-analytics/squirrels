@@ -5,7 +5,6 @@ from abc import ABCMeta, abstractmethod
 import pandas as pd
 
 from . import _parameter_configs as pc, parameter_options as po, _utils as u, _constants as c
-from ._manifest import ManifestIO
 
 
 @dataclass
@@ -32,10 +31,8 @@ class DataSource(metaclass=ABCMeta):
         self._parent_id_col = parent_id_col
         self._connection_name = connection_name
     
-    def _get_connection_name(self) -> str:
-        if self._connection_name is None:
-            return ManifestIO.obj.settings.get(c.DB_CONN_DEFAULT_USED_SETTING, c.DEFAULT_DB_CONN)
-        return self._connection_name
+    def _get_connection_name(self, default_conn_name: str) -> str:
+        return self._connection_name if self._connection_name is not None else default_conn_name
 
     def _get_query(self) -> str:
         """

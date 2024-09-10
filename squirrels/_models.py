@@ -12,7 +12,7 @@ from . import _constants as c, _utils as u, _py_module as pm
 from .arguments.run_time_args import ContextArgs, ModelDepsArgs, ModelArgs
 from ._authenticator import User, Authenticator
 from ._connection_set import ConnectionSetIO
-from ._manifest import ManifestIO, DatasetConfig, DatasetScope, TestSetsConfig
+from ._manifest import ManifestConfig, DatasetConfig, DatasetScope, TestSetsConfig
 from ._parameter_sets import ParameterConfigsSetIO, ParameterSet
 from ._seeds import SeedsIO
 from ._timer import timer, time
@@ -184,7 +184,7 @@ class _Seed(_Referable):
 @dataclass
 class _Model(_Referable):
     query_file: _QueryFile
-
+    manifest_cfg: ManifestConfig
     compiled_query: _Query | None = field(default=None, init=False)
 
     def get_model_type(self) -> ModelType:
@@ -200,15 +200,15 @@ class _Model(_Referable):
             other.needs_sql_table = True
 
     def _get_dbview_conn_name(self) -> str:
-        dbview_config = ManifestIO.obj.dbviews.get(self.name)
+        dbview_config = self.manifest_cfg.dbviews.get(self.name)
         if dbview_config is None or dbview_config.connection_name is None:
-            return ManifestIO.obj.settings.get(c.DB_CONN_DEFAULT_USED_SETTING, c.DEFAULT_DB_CONN)
+            return self.manifest_cfg.settings.get(c.DB_CONN_DEFAULT_USED_SETTING, c.DEFAULT_DB_CONN)
         return dbview_config.connection_name
 
     def _get_materialized(self) -> Materialization:
-        federate_config = ManifestIO.obj.federates.get(self.name)
+        federate_config = self.manifest_cfg.federates.get(self.name)
         if federate_config is None or federate_config.materialized is None:
-            materialized = ManifestIO.obj.settings.get(c.DEFAULT_MATERIALIZE_SETTING, c.DEFAULT_MATERIALIZE)
+            materialized = self.manifest_cfg.settings.get(c.DEFAULT_MATERIALIZE_SETTING, c.DEFAULT_MATERIALIZE)
         else:
             materialized = federate_config.materialized
         return Materialization[materialized.upper()]
@@ -498,34 +498,34 @@ class ModelsIO:
     context_func: ContextFunc
 
     @classmethod
-    def load_files(cls) -> None:
+    def load_files(cls) -> tuple[dict[str, _QueryFile], ContextFunc]:
         start = time.time()
         cls.raw_queries_by_model = {}
 
-        def populate_raw_queries_for_type(folder_path: Path, model_type: ModelType):
-            def populate_from_file(dp, file):
-                query_type = None
-                filepath = os.path.join(dp, file)
-                file_stem, extension = os.path.splitext(file)
-                if extension == '.py':
-                    query_type = QueryType.PYTHON
-                    module = pm.PyModule(filepath)
-                    dependencies_func = module.get_func_or_class(c.DEP_FUNC, default_attr=lambda sqrl: [])
-                    raw_query = _RawPyQuery(module.get_func_or_class(c.MAIN_FUNC), dependencies_func)
-                elif extension == '.sql':
-                    query_type = QueryType.SQL
-                    raw_query = _RawSqlQuery(u.read_file(filepath))
-                
-                if query_type is not None:
-                    query_file = _QueryFile(filepath, model_type, query_type, raw_query)
-                    if file_stem in cls.raw_queries_by_model:
-                        conflicts = [cls.raw_queries_by_model[file_stem].filepath, filepath]
-                        raise u.ConfigurationError(f"Multiple models found for '{file_stem}': {conflicts}")
-                    cls.raw_queries_by_model[file_stem] = query_file
+        def populate_from_file(dp: str, file: str, model_type: ModelType) -> None:
+            query_type = None
+            filepath = os.path.join(dp, file)
+            file_stem, extension = os.path.splitext(file)
+            if extension == '.py':
+                query_type = QueryType.PYTHON
+                module = pm.PyModule(filepath)
+                dependencies_func = module.get_func_or_class(c.DEP_FUNC, default_attr=lambda sqrl: [])
+                raw_query = _RawPyQuery(module.get_func_or_class(c.MAIN_FUNC), dependencies_func)
+            elif extension == '.sql':
+                query_type = QueryType.SQL
+                raw_query = _RawSqlQuery(u.read_file(filepath))
             
+            if query_type is not None:
+                query_file = _QueryFile(filepath, model_type, query_type, raw_query)
+                if file_stem in cls.raw_queries_by_model:
+                    conflicts = [cls.raw_queries_by_model[file_stem].filepath, filepath]
+                    raise u.ConfigurationError(f"Multiple models found for '{file_stem}': {conflicts}")
+                cls.raw_queries_by_model[file_stem] = query_file
+
+        def populate_raw_queries_for_type(folder_path: Path, model_type: ModelType) -> None:
             for dp, _, filenames in os.walk(folder_path):
                 for file in filenames:
-                    populate_from_file(dp, file)
+                    populate_from_file(dp, file, model_type)
             
         dbviews_path = u.join_paths(c.MODELS_FOLDER, c.DBVIEWS_FOLDER)
         populate_raw_queries_for_type(dbviews_path, ModelType.DBVIEW)
@@ -537,17 +537,18 @@ class ModelsIO:
         cls.context_func = pm.PyModule(context_path).get_func_or_class(c.MAIN_FUNC, default_attr=lambda ctx, sqrl: None)
         
         timer.add_activity_time("loading files for models and context.py", start)
+        return cls.raw_queries_by_model, cls.context_func
 
     @classmethod
-    def generate_dag(cls, dataset: str, *, target_model_name: str | None = None, always_pandas: bool = False) -> _DAG:
+    def generate_dag(cls, manifest_cfg: ManifestConfig, dataset: str, *, target_model_name: str | None = None, always_pandas: bool = False) -> _DAG:
         seeds_dict = SeedsIO.obj.get_dataframes()
 
         models_dict: dict[str, _Referable] = {key: _Seed(key, df) for key, df in seeds_dict.items()}
         for key, val in cls.raw_queries_by_model.items():
-            models_dict[key] = _Model(key, val)
+            models_dict[key] = _Model(key, val, manifest_cfg)
             models_dict[key].needs_pandas = always_pandas
         
-        dataset_config = ManifestIO.obj.datasets[dataset]
+        dataset_config = manifest_cfg.datasets[dataset]
         target_model_name = dataset_config.model if target_model_name is None else target_model_name
         target_model = models_dict[target_model_name]
         target_model.is_target = True
@@ -572,17 +573,17 @@ class ModelsIO:
         
         fig.tight_layout()
         plt.margins(x=0.1, y=0.1)
-        plt.savefig(u.join_paths(output_folder, "dag.png"))
+        fig.savefig(u.join_paths(output_folder, "dag.png"))
         plt.close(fig)
 
     @classmethod
     async def write_dataset_outputs_given_test_set(
-        cls, dataset_conf: DatasetConfig, select: str, test_set: str | None, runquery: bool, recurse: bool
+        cls, manifest_cfg: ManifestConfig, dataset_conf: DatasetConfig, select: str, test_set: str | None, runquery: bool, recurse: bool
     ) -> Any | None:
         dataset = dataset_conf.name
-        default_test_set_conf = ManifestIO.obj.get_default_test_set(dataset)
-        if test_set in ManifestIO.obj.selection_test_sets:
-            test_set_conf = ManifestIO.obj.selection_test_sets[test_set]
+        default_test_set_conf = manifest_cfg.get_default_test_set(dataset)
+        if test_set in manifest_cfg.selection_test_sets:
+            test_set_conf = manifest_cfg.selection_test_sets[test_set]
         elif test_set is None or test_set == default_test_set_conf.name:
             test_set, test_set_conf = default_test_set_conf.name, default_test_set_conf
         else:
@@ -607,7 +608,7 @@ class ModelsIO:
             raise u.ConfigurationError(f"{error_msg_intro}\n Private datasets require a test set with user_attribute 'is_internal' set to true")
 
         # always_pandas is set to True for creating CSV files from results (when runquery is True)
-        dag = cls.generate_dag(dataset, target_model_name=select, always_pandas=True)
+        dag = cls.generate_dag(manifest_cfg, dataset, target_model_name=select, always_pandas=True)
         placeholders = await dag.execute(cls.context_func, user, selections, runquery=runquery, recurse=recurse)
         
         output_folder = u.join_paths(c.TARGET_FOLDER, c.COMPILE_FOLDER, dataset, test_set)
@@ -655,30 +656,29 @@ class ModelsIO:
 
     @classmethod
     async def write_outputs(
-        cls, dataset: str | None, do_all_datasets: bool, select: str | None, test_set: str | None, do_all_test_sets: bool, 
-        runquery: bool
+        cls, manifest_cfg: ManifestConfig, dataset: str | None, do_all_datasets: bool, select: str | None, test_set: str | None, 
+        do_all_test_sets: bool, runquery: bool
     ) -> None:
         
         recurse = True
-        dataset_configs = ManifestIO.obj.datasets
         if do_all_datasets:
-            selected_models = [(dataset, dataset.model) for dataset in dataset_configs.values()]
+            selected_models = [(dataset, dataset.model) for dataset in manifest_cfg.datasets.values()]
         else:
             assert isinstance(dataset, str)
             if select is None:
-                select = dataset_configs[dataset].model
+                select = manifest_cfg.datasets[dataset].model
             else:
                 recurse = False
-            selected_models = [(dataset_configs[dataset], select)]
+            selected_models = [(manifest_cfg.datasets[dataset], select)]
         
         coroutines = []
         for dataset_conf, select in selected_models:
             if do_all_test_sets:
-                for test_set_name in cls._get_applicable_test_sets(ManifestIO.obj.selection_test_sets, dataset_conf.name):
-                    coroutine = cls.write_dataset_outputs_given_test_set(dataset_conf, select, test_set_name, runquery, recurse)
+                for test_set_name in cls._get_applicable_test_sets(manifest_cfg.selection_test_sets, dataset_conf.name):
+                    coroutine = cls.write_dataset_outputs_given_test_set(manifest_cfg, dataset_conf, select, test_set_name, runquery, recurse)
                     coroutines.append(coroutine)
             
-            coroutine = cls.write_dataset_outputs_given_test_set(dataset_conf, select, test_set, runquery, recurse)
+            coroutine = cls.write_dataset_outputs_given_test_set(manifest_cfg, dataset_conf, select, test_set, runquery, recurse)
             coroutines.append(coroutine)
         
         queries = await asyncio.gather(*coroutines)

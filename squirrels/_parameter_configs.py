@@ -577,14 +577,14 @@ class DataSourceParameterConfig(ParameterConfigBase):
     def convert(self, df: pd.DataFrame) -> ParameterConfig:
         return self.data_source._convert(self, df)
     
-    def get_dataframe(self, conn_set: ConnectionSet, seeds: Seeds) -> pd.DataFrame:
+    def get_dataframe(self, default_conn_name: str, conn_set: ConnectionSet, seeds: Seeds) -> pd.DataFrame:
         datasource = self.data_source
         query = datasource._get_query()
         if datasource.is_from_seed():
             df = seeds.run_query(query)
         else:
             try:
-                conn_name = datasource._get_connection_name()
+                conn_name = datasource._get_connection_name(default_conn_name)
                 df = conn_set.run_sql_query_from_conn_name(query, conn_name)
             except RuntimeError as e:
                 raise u.ConfigurationError(f'Error executing query for datasource parameter "{self.name}"') from e

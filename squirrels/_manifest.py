@@ -5,7 +5,7 @@ from pydantic import BaseModel, Field, field_validator, model_validator, Validat
 import yaml
 
 from . import _constants as c, _utils as u
-from ._environcfg import EnvironConfigIO
+from ._environcfg import EnvironConfig
 from ._timer import timer, time
 
 
@@ -41,9 +41,8 @@ class DbConnConfig(_ConfigWithNameBaseModel):
     credential: str | None = None
     url: str
 
-    @model_validator(mode="after")
-    def finalize_url(self) -> Self:
-        username, password = EnvironConfigIO.obj.get_credential(self.credential)
+    def finalize_url(self, env_cfg: EnvironConfig) -> Self:
+        username, password = env_cfg.get_credential(self.credential)
         self.url = self.url.format(username=username, password=password)
         return self
 
@@ -125,7 +124,7 @@ class TestSetsConfig(_ConfigWithNameBaseModel):
         return self
 
 
-class _ManifestConfig(BaseModel):
+class ManifestConfig(BaseModel):
     project_variables: ProjectVarsConfig
     packages: list[PackageConfig] = Field(default_factory=list)
     connections: dict[str, DbConnConfig] = Field(default_factory=dict)
@@ -157,6 +156,9 @@ class _ManifestConfig(BaseModel):
                 raise ValueError(f'In the {info.field_name} section, the name "{name}" was specified multiple times')
             values_as_dict[name] = obj
         return values_as_dict
+    
+    def get_default_connection_name(self) -> str:
+        return self.settings.get(c.DB_CONN_DEFAULT_USED_SETTING, c.DEFAULT_DB_CONN)
 
     def get_default_test_set(self, dataset_name: str) -> TestSetsConfig:
         """
@@ -170,19 +172,21 @@ class _ManifestConfig(BaseModel):
 
 
 class ManifestIO:
-    obj: _ManifestConfig
+    obj: ManifestConfig
 
     @classmethod
-    def load_from_file(cls) -> None:
+    def load_from_file(cls, env_cfg: EnvironConfig) -> ManifestConfig:
         start = time.time()
 
         raw_content = u.read_file(c.MANIFEST_FILE)
-        env_vars = EnvironConfigIO.obj.get_all_env_vars()
+        env_vars = env_cfg.get_all_env_vars()
         content = u.render_string(raw_content, env_vars=env_vars)
         manifest_content = yaml.safe_load(content)
         try:
-            cls.obj = _ManifestConfig(**manifest_content)
+            cls.obj = ManifestConfig(**manifest_content)
+            cls.obj.connections = { key: val.finalize_url(env_cfg) for key, val in cls.obj.connections.items() }
         except ValidationError as e:
             raise u.ConfigurationError(f"Failed to process {c.MANIFEST_FILE} file. " + str(e)) from e
         
         timer.add_activity_time(f"loading {c.MANIFEST_FILE} file", start)
+        return cls.obj

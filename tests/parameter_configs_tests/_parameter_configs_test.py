@@ -172,7 +172,7 @@ class TestDataSourceParameterConfig:
             "col_val": ["a", "a", "b", "b", "c"]
         })
         seeds = s.Seeds({"seed_test": input_df})
-        output_df = ds_config.get_dataframe(cs.ConnectionSet({}), seeds)
+        output_df = ds_config.get_dataframe("default", cs.ConnectionSet({}), seeds)
 
         assert output_df.equals(pd.DataFrame({
             "col_id": [1, 2, 3],

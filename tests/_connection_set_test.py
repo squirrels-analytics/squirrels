@@ -22,7 +22,7 @@ def connection_set():
     })
 
     yield connection_set
-    connection_set._dispose()
+    connection_set.dispose()
 
 
 def test_get_connection_pool(connection_set: cs.ConnectionSet):

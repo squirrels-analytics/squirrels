@@ -20,7 +20,7 @@ class _CredentialsConfig(BaseModel):
     password: str
 
 
-class _EnvironConfig(BaseModel):
+class EnvironConfig(BaseModel):
     users: dict[str, _UserConfig] = Field(default_factory=dict)
     env_vars: dict[str, str] = Field(default_factory=dict)
     credentials: dict[str, _CredentialsConfig] = Field(default_factory=dict)
@@ -58,10 +58,10 @@ class _EnvironConfig(BaseModel):
 
 
 class EnvironConfigIO:
-    obj: _EnvironConfig
+    obj: EnvironConfig
     
     @classmethod
-    def load_from_file(cls):
+    def load_from_file(cls) -> EnvironConfig:
         start = time.time()
         def load_yaml(filename: str | Path) -> dict[str, dict]:
             try:
@@ -78,8 +78,9 @@ class EnvironConfigIO:
             master_env_config[key].update(proj_env_config[key])
         
         try:
-            cls.obj = _EnvironConfig(**master_env_config)
+            cls.obj = EnvironConfig(**master_env_config)
         except ValidationError as e:
             raise u.ConfigurationError(f"Failed to process {c.ENV_CONFIG_FILE} file. " + str(e)) from e
         
         timer.add_activity_time(f"loading {c.ENV_CONFIG_FILE} file", start)
+        return cls.obj

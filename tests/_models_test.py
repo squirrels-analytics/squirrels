@@ -2,7 +2,7 @@ import pytest, asyncio, pandas as pd, time
 
 from squirrels import _models as m, _utils as u
 from squirrels.arguments.run_time_args import ContextArgs
-from squirrels._manifest import DatasetConfig
+from squirrels._manifest import ManifestIO, DatasetConfig
 
 
 @pytest.fixture(scope="function")
@@ -89,34 +89,34 @@ def modelC2_query_file():
 
 @pytest.fixture(scope="function")
 def modelA(modelA_query_file):
-    model = m._Model("modelA", modelA_query_file)
+    model = m._Model("modelA", modelA_query_file, ManifestIO.obj)
     model.is_target = True
     return model
 
 
 @pytest.fixture(scope="function")
 def modelB1(modelB1_query_file):
-    return m._Model("modelB1", modelB1_query_file)
+    return m._Model("modelB1", modelB1_query_file, ManifestIO.obj)
 
 
 @pytest.fixture(scope="function")
 def modelB2(modelB2_query_file):
-    return m._Model("modelB2", modelB2_query_file)
+    return m._Model("modelB2", modelB2_query_file, ManifestIO.obj)
 
 
 @pytest.fixture(scope="function")
 def modelC1a(modelC1a_query_file):
-    return m._Model("modelC1", modelC1a_query_file)
+    return m._Model("modelC1", modelC1a_query_file, ManifestIO.obj)
 
 
 @pytest.fixture(scope="function")
 def modelC1b(modelC1b_query_file):
-    return m._Model("modelC1", modelC1b_query_file)
+    return m._Model("modelC1", modelC1b_query_file, ManifestIO.obj)
 
 
 @pytest.fixture(scope="function")
 def modelC2(modelC2_query_file):
-    return m._Model("modelC2", modelC2_query_file)
+    return m._Model("modelC2", modelC2_query_file, ManifestIO.obj)
 
 
 @pytest.fixture(scope="function")

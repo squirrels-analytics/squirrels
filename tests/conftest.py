@@ -1,7 +1,7 @@
 import pytest
 
 from squirrels.arguments.init_time_args import ConnectionsArgs
-from squirrels._environcfg import EnvironConfigIO, _EnvironConfig
+from squirrels._environcfg import EnvironConfigIO, EnvironConfig
 from squirrels._connection_set import ConnectionSetIO, ConnectionSet
 from squirrels import _manifest as m
 
@@ -27,9 +27,9 @@ def my_initial_code():
             "password": "pass1"
         }
     }
-    EnvironConfigIO.obj = _EnvironConfig(users=users, credentials=credentials) # type: ignore
+    EnvironConfigIO.obj = EnvironConfig(users=users, credentials=credentials) # type: ignore
 
-    m.ManifestIO.obj = m._ManifestConfig(
+    m.ManifestIO.obj = m.ManifestConfig(
         project_variables=m.ProjectVarsConfig(name="", major_version=0),
         packages=[],
         connections={},

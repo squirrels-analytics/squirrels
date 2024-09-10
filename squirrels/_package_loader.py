@@ -1,20 +1,20 @@
 import git, shutil, os, time
 
 from . import _constants as c, _utils as u
-from ._manifest import ManifestIO
+from ._manifest import ManifestConfig
 from ._timer import timer
 
 
 class PackageLoaderIO:
 
     @classmethod
-    def load_packages(cls, *, reload: bool = False) -> None:
+    def load_packages(cls, manifest_cfg: ManifestConfig, *, reload: bool = False) -> None:
         start = time.time()
         # If reload, delete the modules directory (if it exists). It will be recreated later
         if reload and os.path.exists(c.PACKAGES_FOLDER):
             shutil.rmtree(c.PACKAGES_FOLDER)
         
-        package_repos = ManifestIO.obj.packages
+        package_repos = manifest_cfg.packages
         for repo in package_repos:
             target_dir = f"{c.PACKAGES_FOLDER}/{repo.directory}"
             if not os.path.exists(target_dir):

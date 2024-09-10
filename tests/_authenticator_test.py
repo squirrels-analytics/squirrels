@@ -3,6 +3,7 @@ import pytest
 
 from squirrels import AuthArgs
 from squirrels._authenticator import Authenticator, User as UserBase, WrongPassword
+from squirrels._environcfg import EnvironConfig
 from squirrels._manifest import DatasetScope
 
 
@@ -42,7 +43,7 @@ class AuthHelper:
 
 @pytest.fixture(scope="module")
 def auth() -> Authenticator:
-    return Authenticator(30, AuthHelper())
+    return Authenticator(EnvironConfig(), 30, AuthHelper())
 
 
 @pytest.fixture(scope="module")

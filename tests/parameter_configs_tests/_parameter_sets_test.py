@@ -68,8 +68,8 @@ def parameter_set2(
 @pytest.fixture(scope="module")
 def param_configs_set1(
     ms_config_basic: pc.MultiSelectParameterConfig, ss_config_with_ms_parent: pc.SingleSelectParameterConfig
-) -> ps._ParameterConfigsSet:
-    config_set = ps._ParameterConfigsSet()
+) -> ps.ParameterConfigsSet:
+    config_set = ps.ParameterConfigsSet()
     config_set.add(ss_config_with_ms_parent.copy())
     config_set.add(ms_config_basic.copy())
     config_set._post_process_params({})
@@ -80,8 +80,8 @@ def param_configs_set1(
 def param_configs_set2(
     ms_config_basic: pc.MultiSelectParameterConfig, ss_config_with_ms_parent: pc.SingleSelectParameterConfig, 
     date_config_with_parent: pc.DateParameterConfig
-) -> ps._ParameterConfigsSet:
-    config_set = ps._ParameterConfigsSet()
+) -> ps.ParameterConfigsSet:
+    config_set = ps.ParameterConfigsSet()
     config_set.add(ss_config_with_ms_parent.copy())
 
     datasource = d.SelectDataSource("ms_table", "my_id", "my_label", is_default_col="my_default_flag", 
@@ -160,7 +160,7 @@ def test_parameter_set_to_json_dict(parameter_set1: ps.ParameterSet):
 
 
 def test_invalid_non_select_parent():
-    configs_set = ps._ParameterConfigsSet()
+    configs_set = ps.ParameterConfigsSet()
     configs_set.add(pc.DateParameterConfig("parent_date", "My Date", (po.DateParameterOption("2023-01-01"),)))
     configs_set.add(pc.SingleSelectParameterConfig("child_ss", "My Single Select", (), parent_name="parent_date"))
     with pytest.raises(u.ConfigurationError):
@@ -168,7 +168,7 @@ def test_invalid_non_select_parent():
 
 
 def test_invalid_ms_parent_on_non_select_child():
-    configs_set = ps._ParameterConfigsSet()
+    configs_set = ps.ParameterConfigsSet()
     configs_set.add(pc.MultiSelectParameterConfig("parent_ms", "My Multi Select", ()))
     configs_set.add(pc.DateParameterConfig("child_date", "My Date", (po.DateParameterOption("2023-01-01"),), parent_name="parent_ms"))
     with pytest.raises(u.ConfigurationError):
@@ -176,7 +176,7 @@ def test_invalid_ms_parent_on_non_select_child():
 
 
 def test_invalid_overlapping_parent_options():
-    configs_set = ps._ParameterConfigsSet()
+    configs_set = ps.ParameterConfigsSet()
     select_options = [po.SelectParameterOption("ss0", "Option 0")]
     configs_set.add(pc.SingleSelectParameterConfig("parent_ss", "My Single Select", select_options))
     number_options = [
@@ -189,7 +189,7 @@ def test_invalid_overlapping_parent_options():
 
 
 def test_invalid_overlapping_parent_options_within_user_group():
-    configs_set = ps._ParameterConfigsSet()
+    configs_set = ps.ParameterConfigsSet()
     select_options = [po.SelectParameterOption("ss0", "Option 0")]
     configs_set.add(pc.SingleSelectParameterConfig("parent_ss", "My Single Select", select_options))
     number_options = [
@@ -210,7 +210,7 @@ def test_invalid_overlapping_parent_options_within_user_group():
 
 
 def test_apply_selections1(
-    user: User, param_configs_set1: ps._ParameterConfigsSet, parameter_set0: ps.ParameterSet, parameter_set1: ps.ParameterSet
+    user: User, param_configs_set1: ps.ParameterConfigsSet, parameter_set0: ps.ParameterSet, parameter_set1: ps.ParameterSet
 ):
     selections = {"single_select_with_ms_parent": "ss1"}
 
@@ -222,7 +222,7 @@ def test_apply_selections1(
 
 
 def test_apply_selections2(
-    user: User, param_configs_set2: ps._ParameterConfigsSet, parameter_set2: ps.ParameterSet
+    user: User, param_configs_set2: ps.ParameterConfigsSet, parameter_set2: ps.ParameterSet
 ):
     dataset_parms = ["date_param_with_parent", "single_select_with_ms_parent", "multi_select_basic"]
     selections = {

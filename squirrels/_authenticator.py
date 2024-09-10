@@ -7,7 +7,7 @@ from . import _utils as u, _constants as c
 from .arguments.run_time_args import AuthArgs
 from ._py_module import PyModule
 from .user_base import User, WrongPassword
-from ._environcfg import EnvironConfigIO
+from ._environcfg import EnvironConfig
 from ._manifest import DatasetScope
 from ._connection_set import ConnectionSetIO
 
@@ -19,14 +19,15 @@ class Authenticator:
         auth_module_path = u.join_paths(c.PYCONFIGS_FOLDER, c.AUTH_FILE)
         return PyModule(auth_module_path, default_class=default_auth_helper)
 
-    def __init__(self, token_expiry_minutes: int, auth_helper = None) -> None:
+    def __init__(self, env_cfg: EnvironConfig, token_expiry_minutes: int, auth_helper = None) -> None:
+        self.env_cfg = env_cfg
         self.token_expiry_minutes = token_expiry_minutes
         self.auth_helper = self.get_auth_helper(auth_helper)
         self.secret_key = self._get_secret_key()
         self.algorithm = "HS256"
 
     def _get_secret_key(self) -> str:
-        secret_key = EnvironConfigIO.obj.get_secret(c.JWT_SECRET_KEY, default_factory=lambda: secrets.token_hex(32))
+        secret_key = self.env_cfg.get_secret(c.JWT_SECRET_KEY, default_factory=lambda: secrets.token_hex(32))
         return str(secret_key)
     
     def _get_auth_args(self, username: str, password: str):
@@ -45,7 +46,7 @@ class Authenticator:
             return real_user
         
         if not isinstance(real_user, WrongPassword):
-            fake_users = EnvironConfigIO.obj.get_users()
+            fake_users = self.env_cfg.get_users()
             if username in fake_users and secrets.compare_digest(fake_users[username].password, password):
                 fake_user = fake_users[username].model_dump()
                 fake_user.pop("username", "")

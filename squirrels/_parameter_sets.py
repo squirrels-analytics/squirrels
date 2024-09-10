@@ -6,8 +6,8 @@ import concurrent.futures, pandas as pd
 
 from . import _utils as u, _constants as c, parameters as p, _parameter_configs as pc, _py_module as pm, _api_response_models as arm
 from .arguments.init_time_args import ParametersArgs
-from ._manifest import ManifestIO, ParametersConfig
-from ._connection_set import ConnectionSetIO
+from ._manifest import ParametersConfig, ManifestConfig
+from ._connection_set import ConnectionSetIO, ConnectionsArgs
 from ._seeds import SeedsIO
 from .user_base import User
 from ._timer import timer, time
@@ -31,7 +31,7 @@ class ParameterSet:
 
 
 @dataclass
-class _ParameterConfigsSet:
+class ParameterConfigsSet:
     """
     Pool of parameter configs, can create multiple for unit testing purposes
     """
@@ -153,12 +153,12 @@ class ParameterConfigsSetIO:
     Static class for the singleton object of __ParameterConfigsPoolData
     """
     args: ParametersArgs
-    obj: _ParameterConfigsSet
+    obj: ParameterConfigsSet
     
     @classmethod
-    def _get_df_dict_from_data_sources(cls) -> dict[str, pd.DataFrame]:
+    def _get_df_dict_from_data_sources(cls, default_conn_name: str) -> dict[str, pd.DataFrame]:
         def get_dataframe(ds_param_config: pc.DataSourceParameterConfig) -> tuple[str, pd.DataFrame]:
-            return ds_param_config.name, ds_param_config.get_dataframe(ConnectionSetIO.obj, SeedsIO.obj)
+            return ds_param_config.name, ds_param_config.get_dataframe(default_conn_name, ConnectionSetIO.obj, SeedsIO.obj)
         
         ds_param_configs = cls.obj._get_all_ds_param_configs()
         with concurrent.futures.ThreadPoolExecutor() as executor:
@@ -173,18 +173,19 @@ class ParameterConfigsSetIO:
         factory(**param_config.arguments)
     
     @classmethod
-    def load_from_file(cls) -> None:
+    def load_from_file(cls, manifest_cfg: ManifestConfig, conn_args: ConnectionsArgs) -> tuple[ParametersArgs, ParameterConfigsSet]:
         start = time.time()
-        cls.obj = _ParameterConfigsSet()
+        cls.obj = ParameterConfigsSet()
 
-        for param_as_dict in ManifestIO.obj.parameters:
+        for param_as_dict in manifest_cfg.parameters:
             cls._add_from_dict(param_as_dict)
         
-        conn_args = ConnectionSetIO.args
         cls.args = ParametersArgs(conn_args.proj_vars, conn_args.env_vars)
         pm.run_pyconfig_main(c.PARAMETERS_FILE, {"sqrl": cls.args})
         
-        df_dict = cls._get_df_dict_from_data_sources()
+        default_conn_name = manifest_cfg.get_default_connection_name()
+        df_dict = cls._get_df_dict_from_data_sources(default_conn_name)
         cls.obj._post_process_params(df_dict)
         
         timer.add_activity_time("loading parameters", start)
+        return cls.args, cls.obj

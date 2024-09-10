@@ -73,28 +73,30 @@ def main():
     elif args.command == c.INIT_CMD:
         Initializer(args.overwrite).init_project(args)
     elif args.command == c.DEPS_CMD:
-        EnvironConfigIO.load_from_file()
-        ManifestIO.load_from_file()
-        PackageLoaderIO.load_packages(reload=True)
+        env_cfg = EnvironConfigIO.load_from_file()
+        manifest_cfg = ManifestIO.load_from_file(env_cfg)
+        PackageLoaderIO.load_packages(manifest_cfg, reload=True)
     elif args.command in [c.RUN_CMD, c.COMPILE_CMD]:
-        EnvironConfigIO.load_from_file()
-        ManifestIO.load_from_file()
-        SeedsIO.load_files()
-        ConnectionSetIO.load_from_file()
+        env_cfg = EnvironConfigIO.load_from_file()
+        manifest_cfg = ManifestIO.load_from_file(env_cfg)
+        SeedsIO.load_files(manifest_cfg)
+        conn_args, conn_set = ConnectionSetIO.load_from_file(env_cfg, manifest_cfg)
         try:
-            ParameterConfigsSetIO.load_from_file()
-            ModelsIO.load_files()
+            param_args, param_cfg_set = ParameterConfigsSetIO.load_from_file(manifest_cfg, conn_args)
+            model_files, ctx_func = ModelsIO.load_files()
             if args.command == c.RUN_CMD:
-                DashboardsIO.load_files()
-                server = ApiServer(args.no_cache)
+                dashboards = DashboardsIO.load_files()
+                server = ApiServer(args.no_cache, env_cfg, manifest_cfg, dashboards)
                 server.run(args)
             elif args.command == c.COMPILE_CMD:
-                task = ModelsIO.write_outputs(args.dataset, args.all_datasets, args.select, args.test_set, args.all_test_sets, args.runquery)
+                task = ModelsIO.write_outputs(
+                    manifest_cfg, args.dataset, args.all_datasets, args.select, args.test_set, args.all_test_sets, args.runquery
+                )
                 asyncio.run(task)
         except KeyboardInterrupt:
             pass
         finally:
-            ConnectionSetIO.dispose()
+            conn_set.dispose()
     elif args.command is None:
         print(f'Command is missing. Enter "squirrels -h" for help.')
     else:
