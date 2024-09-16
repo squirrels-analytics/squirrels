@@ -1,8 +1,7 @@
 from typing import Sequence, Optional, Union, TypeVar, Callable, Any
 from pathlib import Path
+from pandas.api import types as pd_types
 import json, sqlite3, jinja2 as j2, pandas as pd
-
-from . import _constants as c
 
 FilePath = Union[str, Path]
 
@@ -30,19 +29,6 @@ class FileExecutionError(Exception):
 
 
 ## Utility functions/variables
-
-def join_paths(*paths: FilePath) -> Path:
-    """
-    Joins paths together.
-
-    Arguments:
-        paths (str | pathlib.Path): The paths to join.
-
-    Returns:
-        (pathlib.Path) The joined path.
-    """
-    return Path(*paths)
-
 
 _j2_env = j2.Environment(loader=j2.FileSystemLoader('.'))
 
@@ -149,18 +135,7 @@ def process_if_not_none(input_val: Optional[X], processor: Callable[[X], Y]) -> 
     return processor(input_val)
 
 
-def use_duckdb() -> bool:
-    """
-    Determines whether to use DuckDB instead of SQLite for embedded database
-
-    Returns:
-        A boolean
-    """
-    from ._manifest import ManifestIO
-    return (ManifestIO.obj.settings.get(c.IN_MEMORY_DB_SETTING, c.SQLITE) == c.DUCKDB)
-
-
-def run_sql_on_dataframes(sql_query: str, dataframes: dict[str, pd.DataFrame], *, do_use_duckdb: Optional[bool] = None) -> pd.DataFrame:
+def run_sql_on_dataframes(sql_query: str, dataframes: dict[str, pd.DataFrame], do_use_duckdb: bool) -> pd.DataFrame:
     """
     Runs a SQL query against a collection of dataframes
 
@@ -171,7 +146,6 @@ def run_sql_on_dataframes(sql_query: str, dataframes: dict[str, pd.DataFrame], *
     Returns:
         The result as a pandas Dataframe from running the query
     """
-    do_use_duckdb = use_duckdb() if do_use_duckdb is None else do_use_duckdb
     if do_use_duckdb:
         import duckdb
         duckdb_conn = duckdb.connect()
@@ -188,3 +162,33 @@ def run_sql_on_dataframes(sql_query: str, dataframes: dict[str, pd.DataFrame], *
         return duckdb_conn.execute(sql_query).df() if do_use_duckdb else pd.read_sql(sql_query, conn)
     finally:
         duckdb_conn.close() if do_use_duckdb else conn.close()
+
+
+def df_to_json0(df: pd.DataFrame, dimensions: list[str] | None = None) -> dict:
+    """
+    Convert a pandas DataFrame to the response format that the dataset result API of Squirrels outputs.
+
+    Arguments:
+        df: The dataframe to convert into an API response
+        dimensions: The list of declared dimensions. If None, all non-numeric columns are assumed as dimensions
+
+    Returns:
+        The response of a Squirrels dataset result API
+    """
+    in_df_json = json.loads(df.to_json(orient='table', index=False))
+    out_fields = []
+    non_numeric_fields = []
+    for in_column in in_df_json["schema"]["fields"]:
+        col_name: str = in_column["name"]
+        out_column = { "name": col_name, "type": in_column["type"] }
+        out_fields.append(out_column)
+        
+        if not pd_types.is_numeric_dtype(df[col_name].dtype):
+            non_numeric_fields.append(col_name)
+    
+    out_dimensions = non_numeric_fields if dimensions is None else dimensions
+    dataset_json = {
+        "schema": { "fields": out_fields, "dimensions": out_dimensions },
+        "data": in_df_json["data"]
+    }
+    return dataset_json

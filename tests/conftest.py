@@ -1,12 +1,13 @@
 import pytest
 
 from squirrels.arguments.init_time_args import ConnectionsArgs
-from squirrels._environcfg import EnvironConfigIO, EnvironConfig
-from squirrels._connection_set import ConnectionSetIO, ConnectionSet
+from squirrels._environcfg import EnvironConfig
+from squirrels._connection_set import ConnectionSet
 from squirrels import _manifest as m
 
-@pytest.fixture(scope="session", autouse=True)
-def my_initial_code():
+
+@pytest.fixture(scope="session")
+def simple_env_config():
     users = {
         "johndoe": {
             "password": "qwerty",
@@ -27,20 +28,21 @@ def my_initial_code():
             "password": "pass1"
         }
     }
-    EnvironConfigIO.obj = EnvironConfig(users=users, credentials=credentials) # type: ignore
+    return EnvironConfig(users=users, credentials=credentials) # type: ignore
 
-    m.ManifestIO.obj = m.ManifestConfig(
-        project_variables=m.ProjectVarsConfig(name="", major_version=0),
-        packages=[],
-        connections={},
-        parameters=[],
-        selection_test_sets={},
-        dbviews={},
-        federates={},
-        datasets={},
-        dashboards={},
-        settings={}
+
+@pytest.fixture(scope="session")
+def simple_manifest_config(simple_env_config: EnvironConfig):
+    return m.ManifestConfig(
+        env_cfg=simple_env_config,
+        project_variables=m.ProjectVarsConfig(name="", major_version=0)
     )
 
-    ConnectionSetIO.args = ConnectionsArgs({}, {}, lambda x: ("", ""))
-    ConnectionSetIO.obj = ConnectionSet({})
+
+@pytest.fixture(scope="session")
+def simple_conn_args():
+    return ConnectionsArgs({}, {}, lambda x: ("", ""))
+
+@pytest.fixture(scope="session")
+def simple_conn_set():
+    return ConnectionSet({})

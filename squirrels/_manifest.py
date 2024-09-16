@@ -4,7 +4,7 @@ from enum import Enum
 from pydantic import BaseModel, Field, field_validator, model_validator, ValidationInfo, ValidationError
 import yaml
 
-from . import _constants as c, _utils as u
+from . import _constants as c, _utils as _u
 from ._environcfg import EnvironConfig
 from ._timer import timer, time
 
@@ -41,9 +41,9 @@ class DbConnConfig(_ConfigWithNameBaseModel):
     credential: str | None = None
     url: str
 
-    def finalize_url(self, env_cfg: EnvironConfig) -> Self:
+    def finalize_url(self, base_path: str, env_cfg: EnvironConfig) -> Self:
         username, password = env_cfg.get_credential(self.credential)
-        self.url = self.url.format(username=username, password=password)
+        self.url = self.url.format(username=username, password=password, project_path=base_path)
         return self
 
 
@@ -124,7 +124,18 @@ class TestSetsConfig(_ConfigWithNameBaseModel):
         return self
 
 
+class Settings(BaseModel):
+    data: dict[str, Any]
+    
+    def get_default_connection_name(self) -> str:
+        return self.data.get(c.DB_CONN_DEFAULT_USED_SETTING, c.DEFAULT_DB_CONN)
+    
+    def do_use_duckdb(self) -> bool:
+        return self.data.get(c.IN_MEMORY_DB_SETTING, c.SQLITE) == c.DUCKDB
+
+
 class ManifestConfig(BaseModel):
+    env_cfg: EnvironConfig
     project_variables: ProjectVarsConfig
     packages: list[PackageConfig] = Field(default_factory=list)
     connections: dict[str, DbConnConfig] = Field(default_factory=dict)
@@ -135,6 +146,7 @@ class ManifestConfig(BaseModel):
     datasets: dict[str, DatasetConfig] = Field(default_factory=dict)
     dashboards: dict[str, DashboardConfig] = Field(default_factory=dict)
     settings: dict[str, Any] = Field(default_factory=dict)
+    base_path: str = "."
 
     @field_validator("packages")
     @classmethod
@@ -148,17 +160,27 @@ class ManifestConfig(BaseModel):
     
     @field_validator("connections", "selection_test_sets", "dbviews", "federates", "datasets", "dashboards", mode="before")
     @classmethod
-    def names_are_unique(cls, values: list[dict], info: ValidationInfo) -> dict[str, dict]:
-        values_as_dict = {}
-        for obj in values:
-            name = obj["name"]
-            if name in values_as_dict:
-                raise ValueError(f'In the {info.field_name} section, the name "{name}" was specified multiple times')
-            values_as_dict[name] = obj
+    def names_are_unique(cls, values: list[dict] | dict[str, dict], info: ValidationInfo) -> dict[str, dict]:
+        if isinstance(values, list):
+            values_as_dict = {}
+            for obj in values:
+                name = obj["name"]
+                if name in values_as_dict:
+                    raise ValueError(f'In the {info.field_name} section, the name "{name}" was specified multiple times')
+                values_as_dict[name] = obj
+        else:
+            values_as_dict = values
         return values_as_dict
     
-    def get_default_connection_name(self) -> str:
-        return self.settings.get(c.DB_CONN_DEFAULT_USED_SETTING, c.DEFAULT_DB_CONN)
+    @model_validator(mode="after")
+    def finalize_connections(self) -> Self:
+        for conn in self.connections.values():
+            conn.finalize_url(self.base_path, self.env_cfg)
+        return self
+    
+    @property
+    def settings_obj(self) -> Settings:
+        return Settings(data=self.settings)
 
     def get_default_test_set(self, dataset_name: str) -> TestSetsConfig:
         """
@@ -169,24 +191,29 @@ class ManifestConfig(BaseModel):
         default_name = default_name_1 if default_name_1 else default_name_2
         default_test_set = self.selection_test_sets.get(default_name, TestSetsConfig(name=default_name))
         return default_test_set
+    
+    def get_applicable_test_sets(self, dataset: str) -> list[str]:
+        applicable_test_sets = []
+        for test_set_name, test_set_config in self.selection_test_sets.items():
+            if test_set_config.datasets is None or dataset in test_set_config.datasets:
+                applicable_test_sets.append(test_set_name)
+        return applicable_test_sets
 
 
 class ManifestIO:
-    obj: ManifestConfig
 
     @classmethod
-    def load_from_file(cls, env_cfg: EnvironConfig) -> ManifestConfig:
+    def load_from_file(cls, base_path: str, env_cfg: EnvironConfig) -> ManifestConfig:
         start = time.time()
 
-        raw_content = u.read_file(c.MANIFEST_FILE)
+        raw_content = _u.read_file(_u.Path(base_path, c.MANIFEST_FILE))
         env_vars = env_cfg.get_all_env_vars()
-        content = u.render_string(raw_content, env_vars=env_vars)
+        content = _u.render_string(raw_content, env_vars=env_vars)
         manifest_content = yaml.safe_load(content)
         try:
-            cls.obj = ManifestConfig(**manifest_content)
-            cls.obj.connections = { key: val.finalize_url(env_cfg) for key, val in cls.obj.connections.items() }
+            manifest_cfg = ManifestConfig(base_path=base_path, env_cfg=env_cfg, **manifest_content)
         except ValidationError as e:
-            raise u.ConfigurationError(f"Failed to process {c.MANIFEST_FILE} file. " + str(e)) from e
+            raise _u.ConfigurationError(f"Failed to process {c.MANIFEST_FILE} file. " + str(e)) from e
         
         timer.add_activity_time(f"loading {c.MANIFEST_FILE} file", start)
-        return cls.obj
+        return manifest_cfg

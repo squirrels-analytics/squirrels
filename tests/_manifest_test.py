@@ -68,6 +68,8 @@ class TestDbConnConfig:
     ])
     def test_db_conn_url(self, fixture: str, expected: str, request: pytest.FixtureRequest):
         db_conn: m.DbConnConfig = request.getfixturevalue(fixture)
+        env_cfg = request.getfixturevalue("simple_env_config")
+        db_conn.finalize_url(".", env_cfg)
         assert db_conn.url == expected
 
 
@@ -178,3 +180,26 @@ class TestTestSetsConfig:
         test_sets: m.TestSetsConfig = request.getfixturevalue(fixture)
         assert test_sets.is_authenticated == expected
 
+
+class TestManifestConfig:
+    @pytest.fixture(scope="class")
+    def manifest_config1(self, simple_env_config) -> m.ManifestConfig:
+        selection_test_sets = {
+            "test_set1": m.TestSetsConfig(name="test_set1"),
+            "test_set2": m.TestSetsConfig(name="test_set2", datasets=["modelA"]),
+            "test_set3": m.TestSetsConfig(name="test_set3", datasets=["modelB"]),
+        }
+        manifest_cfg = m.ManifestConfig(
+            env_cfg=simple_env_config,
+            project_variables=m.ProjectVarsConfig(name="", major_version=0),
+            selection_test_sets=selection_test_sets
+        )
+        return manifest_cfg
+
+
+    @pytest.mark.parametrize("fixture,dataset,expected", [
+        ("manifest_config1", "modelA", ["test_set1", "test_set2"]),
+    ])
+    def test_get_applicable_test_sets(self, fixture: str, dataset: str, expected: list[str], request: pytest.FixtureRequest):
+        manifest_config1: m.ManifestConfig = request.getfixturevalue(fixture)
+        assert manifest_config1.get_applicable_test_sets(dataset) == expected

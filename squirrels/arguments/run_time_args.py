@@ -6,8 +6,8 @@ import pandas as pd
 from .init_time_args import ConnectionsArgs, ParametersArgs
 from ..user_base import User
 from ..parameters import Parameter, TextValue
-from .._connection_set import ConnectionSetIO
-from .. import _utils as u
+from .._connection_set import ConnectionSet
+from .. import _utils as _u
 
 
 @dataclass
@@ -24,26 +24,6 @@ class AuthArgs(ConnectionsArgs):
         Can also be used to store other in-memory objects in advance such as ML models.
         """
         return self._connections.copy()
-
-
-@dataclass
-class DashboardArgs(ParametersArgs):
-    _get_dataset: Callable[[str, dict[str, Any]], Coroutine[Any, Any, pd.DataFrame]]
-
-    async def dataset(self, name: str, *, fixed_parameters: dict[str, Any] = {}) -> pd.DataFrame:
-        """
-        Get dataset as DataFrame given dataset name.
-
-        The parameters used for the dataset include the parameter selections coming from the REST API and the fixed_parameters argument. The fixed_parameters takes precedence.
-
-        Arguments:
-            name: A string for the dataset name
-            fixed_parameters: Parameters to set for this dataset (in addition to the ones set through real-time selections)
-        
-        Returns:
-            A DataFrame for the result of the dataset
-        """
-        return await self._get_dataset(name, fixed_parameters)
 
 
 @dataclass
@@ -119,6 +99,7 @@ class ModelArgs(ModelDepsArgs):
     _connections: dict[str, Engine]
     _dependencies: Iterable[str]
     _ref: Callable[[str], pd.DataFrame]
+    _run_external_sql: Callable[[str, str | None], pd.DataFrame]
 
     @property
     def connections(self) -> dict[str, Engine]:
@@ -188,8 +169,7 @@ class ModelArgs(ModelDepsArgs):
         Returns:
             The query result as a pandas DataFrame
         """
-        connection_name = self.connection_name if connection_name is None else connection_name
-        return ConnectionSetIO.obj.run_sql_query_from_conn_name(sql_query, connection_name, self._placeholders)
+        return self._run_external_sql(sql_query, connection_name)
 
     def run_sql_on_dataframes(self, sql_query: str, *, dataframes: dict[str, pd.DataFrame] | None = None, **kwargs) -> pd.DataFrame:
         """
@@ -205,4 +185,25 @@ class ModelArgs(ModelDepsArgs):
         if dataframes is None:
             dataframes = {x: self.ref(x) for x in self._dependencies}
 
-        return u.run_sql_on_dataframes(sql_query, dataframes)
+        use_duckdb = False # TODO for later: set this based on settings
+        return _u.run_sql_on_dataframes(sql_query, dataframes, use_duckdb)
+
+
+@dataclass
+class DashboardArgs(ParametersArgs):
+    _get_dataset: Callable[[str, dict[str, Any]], Coroutine[Any, Any, pd.DataFrame]]
+
+    async def dataset(self, name: str, *, fixed_parameters: dict[str, Any] = {}) -> pd.DataFrame:
+        """
+        Get dataset as DataFrame given dataset name. Can use this to access protected/private datasets regardless of user authenticated to the dashboard.
+
+        The parameters used for the dataset include the parameter selections coming from the REST API and the fixed_parameters argument. The fixed_parameters takes precedence.
+
+        Arguments:
+            name: A string for the dataset name
+            fixed_parameters: Parameters to set for this dataset (in addition to the ones set through real-time selections)
+        
+        Returns:
+            A DataFrame for the result of the dataset
+        """
+        return await self._get_dataset(name, fixed_parameters)

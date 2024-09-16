@@ -2,7 +2,7 @@ from pydantic import ValidationError
 import pytest
 
 from squirrels._environcfg import EnvironConfig, _UserConfig
-from squirrels import _utils as u
+from squirrels import _utils as _u
 
 
 def test_wrong_environcfg():
@@ -74,7 +74,7 @@ def test_get_all_env_vars(basic_environcfg: EnvironConfig, basic_env_vars: dict)
 
 def test_get_credential(basic_environcfg: EnvironConfig):
     assert basic_environcfg.get_credential("credkey1") == ("test1", "pass1")
-    with pytest.raises(u.ConfigurationError):
+    with pytest.raises(_u.ConfigurationError):
         basic_environcfg.get_credential("credkey5")
 
 

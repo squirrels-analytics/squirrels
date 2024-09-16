@@ -3,27 +3,27 @@ from datetime import datetime, date
 from decimal import Decimal
 import pytest
 
-from squirrels import parameters as p, parameter_options as po, _parameter_configs as pc, _utils as u
+from squirrels import parameters as p, parameter_options as _po, _parameter_configs as _pc, _utils as _u
 
 
 class TestSingleSelectParameter:
     @pytest.fixture(scope="class")
-    def config1(self) -> pc.SingleSelectParameterConfig:
+    def config1(self) -> _pc.SingleSelectParameterConfig:
         param_options = [
-            po.SelectParameterOption('ss0', 'My Label', is_default=True, field0 = "a", field1 = "b",
+            _po.SelectParameterOption('ss0', 'My Label', is_default=True, field0 = "a", field1 = "b",
                                      custom_fields={"field1": "x", "field2": "y", "label": "z"}),
-            po.SelectParameterOption('ss1', "Another Label")
+            _po.SelectParameterOption('ss1', "Another Label")
         ]
-        return pc.SingleSelectParameterConfig("test", "Test", param_options)
+        return _pc.SingleSelectParameterConfig("test", "Test", param_options)
 
     @pytest.fixture(scope="class")
-    def param1(self, config1: pc.SingleSelectParameterConfig) -> p.SingleSelectParameter:
+    def param1(self, config1: _pc.SingleSelectParameterConfig) -> p.SingleSelectParameter:
         return p.SingleSelectParameter(config1, config1.all_options, 'ss0')
     
-    def test_invalid_init(self, config1: pc.SingleSelectParameterConfig):
+    def test_invalid_init(self, config1: _pc.SingleSelectParameterConfig):
         with pytest.raises(AssertionError):
             p.SingleSelectParameter(config1, config1.all_options, None)
-        with pytest.raises(u.InvalidInputError):
+        with pytest.raises(_u.InvalidInputError):
             p.SingleSelectParameter(config1, config1.all_options, 'wrong_id')
 
     def test_get_selected(self, param1: p.SingleSelectParameter):
@@ -63,30 +63,30 @@ class TestSingleSelectParameter:
 
 class TestMultiSelectParameter:
     @pytest.fixture(scope="class")
-    def config1(self) -> pc.MultiSelectParameterConfig:
+    def config1(self) -> _pc.MultiSelectParameterConfig:
         options = (
-            po.SelectParameterOption('ms0', 'Option 1', field0 = "a", field1 = "b", field2 = "c"), 
-            po.SelectParameterOption('ms1', 'Option 2', custom_fields = {"field0": "x", "field1": "y", "field2": "z"}), 
-            po.SelectParameterOption('ms2', 'Option 3', field0 = "m", custom_fields = {"field1": "n"})
+            _po.SelectParameterOption('ms0', 'Option 1', field0 = "a", field1 = "b", field2 = "c"), 
+            _po.SelectParameterOption('ms1', 'Option 2', custom_fields = {"field0": "x", "field1": "y", "field2": "z"}), 
+            _po.SelectParameterOption('ms2', 'Option 3', field0 = "m", custom_fields = {"field1": "n"})
         )
-        return pc.MultiSelectParameterConfig("test", "Test", options)
+        return _pc.MultiSelectParameterConfig("test", "Test", options)
     
     @pytest.fixture(scope="class")
-    def param1(self, config1: pc.MultiSelectParameterConfig) -> p.MultiSelectParameter:
+    def param1(self, config1: _pc.MultiSelectParameterConfig) -> p.MultiSelectParameter:
         return p.MultiSelectParameter(config1, config1.all_options, ["ms1", "ms2"])
     
     @pytest.fixture(scope="class")
-    def param2(self, config1: pc.MultiSelectParameterConfig) -> p.MultiSelectParameter:
+    def param2(self, config1: _pc.MultiSelectParameterConfig) -> p.MultiSelectParameter:
         return p.MultiSelectParameter(config1, config1.all_options, [])
     
     @pytest.fixture(scope="class")
-    def param3(self, config1: pc.MultiSelectParameterConfig) -> p.MultiSelectParameter:
+    def param3(self, config1: _pc.MultiSelectParameterConfig) -> p.MultiSelectParameter:
         config = copy(config1)
         config.none_is_all = False
         return p.MultiSelectParameter(config, config.all_options, [])
     
-    def test_invalid_init(self, config1: pc.MultiSelectParameterConfig):
-        with pytest.raises(u.InvalidInputError):
+    def test_invalid_init(self, config1: _pc.MultiSelectParameterConfig):
+        with pytest.raises(_u.InvalidInputError):
             p.MultiSelectParameter(config1, config1.all_options, "wrong_id")
     
     def test_get_selected1(self, param1: p.MultiSelectParameter):
@@ -113,7 +113,7 @@ class TestMultiSelectParameter:
         assert param1.get_selected_list("field1") == ("y", "n")
         assert param1.get_selected_list("field2", default_field="field0", default="h") == ("z", "m")
         assert param1.get_selected_list("field2", default="h") == ("z", "h")
-        with pytest.raises(u.ConfigurationError):
+        with pytest.raises(_u.ConfigurationError):
             param1.get_selected_list("field2")
 
     def test_to_json_dict(self, param1: p.MultiSelectParameter):
@@ -138,8 +138,8 @@ class TestMultiSelectParameter:
 class TestDateParameter:
     @pytest.fixture(scope="class")
     def param1(self) -> p.DateParameter:
-        options = (po.DateParameterOption("2020-01-01"),)
-        config = pc.DateParameterConfig("test", "Test", options)
+        options = (_po.DateParameterOption("2020-01-01"),)
+        config = _pc.DateParameterConfig("test", "Test", options)
         return p.DateParameter(config, options[0], date(2021,1,1))
     
     def test_get_selected1(self, param1: p.DateParameter):
@@ -160,8 +160,8 @@ class TestDateParameter:
 class TestDateRangeParameter:
     @pytest.fixture(scope="class")
     def param1(self) -> p.DateRangeParameter:
-        options = (po.DateRangeParameterOption("20220101", "20221231", date_format="%Y%m%d"),)
-        config = pc.DateRangeParameterConfig("test_id", "Test Label", options)
+        options = (_po.DateRangeParameterOption("20220101", "20221231", date_format="%Y%m%d"),)
+        config = _pc.DateRangeParameterConfig("test_id", "Test Label", options)
         return p.DateRangeParameter(config, options[0], "2022-06-14", "2023-03-15")
     
     def test_get_selected(self, param1: p.DateRangeParameter):
@@ -184,16 +184,16 @@ class TestDateRangeParameter:
 
 class TestNumberParameter:
     @pytest.fixture(scope="class")
-    def config1(self) -> pc.NumberParameterConfig:
-        options = (po.NumberParameterOption(0, 10, increment="0.5"),)
-        return pc.NumberParameterConfig("test", "Test", options)
+    def config1(self) -> _pc.NumberParameterConfig:
+        options = (_po.NumberParameterOption(0, 10, increment="0.5"),)
+        return _pc.NumberParameterConfig("test", "Test", options)
     
     @pytest.fixture(scope="class")
-    def param1(self, config1: pc.NumberParameterConfig) -> p.NumberParameter:
+    def param1(self, config1: _pc.NumberParameterConfig) -> p.NumberParameter:
         return p.NumberParameter(config1, config1.all_options[0], Decimal("4.5"))
     
-    def test_invalid_init(self, config1: pc.NumberParameterConfig):
-        with pytest.raises(u.InvalidInputError):
+    def test_invalid_init(self, config1: _pc.NumberParameterConfig):
+        with pytest.raises(_u.InvalidInputError):
             p.NumberParameter(config1, config1.all_options[0], Decimal("4.6"))
     
     def test_get_selected(self, param1: p.NumberParameter):
@@ -215,16 +215,16 @@ class TestNumberParameter:
 
 class TestNumberRangeParameter:
     @pytest.fixture(scope="class")
-    def config1(self) -> pc.NumberRangeParameterConfig:
-        options = (po.NumberRangeParameterOption(0, 10, increment="0.5"),)
-        return pc.NumberRangeParameterConfig("test", "Test", options)
+    def config1(self) -> _pc.NumberRangeParameterConfig:
+        options = (_po.NumberRangeParameterOption(0, 10, increment="0.5"),)
+        return _pc.NumberRangeParameterConfig("test", "Test", options)
     
     @pytest.fixture(scope="class")
-    def param1(self, config1: pc.NumberRangeParameterConfig) -> p.NumberRangeParameter:
+    def param1(self, config1: _pc.NumberRangeParameterConfig) -> p.NumberRangeParameter:
         return p.NumberRangeParameter(config1, config1.all_options[0], "2.5", "6.5")
 
-    def test_invalid_init(self, config1: pc.NumberRangeParameterConfig):
-        with pytest.raises(u.InvalidInputError):
+    def test_invalid_init(self, config1: _pc.NumberRangeParameterConfig):
+        with pytest.raises(_u.InvalidInputError):
             p.NumberRangeParameter(config1, config1.all_options[0], "2.5", "6.7")
     
     def test_get_selected(self, param1: p.NumberRangeParameter):
@@ -259,7 +259,7 @@ class TestTextValue:
         assert text_value1.apply(lambda x: x + "1") == p.TextValue("test1")
     
     def test_invalid_apply(self, text_value1: p.TextValue):
-        with pytest.raises(u.ConfigurationError):
+        with pytest.raises(_u.ConfigurationError):
             text_value1.apply(lambda x: len(x)) # type: ignore
     
     def test_apply_percent_wrap(self, text_value1: p.TextValue):
@@ -270,28 +270,28 @@ class TestTextValue:
         assert text_value1.apply_as_bool(lambda x: len(x) > 4) == False
     
     def test_invalid_apply_as_bool(self, text_value1: p.TextValue):
-        with pytest.raises(u.ConfigurationError):
+        with pytest.raises(_u.ConfigurationError):
             text_value1.apply_as_bool(lambda x: x) # type: ignore
     
     def test_apply_as_int(self, text_value1: p.TextValue):
         assert text_value1.apply_as_number(lambda x: len(x)) == 4
     
     def test_invalid_apply_as_int(self, text_value1: p.TextValue):
-        with pytest.raises(u.ConfigurationError):
+        with pytest.raises(_u.ConfigurationError):
             text_value1.apply_as_number(lambda x: x) # type: ignore
     
     def test_apply_as_datetime(self, text_value2: p.TextValue):
         assert text_value2.apply_as_datetime(lambda x: datetime.strptime(x, "%Y-%m-%d")) == datetime(2024, 1, 1)
     
     def test_invalid_apply_as_datetime(self, text_value2: p.TextValue):
-        with pytest.raises(u.ConfigurationError):
+        with pytest.raises(_u.ConfigurationError):
             text_value2.apply_as_datetime(lambda x: x) # type: ignore
 
 
 class TestTextParameter:
     def create_param(self, default_text: str, input_type: str) -> p.TextParameter:
-        options = (po.TextParameterOption(default_text=default_text),)
-        config = pc.TextParameterConfig("test", "Test", options, input_type=input_type)
+        options = (_po.TextParameterOption(default_text=default_text),)
+        config = _pc.TextParameterConfig("test", "Test", options, input_type=input_type)
         return p.TextParameter(config, config.all_options[0], default_text)
     
     @pytest.mark.parametrize("default_text,input_type", [
@@ -308,7 +308,7 @@ class TestTextParameter:
         ("#00000G", "color")
     ])
     def test_invalid_init(self, default_text: str, input_type: str):
-        with pytest.raises(u.InvalidInputError):
+        with pytest.raises(_u.InvalidInputError):
             self.create_param(default_text, input_type)
     
     @pytest.mark.parametrize("default_text,input_type", [
@@ -348,7 +348,7 @@ class TestTextParameter:
     ])
     def test_invalid_get_entered_int(self, default_text: str, input_type: str):
         param = self.create_param(default_text, input_type)
-        with pytest.raises(u.ConfigurationError):
+        with pytest.raises(_u.ConfigurationError):
             param.get_entered_int()
 
     @pytest.mark.parametrize("default_text,input_type,expected", [
@@ -370,6 +370,6 @@ class TestTextParameter:
     ])
     def test_invalid_get_entered_datetime(self, default_text: str, input_type: str):
         param = self.create_param(default_text, input_type)
-        with pytest.raises(u.ConfigurationError):
+        with pytest.raises(_u.ConfigurationError):
             param.get_entered_datetime()
     

@@ -5,8 +5,8 @@ from datetime import datetime, date
 from decimal import Decimal
 from abc import ABCMeta, abstractmethod
 
-from . import _parameter_configs as pc, _parameter_sets as ps, parameter_options as po, data_sources as d
-from . import _api_response_models as arm, _utils as u
+from . import _parameter_configs as _pc, _parameter_sets as ps, parameter_options as _po, data_sources as d
+from . import _api_response_models as arm, _utils as _u
 
 IntOrFloat = TypeVar("IntOrFloat", int, float)
 
@@ -16,7 +16,7 @@ class Parameter(metaclass=ABCMeta):
     """
     Abstract class for all parameter widgets
     """
-    _config: pc.ParameterConfig
+    _config: _pc.ParameterConfig
 
     @abstractmethod
     def is_enabled(self) -> bool:
@@ -24,12 +24,12 @@ class Parameter(metaclass=ABCMeta):
 
     @staticmethod
     @abstractmethod
-    def _ParameterConfigType() -> Type[pc.ParameterConfig]:
+    def _ParameterConfigType() -> Type[_pc.ParameterConfig]:
         pass
     
     @classmethod
     def _CreateWithOptionsHelper(
-        cls, name: str, label: str, all_options: Sequence[po.ParameterOption | dict], *, description: str = "",
+        cls, name: str, label: str, all_options: Sequence[_po.ParameterOption | dict], *, description: str = "",
         user_attribute: str | None = None, parent_name: str | None = None, **kwargs
     ) -> None:
         param_config_type = cls._ParameterConfigType()
@@ -40,7 +40,7 @@ class Parameter(metaclass=ABCMeta):
     
     @classmethod
     def Create(
-        cls, name: str, label: str, all_options: Sequence[po.ParameterOption | dict], *, description: str = "",
+        cls, name: str, label: str, all_options: Sequence[_po.ParameterOption | dict], *, description: str = "",
         user_attribute: str | None = None, parent_name: str | None = None, **kwargs
     ) -> None:
         """
@@ -50,7 +50,7 @@ class Parameter(metaclass=ABCMeta):
     
     @classmethod
     def CreateWithOptions(
-        cls, name: str, label: str, all_options: Sequence[po.ParameterOption | dict], *, description: str = "",
+        cls, name: str, label: str, all_options: Sequence[_po.ParameterOption | dict], *, description: str = "",
         user_attribute: str | None = None, parent_name: str | None = None, **kwargs
     ) -> None:
         """
@@ -76,7 +76,7 @@ class Parameter(metaclass=ABCMeta):
         cls, name: str, label: str, data_source: d.DataSource | dict, *, extra_args: dict = {}, description: str = "", 
         user_attribute: str | None = None, parent_name: str | None = None
     ) -> None:
-        param_config = pc.DataSourceParameterConfig(
+        param_config = _pc.DataSourceParameterConfig(
             cls._ParameterConfigType(), name, label, data_source, description=description, user_attribute=user_attribute, 
             parent_name=parent_name, extra_args=extra_args
         )
@@ -109,10 +109,10 @@ class Parameter(metaclass=ABCMeta):
         except ValueError:
             raise self._config._invalid_input_error(str(input_date), "Must be a date in YYYY-MM-DD format.")
     
-    def _validate_number(self, input_number: po.Number, curr_option: po._NumericParameterOption) -> Decimal:
+    def _validate_number(self, input_number: _po.Number, curr_option: _po._NumericParameterOption) -> Decimal:
         try:
             return curr_option._validate_value(input_number)
-        except u.ConfigurationError as e:
+        except _u.ConfigurationError as e:
             raise self._config._invalid_input_error(str(input_number), str(e))
     
     @abstractmethod
@@ -138,8 +138,8 @@ class Parameter(metaclass=ABCMeta):
 
 @dataclass
 class _SelectionParameter(Parameter):
-    _config: pc.SelectionParameterConfig
-    _options: Sequence[po.SelectParameterOption]
+    _config: _pc.SelectionParameterConfig
+    _options: Sequence[_po.SelectParameterOption]
 
     def __post_init__(self):
         self._options = tuple(self._options)
@@ -176,7 +176,7 @@ class SingleSelectParameter(_SelectionParameter):
         options: The parameter options that are currently selectable
         selected_id: The ID of the selected option
     """
-    _config: pc.SingleSelectParameterConfig
+    _config: _pc.SingleSelectParameterConfig
     _selected_id: str | None
 
     def __post_init__(self):
@@ -189,11 +189,11 @@ class SingleSelectParameter(_SelectionParameter):
     
     @staticmethod
     def _ParameterConfigType():
-        return pc.SingleSelectParameterConfig
+        return _pc.SingleSelectParameterConfig
     
     @classmethod
     def CreateSimple(
-        cls, name: str, label: str, all_options: Sequence[po.SelectParameterOption], *, description: str = "", **kwargs
+        cls, name: str, label: str, all_options: Sequence[_po.SelectParameterOption], *, description: str = "", **kwargs
     ) -> None:
         """
         Method for creating the configurations for a Parameter that doesn't involve user attributes or parent parameters
@@ -208,7 +208,7 @@ class SingleSelectParameter(_SelectionParameter):
 
     def get_selected(
         self, field: str | None = None, *, default_field: str | None = None, default: Any = None, **kwargs
-    ) -> po.SelectParameterOption | Any | None:
+    ) -> _po.SelectParameterOption | Any | None:
         """
         Gets the selected single-select option or selected custom field
 
@@ -228,7 +228,7 @@ class SingleSelectParameter(_SelectionParameter):
             if field is not None:
                 selected = selected.get_custom_field(field, default_field=default_field, default=default)
             return selected
-        return u.process_if_not_none(self._selected_id, get_selected_from_id)
+        return _u.process_if_not_none(self._selected_id, get_selected_from_id)
     
     def get_selected_id(self, **kwargs) -> str | None:
         """
@@ -237,8 +237,8 @@ class SingleSelectParameter(_SelectionParameter):
         Returns:
             A string ID or None if there are no selectable options
         """
-        def get_id(x: po.SelectParameterOption): return x._identifier
-        return u.process_if_not_none(self.get_selected(), get_id)
+        def get_id(x: _po.SelectParameterOption): return x._identifier
+        return _u.process_if_not_none(self.get_selected(), get_id)
     
     def get_selected_id_quoted(self, **kwargs) -> str | None:
         """
@@ -247,7 +247,7 @@ class SingleSelectParameter(_SelectionParameter):
         Returns:
             A string or None if there are no selectable options
         """
-        return u.process_if_not_none(self.get_selected_id(), self._enquote)
+        return _u.process_if_not_none(self.get_selected_id(), self._enquote)
     
     def get_selected_label(self, **kwargs) -> str | None:
         """
@@ -256,8 +256,8 @@ class SingleSelectParameter(_SelectionParameter):
         Returns:
             A string or None if there are no selectable options
         """
-        def get_label(x: po.SelectParameterOption): return x._label
-        return u.process_if_not_none(self.get_selected(), get_label)
+        def get_label(x: _po.SelectParameterOption): return x._label
+        return _u.process_if_not_none(self.get_selected(), get_label)
     
     def get_selected_label_quoted(self, **kwargs) -> str | None:
         """
@@ -266,7 +266,7 @@ class SingleSelectParameter(_SelectionParameter):
         Returns:
             A string or None if there are no selectable options
         """
-        return u.process_if_not_none(self.get_selected_label(), self._enquote)
+        return _u.process_if_not_none(self.get_selected_label(), self._enquote)
 
     def _get_selected_ids_as_list(self) -> Sequence[str]:
         selected_id = self.get_selected_id()
@@ -300,7 +300,7 @@ class MultiSelectParameter(_SelectionParameter):
         options: The parameter options that are currently selectable
         selected_ids: A sequence of IDs of the selected options
     """
-    _config: pc.MultiSelectParameterConfig
+    _config: _pc.MultiSelectParameterConfig
     _selected_ids: Sequence[str]
 
     def __post_init__(self):
@@ -311,11 +311,11 @@ class MultiSelectParameter(_SelectionParameter):
     
     @staticmethod
     def _ParameterConfigType():
-        return pc.MultiSelectParameterConfig
+        return _pc.MultiSelectParameterConfig
     
     @classmethod
     def CreateWithOptions(
-        cls, name: str, label: str, all_options: Sequence[po.SelectParameterOption | dict], *, description: str = "",
+        cls, name: str, label: str, all_options: Sequence[_po.SelectParameterOption | dict], *, description: str = "",
         show_select_all: bool = True, order_matters: bool = False, none_is_all: bool = True,
         user_attribute: str | None = None, parent_name: str | None = None, **kwargs
     ) -> None:
@@ -340,7 +340,7 @@ class MultiSelectParameter(_SelectionParameter):
     
     @classmethod
     def Create(
-        cls, name: str, label: str, all_options: Sequence[po.SelectParameterOption | dict], *, description: str = "",
+        cls, name: str, label: str, all_options: Sequence[_po.SelectParameterOption | dict], *, description: str = "",
         show_select_all: bool = True, order_matters: bool = False, none_is_all: bool = True,
         user_attribute: str | None = None, parent_name: str | None = None, **kwargs
     ) -> None:
@@ -354,7 +354,7 @@ class MultiSelectParameter(_SelectionParameter):
 
     @classmethod
     def CreateSimple(
-        cls, name: str, label: str, all_options: Sequence[po.SelectParameterOption], *, description: str = "",
+        cls, name: str, label: str, all_options: Sequence[_po.SelectParameterOption], *, description: str = "",
         show_select_all: bool = True, order_matters: bool = False, none_is_all: bool = True, **kwargs
     ) -> None:
         """
@@ -416,7 +416,7 @@ class MultiSelectParameter(_SelectionParameter):
 
     def get_selected_list(
         self, field: str | None = None, *, default_field: str | None = None, default: Any = None, **kwargs
-    ) -> Sequence[po.SelectParameterOption | Any]:
+    ) -> Sequence[_po.SelectParameterOption | Any]:
         """
         Gets the sequence of the selected option(s) or a sequence of selected custom fields
 
@@ -543,8 +543,8 @@ class DateParameter(Parameter):
         curr_option: The current option showing for defaults based on user attribute and selection of parent
         selected_date: The selected date
     """
-    _config: pc.DateParameterConfig
-    _curr_option: po.DateParameterOption | None
+    _config: _pc.DateParameterConfig
+    _curr_option: _po.DateParameterOption | None
     _selected_date: date | str | None
 
     def __post_init__(self):
@@ -556,7 +556,7 @@ class DateParameter(Parameter):
     
     @staticmethod
     def _ParameterConfigType():
-        return pc.DateParameterConfig
+        return _pc.DateParameterConfig
 
     @classmethod
     def CreateSimple(
@@ -573,7 +573,7 @@ class DateParameter(Parameter):
             description: Explains the meaning of the parameter
             date_format: Format of the default date, default is '%Y-%m-%d'
         """
-        single_param_option = po.DateParameterOption(default_date, date_format=date_format)
+        single_param_option = _po.DateParameterOption(default_date, date_format=date_format)
         cls.CreateWithOptions(name, label, (single_param_option,), description=description)
     
     def get_selected_date(self, *, date_format: str | None = None, **kwargs) -> str:
@@ -633,8 +633,8 @@ class DateRangeParameter(Parameter):
         selected_start_date: The selected start date
         selected_end_date: The selected end date
     """
-    _config: pc.DateRangeParameterConfig
-    _curr_option: po.DateRangeParameterOption | None
+    _config: _pc.DateRangeParameterConfig
+    _curr_option: _po.DateRangeParameterOption | None
     _selected_start_date: date | str | None
     _selected_end_date: date | str | None
 
@@ -649,7 +649,7 @@ class DateRangeParameter(Parameter):
     
     @staticmethod
     def _ParameterConfigType():
-        return pc.DateRangeParameterConfig
+        return _pc.DateRangeParameterConfig
 
     @classmethod
     def CreateSimple(
@@ -667,7 +667,7 @@ class DateRangeParameter(Parameter):
             description: Explains the meaning of the parameter
             date_format: Format of the default date, default is '%Y-%m-%d'
         """
-        single_param_option = po.DateRangeParameterOption(default_start_date, default_end_date, date_format=date_format)
+        single_param_option = _po.DateRangeParameterOption(default_start_date, default_end_date, date_format=date_format)
         cls.CreateWithOptions(name, label, (single_param_option,), description=description)
     
     def get_selected_start_date(self, *, date_format: str | None = None, **kwargs) -> str:
@@ -751,9 +751,9 @@ class NumberParameter(Parameter):
         curr_option: The current option showing for defaults based on user attribute and selection of parent
         selected_value: The selected integer or decimal number
     """
-    _config: pc.NumberParameterConfig
-    _curr_option: po.NumberParameterOption | None
-    _selected_value: po.Number | None
+    _config: _pc.NumberParameterConfig
+    _curr_option: _po.NumberParameterOption | None
+    _selected_value: _po.Number | None
 
     def __post_init__(self):
         if self._curr_option is not None and self._selected_value is not None:
@@ -764,12 +764,12 @@ class NumberParameter(Parameter):
     
     @staticmethod
     def _ParameterConfigType():
-        return pc.NumberParameterConfig
+        return _pc.NumberParameterConfig
 
     @classmethod
     def CreateSimple(
-        cls, name: str, label: str, min_value: po.Number, max_value: po.Number, *, description: str = "", 
-        increment: po.Number = 1, default_value: po.Number | None = None, **kwargs
+        cls, name: str, label: str, min_value: _po.Number, max_value: _po.Number, *, description: str = "", 
+        increment: _po.Number = 1, default_value: _po.Number | None = None, **kwargs
     ) -> None:
         """
         Method for creating the configurations for a Parameter that doesn't involve user attributes or parent parameters
@@ -785,7 +785,7 @@ class NumberParameter(Parameter):
             increment: Increment of selectable values, and must fit evenly between min_value and max_value
             default_value: Default value for this option, and must be selectable based on min_value, max_value, and increment
         """
-        single_param_option = po.NumberParameterOption(min_value, max_value, increment=increment, default_value=default_value)
+        single_param_option = _po.NumberParameterOption(min_value, max_value, increment=increment, default_value=default_value)
         cls.CreateWithOptions(name, label, (single_param_option,), description=description)
     
     def get_selected_value(self, **kwargs) -> float:
@@ -826,10 +826,10 @@ class NumberRangeParameter(Parameter):
         selected_lower_value: The selected lower integer or decimal number
         selected_upper_value: The selected upper integer or decimal number
     """
-    _config: pc.NumberRangeParameterConfig
-    _curr_option: po.NumberRangeParameterOption | None
-    _selected_lower_value: po.Number | None
-    _selected_upper_value: po.Number | None
+    _config: _pc.NumberRangeParameterConfig
+    _curr_option: _po.NumberRangeParameterOption | None
+    _selected_lower_value: _po.Number | None
+    _selected_upper_value: _po.Number | None
 
     def __post_init__(self):
         if self._curr_option is not None:
@@ -843,12 +843,12 @@ class NumberRangeParameter(Parameter):
     
     @staticmethod
     def _ParameterConfigType():
-        return pc.NumberRangeParameterConfig
+        return _pc.NumberRangeParameterConfig
 
     @classmethod
     def CreateSimple(
-        cls, name: str, label: str, min_value: po.Number, max_value: po.Number, *, description: str = "",
-        increment: po.Number = 1, default_lower_value: po.Number | None = None, default_upper_value: po.Number | None = None,
+        cls, name: str, label: str, min_value: _po.Number, max_value: _po.Number, *, description: str = "",
+        increment: _po.Number = 1, default_lower_value: _po.Number | None = None, default_upper_value: _po.Number | None = None,
         **kwargs
     ) -> None:
         """
@@ -867,7 +867,7 @@ class NumberRangeParameter(Parameter):
             default_upper_value: Default upper value for this option, and must be selectable based on min_value, max_value, and increment. 
                     Must also be greater than default_lower_value
         """
-        single_param_option = po.NumberRangeParameterOption(
+        single_param_option = _po.NumberRangeParameterOption(
             min_value, max_value, increment=increment, default_lower_value=default_lower_value, default_upper_value=default_upper_value
         )
         cls.CreateWithOptions(name, label, (single_param_option,), description=description)
@@ -915,7 +915,7 @@ class TextValue:
     _value_do_not_touch: str
 
     def __repr__(self):
-        raise u.ConfigurationError(
+        raise _u.ConfigurationError(
             "Cannot convert TextValue directly to string (to avoid SQL injection). Try using it through placeholders instead"
         )
 
@@ -933,7 +933,7 @@ class TextValue:
         """
         new_value = str_to_str_function(self._value_do_not_touch)
         if not isinstance(new_value, str):
-            raise u.ConfigurationError("Function provided must return string")
+            raise _u.ConfigurationError("Function provided must return string")
         return TextValue(new_value)
     
     def apply_percent_wrap(self) -> TextValue:
@@ -957,7 +957,7 @@ class TextValue:
         """
         new_value = str_to_bool_function(self._value_do_not_touch)
         if not isinstance(new_value, bool):
-            raise u.ConfigurationError("Function provided must return bool")
+            raise _u.ConfigurationError("Function provided must return bool")
         return new_value
     
     def apply_as_number(self, str_to_num_function: Callable[[str], IntOrFloat]) ->  IntOrFloat:
@@ -972,7 +972,7 @@ class TextValue:
         """
         new_value = str_to_num_function(self._value_do_not_touch)
         if not isinstance(new_value, (int, float)):
-            raise u.ConfigurationError("Function provided must return a number")
+            raise _u.ConfigurationError("Function provided must return a number")
         return new_value
     
     def apply_as_datetime(self, str_to_datetime_function: Callable[[str], datetime]) -> datetime:
@@ -987,7 +987,7 @@ class TextValue:
         """
         new_value = str_to_datetime_function(self._value_do_not_touch)
         if not isinstance(new_value, datetime):
-            raise u.ConfigurationError("Function provided must return datetime")
+            raise _u.ConfigurationError("Function provided must return datetime")
         return new_value
 
 
@@ -996,15 +996,15 @@ class TextParameter(Parameter):
     """
     Class for text parameter widgets.
     """
-    _config: pc.TextParameterConfig
-    _curr_option: po.TextParameterOption | None
+    _config: _pc.TextParameterConfig
+    _curr_option: _po.TextParameterOption | None
     _entered_text: str | None
 
     def __post_init__(self):
         if self.is_enabled() and isinstance(self._entered_text, str):
             try:
                 self._entered_text = self._config.validate_entered_text(self._entered_text)
-            except u.ConfigurationError as e:
+            except _u.ConfigurationError as e:
                 raise self._config._invalid_input_error(self._entered_text, str(e))
     
     def is_enabled(self) -> bool:
@@ -1012,11 +1012,11 @@ class TextParameter(Parameter):
     
     @staticmethod
     def _ParameterConfigType():
-        return pc.TextParameterConfig
+        return _pc.TextParameterConfig
     
     @classmethod
     def CreateWithOptions(
-        cls, name: str, label: str, all_options: Sequence[po.TextParameterOption | dict], *, description: str = "",
+        cls, name: str, label: str, all_options: Sequence[_po.TextParameterOption | dict], *, description: str = "",
         input_type: str = "text", user_attribute: str | None = None, parent_name: str | None = None, **kwargs
     ) -> None:
         """
@@ -1037,7 +1037,7 @@ class TextParameter(Parameter):
     
     @classmethod
     def Create(
-        cls, name: str, label: str, all_options: Sequence[po.TextParameterOption | dict], *, description: str = "",
+        cls, name: str, label: str, all_options: Sequence[_po.TextParameterOption | dict], *, description: str = "",
         input_type: str = "text", user_attribute: str | None = None, parent_name: str | None = None, **kwargs
     ) -> None:
         """
@@ -1061,7 +1061,7 @@ class TextParameter(Parameter):
             default_text: Default input text for this option. Optional, default is empty string.
             input_type: The type of input field to use. Must be one of "text", "textarea", "number", "color", "date", "datetime-local", "month", "time", and "password". Optional, default is "text". More information on input types other than "textarea" can be found at https://www.w3schools.com/html/html_form_input_types.asp. More information on "textarea" can be found at https://www.w3schools.com/tags/tag_textarea.asp
         """
-        single_param_option = po.TextParameterOption(default_text=default_text)
+        single_param_option = _po.TextParameterOption(default_text=default_text)
         cls.CreateWithOptions(name, label, (single_param_option,), description=description, input_type=input_type)
     
     @classmethod
@@ -1105,7 +1105,7 @@ class TextParameter(Parameter):
         Returns: int
         """
         if self._config.input_type != "number":
-            raise u.ConfigurationError("Method 'get_entered_int' requires TextParameter to have input type 'number'")
+            raise _u.ConfigurationError("Method 'get_entered_int' requires TextParameter to have input type 'number'")
         text = self.get_entered_text()
         return text.apply_as_number(int)
     
@@ -1117,7 +1117,7 @@ class TextParameter(Parameter):
         """
         applicable_input_types = ["date", "datetime-local", "month", "time"]
         if self._config.input_type not in applicable_input_types:
-            raise u.ConfigurationError(f"Method 'get_entered_datetime' requires TextParameter to have one of these input types: {applicable_input_types}")
+            raise _u.ConfigurationError(f"Method 'get_entered_datetime' requires TextParameter to have one of these input types: {applicable_input_types}")
         text = self.get_entered_text()
 
         date_formats = { "date": "%Y-%m-%d", "datetime-local": "%Y-%m-%dT%H:%M", "month": "%Y-%m", "time": "%H:%M" }

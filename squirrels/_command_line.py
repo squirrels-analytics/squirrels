@@ -1,7 +1,6 @@
 from argparse import ArgumentParser
 import sys, time, asyncio
 
-from squirrels._dashboards_io import DashboardsIO
 sys.path.append('.')
 
 from . import _constants as c
@@ -59,44 +58,33 @@ def main():
     
     from . import __version__
     from ._api_server import ApiServer
-    from ._models import ModelsIO
     from ._initializer import Initializer
-    from ._manifest import ManifestIO
-    from ._environcfg import EnvironConfigIO
     from ._package_loader import PackageLoaderIO
-    from ._connection_set import ConnectionSetIO
-    from ._parameter_sets import ParameterConfigsSetIO
-    from ._seeds import SeedsIO
+    from .project import SquirrelsProject
 
     if args.version:
         print(__version__)
     elif args.command == c.INIT_CMD:
         Initializer(args.overwrite).init_project(args)
     elif args.command == c.DEPS_CMD:
-        env_cfg = EnvironConfigIO.load_from_file()
-        manifest_cfg = ManifestIO.load_from_file(env_cfg)
-        PackageLoaderIO.load_packages(manifest_cfg, reload=True)
+        project = SquirrelsProject()
+        PackageLoaderIO.load_packages(project._manifest_cfg, reload=True)
     elif args.command in [c.RUN_CMD, c.COMPILE_CMD]:
-        env_cfg = EnvironConfigIO.load_from_file()
-        manifest_cfg = ManifestIO.load_from_file(env_cfg)
-        SeedsIO.load_files(manifest_cfg)
-        conn_args, conn_set = ConnectionSetIO.load_from_file(env_cfg, manifest_cfg)
+        project = SquirrelsProject()
         try:
-            param_args, param_cfg_set = ParameterConfigsSetIO.load_from_file(manifest_cfg, conn_args)
-            model_files, ctx_func = ModelsIO.load_files()
             if args.command == c.RUN_CMD:
-                dashboards = DashboardsIO.load_files()
-                server = ApiServer(args.no_cache, env_cfg, manifest_cfg, dashboards)
+                server = ApiServer(args.no_cache, project)
                 server.run(args)
             elif args.command == c.COMPILE_CMD:
-                task = ModelsIO.write_outputs(
-                    manifest_cfg, args.dataset, args.all_datasets, args.select, args.test_set, args.all_test_sets, args.runquery
+                task = project.compile(
+                    dataset=args.dataset, do_all_datasets=args.all_datasets, selected_model=args.select, test_set=args.test_set, 
+                    do_all_test_sets=args.all_test_sets, runquery=args.runquery
                 )
                 asyncio.run(task)
         except KeyboardInterrupt:
             pass
         finally:
-            conn_set.dispose()
+            project.close()
     elif args.command is None:
         print(f'Command is missing. Enter "squirrels -h" for help.')
     else:
