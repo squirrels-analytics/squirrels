@@ -39,19 +39,7 @@ The sections below describe how to set up your local environment for squirrels d
 
 ### Setup
 
-This project requires python version 3.9 or above to be installed. It also uses the python build tool `poetry` which can be installed as follows.
-
-**Linux, MacOS, Windows (WSL):**
-
-```bash
-curl -sSL https://install.python-poetry.org | python3 -
-```
-
-**Windows (Powershell):**
-
-```bash
-(Invoke-WebRequest -Uri https://install.python-poetry.org -UseBasicParsing).Content | py -
-```
+This project requires python version 3.10 or above to be installed. It also uses the python build tool `poetry`. Information on setting up poetry can be found at: https://python-poetry.org/docs/.
 
 Then, to install all dependencies, run:
 
@@ -68,10 +56,10 @@ poetry shell
 To confirm that the setup worked, run the following to show the help page for all squirrels CLI commands:
 
 ```bash
-squirrels -h
+sqrl -h
 ```
 
-You can enter `exit` to exit the virtual environment shell. You can also run `poetry run squirrels -h` to run squirrels commands without activating the virtual environment.
+You can enter `exit` to exit the virtual environment shell. You can also run `poetry run sqrl -h` to run squirrels commands without activating the virtual environment.
 
 ### Testing
 
@@ -85,6 +73,6 @@ To understand what a specific squirrels command is doing, start from the `_comma
 
 The library version is maintained in both the `pyproject.toml` and the `squirrels/__init__.py` files.
 
-When a user initializes a squirrels project using `squirrels init`, the files are copied from the `squirrels/package_data/base_project` folder. The contents in the `database` subfolder were constructed from the scripts in the `database_elt` folder.
+When a user initializes a squirrels project using `sqrl init`, the files are copied from the `squirrels/package_data/base_project` folder. The contents in the `database` subfolder were constructed from the scripts in the `database_elt` folder.
 
-For the Squirrels UI activated by `squirrels run`, the HTML, CSS, and Javascript files can be found in the `static` and `templates` subfolders of `squirrels/package_data`.
+For the Squirrels UI activated by `sqrl run`, the HTML, CSS, and Javascript files can be found in the `static` and `templates` subfolders of `squirrels/package_data`. The CSS and Javascript files are minified and built from the source files in this project: https://github.com/squirrels-analytics/squirrels-testing-ui.

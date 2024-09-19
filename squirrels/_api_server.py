@@ -239,7 +239,12 @@ class ApiServer:
             for name, config in self.manifest_cfg.dashboards.items():
                 if self.authenticator.can_user_access_scope(user, config.scope):
                     name_normalized = u.normalize_name_for_api(name)
-                    dashboard_format = self.dashboards[name].get_dashboard_format()
+
+                    try:
+                        dashboard_format = self.dashboards[name].get_dashboard_format()
+                    except KeyError:
+                        raise u.ConfigurationError(f"No dashboard file found for: {name}")
+                    
                     dashboard_items.append(arm.DashboardItemModel(
                         name=name, label=config.label, description=config.description, result_format=dashboard_format,
                         parameters_path=dashboard_parameters_path.format(dashboard=name_normalized),

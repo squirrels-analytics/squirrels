@@ -250,15 +250,32 @@ class SquirrelsProject:
         username = None if user is None else user.username
         return PermissionError(f"User '{username}' does not have permission to access {scope} {data_type}: {data_name}")
     
+    def seed(self, name: str) -> _pd.DataFrame:
+        """
+        Method to retrieve a seed as a pandas DataFrame given a seed name.
+
+        Arguments:
+            name: The name of the seed to retrieve
+
+        Returns:
+            The seed as a pandas DataFrame
+        """
+        seeds_dict = self._seeds.get_dataframes()
+        try:
+            return seeds_dict[name]
+        except KeyError:
+            available_seeds = list(seeds_dict.keys())
+            raise KeyError(f"Seed '{name}' not found. Available seeds are: {available_seeds}")
+    
     async def _dataset_helper(
-        self, dataset: str, selections: dict[str, _t.Any], user: _auth.User | None
+        self, name: str, selections: dict[str, _t.Any], user: _auth.User | None
     ) -> _pd.DataFrame:
-        dag = self._generate_dag(dataset)
+        dag = self._generate_dag(name)
         await dag.execute(self._param_args, self._param_cfg_set, self._context_func, user, dict(selections))
         return _pd.DataFrame(dag.target_model.result)
     
     async def dataset(
-        self, dataset: str, *, selections: dict[str, _t.Any] = {}, user: _auth.User | None
+        self, name: str, *, selections: dict[str, _t.Any] = {}, user: _auth.User | None = None
     ) -> _pd.DataFrame:
         """
         Async method to retrieve a dataset as a pandas DataFrame given parameter selections.
@@ -271,13 +288,13 @@ class SquirrelsProject:
         Returns:
             A pandas DataFrame containing the dataset.
         """
-        scope = self._manifest_cfg.datasets[dataset].scope
+        scope = self._manifest_cfg.datasets[name].scope
         if not self._authenticator.can_user_access_scope(user, scope):
-            raise self._permission_error(user, "dataset", dataset, scope.name)
-        return await self._dataset_helper(dataset, selections, user)
+            raise self._permission_error(user, "dataset", name, scope.name)
+        return await self._dataset_helper(name, selections, user)
     
     async def dashboard(
-        self, dashboard: str, *, selections: dict[str, _t.Any] = {}, user: _auth.User | None = None, dashboard_type: _t.Type[T] = _dash.Dashboard
+        self, name: str, *, selections: dict[str, _t.Any] = {}, user: _auth.User | None = None, dashboard_type: _t.Type[T] = _dash.Dashboard
     ) -> T:
         """
         Async method to retrieve a dashboard given parameter selections.
@@ -291,13 +308,16 @@ class SquirrelsProject:
         Returns:
             The dashboard type specified by the "dashboard_type" argument.
         """
-        scope = self._manifest_cfg.dashboards[dashboard].scope
+        scope = self._manifest_cfg.dashboards[name].scope
         if not self._authenticator.can_user_access_scope(user, scope):
-            raise self._permission_error(user, "dashboard", dashboard, scope.name)
+            raise self._permission_error(user, "dashboard", name, scope.name)
         
         async def get_dataset(dataset_name: str, fixed_params: dict[str, _t.Any]) -> _pd.DataFrame:
             final_selections = {**selections, **fixed_params}
             return await self._dataset_helper(dataset_name, final_selections, user)
         
         args = _d.DashboardArgs(self._param_args.proj_vars, self._param_args.env_vars, get_dataset)
-        return await self._dashboards[dashboard].get_dashboard(args, dashboard_type=dashboard_type)
+        try:
+            return await self._dashboards[name].get_dashboard(args, dashboard_type=dashboard_type)
+        except KeyError:
+            raise KeyError(f"No dashboard file found for: {name}")
