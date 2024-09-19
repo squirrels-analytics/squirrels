@@ -1,8 +1,7 @@
-from typing import Any
-from dataclasses import dataclass
+import typing as _t, dataclasses as _dc
 
 
-@dataclass
+@_dc.dataclass
 class User:
     """
     Base class for extending the custom User model class
@@ -25,12 +24,21 @@ class User:
     
     @classmethod
     def Create(cls, username: str, *, is_internal: bool = False, **kwargs):
+        """
+        Creates an instance of the User class and calls the `set_attributes` method on the new instance.
+
+        We may overwrite the `set_attributes` method in `auth.py`. We do not overwrite the constructor to guarantee that `username` and `is_internal` are always set.
+
+        Arguments:
+            username: The identifier for the user
+            is_internal: Setting this to True lets the user access "private" datasets. Default is False
+        """
         user = cls(username, is_internal)
         user.set_attributes(**kwargs)
         return user
     
     @classmethod
-    def _FromDict(cls, user_obj_as_dict: dict[str, Any]):
+    def _FromDict(cls, user_obj_as_dict: dict[str, _t.Any]):
         username, is_internal = user_obj_as_dict["username"], user_obj_as_dict["is_internal"]
         user = cls(username=username, is_internal=is_internal)
         for key, val in user_obj_as_dict.items():
@@ -38,7 +46,7 @@ class User:
         return user
 
 
-@dataclass
+@_dc.dataclass
 class WrongPassword:
     """
     Return this object if the username was found but the password was incorrect

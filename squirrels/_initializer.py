@@ -3,7 +3,7 @@ import inquirer, os, shutil
 
 from . import _constants as c, _utils as u
 
-base_proj_dir = u.join_paths(os.path.dirname(__file__), c.PACKAGE_DATA_FOLDER, c.BASE_PROJECT_FOLDER)
+base_proj_dir = u.Path(os.path.dirname(__file__), c.PACKAGE_DATA_FOLDER, c.BASE_PROJECT_FOLDER)
 
 
 class Initializer:
@@ -21,26 +21,26 @@ class Initializer:
             dest_dir = os.path.dirname(filepath)
             if dest_dir != "":
                 os.makedirs(dest_dir, exist_ok=True)
-            src_path = u.join_paths(base_proj_dir, src_folder, filepath)
+            src_path = u.Path(base_proj_dir, src_folder, filepath)
             shutil.copy(src_path, filepath)
 
     def _copy_dbview_file(self, filepath: str):
-        self._copy_file(u.join_paths(c.MODELS_FOLDER, c.DBVIEWS_FOLDER, filepath))
+        self._copy_file(u.Path(c.MODELS_FOLDER, c.DBVIEWS_FOLDER, filepath))
 
     def _copy_federate_file(self, filepath: str):
-        self._copy_file(u.join_paths(c.MODELS_FOLDER, c.FEDERATES_FOLDER, filepath))
+        self._copy_file(u.Path(c.MODELS_FOLDER, c.FEDERATES_FOLDER, filepath))
 
     def _copy_database_file(self, filepath: str):
-        self._copy_file(u.join_paths(c.DATABASE_FOLDER, filepath))
+        self._copy_file(u.Path(c.DATABASE_FOLDER, filepath))
     
     def _copy_pyconfig_file(self, filepath: str):
-        self._copy_file(u.join_paths(c.PYCONFIGS_FOLDER, filepath))
+        self._copy_file(u.Path(c.PYCONFIGS_FOLDER, filepath))
     
     def _copy_seed_file(self, filepath: str):
-        self._copy_file(u.join_paths(c.SEEDS_FOLDER, filepath))
+        self._copy_file(u.Path(c.SEEDS_FOLDER, filepath))
     
     def _copy_dashboard_file(self, filepath: str):
-        self._copy_file(u.join_paths(c.DASHBOARDS_FOLDER, filepath))
+        self._copy_file(u.Path(c.DASHBOARDS_FOLDER, filepath))
 
     def init_project(self, args):
         options = ["core", "connections", "parameters", "dbview", "federate", "dashboard", "auth", "sample_db"]
@@ -130,7 +130,7 @@ class Initializer:
                     if file_name is None:
                         return ""
                     
-                    yaml_path = u.join_paths(base_proj_dir, file_name)
+                    yaml_path = u.Path(base_proj_dir, file_name)
                     return u.read_file(yaml_path)
                 
                 file_name_dict = {
@@ -142,8 +142,8 @@ class Initializer:
                 
                 manifest_template = get_content(c.MANIFEST_JINJA_FILE)
                 manifest_content = u.render_string(manifest_template, **substitutions)
-                output_path = u.join_paths(base_proj_dir, TMP_FOLDER, c.MANIFEST_FILE)
-                with open(u.join_paths(output_path), "w") as f:
+                output_path = u.Path(base_proj_dir, TMP_FOLDER, c.MANIFEST_FILE)
+                with open(u.Path(output_path), "w") as f:
                     f.write(manifest_content)
 
             create_manifest_file()

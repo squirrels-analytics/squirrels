@@ -4,8 +4,8 @@ import pandas as pd
 
 from . import _utils as u, _constants as c, _py_module as pm
 from .arguments.init_time_args import ConnectionsArgs
-from ._environcfg import EnvironConfigIO
-from ._manifest import ManifestIO
+from ._environcfg import EnvironConfig
+from ._manifest import ManifestConfig
 from ._timer import timer, time
 
 
@@ -37,7 +37,7 @@ class ConnectionSet:
         except Exception as e:
             raise RuntimeError(e) from e
 
-    def _dispose(self) -> None:
+    def dispose(self) -> None:
         """
         Disposes of all the engines in this ConnectionSet
         """
@@ -47,11 +47,20 @@ class ConnectionSet:
 
 
 class ConnectionSetIO:
-    args: ConnectionsArgs
-    obj: ConnectionSet
 
     @classmethod
-    def load_from_file(cls):
+    def load_conn_py_args(cls, env_cfg: EnvironConfig, manifest_cfg: ManifestConfig) -> ConnectionsArgs:
+        start = time.time()
+        
+        proj_vars = manifest_cfg.project_variables.model_dump()
+        env_vars = env_cfg.get_all_env_vars()
+        conn_args = ConnectionsArgs(proj_vars, env_vars, env_cfg.get_credential)
+        
+        timer.add_activity_time("setting up arguments for connections.py", start)
+        return conn_args
+
+    @classmethod
+    def load_from_file(cls, base_path: str, manifest_cfg: ManifestConfig, conn_args: ConnectionsArgs) -> ConnectionSet:
         """
         Takes the DB connection engines from both the squirrels.yml and connections.py files and merges them
         into a single ConnectionSet
@@ -61,22 +70,12 @@ class ConnectionSetIO:
         """
         start = time.time()
         engines: dict[str, Engine] = {}
-        cls.obj = ConnectionSet(engines)
-        try:
-            for config in ManifestIO.obj.connections.values():
-                engines[config.name] = create_engine(config.url)
-            
-            proj_vars = ManifestIO.obj.project_variables.model_dump()
-            env_vars = EnvironConfigIO.obj.get_all_env_vars()
-            get_credential = EnvironConfigIO.obj.get_credential
-            cls.args = ConnectionsArgs(proj_vars, env_vars, get_credential)
-            pm.run_pyconfig_main(c.CONNECTIONS_FILE, {"connections": engines, "sqrl": cls.args})
-        except Exception as e:
-            cls.dispose()
-            raise e
         
-        timer.add_activity_time("creating sqlalchemy engines", start)
+        for config in manifest_cfg.connections.values():
+            engines[config.name] = create_engine(config.url)
 
-    @classmethod
-    def dispose(cls):
-        cls.obj._dispose()
+        pm.run_pyconfig_main(base_path, c.CONNECTIONS_FILE, {"connections": engines, "sqrl": conn_args})
+        conn_set = ConnectionSet(engines)
+
+        timer.add_activity_time("creating sqlalchemy engines", start)
+        return conn_set

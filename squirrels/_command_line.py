@@ -1,7 +1,6 @@
 from argparse import ArgumentParser
 import sys, time, asyncio
 
-from squirrels._dashboards_io import DashboardsIO
 sys.path.append('.')
 
 from . import _constants as c
@@ -59,42 +58,33 @@ def main():
     
     from . import __version__
     from ._api_server import ApiServer
-    from ._models import ModelsIO
     from ._initializer import Initializer
-    from ._manifest import ManifestIO
-    from ._environcfg import EnvironConfigIO
     from ._package_loader import PackageLoaderIO
-    from ._connection_set import ConnectionSetIO
-    from ._parameter_sets import ParameterConfigsSetIO
-    from ._seeds import SeedsIO
+    from .project import SquirrelsProject
 
     if args.version:
         print(__version__)
     elif args.command == c.INIT_CMD:
         Initializer(args.overwrite).init_project(args)
     elif args.command == c.DEPS_CMD:
-        EnvironConfigIO.load_from_file()
-        ManifestIO.load_from_file()
-        PackageLoaderIO.load_packages(reload=True)
+        project = SquirrelsProject()
+        PackageLoaderIO.load_packages(project._manifest_cfg, reload=True)
     elif args.command in [c.RUN_CMD, c.COMPILE_CMD]:
-        EnvironConfigIO.load_from_file()
-        ManifestIO.load_from_file()
-        SeedsIO.load_files()
-        ConnectionSetIO.load_from_file()
+        project = SquirrelsProject()
         try:
-            ParameterConfigsSetIO.load_from_file()
-            ModelsIO.load_files()
             if args.command == c.RUN_CMD:
-                DashboardsIO.load_files()
-                server = ApiServer(args.no_cache)
+                server = ApiServer(args.no_cache, project)
                 server.run(args)
             elif args.command == c.COMPILE_CMD:
-                task = ModelsIO.write_outputs(args.dataset, args.all_datasets, args.select, args.test_set, args.all_test_sets, args.runquery)
+                task = project.compile(
+                    dataset=args.dataset, do_all_datasets=args.all_datasets, selected_model=args.select, test_set=args.test_set, 
+                    do_all_test_sets=args.all_test_sets, runquery=args.runquery
+                )
                 asyncio.run(task)
         except KeyboardInterrupt:
             pass
         finally:
-            ConnectionSetIO.dispose()
+            project.close()
     elif args.command is None:
         print(f'Command is missing. Enter "squirrels -h" for help.')
     else:

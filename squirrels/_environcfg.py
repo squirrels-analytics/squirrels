@@ -6,7 +6,7 @@ import os, yaml
 from . import _constants as c, _utils as u
 from ._timer import timer, time
 
-_GLOBAL_SQUIRRELS_CFG_FILE = u.join_paths(os.path.expanduser('~'), '.squirrels', c.ENV_CONFIG_FILE)
+_GLOBAL_SQUIRRELS_CFG_FILE = u.Path(os.path.expanduser('~'), '.squirrels', c.ENV_CONFIG_FILE)
 
 
 class _UserConfig(BaseModel, extra="allow"):
@@ -20,7 +20,7 @@ class _CredentialsConfig(BaseModel):
     password: str
 
 
-class _EnvironConfig(BaseModel):
+class EnvironConfig(BaseModel):
     users: dict[str, _UserConfig] = Field(default_factory=dict)
     env_vars: dict[str, str] = Field(default_factory=dict)
     credentials: dict[str, _CredentialsConfig] = Field(default_factory=dict)
@@ -58,10 +58,9 @@ class _EnvironConfig(BaseModel):
 
 
 class EnvironConfigIO:
-    obj: _EnvironConfig
     
     @classmethod
-    def load_from_file(cls):
+    def load_from_file(cls, base_path: str) -> EnvironConfig:
         start = time.time()
         def load_yaml(filename: str | Path) -> dict[str, dict]:
             try:
@@ -71,15 +70,16 @@ class EnvironConfigIO:
                 return {}
         
         master_env_config = load_yaml(_GLOBAL_SQUIRRELS_CFG_FILE)
-        proj_env_config = load_yaml(c.ENV_CONFIG_FILE)
+        proj_env_config = load_yaml(Path(base_path, c.ENV_CONFIG_FILE))
 
         for key in proj_env_config:
             master_env_config.setdefault(key, {})
             master_env_config[key].update(proj_env_config[key])
         
         try:
-            cls.obj = _EnvironConfig(**master_env_config)
+            env_cfg = EnvironConfig(**master_env_config)
         except ValidationError as e:
             raise u.ConfigurationError(f"Failed to process {c.ENV_CONFIG_FILE} file. " + str(e)) from e
         
         timer.add_activity_time(f"loading {c.ENV_CONFIG_FILE} file", start)
+        return env_cfg

@@ -9,12 +9,12 @@ from fastapi import Query
 from pydantic.fields import Field
 import pandas as pd, re
 
-from . import parameter_options as po, parameters as p, data_sources as d, _utils as u, _constants as c
+from . import parameter_options as _po, parameters as p, data_sources as d, _utils as _u, _constants as c
 from .user_base import User
 from ._connection_set import ConnectionSet
 from ._seeds import Seeds
 
-ParamOptionType = TypeVar("ParamOptionType", bound=po.ParameterOption)
+ParamOptionType = TypeVar("ParamOptionType", bound=_po.ParameterOption)
 
 
 @dataclass
@@ -69,7 +69,7 @@ class ParameterConfigBase(metaclass=ABCMeta):
     def _get_user_group(self, user: User | None) -> Any:
         if self.user_attribute is not None:
             if user is None:
-                raise u.ConfigurationError(f"Non-authenticated users (only allowed for public datasets) cannot use parameter " +
+                raise _u.ConfigurationError(f"Non-authenticated users (only allowed for public datasets) cannot use parameter " +
                                            f"'{self.name}' because 'user_attribute' is defined on this parameter.")
             return getattr(user, self.user_attribute)
         
@@ -117,8 +117,8 @@ class ParameterConfig(Generic[ParamOptionType], ParameterConfigBase):
     def DataSource(*args, **kwargs) -> d.DataSource:
         pass
     
-    def _invalid_input_error(self, selection: str, more_details: str = '') -> u.InvalidInputError:
-        return u.InvalidInputError(f'Selected value "{selection}" is not valid for parameter "{self.name}". ' + more_details)
+    def _invalid_input_error(self, selection: str, more_details: str = '') -> _u.InvalidInputError:
+        return _u.InvalidInputError(f'Selected value "{selection}" is not valid for parameter "{self.name}". ' + more_details)
     
     @abstractmethod
     def with_selection(
@@ -140,7 +140,7 @@ class ParameterConfig(Generic[ParamOptionType], ParameterConfigBase):
 
 
 @dataclass
-class SelectionParameterConfig(ParameterConfig[po.SelectParameterOption]):
+class SelectionParameterConfig(ParameterConfig[_po.SelectParameterOption]):
     """
     Abstract class for select parameter classes (single-select, multi-select, etc)
     """
@@ -149,7 +149,7 @@ class SelectionParameterConfig(ParameterConfig[po.SelectParameterOption]):
 
     @abstractmethod
     def __init__(
-        self, name: str, label: str, all_options: Sequence[po.SelectParameterOption | dict], *,
+        self, name: str, label: str, all_options: Sequence[_po.SelectParameterOption | dict], *,
         description: str = "", user_attribute: str | None = None, parent_name: str | None = None
     ) -> None:
         super().__init__(name, label, all_options, description=description, user_attribute=user_attribute, parent_name=parent_name)
@@ -158,16 +158,16 @@ class SelectionParameterConfig(ParameterConfig[po.SelectParameterOption]):
 
     @staticmethod
     def ParameterOption(*args, **kwargs):
-        return po.SelectParameterOption(*args, **kwargs)
+        return _po.SelectParameterOption(*args, **kwargs)
     
     def _add_child_mutate(self, child: ParameterConfigBase):
         self.children[child.name] = child
         self.trigger_refresh = True
     
-    def _get_options(self, user: User | None, parent_param: p._SelectionParameter | None) -> Sequence[po.SelectParameterOption]:
+    def _get_options(self, user: User | None, parent_param: p._SelectionParameter | None) -> Sequence[_po.SelectParameterOption]:
         return tuple(self._get_options_iterator(self.all_options, user, parent_param))
     
-    def _get_default_ids_iterator(self, options: Sequence[po.SelectParameterOption]) -> Iterator[str]:
+    def _get_default_ids_iterator(self, options: Sequence[_po.SelectParameterOption]) -> Iterator[str]:
         return (x._identifier for x in options if x._is_default)
     
     def copy(self) -> Self:
@@ -186,7 +186,7 @@ class SingleSelectParameterConfig(SelectionParameterConfig):
     """
     
     def __init__(
-        self, name: str, label: str, all_options: Sequence[po.SelectParameterOption | dict], *, description: str = "", 
+        self, name: str, label: str, all_options: Sequence[_po.SelectParameterOption | dict], *, description: str = "", 
         user_attribute: str | None = None, parent_name: str | None = None
     ) -> None:
         super().__init__(name, label, all_options, description=description, user_attribute=user_attribute, parent_name=parent_name)
@@ -229,7 +229,7 @@ class MultiSelectParameterConfig(SelectionParameterConfig):
     none_is_all: bool # = field(default=True, kw_only=True)
 
     def __init__(
-        self, name: str, label: str, all_options: Sequence[po.SelectParameterOption | dict], *, description: str = "", 
+        self, name: str, label: str, all_options: Sequence[_po.SelectParameterOption | dict], *, description: str = "", 
         show_select_all: bool = True, order_matters: bool = False, none_is_all: bool = True,
         user_attribute: str | None = None, parent_name: str | None = None
     ) -> None:
@@ -256,7 +256,7 @@ class MultiSelectParameterConfig(SelectionParameterConfig):
         if selection is None:
             selected_ids = tuple(self._get_default_ids_iterator(options))
         else:
-            selected_ids = u.load_json_or_comma_delimited_str_as_list(selection)
+            selected_ids = _u.load_json_or_comma_delimited_str_as_list(selection)
         return p.MultiSelectParameter(self, options, selected_ids)
     
     def get_api_field_info(self) -> APIParamFieldInfo:
@@ -281,14 +281,14 @@ class _DateTypeParameterConfig(ParameterConfig[ParamOptionType]):
 
 
 @dataclass
-class DateParameterConfig(_DateTypeParameterConfig[po.DateParameterOption]):
+class DateParameterConfig(_DateTypeParameterConfig[_po.DateParameterOption]):
     """
     Class to define configurations for date parameter widgets.
     """
-    _all_options: Sequence[po.DateParameterOption] = field(repr=False)
+    _all_options: Sequence[_po.DateParameterOption] = field(repr=False)
     
     def __init__(
-        self, name: str, label: str, all_options: Sequence[po.DateParameterOption | dict], *, 
+        self, name: str, label: str, all_options: Sequence[_po.DateParameterOption | dict], *, 
         description: str = "", user_attribute: str | None = None, parent_name: str | None = None
     ) -> None:
         super().__init__(name, label, all_options, description=description, user_attribute=user_attribute, parent_name=parent_name)
@@ -299,7 +299,7 @@ class DateParameterConfig(_DateTypeParameterConfig[po.DateParameterOption]):
 
     @staticmethod
     def ParameterOption(*args, **kwargs):
-        return po.DateParameterOption(*args, **kwargs)
+        return _po.DateParameterOption(*args, **kwargs)
     
     @staticmethod
     def DataSource(*args, **kwargs):
@@ -309,7 +309,7 @@ class DateParameterConfig(_DateTypeParameterConfig[po.DateParameterOption]):
         self, selection: str | None, user: User | None, parent_param: p._SelectionParameter | None,
         *, request_version: int | None = None
     ) -> p.DateParameter:
-        curr_option: po.DateParameterOption | None = next(self._get_options_iterator(self.all_options, user, parent_param), None)
+        curr_option: _po.DateParameterOption | None = next(self._get_options_iterator(self.all_options, user, parent_param), None)
         selected_date = curr_option._default_date if selection is None and curr_option is not None else selection
         return p.DateParameter(self, curr_option, selected_date)
     
@@ -321,14 +321,14 @@ class DateParameterConfig(_DateTypeParameterConfig[po.DateParameterOption]):
 
 
 @dataclass
-class DateRangeParameterConfig(_DateTypeParameterConfig[po.DateRangeParameterOption]):
+class DateRangeParameterConfig(_DateTypeParameterConfig[_po.DateRangeParameterOption]):
     """
     Class to define configurations for date range parameter widgets.
     """
-    _all_options: Sequence[po.DateRangeParameterOption] = field(repr=False)
+    _all_options: Sequence[_po.DateRangeParameterOption] = field(repr=False)
     
     def __init__(
-        self, name: str, label: str, all_options: Sequence[po.DateRangeParameterOption | dict], *,
+        self, name: str, label: str, all_options: Sequence[_po.DateRangeParameterOption | dict], *,
         description: str = "", user_attribute: str | None = None, parent_name: str | None = None
     ) -> None:
         super().__init__(name, label, all_options, description=description, user_attribute=user_attribute, parent_name=parent_name)
@@ -339,7 +339,7 @@ class DateRangeParameterConfig(_DateTypeParameterConfig[po.DateRangeParameterOpt
 
     @staticmethod
     def ParameterOption(*args, **kwargs):
-        return po.DateRangeParameterOption(*args, **kwargs)
+        return _po.DateRangeParameterOption(*args, **kwargs)
     
     @staticmethod
     def DataSource(*args, **kwargs):
@@ -349,7 +349,7 @@ class DateRangeParameterConfig(_DateTypeParameterConfig[po.DateRangeParameterOpt
         self, selection: str | None, user: User | None, parent_param: p._SelectionParameter | None,
         *, request_version: int | None = None
     ) -> p.DateRangeParameter:
-        curr_option: po.DateRangeParameterOption | None = next(self._get_options_iterator(self.all_options, user, parent_param), None)
+        curr_option: _po.DateRangeParameterOption | None = next(self._get_options_iterator(self.all_options, user, parent_param), None)
         if selection is None:
             if curr_option is not None:
                 selected_start_date = curr_option._default_start_date
@@ -358,7 +358,7 @@ class DateRangeParameterConfig(_DateTypeParameterConfig[po.DateRangeParameterOpt
                 selected_start_date, selected_end_date = None, None
         else:
             try:
-                selected_start_date, selected_end_date = u.load_json_or_comma_delimited_str_as_list(selection)
+                selected_start_date, selected_end_date = _u.load_json_or_comma_delimited_str_as_list(selection)
             except ValueError:
                 raise self._invalid_input_error(selection, "Date range parameter selection must be two dates.")
         return p.DateRangeParameter(self, curr_option, selected_start_date, selected_end_date)
@@ -385,14 +385,14 @@ class _NumericParameterConfig(ParameterConfig[ParamOptionType]):
 
 
 @dataclass
-class NumberParameterConfig(_NumericParameterConfig[po.NumberParameterOption]):
+class NumberParameterConfig(_NumericParameterConfig[_po.NumberParameterOption]):
     """
     Class to define configurations for number parameter widgets.
     """
-    _all_options: Sequence[po.NumberParameterOption] = field(repr=False)
+    _all_options: Sequence[_po.NumberParameterOption] = field(repr=False)
     
     def __init__(
-        self, name: str, label: str, all_options: Sequence[po.NumberParameterOption | dict], *,
+        self, name: str, label: str, all_options: Sequence[_po.NumberParameterOption | dict], *,
         description: str = "", user_attribute: str | None = None, parent_name: str | None = None
     ) -> None:
         super().__init__(name, label, all_options, description=description, user_attribute=user_attribute, parent_name=parent_name)
@@ -403,7 +403,7 @@ class NumberParameterConfig(_NumericParameterConfig[po.NumberParameterOption]):
     
     @staticmethod
     def ParameterOption(*args, **kwargs):
-        return po.NumberParameterOption(*args, **kwargs)
+        return _po.NumberParameterOption(*args, **kwargs)
     
     @staticmethod
     def DataSource(*args, **kwargs):
@@ -413,7 +413,7 @@ class NumberParameterConfig(_NumericParameterConfig[po.NumberParameterOption]):
         self, selection: str | None, user: User | None, parent_param: p._SelectionParameter | None,
         *, request_version: int | None = None
     ) -> p.NumberParameter:
-        curr_option: po.NumberParameterOption | None = next(self._get_options_iterator(self.all_options, user, parent_param), None)
+        curr_option: _po.NumberParameterOption | None = next(self._get_options_iterator(self.all_options, user, parent_param), None)
         selected_value = curr_option._default_value if selection is None and curr_option is not None else selection
         return p.NumberParameter(self, curr_option, selected_value)
     
@@ -425,14 +425,14 @@ class NumberParameterConfig(_NumericParameterConfig[po.NumberParameterOption]):
 
 
 @dataclass
-class NumberRangeParameterConfig(_NumericParameterConfig[po.NumberRangeParameterOption]):
+class NumberRangeParameterConfig(_NumericParameterConfig[_po.NumberRangeParameterOption]):
     """
     Class to define configurations for number range parameter widgets.
     """
-    _all_options: Sequence[po.NumberRangeParameterOption] = field(repr=False)
+    _all_options: Sequence[_po.NumberRangeParameterOption] = field(repr=False)
     
     def __init__(
-        self, name: str, label: str, all_options: Sequence[po.NumberRangeParameterOption | dict], *, 
+        self, name: str, label: str, all_options: Sequence[_po.NumberRangeParameterOption | dict], *, 
         description: str = "", user_attribute: str | None = None, parent_name: str | None = None
     ) -> None:
         super().__init__(name, label, all_options, description=description, user_attribute=user_attribute, parent_name=parent_name)
@@ -443,7 +443,7 @@ class NumberRangeParameterConfig(_NumericParameterConfig[po.NumberRangeParameter
 
     @staticmethod
     def ParameterOption(*args, **kwargs):
-        return po.NumberRangeParameterOption(*args, **kwargs)
+        return _po.NumberRangeParameterOption(*args, **kwargs)
     
     @staticmethod
     def DataSource(*args, **kwargs):
@@ -453,7 +453,7 @@ class NumberRangeParameterConfig(_NumericParameterConfig[po.NumberRangeParameter
         self, selection: str | None, user: User | None, parent_param: p._SelectionParameter | None,
         *, request_version: int | None = None
     ) -> p.NumberRangeParameter:
-        curr_option: po.NumberRangeParameterOption | None = next(self._get_options_iterator(self.all_options, user, parent_param), None)
+        curr_option: _po.NumberRangeParameterOption | None = next(self._get_options_iterator(self.all_options, user, parent_param), None)
         if selection is None:
             if curr_option is not None:
                 selected_lower_value = curr_option._default_lower_value
@@ -462,7 +462,7 @@ class NumberRangeParameterConfig(_NumericParameterConfig[po.NumberRangeParameter
                 selected_lower_value, selected_upper_value = None, None
         else:
             try:
-                selected_lower_value, selected_upper_value = u.load_json_or_comma_delimited_str_as_list(selection)
+                selected_lower_value, selected_upper_value = _u.load_json_or_comma_delimited_str_as_list(selection)
             except ValueError:
                 raise self._invalid_input_error(selection, "Number range parameter selection must be two numbers.")
         return p.NumberRangeParameter(self, curr_option, selected_lower_value, selected_upper_value)
@@ -475,22 +475,22 @@ class NumberRangeParameterConfig(_NumericParameterConfig[po.NumberRangeParameter
 
 
 @dataclass
-class TextParameterConfig(ParameterConfig[po.TextParameterOption]):
+class TextParameterConfig(ParameterConfig[_po.TextParameterOption]):
     """
     Class to define configurations for text parameter widgets.
     """
-    _all_options: Sequence[po.TextParameterOption] = field(repr=False)
+    _all_options: Sequence[_po.TextParameterOption] = field(repr=False)
     input_type: str
     
     def __init__(
-        self, name: str, label: str, all_options: Sequence[po.TextParameterOption | dict], *, description: str = "", 
+        self, name: str, label: str, all_options: Sequence[_po.TextParameterOption | dict], *, description: str = "", 
         input_type: str = "text", user_attribute: str | None = None, parent_name: str | None = None
     ) -> None:
         super().__init__(name, label, all_options, description=description, user_attribute=user_attribute, parent_name=parent_name)
         
         allowed_input_types = ["text", "textarea", "number", "date", "datetime-local", "month", "time", "color", "password"]
         if input_type not in allowed_input_types:
-            raise u.ConfigurationError(f"Invalid input type '{input_type}' for text parameter '{name}'. Must be one of {allowed_input_types}.")
+            raise _u.ConfigurationError(f"Invalid input type '{input_type}' for text parameter '{name}'. Must be one of {allowed_input_types}.")
 
         self.input_type = input_type
         for option in self._all_options:
@@ -534,7 +534,7 @@ class TextParameterConfig(ParameterConfig[po.TextParameterOption]):
 
     @staticmethod
     def ParameterOption(*args, **kwargs):
-        return po.TextParameterOption(*args, **kwargs)
+        return _po.TextParameterOption(*args, **kwargs)
     
     @staticmethod
     def DataSource(*args, **kwargs):
@@ -544,7 +544,7 @@ class TextParameterConfig(ParameterConfig[po.TextParameterOption]):
         self, selection: str | None, user: User | None, parent_param: p._SelectionParameter | None,
         *, request_version: int | None = None
     ) -> p.TextParameter:
-        curr_option: po.TextParameterOption | None = next(self._get_options_iterator(self.all_options, user, parent_param), None)
+        curr_option: _po.TextParameterOption | None = next(self._get_options_iterator(self.all_options, user, parent_param), None)
         entered_text = curr_option._default_text if selection is None and curr_option is not None else selection
         return p.TextParameter(self, curr_option, entered_text)
     
@@ -577,15 +577,15 @@ class DataSourceParameterConfig(ParameterConfigBase):
     def convert(self, df: pd.DataFrame) -> ParameterConfig:
         return self.data_source._convert(self, df)
     
-    def get_dataframe(self, conn_set: ConnectionSet, seeds: Seeds) -> pd.DataFrame:
+    def get_dataframe(self, default_conn_name: str, conn_set: ConnectionSet, seeds: Seeds) -> pd.DataFrame:
         datasource = self.data_source
         query = datasource._get_query()
-        if datasource.is_from_seed():
+        if datasource._is_from_seeds:
             df = seeds.run_query(query)
         else:
             try:
-                conn_name = datasource._get_connection_name()
+                conn_name = datasource._get_connection_name(default_conn_name)
                 df = conn_set.run_sql_query_from_conn_name(query, conn_name)
             except RuntimeError as e:
-                raise u.ConfigurationError(f'Error executing query for datasource parameter "{self.name}"') from e
+                raise _u.ConfigurationError(f'Error executing query for datasource parameter "{self.name}"') from e
         return df

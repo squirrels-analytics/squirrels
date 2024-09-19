@@ -116,7 +116,7 @@ class SchemaModel(BaseModel):
     dimensions: Annotated[list[str], Field(examples=[["mycol"]], description="A list of column names that are dimensions")]
 
 class DatasetResultModel(BaseModel):
-    data_schema: Annotated[SchemaModel, Field(alias='schema', description="JSON object describing the schema of the dataset")]
+    data_schema: Annotated[SchemaModel, Field(alias="schema", description="JSON object describing the schema of the dataset")]
     data: Annotated[list[dict], Field(
         examples=[[{"mycol": "myval"}]],
         description="A list of JSON objects where each object is a row of the tabular results. The keys and values of the object are column names (described in fields) and values of the row."

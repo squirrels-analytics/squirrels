@@ -1,4 +1,4 @@
-from typing import Optional, Union, Any
+from typing import Optional, Union
 import pytest
 
 from squirrels import AuthArgs
@@ -41,8 +41,8 @@ class AuthHelper:
 
 
 @pytest.fixture(scope="module")
-def auth() -> Authenticator:
-    return Authenticator(30, AuthHelper())
+def auth(simple_env_config, simple_conn_args, simple_conn_set) -> Authenticator:
+    return Authenticator(".", simple_env_config, simple_conn_args, simple_conn_set, 30, auth_helper=AuthHelper())
 
 
 @pytest.fixture(scope="module")

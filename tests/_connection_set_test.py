@@ -2,7 +2,7 @@ from sqlalchemy import create_engine
 import pandas as pd
 import pytest
 
-from squirrels import _connection_set as cs, _utils as u
+from squirrels import _connection_set as cs, _utils as _u
 
 
 @pytest.fixture(scope="module")
@@ -22,11 +22,11 @@ def connection_set():
     })
 
     yield connection_set
-    connection_set._dispose()
+    connection_set.dispose()
 
 
 def test_get_connection_pool(connection_set: cs.ConnectionSet):
-    with pytest.raises(u.ConfigurationError):
+    with pytest.raises(_u.ConfigurationError):
         connection_set._get_engine('does_not_exist')
 
 

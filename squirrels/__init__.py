@@ -15,3 +15,5 @@ from .data_sources import NumberDataSource, NumberRangeDataSource, TextDataSourc
 from .user_base import User, WrongPassword
 
 from .dashboards import PngDashboard, HtmlDashboard
+
+from .project import SquirrelsProject
