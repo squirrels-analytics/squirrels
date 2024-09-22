@@ -6,10 +6,11 @@ project_variables:
 
 packages: []
 
-## Example value for packages:
-#  - git: https://.../myrepo.git
-#    revision: v0.1.0
-#    directory: custom_name ## optional
+## Example for packages section:
+# packages:
+#   - git: https://.../myrepo.git
+#     revision: v0.1.0
+#     directory: custom_name ## optional
 
 
 {{ connections -}}
@@ -21,6 +22,7 @@ packages: []
 datasets:
   - name: dataset_example                 ## model name uses same name unless "model" field is specified
     label: Dataset Example
+    model: federate_example               ## optional - if not specified, then the "name" field is used
     scope: public                         ## optional - one of 'public' (default), 'protected', or 'private'
     parameters:                           ## optional - if not specified, then all parameters are used
       - group_by
@@ -35,7 +37,7 @@ datasets:
   
   - name: protected_dataset_example       ## requires auth.py file to work
     label: Dataset Example 2
-    model: dataset_example
+    model: federate_example
     scope: protected
     parameters:
       - group_by

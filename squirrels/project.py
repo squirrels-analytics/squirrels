@@ -21,7 +21,10 @@ class SquirrelsProject:
             filepath: The path to the Squirrels project file. Defaults to the current working directory.
         """
         self._filepath = filepath
-        _ = self._manifest_cfg
+        
+        # Pre-load these attributes
+        self._manifest_cfg
+        self._j2_env
     
     @property
     @_ft.cache
@@ -59,9 +62,10 @@ class SquirrelsProject:
         return _cs.ConnectionSetIO.load_conn_py_args(self._env_cfg, self._manifest_cfg)
     
     @property
-    @_ft.cache
     def _conn_set(self) -> _cs.ConnectionSet:
-        return _cs.ConnectionSetIO.load_from_file(self._filepath, self._manifest_cfg, self._conn_args)
+        if not hasattr(self, "__conn_set") or self.__conn_set is None:
+            self.__conn_set = _cs.ConnectionSetIO.load_from_file(self._filepath, self._manifest_cfg, self._conn_args)
+        return self.__conn_set
     
     @property
     @_ft.cache
@@ -81,6 +85,12 @@ class SquirrelsProject:
     
     @property
     @_ft.cache
+    def _j2_env(self) -> _u.j2.Environment:
+        macros_dirs = [_u.Path(self._filepath, _c.MACROS_FOLDER)] + _u.get_macro_folders_from_packages()
+        return _u.j2.Environment(loader=_u.MacroLoader(self._filepath, macros_dirs))
+    
+    @property
+    @_ft.cache
     def User(self) -> type[_auth.User]:
         """
         A direct reference to the User class in the `auth.py` file (if applicable). If `auth.py` does not exist, then this returns the `squirrels.User` class.
@@ -91,7 +101,9 @@ class SquirrelsProject:
         """
         Deliberately close any open resources within the Squirrels project, such as database connections (instead of relying on the garbage collector).
         """
-        self._conn_set.dispose()
+        if hasattr(self, "__conn_set") and self.__conn_set is not None:
+            self.__conn_set.dispose()
+            self.__conn_set = None
 
     def __exit__(self, exc_type, exc_val, traceback):
         self.close()
@@ -101,7 +113,7 @@ class SquirrelsProject:
 
         models_dict: dict[str, _m.Referable] = {key: _m.Seed(key, df) for key, df in seeds_dict.items()}
         for key, val in self._model_files.items():
-            models_dict[key] = _m.Model(key, val, self._manifest_cfg, self._conn_set)
+            models_dict[key] = _m.Model(key, val, self._manifest_cfg, self._conn_set, j2_env=self._j2_env)
             models_dict[key].needs_pandas = always_pandas
         
         dataset_config = self._manifest_cfg.datasets[dataset]
@@ -211,10 +223,10 @@ class SquirrelsProject:
         Arguments:
             dataset: The name of the dataset to compile. Ignored if "do_all_datasets" argument is True, but required (i.e., cannot be None) if "do_all_datasets" is False. Default is None.
             do_all_datasets: If True, compile all datasets and ignore the "dataset" argument. Default is False.
-            selected_model: The name of the model to compile. If None, all models for the selected dataset are compiled. Default is None.
-            test_set: The name of the test set to compile with. If None, the default test set is used (which can vary by dataset). Ignored if "do_all_test_sets" argument is True. Default is None.
-            do_all_test_sets: If True, compile all applicable test sets for the selected dataset(s) and ignore the "test_set" argument. Default is False.
-            runquery: If True, run all compiled queries and save each result as a CSV file.
+            selected_model: The name of the model to compile. If specified, the compiled SQL query is also printed in the terminal. If None, all models for the selected dataset are compiled. Default is None.
+            test_set: The name of the test set to compile with. If None, the default test set is used (which can vary by dataset). Ignored if `do_all_test_sets` argument is True. Default is None.
+            do_all_test_sets: Whether to compile all applicable test sets for the selected dataset(s). If True, the `test_set` argument is ignored. Default is False.
+            runquery**: Whether to run all compiled queries and save each result as a CSV file. If True and `selected_model` is specified, all upstream models of the selected model is compiled as well. Default is False.
         """
         recurse = True
         if do_all_datasets:
@@ -281,7 +293,7 @@ class SquirrelsProject:
         Async method to retrieve a dataset as a pandas DataFrame given parameter selections.
 
         Arguments:
-            dataset: The name of the dataset to retrieve.
+            name: The name of the dataset to retrieve.
             selections: A dictionary of parameter selections to apply to the dataset. Optional, default is empty dictionary.
             user: The user to use for authentication. If None, no user is used. Optional, default is None.
         
@@ -300,7 +312,7 @@ class SquirrelsProject:
         Async method to retrieve a dashboard given parameter selections.
 
         Arguments:
-            dashboard: The name of the dashboard to retrieve.
+            name: The name of the dashboard to retrieve.
             selections: A dictionary of parameter selections to apply to the dashboard. Optional, default is empty dictionary.
             user: The user to use for authentication. If None, no user is used. Optional, default is None.
             dashboard_type: Return type of the method (mainly used for type hints). For instance, provide PngDashboard if you want the return type to be a PngDashboard. Optional, default is squirrels.Dashboard.

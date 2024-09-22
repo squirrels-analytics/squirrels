@@ -1,5 +1,6 @@
 # Squirrels CLI commands
 INIT_CMD = 'init'
+GET_FILE_CMD = 'get-file'
 DEPS_CMD = 'deps'
 COMPILE_CMD = 'compile'
 RUN_CMD = 'run'
@@ -23,16 +24,16 @@ MANIFEST_FILE = 'squirrels.yml'
 DATABASE_FOLDER = 'assets'
 PACKAGES_FOLDER = 'sqrl_packages'
 
+MACROS_FOLDER = 'macros'
+
 MODELS_FOLDER = 'models'
 DBVIEWS_FOLDER = 'dbviews'
-DATABASE_VIEW_SQL_FILE = 'database_view1.sql'
-DATABASE_VIEW_PY_FILE = 'database_view1.py'
+DBVIEW_FILE_STEM = 'dbview_example'
 FEDERATES_FOLDER = 'federates'
-FEDERATE_SQL_NAME = 'dataset_example.sql'
-FEDERATE_PY_NAME = 'dataset_example.py'
+FEDERATE_FILE_STEM = 'federate_example'
 
 DASHBOARDS_FOLDER = 'dashboards'
-SAMPLE_DASHBOARD_FILE = 'dashboard_example1.py'
+DASHBOARD_FILE_STEM = 'dashboard_example'
 
 PYCONFIGS_FOLDER = 'pyconfigs'
 AUTH_FILE = 'auth.py'

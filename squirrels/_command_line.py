@@ -1,4 +1,4 @@
-from argparse import ArgumentParser
+from argparse import ArgumentParser, _SubParsersAction
 import sys, time, asyncio
 
 sys.path.append('.')
@@ -12,42 +12,65 @@ def main():
     Main entry point for the squirrels command line utilities.
     """
     start = time.time()
-    parser = ArgumentParser(description="Command line utilities from the squirrels python package", add_help=False)
-    parser.add_argument('-h', '--help', action="help", help="Show this help message and exit")
+
+    def with_help(parser: ArgumentParser):
+        parser.add_argument('-h', '--help', action="help", help="Show this help message and exit")
+        return parser
+
+    parser = with_help(ArgumentParser(description="Command line utilities from the squirrels python package", add_help=False))
     parser.add_argument('-V', '--version', action='store_true', help='Show the version and exit')
     parser.add_argument('-v', '--verbose', action='store_true', help='Enable verbose output')
     subparsers = parser.add_subparsers(title='commands', dest='command')
 
-    init_parser = subparsers.add_parser(c.INIT_CMD, help='Initialize a squirrels project', add_help=False)
-    init_parser.add_argument('-h', '--help', action="help", help="Show this help message and exit")
+    def add_subparser(subparsers: _SubParsersAction, cmd: str, help_text: str):
+        subparser = with_help(subparsers.add_parser(cmd, description=help_text, help=help_text, add_help=False))
+        return subparser
+
+    init_parser = add_subparser(subparsers, c.INIT_CMD, 'Initialize a squirrels project')
     init_parser.add_argument('-o', '--overwrite', action='store_true', help="Overwrite files that already exist")
     init_parser.add_argument('--core', action='store_true', help='Include all core files')
-    init_parser.add_argument('--connections', type=str, choices=c.CONF_FORMAT_CHOICES, help=f'Configure database connections as yaml (default) or python. Ignored if "--core" is not specified')
-    init_parser.add_argument('--parameters', type=str, choices=c.CONF_FORMAT_CHOICES, help=f'Configure parameters as python (default) or yaml. Ignored if "--core" is not specified')
-    init_parser.add_argument('--dbview', type=str, choices=c.FILE_TYPE_CHOICES, help='Create database view model as sql (default) or python file. Ignored if "--core" is not specified')
-    init_parser.add_argument('--federate', type=str, choices=c.FILE_TYPE_CHOICES, help='Create federated model as sql (default) or python file. Ignored if "--core" is not specified')
+    init_parser.add_argument('--connections', type=str, choices=c.CONF_FORMAT_CHOICES, help=f'Configure database connections as yaml (default) or python')
+    init_parser.add_argument('--parameters', type=str, choices=c.CONF_FORMAT_CHOICES, help=f'Configure parameters as python (default) or yaml')
+    init_parser.add_argument('--dbview', type=str, choices=c.FILE_TYPE_CHOICES, help='Create database view model as sql (default) or python file')
+    init_parser.add_argument('--federate', type=str, choices=c.FILE_TYPE_CHOICES, help='Create federated model as sql (default) or python file')
     init_parser.add_argument('--dashboard', action='store_true', help=f'Include a sample dashboard file')
     init_parser.add_argument('--auth', action='store_true', help=f'Include the {c.AUTH_FILE} file')
-    init_parser.add_argument('--sample-db', type=str, choices=c.DATABASE_CHOICES, help='Sample sqlite database to include')
+    init_parser.add_argument('--database', type=str, choices=c.DATABASE_CHOICES, help='Sample sqlite database to include')
 
-    module_parser = subparsers.add_parser(c.DEPS_CMD, help=f'Load all packages specified in {c.MANIFEST_FILE} (from git)', add_help=False)
-    module_parser.add_argument('-h', '--help', action="help", help="Show this help message and exit")
-
-    compile_parser = subparsers.add_parser(c.COMPILE_CMD, help='Create rendered SQL files in the folder "./target/compile"', add_help=False)
-    compile_dataset_group = compile_parser.add_mutually_exclusive_group(required=True)
-    compile_test_set_group = compile_parser.add_mutually_exclusive_group(required=False)
-    compile_parser.add_argument('-h', '--help', action="help", help="Show this help message and exit")
+    def with_file_format_options(parser: ArgumentParser):
+        help_text = "Create model as sql (default) or python file"
+        parser.add_argument('--format', type=str, choices=c.FILE_TYPE_CHOICES, default=c.SQL_FILE_TYPE, help=help_text)
+        return parser
     
+    get_file_help_text = "Get a sample file for the squirrels project. If the file name already exists, it will be prefixed with a timestamp."
+    get_file_parser = add_subparser(subparsers, c.GET_FILE_CMD, get_file_help_text)
+    get_file_subparsers = get_file_parser.add_subparsers(title='file_name', dest='file_name')
+    add_subparser(get_file_subparsers, c.ENV_CONFIG_FILE, f'Get a sample {c.ENV_CONFIG_FILE} file')
+    manifest_parser = add_subparser(get_file_subparsers, c.MANIFEST_FILE, f'Get a sample {c.MANIFEST_FILE} file')
+    manifest_parser.add_argument("--no-connections", action='store_true', help=f'Exclude the connections section')
+    manifest_parser.add_argument("--parameters", action='store_true', help=f'Include the parameters section')
+    manifest_parser.add_argument("--dashboards", action='store_true', help=f'Include the dashboards section')
+    add_subparser(get_file_subparsers, c.AUTH_FILE, f'Get a sample {c.AUTH_FILE} file')
+    add_subparser(get_file_subparsers, c.CONNECTIONS_FILE, f'Get a sample {c.CONNECTIONS_FILE} file')
+    add_subparser(get_file_subparsers, c.PARAMETERS_FILE, f'Get a sample {c.PARAMETERS_FILE} file')
+    add_subparser(get_file_subparsers, c.CONTEXT_FILE, f'Get a sample {c.CONTEXT_FILE} file')
+    with_file_format_options(add_subparser(get_file_subparsers, c.DBVIEW_FILE_STEM, f'Get a sample dbview model file'))
+    with_file_format_options(add_subparser(get_file_subparsers, c.FEDERATE_FILE_STEM, f'Get a sample federate model file'))
+    add_subparser(get_file_subparsers, c.DASHBOARD_FILE_STEM, f'Get a sample dashboard file')
+    
+    add_subparser(subparsers, c.DEPS_CMD, f'Load all packages specified in {c.MANIFEST_FILE} (from git)')
+
+    compile_parser = add_subparser(subparsers, c.COMPILE_CMD, 'Create rendered SQL files in the folder "./target/compile"')
+    compile_dataset_group = compile_parser.add_mutually_exclusive_group(required=True)
     compile_dataset_group.add_argument('-d', '--dataset', type=str, help="Select dataset to use for dataset traits. Is required, unless using --all-datasets")
     compile_dataset_group.add_argument('-D', '--all-datasets', action="store_true", help="Compile models for all datasets. Only required if --dataset is not specified")
+    compile_test_set_group = compile_parser.add_mutually_exclusive_group(required=False)
     compile_test_set_group.add_argument('-t', '--test-set', type=str, help="The selection test set to use. If not specified, default selections are used, unless using --all-test-sets")
     compile_test_set_group.add_argument('-T', '--all-test-sets', action="store_true", help="Compile models for all selection test sets")
-    
     compile_parser.add_argument('-s', '--select', type=str, help="Select single model to compile. If not specified, all models for the dataset are compiled. Ignored if using --all-datasets")
     compile_parser.add_argument('-r', '--runquery', action='store_true', help='Runs all target models, and produce the results as csv files')
 
-    run_parser = subparsers.add_parser(c.RUN_CMD, help='Run the API server', add_help=False)
-    run_parser.add_argument('-h', '--help', action="help", help="Show this help message and exit")
+    run_parser = add_subparser(subparsers, c.RUN_CMD, 'Run the API server')
     run_parser.add_argument('--no-cache', action='store_true', help='Do not cache any api results')
     run_parser.add_argument('--host', type=str, default='127.0.0.1', help="The host to run on")
     run_parser.add_argument('--port', type=int, default=4465, help="The port to run on")
@@ -65,7 +88,9 @@ def main():
     if args.version:
         print(__version__)
     elif args.command == c.INIT_CMD:
-        Initializer(args.overwrite).init_project(args)
+        Initializer(overwrite=args.overwrite).init_project(args)
+    elif args.command == c.GET_FILE_CMD:
+        Initializer().get_file(args)
     elif args.command == c.DEPS_CMD:
         project = SquirrelsProject()
         PackageLoaderIO.load_packages(project._manifest_cfg, reload=True)

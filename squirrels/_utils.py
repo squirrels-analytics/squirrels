@@ -1,7 +1,9 @@
 from typing import Sequence, Optional, Union, TypeVar, Callable, Any
 from pathlib import Path
 from pandas.api import types as pd_types
-import json, sqlite3, jinja2 as j2, pandas as pd
+import os, json, sqlite3, jinja2 as j2, pandas as pd
+
+from . import _constants as c
 
 FilePath = Union[str, Path]
 
@@ -28,11 +30,55 @@ class FileExecutionError(Exception):
         self.error = error
 
 
+## Other utility classes
+
+class MacroLoader(j2.FileSystemLoader):
+    def __init__(self, searchpath, macros_dirs, *, encoding: str = 'utf-8', followlinks: bool = False):
+        super().__init__(searchpath, encoding, followlinks)
+        self.macros_dirs = macros_dirs
+        self.macro_templates = self._load_macro_templates()
+
+    def _load_macro_templates(self):
+        macro_templates = []
+        for macros_dir in self.macros_dirs:
+            for root, _, files in os.walk(macros_dir):
+                files: list[str]
+                for filename in files:
+                    if filename.endswith('.sql'):
+                        filepath = Path(root, filename)
+                        print(f"Loaded macros from: {filepath}")
+                        with open(filepath, 'r', encoding=self.encoding) as f:
+                            content = f.read()
+                        macro_templates.append(content)
+        return macro_templates
+
+    def get_source(self, environment, template):
+        try:
+            source, filename, uptodate = super().get_source(environment, template)
+            for macro_template in self.macro_templates:
+                source = macro_template + '\n' + source
+            return source, filename, uptodate
+        except j2.TemplateNotFound:
+            raise j2.TemplateNotFound(template)
+
+
 ## Utility functions/variables
+    
+def get_macro_folders_from_packages() -> list[Path]:
+    packages_folder = c.PACKAGES_FOLDER
+    if not os.path.exists(packages_folder):
+        return []
+    
+    subdirectories = []
+    for item in os.listdir(packages_folder):
+        item_path = Path(packages_folder, item)
+        if os.path.isdir(item_path):
+            subdirectories.append(Path(item_path, c.MACROS_FOLDER))
+    
+    return subdirectories
 
-_j2_env = j2.Environment(loader=j2.FileSystemLoader('.'))
 
-def render_string(raw_str: str, **kwargs) -> str:
+def render_string(raw_str: str, *, base_path: str = ".", **kwargs) -> str:
     """
     Given a template string, render it with the given keyword arguments
 
@@ -43,7 +89,8 @@ def render_string(raw_str: str, **kwargs) -> str:
     Returns:
         The rendered string
     """
-    template = _j2_env.from_string(raw_str)
+    j2_env = j2.Environment(loader=j2.FileSystemLoader(base_path))
+    template = j2_env.from_string(raw_str)
     return template.render(kwargs)
 
 

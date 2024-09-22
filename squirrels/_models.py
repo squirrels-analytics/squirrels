@@ -16,14 +16,13 @@ from ._manifest import ManifestConfig, DatasetConfig
 from ._parameter_sets import ParameterConfigsSet, ParametersArgs, ParameterSet
 from ._timer import timer, time
 
+ContextFunc = Callable[[dict[str, Any], ContextArgs], None]
+
+
 class ModelType(Enum):
     DBVIEW = 1
     FEDERATE = 2
     SEED = 3
-
-class _QueryType(Enum):
-    SQL = 0
-    PYTHON = 1
 
 class _Materialization(Enum):
     TABLE = 0
@@ -59,21 +58,23 @@ class _SqlModelConfig:
         return create_prefix + select_query
 
 
-ContextFunc = Callable[[dict[str, Any], ContextArgs], None]
-
+@dataclass(frozen=True)
+class QueryFile:
+    filepath: str
+    model_type: ModelType
 
 @dataclass(frozen=True)
-class _RawQuery(metaclass=ABCMeta):
+class SqlQueryFile(QueryFile):
     pass
 
 @dataclass(frozen=True)
-class _RawSqlQuery(_RawQuery):
-    query: str
-
-@dataclass(frozen=True)
-class _RawPyQuery(_RawQuery):
+class _RawPyQuery:
     query: Callable[[ModelArgs], pd.DataFrame]
     dependencies_func: Callable[[ModelDepsArgs], Iterable[str]]
+
+@dataclass(frozen=True)
+class PyQueryFile(QueryFile):
+    raw_query: _RawPyQuery
 
 
 @dataclass
@@ -90,16 +91,8 @@ class SqlModelQuery(_Query):
     config: _SqlModelConfig
 
 @dataclass
-class _PyModelQuery(_Query):
+class PyModelQuery(_Query):
     query: Callable[[], pd.DataFrame]
-
-
-@dataclass(frozen=True)
-class QueryFile:
-    filepath: str
-    model_type: ModelType
-    query_type: _QueryType
-    raw_query: _RawQuery
 
 
 @dataclass
@@ -185,6 +178,7 @@ class Model(Referable):
     query_file: QueryFile
     manifest_cfg: ManifestConfig
     conn_set: ConnectionSet
+    j2_env: u.j2.Environment = field(default_factory=lambda: u.j2.Environment(loader=u.j2.FileSystemLoader(".")))
     compiled_query: _Query | None = field(default=None, init=False)
 
     def get_model_type(self) -> ModelType:
@@ -194,10 +188,10 @@ class Model(Referable):
         self.upstreams[other.name] = other
         other.downstreams[self.name] = self
         
-        if self.query_file.query_type == _QueryType.PYTHON:
-            other.needs_pandas = True
-        elif self.query_file.query_type == _QueryType.SQL:
+        if isinstance(self.query_file, SqlQueryFile):
             other.needs_sql_table = True
+        elif isinstance(self.query_file, PyQueryFile):
+            other.needs_pandas = True
 
     def _get_dbview_conn_name(self) -> str:
         dbview_config = self.manifest_cfg.dbviews.get(self.name)
@@ -216,9 +210,6 @@ class Model(Referable):
     async def _compile_sql_model(
         self, ctx: dict[str, Any], ctx_args: ContextArgs, placeholders: dict[str, Any], models_dict: dict[str, Referable]
     ) -> tuple[SqlModelQuery, set]:
-        assert(isinstance(self.query_file.raw_query, _RawSqlQuery))
-
-        raw_query = self.query_file.raw_query.query
         connection_name = self._get_dbview_conn_name()
         materialized = self._get_materialized()
         configuration = _SqlModelConfig(connection_name, materialized)
@@ -238,7 +229,8 @@ class Model(Referable):
             kwargs["ref"] = ref
 
         try:
-            query = await asyncio.to_thread(u.render_string, raw_query, **kwargs)
+            template = self.j2_env.get_template(self.query_file.filepath)
+            query = await asyncio.to_thread(template.render, kwargs)
         except Exception as e:
             raise u.FileExecutionError(f'Failed to compile sql model "{self.name}"', e) from e
         
@@ -247,8 +239,8 @@ class Model(Referable):
     
     async def _compile_python_model(
         self, ctx: dict[str, Any], ctx_args: ContextArgs, placeholders: dict[str, Any], models_dict: dict[str, Referable]
-    ) -> tuple[_PyModelQuery, Iterable]:
-        assert isinstance(self.query_file.raw_query, _RawPyQuery)
+    ) -> tuple[PyModelQuery, Iterable]:
+        assert isinstance(self.query_file, PyQueryFile)
         
         sqrl_args = ModelDepsArgs(
             ctx_args.proj_vars, ctx_args.env_vars, ctx_args.user, ctx_args.prms, ctx_args.traits, placeholders, ctx
@@ -280,13 +272,13 @@ class Model(Referable):
             
         def compiled_query():
             try:
-                assert isinstance(self.query_file.raw_query, _RawPyQuery)
+                assert isinstance(self.query_file, PyQueryFile)
                 raw_query: _RawPyQuery = self.query_file.raw_query
                 return raw_query.query(sqrl_args)
             except Exception as e:
                 raise u.FileExecutionError(f'Failed to run "{c.MAIN_FUNC}" function for python model "{self.name}"', e) from e
         
-        return _PyModelQuery(compiled_query), dependencies
+        return PyModelQuery(compiled_query), dependencies
 
     async def compile(
         self, ctx: dict[str, Any], ctx_args: ContextArgs, placeholders: dict[str, Any], models_dict: dict[str, Referable], recurse: bool
@@ -298,12 +290,12 @@ class Model(Referable):
         
         start = time.time()
 
-        if self.query_file.query_type == _QueryType.SQL:
+        if isinstance(self.query_file, SqlQueryFile):
             compiled_query, dependencies = await self._compile_sql_model(ctx, ctx_args, placeholders, models_dict)
-        elif self.query_file.query_type == _QueryType.PYTHON:
+        elif isinstance(self.query_file, PyQueryFile):
             compiled_query, dependencies = await self._compile_python_model(ctx, ctx_args, placeholders, models_dict)
         else:
-            raise u.ConfigurationError(f"Query type not supported: {self.query_file.query_type}")
+            raise NotImplementedError(f"Query type not supported: {self.query_file.__class__.__name__}")
         
         self.compiled_query = compiled_query
         self.wait_count = len(set(dependencies))
@@ -371,7 +363,7 @@ class Model(Referable):
                 self.result = await asyncio.to_thread(self._load_table_to_pandas, conn)
     
     async def _run_python_model(self, conn: Connection) -> None:
-        assert(isinstance(self.compiled_query, _PyModelQuery))
+        assert(isinstance(self.compiled_query, PyModelQuery))
 
         df = await asyncio.to_thread(self.compiled_query.query)
         if self.needs_sql_table:
@@ -382,10 +374,12 @@ class Model(Referable):
     async def run_model(self, conn: Connection, placeholders: dict = {}) -> None:
         start = time.time()
         
-        if self.query_file.query_type == _QueryType.SQL:
+        if isinstance(self.query_file, SqlQueryFile):
             await self._run_sql_model(conn, placeholders)
-        elif self.query_file.query_type == _QueryType.PYTHON:
+        elif isinstance(self.query_file, PyQueryFile):
             await self._run_python_model(conn)
+        else:
+            raise NotImplementedError(f"Query type not supported: {self.query_file.__class__.__name__}")
         
         model_type = self.get_model_type().name.lower()
         timer.add_activity_time(f"running {model_type} model '{self.name}'", start)
@@ -507,20 +501,19 @@ class ModelsIO:
         raw_queries_by_model: dict[str, QueryFile] = {}
 
         def populate_from_file(dp: str, file: str, model_type: ModelType) -> None:
-            query_type = None
-            filepath = os.path.join(dp, file)
+            filepath = Path(dp, file)
             file_stem, extension = os.path.splitext(file)
             if extension == '.py':
-                query_type = _QueryType.PYTHON
                 module = pm.PyModule(filepath)
                 dependencies_func = module.get_func_or_class(c.DEP_FUNC, default_attr=lambda sqrl: [])
                 raw_query = _RawPyQuery(module.get_func_or_class(c.MAIN_FUNC), dependencies_func)
+                query_file = PyQueryFile(filepath.as_posix(), model_type, raw_query)
             elif extension == '.sql':
-                query_type = _QueryType.SQL
-                raw_query = _RawSqlQuery(u.read_file(filepath))
+                query_file = SqlQueryFile(filepath.as_posix(), model_type)
+            else:
+                query_file = None
             
-            if query_type is not None:
-                query_file = QueryFile(filepath, model_type, query_type, raw_query)
+            if query_file is not None:
                 if file_stem in raw_queries_by_model:
                     conflicts = [raw_queries_by_model[file_stem].filepath, filepath]
                     raise u.ConfigurationError(f"Multiple models found for '{file_stem}': {conflicts}")
