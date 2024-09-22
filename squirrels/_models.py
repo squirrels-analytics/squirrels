@@ -16,6 +16,8 @@ from ._manifest import ManifestConfig, DatasetConfig
 from ._parameter_sets import ParameterConfigsSet, ParametersArgs, ParameterSet
 from ._timer import timer, time
 
+ContextFunc = Callable[[dict[str, Any], ContextArgs], None]
+
 
 class ModelType(Enum):
     DBVIEW = 1
@@ -56,13 +58,23 @@ class _SqlModelConfig:
         return create_prefix + select_query
 
 
-ContextFunc = Callable[[dict[str, Any], ContextArgs], None]
+@dataclass(frozen=True)
+class QueryFile:
+    filepath: str
+    model_type: ModelType
 
+@dataclass(frozen=True)
+class SqlQueryFile(QueryFile):
+    pass
 
 @dataclass(frozen=True)
 class _RawPyQuery:
     query: Callable[[ModelArgs], pd.DataFrame]
     dependencies_func: Callable[[ModelDepsArgs], Iterable[str]]
+
+@dataclass(frozen=True)
+class PyQueryFile(QueryFile):
+    raw_query: _RawPyQuery
 
 
 @dataclass
@@ -81,20 +93,6 @@ class SqlModelQuery(_Query):
 @dataclass
 class PyModelQuery(_Query):
     query: Callable[[], pd.DataFrame]
-
-
-@dataclass(frozen=True)
-class QueryFile:
-    filepath: str
-    model_type: ModelType
-
-@dataclass(frozen=True)
-class SqlQueryFile(QueryFile):
-    pass
-
-@dataclass(frozen=True)
-class PyQueryFile(QueryFile):
-    raw_query: _RawPyQuery
 
 
 @dataclass
@@ -180,7 +178,7 @@ class Model(Referable):
     query_file: QueryFile
     manifest_cfg: ManifestConfig
     conn_set: ConnectionSet
-    j2_env: u.j2.Environment = field(default=u.j2.Environment(loader=u.j2.FileSystemLoader(".")))
+    j2_env: u.j2.Environment = field(default_factory=lambda: u.j2.Environment(loader=u.j2.FileSystemLoader(".")))
     compiled_query: _Query | None = field(default=None, init=False)
 
     def get_model_type(self) -> ModelType:

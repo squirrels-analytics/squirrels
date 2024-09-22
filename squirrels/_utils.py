@@ -33,7 +33,7 @@ class FileExecutionError(Exception):
 ## Other utility classes
 
 class MacroLoader(j2.FileSystemLoader):
-    def __init__(self, searchpath, macros_dirs, *, encoding='utf-8', followlinks=False):
+    def __init__(self, searchpath, macros_dirs, *, encoding: str = 'utf-8', followlinks: bool = False):
         super().__init__(searchpath, encoding, followlinks)
         self.macros_dirs = macros_dirs
         self.macro_templates = self._load_macro_templates()
@@ -78,7 +78,7 @@ def get_macro_folders_from_packages() -> list[Path]:
     return subdirectories
 
 
-def render_string(base_path: str, raw_str: str, **kwargs) -> str:
+def render_string(raw_str: str, *, base_path: str = ".", **kwargs) -> str:
     """
     Given a template string, render it with the given keyword arguments
 

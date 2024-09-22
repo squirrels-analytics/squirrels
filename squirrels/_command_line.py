@@ -90,7 +90,7 @@ def main():
     elif args.command == c.INIT_CMD:
         Initializer(overwrite=args.overwrite).init_project(args)
     elif args.command == c.GET_FILE_CMD:
-        Initializer(get_file_mode=True).get_file(args)
+        Initializer().get_file(args)
     elif args.command == c.DEPS_CMD:
         project = SquirrelsProject()
         PackageLoaderIO.load_packages(project._manifest_cfg, reload=True)

@@ -8,9 +8,8 @@ base_proj_dir = u.Path(os.path.dirname(__file__), c.PACKAGE_DATA_FOLDER, c.BASE_
 
 
 class Initializer:
-    def __init__(self, *, overwrite: bool = False, get_file_mode: bool = False):
+    def __init__(self, *, overwrite: bool = False):
         self.overwrite = overwrite
-        self.get_file_mode = get_file_mode
 
     def _path_exists(self, filepath: u.Path) -> bool:
         return os.path.exists(filepath)
@@ -84,9 +83,8 @@ class Initializer:
         }
         substitutions = {key: get_content(val) for key, val in file_name_dict.items()}
         
-        base_path = "."
         manifest_template = get_content(c.MANIFEST_JINJA_FILE)
-        manifest_content = u.render_string(base_path, manifest_template, **substitutions)
+        manifest_content = u.render_string(manifest_template, **substitutions)
         output_path = u.Path(base_proj_dir, TMP_FOLDER, c.MANIFEST_FILE)
         with open(u.Path(output_path), "w") as f:
             f.write(manifest_content)
