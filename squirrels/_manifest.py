@@ -23,8 +23,8 @@ class ProjectVarsConfig(BaseModel, extra="allow"):
 
 class PackageConfig(BaseModel):
     git: str
-    directory: str = ""
     revision: str
+    directory: str = ""
 
     @model_validator(mode="after")
     def finalize_directory(self) -> Self:
@@ -208,7 +208,7 @@ class ManifestIO:
 
         raw_content = _u.read_file(_u.Path(base_path, c.MANIFEST_FILE))
         env_vars = env_cfg.get_all_env_vars()
-        content = _u.render_string(raw_content, env_vars=env_vars)
+        content = _u.render_string(base_path, raw_content, env_vars=env_vars)
         manifest_content = yaml.safe_load(content)
         try:
             manifest_cfg = ManifestConfig(base_path=base_path, env_cfg=env_cfg, **manifest_content)

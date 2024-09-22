@@ -1,4 +1,4 @@
-import pytest
+import pytest, jinja2
 
 from squirrels.arguments.init_time_args import ConnectionsArgs
 from squirrels._environcfg import EnvironConfig
@@ -46,3 +46,8 @@ def simple_conn_args():
 @pytest.fixture(scope="session")
 def simple_conn_set():
     return ConnectionSet({})
+
+
+@pytest.fixture(scope="session")
+def j2_env():
+    return jinja2.Environment()

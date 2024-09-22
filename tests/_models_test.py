@@ -42,8 +42,7 @@ def context_args():
 
 @pytest.fixture(scope="module")
 def modelA_query_file():
-    raw_query = m._RawSqlQuery('SELECT * FROM {{ ref("modelB1") }} JOIN {{ ref("modelB2") }} USING (row_id)')
-    return m.QueryFile("/path1", m.ModelType.FEDERATE, m._QueryType.SQL, raw_query)
+    return m.SqlQueryFile("tests/resources/_models_test/modelA.sql", m.ModelType.FEDERATE)
 
 
 @pytest.fixture(scope="module")
@@ -53,13 +52,12 @@ def modelB1_query_file():
         return pd.DataFrame({"row_id": ["a", "b", "c"], "valB": [1, 2, 3]})
     
     raw_query = m._RawPyQuery(main_func, lambda sqrl: ["modelC1", "modelSeed"])
-    return m.QueryFile("/path2", m.ModelType.FEDERATE, m._QueryType.PYTHON, raw_query)
+    return m.PyQueryFile("dummy/path/modelB1.py", m.ModelType.FEDERATE, raw_query)
 
 
 @pytest.fixture(scope="module")
 def modelB2_query_file():
-    raw_query = m._RawSqlQuery('SELECT row_id, valC FROM {{ ref("modelC1") }} JOIN {{ ref("modelC2") }}')
-    return m.QueryFile("/path3", m.ModelType.FEDERATE, m._QueryType.SQL, raw_query)
+    return m.SqlQueryFile("tests/resources/_models_test/modelB2.sql", m.ModelType.FEDERATE)
 
 
 @pytest.fixture(scope="module")
@@ -69,7 +67,7 @@ def modelC1a_query_file():
         return pd.DataFrame({"row_id": ["a", "b", "c"], "valC": [10, 20, 30]})
     
     raw_query = m._RawPyQuery(main_func, lambda sqrl: [])
-    return m.QueryFile("/path4", m.ModelType.FEDERATE, m._QueryType.PYTHON, raw_query)
+    return m.PyQueryFile("dummy/path/modelC1.py", m.ModelType.FEDERATE, raw_query)
 
 
 @pytest.fixture(scope="module")
@@ -78,13 +76,12 @@ def modelC1b_query_file():
         return pd.DataFrame({"row_id": ["a", "b", "c"], "valC": [10, 20, 30]})
     
     raw_query = m._RawPyQuery(main_func, lambda sqrl: ["modelA"])
-    return m.QueryFile("/path4", m.ModelType.FEDERATE, m._QueryType.PYTHON, raw_query)
+    return m.PyQueryFile("dummy/path/modelC1.py", m.ModelType.FEDERATE, raw_query)
 
 
 @pytest.fixture(scope="module")
 def modelC2_query_file():
-    raw_query = m._RawSqlQuery('SELECT 1 as a')
-    return m.QueryFile("/path5", m.ModelType.FEDERATE, m._QueryType.SQL, raw_query)
+    return m.SqlQueryFile("tests/resources/_models_test/modelC2.sql", m.ModelType.FEDERATE)
 
 
 @pytest.fixture(scope="function")

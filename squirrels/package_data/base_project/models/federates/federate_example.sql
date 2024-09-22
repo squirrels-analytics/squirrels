@@ -1,3 +1,3 @@
 SELECT *
-FROM {{ ref("database_view1") }}
+FROM {{ ref("dbview_example") }}
 ORDER BY {{ ctx.order_by_cols }}

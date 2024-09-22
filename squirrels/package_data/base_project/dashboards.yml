@@ -1,5 +1,5 @@
 dashboards:
-  - name: dashboard_example1
+  - name: dashboard_example
     label: Dashboard Example
     scope: public
     parameters:
