@@ -123,15 +123,21 @@ class _DateTypeParameterOption(ParameterOption):
     """
     Abstract class (or type) for date type parameter options
     """
+    _min_date: date | None
+    _max_date: date | None
     _date_format: str # = field(default="%Y-%m-%d", kw_only=True)
 
     @abstractmethod
     def __init__(
-        self, *, date_format: str = '%Y-%m-%d', user_groups: Iterable[Any] | str = frozenset(), 
-        parent_option_ids: Iterable[str] | str = frozenset(), **kwargs
+        self, *, min_date: str | date | None = None, max_date: str | date | None = None, date_format: str = '%Y-%m-%d', 
+        user_groups: Iterable[Any] | str = frozenset(), parent_option_ids: Iterable[str] | str = frozenset(), **kwargs
     ) -> None:
         super().__init__(user_groups=user_groups, parent_option_ids=parent_option_ids)
         self._date_format = date_format
+        self._min_date = self._validate_date(min_date) if min_date is not None else None
+        self._max_date = self._validate_date(max_date) if max_date is not None else None
+        if self._min_date is not None and self._max_date is not None:
+            self._validate_lower_upper_values("min_date", self._min_date, "max_date", self._max_date)
     
     def _validate_date(self, date_str: str | date) -> date:
         try:
@@ -154,8 +160,8 @@ class DateParameterOption(_DateTypeParameterOption):
     _default_date: date
 
     def __init__(
-        self, default_date: str | date, *, date_format: str = '%Y-%m-%d', user_groups: Iterable[Any] | str = frozenset(), 
-        parent_option_ids: Iterable[str] | str = frozenset(), **kwargs
+        self, default_date: str | date, *, min_date: str | date | None = None, max_date: str | date | None = None, date_format: str = '%Y-%m-%d',
+        user_groups: Iterable[Any] | str = frozenset(), parent_option_ids: Iterable[str] | str = frozenset(), **kwargs
     ) -> None:
         """
         Constructor for DateParameterOption
@@ -163,8 +169,16 @@ class DateParameterOption(_DateTypeParameterOption):
         Arguments:
             ...see Attributes of DateParameterOption
         """
-        super().__init__(date_format=date_format, user_groups=user_groups, parent_option_ids=parent_option_ids)
+        super().__init__(
+            date_format=date_format, min_date=min_date, max_date=max_date, user_groups=user_groups, parent_option_ids=parent_option_ids
+        )
         self._default_date = self._validate_date(default_date)
+        
+        if self._min_date is not None:
+            self._validate_lower_upper_values("min_date", self._min_date, "default_date", self._default_date)
+        
+        if self._max_date is not None:
+            self._validate_lower_upper_values("default_date", self._default_date, "max_date", self._max_date)
 
 
 @dataclass
@@ -183,8 +197,9 @@ class DateRangeParameterOption(_DateTypeParameterOption):
     _default_end_date: date
 
     def __init__(
-        self, default_start_date: str | date, default_end_date: str | date, *, date_format: str = '%Y-%m-%d', 
-        user_groups: Iterable[Any] | str = frozenset(), parent_option_ids: Iterable[str] | str = frozenset(), **kwargs
+        self, default_start_date: str | date, default_end_date: str | date, *, min_date: str | date | None = None, 
+        max_date: str | date | None = None, date_format: str = '%Y-%m-%d', user_groups: Iterable[Any] | str = frozenset(), 
+        parent_option_ids: Iterable[str] | str = frozenset(), **kwargs
     ) -> None:
         """
         Constructor for DateRangeParameterOption
@@ -192,10 +207,19 @@ class DateRangeParameterOption(_DateTypeParameterOption):
         Arguments:
             ...see Attributes of DateRangeParameterOption
         """
-        super().__init__(date_format=date_format, user_groups=user_groups, parent_option_ids=parent_option_ids)
+        super().__init__(
+            date_format=date_format, min_date=min_date, max_date=max_date, user_groups=user_groups, parent_option_ids=parent_option_ids
+        )
         self._default_start_date = self._validate_date(default_start_date)
         self._default_end_date = self._validate_date(default_end_date)
+
+        if self._min_date is not None:
+            self._validate_lower_upper_values("min_date", self._min_date, "default_start_date", self._default_start_date)
+        
         self._validate_lower_upper_values("default_start_date", self._default_start_date, "default_end_date", self._default_end_date)
+
+        if self._max_date is not None:
+            self._validate_lower_upper_values("default_end_date", self._default_end_date, "max_date", self._max_date)
 
 
 @dataclass
