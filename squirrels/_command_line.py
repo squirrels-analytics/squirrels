@@ -1,25 +1,29 @@
 from argparse import ArgumentParser, _SubParsersAction
-import sys, time, asyncio
+import sys, asyncio, traceback, io
 
 sys.path.append('.')
 
+from ._version import __version__
+from ._api_server import ApiServer
+from ._initializer import Initializer
+from ._package_loader import PackageLoaderIO
+from .project import SquirrelsProject
 from . import _constants as c
-from ._timer import timer
 
 
 def main():
     """
     Main entry point for the squirrels command line utilities.
     """
-    start = time.time()
-
     def with_help(parser: ArgumentParser):
         parser.add_argument('-h', '--help', action="help", help="Show this help message and exit")
         return parser
 
     parser = with_help(ArgumentParser(description="Command line utilities from the squirrels python package", add_help=False))
     parser.add_argument('-V', '--version', action='store_true', help='Show the version and exit')
-    parser.add_argument('-v', '--verbose', action='store_true', help='Enable verbose output')
+    parser.add_argument('--log-level', type=str, choices=["DEBUG", "INFO", "WARNING"], default="INFO", help='Level of logging to use')
+    parser.add_argument('--log-format', type=str, choices=["text", "json"], default="text", help='Format of the log records')
+    parser.add_argument('--log-file', type=str, default=c.LOGS_FILE, help=f'Name of log file to write to in the "logs/" folder. Default is {c.LOGS_FILE}. If name is empty, then file logging is disabled')
     subparsers = parser.add_subparsers(title='commands', dest='command')
 
     def add_subparser(subparsers: _SubParsersAction, cmd: str, help_text: str):
@@ -35,7 +39,6 @@ def main():
     init_parser.add_argument('--federate', type=str, choices=c.FILE_TYPE_CHOICES, help='Create federated model as sql (default) or python file')
     init_parser.add_argument('--dashboard', action='store_true', help=f'Include a sample dashboard file')
     init_parser.add_argument('--auth', action='store_true', help=f'Include the {c.AUTH_FILE} file')
-    init_parser.add_argument('--database', type=str, choices=c.DATABASE_CHOICES, help='Sample sqlite database to include')
 
     def with_file_format_options(parser: ArgumentParser):
         help_text = "Create model as sql (default) or python file"
@@ -57,6 +60,8 @@ def main():
     with_file_format_options(add_subparser(get_file_subparsers, c.DBVIEW_FILE_STEM, f'Get a sample dbview model file'))
     with_file_format_options(add_subparser(get_file_subparsers, c.FEDERATE_FILE_STEM, f'Get a sample federate model file'))
     add_subparser(get_file_subparsers, c.DASHBOARD_FILE_STEM, f'Get a sample dashboard file')
+    add_subparser(get_file_subparsers, c.EXPENSES_DB, f'Get the sample SQLite database on expenses')
+    add_subparser(get_file_subparsers, c.WEATHER_DB, f'Get the sample SQLite database on weather')
     
     add_subparser(subparsers, c.DEPS_CMD, f'Load all packages specified in {c.MANIFEST_FILE} (from git)')
 
@@ -76,15 +81,8 @@ def main():
     run_parser.add_argument('--port', type=int, default=4465, help="The port to run on")
 
     args, _ = parser.parse_known_args()
-    timer.verbose = args.verbose
-    timer.add_activity_time('parsing arguments', start)
+    project = SquirrelsProject(log_level=args.log_level, log_format=args.log_format, log_file=args.log_file)
     
-    from . import __version__
-    from ._api_server import ApiServer
-    from ._initializer import Initializer
-    from ._package_loader import PackageLoaderIO
-    from .project import SquirrelsProject
-
     if args.version:
         print(__version__)
     elif args.command == c.INIT_CMD:
@@ -92,10 +90,8 @@ def main():
     elif args.command == c.GET_FILE_CMD:
         Initializer().get_file(args)
     elif args.command == c.DEPS_CMD:
-        project = SquirrelsProject()
-        PackageLoaderIO.load_packages(project._manifest_cfg, reload=True)
+        PackageLoaderIO.load_packages(project._logger, project._manifest_cfg, reload=True)
     elif args.command in [c.RUN_CMD, c.COMPILE_CMD]:
-        project = SquirrelsProject()
         try:
             if args.command == c.RUN_CMD:
                 server = ApiServer(args.no_cache, project)
@@ -108,6 +104,12 @@ def main():
                 asyncio.run(task)
         except KeyboardInterrupt:
             pass
+        except Exception as e:
+            buffer = io.StringIO()
+            traceback.print_exception(e, file=buffer)
+            err_msg = buffer.getvalue()
+            print(err_msg)
+            project._logger.error(err_msg)
         finally:
             project.close()
     elif args.command is None:

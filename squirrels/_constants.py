@@ -21,6 +21,9 @@ PARAMETERS_YML_FILE = 'parameters.yml'
 DASHBOARDS_YML_FILE = 'dashboards.yml'
 MANIFEST_FILE = 'squirrels.yml'
 
+LOGS_FOLDER = 'logs'
+LOGS_FILE = 'squirrels.log'
+
 DATABASE_FOLDER = 'assets'
 PACKAGES_FOLDER = 'sqrl_packages'
 
@@ -86,10 +89,8 @@ CONF_FORMAT_CHOICES = [YML_FORMAT, PYTHON_FORMAT]
 PYTHON_FORMAT2 = 'py (recommended)'
 CONF_FORMAT_CHOICES2 = [(PYTHON_FORMAT2, PYTHON_FORMAT), YML_FORMAT]
 
-EXPENSES_DB_NAME = 'expenses'
-WEATHER_DB_NAME = 'weather'
-NO_DB = 'none'
-DATABASE_CHOICES = [EXPENSES_DB_NAME, WEATHER_DB_NAME, NO_DB]
+EXPENSES_DB = 'expenses.db'
+WEATHER_DB = 'weather.db'
 
 # Dashboard formats
 PNG = "png"

@@ -9,16 +9,14 @@ from fastapi.middleware.cors import CORSMiddleware
 from pydantic import create_model, BaseModel
 from cachetools import TTLCache
 from argparse import Namespace
-import os, mimetypes, traceback, pandas as pd
+import os, io, time, mimetypes, traceback, uuid, pandas as pd
 
 from . import _constants as c, _utils as u, _api_response_models as arm
 from ._version import sq_major_version
-from ._manifest import DatasetConfig, DashboardConfig, AnalyticsOutputConfig
 from ._authenticator import User
 from ._parameter_sets import ParameterSet
 from .dashboards import Dashboard
 from .project import SquirrelsProject
-from ._timer import timer, time
 
 mimetypes.add_type('application/javascript', '.js')
 
@@ -33,7 +31,9 @@ class ApiServer:
         """
         self.no_cache = no_cache
         self.project = project
+        self.logger = project._logger
 
+        self.j2_env = project._j2_env
         self.env_cfg = project._env_cfg
         self.manifest_cfg = project._manifest_cfg
         self.seeds = project._seeds
@@ -87,27 +87,59 @@ class ApiServer:
             description="For specifying parameter selections to dataset APIs, you can choose between using query parameters with the GET method or using request body with the POST method"
         )
 
+        async def _log_request_run(request: Request) -> None:
+            headers = dict(request.scope["headers"])
+            request_id = uuid.uuid4().hex
+            headers[b"x-request-id"] = request_id.encode()
+            request.scope["headers"] = list(headers.items())
+
+            try:
+                body = await request.json()
+            except Exception:
+                body = None
+            
+            headers_dict = dict(request.headers)
+            path, params = request.url.path, dict(request.query_params)
+            path_with_params = f"{path}?{request.query_params}" if len(params) > 0 else path
+            data = {"request_method": request.method, "request_path": path, "request_params": params, "request_headers": headers_dict, "request_body": body}
+            info = {"request_id": request_id}
+            self.logger.info(f'Running request: {request.method} {path_with_params}', extra={"data": data, "info": info})
+        
+        def _get_request_id(request: Request) -> str:
+            return request.headers.get("x-request-id", "")
+
         @app.middleware("http")
         async def catch_exceptions_middleware(request: Request, call_next):
+            buffer = io.StringIO()
             try:
+                await _log_request_run(request)
                 return await call_next(request)
             except u.InvalidInputError as exc:
-                traceback.print_exc()
-                return JSONResponse(status_code=status.HTTP_400_BAD_REQUEST, 
-                                    content={"message": str(exc), "blame": "API client"})
+                traceback.print_exc(file=buffer)
+                response = JSONResponse(
+                    status_code=status.HTTP_400_BAD_REQUEST, content={"message": str(exc), "blame": "API client"}
+                )
             except u.FileExecutionError as exc:
-                traceback.print_exception(exc.error)
-                print(str(exc))
-                return JSONResponse(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, 
-                                    content={"message": f"An unexpected error occurred", "blame": "Squirrels project"})
+                traceback.print_exception(exc.error, file=buffer)
+                buffer.write(str(exc))
+                response = JSONResponse(
+                    status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, content={"message": f"An unexpected error occurred", "blame": "Squirrels project"}
+                )
             except u.ConfigurationError as exc:
-                traceback.print_exc()
-                return JSONResponse(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, 
-                                    content={"message": f"An unexpected error occurred", "blame": "Squirrels project"})
+                traceback.print_exc(file=buffer)
+                response = JSONResponse(
+                    status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, content={"message": f"An unexpected error occurred", "blame": "Squirrels project"}
+                )
             except Exception as exc:
-                traceback.print_exc()
-                return JSONResponse(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, 
-                                    content={"message": f"An unexpected error occurred", "blame": "Squirrels framework"})
+                traceback.print_exc(file=buffer)
+                response = JSONResponse(
+                    status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, content={"message": f"An unexpected error occurred", "blame": "Squirrels framework"}
+                )
+            
+            err_msg = buffer.getvalue()
+            self.logger.error(err_msg)
+            print(err_msg)
+            return response
 
         app.add_middleware(
             CORSMiddleware, allow_origins=["*"], allow_credentials=True, allow_methods=["*"], allow_headers=["*"], 
@@ -173,10 +205,6 @@ class ApiServer:
                 cache[cache_key] = result
             return result
         
-        def get_section_from_request_path(request: Request, section: int) -> str:
-            url_path: str = request.scope['route'].path
-            return url_path.split('/')[section]
-        
         def get_query_models_from_widget_params(parameters: list):
             QueryModelForGetRaw = make_dataclass("QueryParams", [
                 param_fields[param].as_query_info() for param in parameters
@@ -187,13 +215,17 @@ class ApiServer:
                 param: param_fields[param].as_body_info() for param in parameters
             }) # type: ignore
             return QueryModelForGet, QueryModelForPost
+        
+        def _get_section_from_request_path(request: Request, section: int) -> str:
+            url_path: str = request.scope['route'].path
+            return url_path.split('/')[section]
 
         def get_dataset_name(request: Request, section: int) -> str:
-            dataset_raw = get_section_from_request_path(request, section)
+            dataset_raw = _get_section_from_request_path(request, section)
             return u.normalize_name(dataset_raw)
 
         def get_dashboard_name(request: Request, section: int) -> str:
-            dashboard_raw = get_section_from_request_path(request, section)
+            dashboard_raw = _get_section_from_request_path(request, section)
             return u.normalize_name(dashboard_raw)
         
         # Login & Authorization
@@ -205,9 +237,9 @@ class ApiServer:
         async def login_for_access_token(form_data: OAuth2PasswordRequestForm = Depends()) -> arm.LoginReponse:
             user: User | None = self.authenticator.authenticate_user(form_data.username, form_data.password)
             if not user:
-                raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, 
-                                    detail="Incorrect username or password",
-                                    headers={"WWW-Authenticate": "Bearer"})
+                raise HTTPException(
+                    status_code=status.HTTP_401_UNAUTHORIZED, detail="Incorrect username or password", headers={"WWW-Authenticate": "Bearer"}
+                )
             access_token, expiry = self.authenticator.create_access_token(user)
             return arm.LoginReponse(access_token=access_token, token_type="bearer", username=user.username, expiry_time=expiry)
         
@@ -389,7 +421,7 @@ class ApiServer:
                 curr_dataset_name = get_dataset_name(request, -2)
                 parameters_list = self.manifest_cfg.datasets[curr_dataset_name].parameters
                 result = await get_parameters_definition(parameters_list, user, request.headers, asdict(params))
-                timer.add_activity_time("GET REQUEST total time for PARAMETERS endpoint", start)
+                self.logger.log_activity_time("GET REQUEST for PARAMETERS", start, request_id=_get_request_id(request))
                 return result
 
             @app.post(
@@ -404,7 +436,7 @@ class ApiServer:
                 parameters_list = self.manifest_cfg.datasets[curr_dataset_name].parameters
                 params: BaseModel = params
                 result = await get_parameters_definition(parameters_list, user, request.headers, params.model_dump())
-                timer.add_activity_time("POST REQUEST total time for PARAMETERS endpoint", start)
+                self.logger.log_activity_time("POST REQUEST for PARAMETERS", start, request_id=_get_request_id(request))
                 return result
             
             @app.get(curr_results_path, tags=[f"Dataset '{dataset_name}'"], description=dataset_config.description, response_class=JSONResponse)
@@ -414,7 +446,7 @@ class ApiServer:
                 start = time.time()
                 curr_dataset_name = get_dataset_name(request, -1)
                 result = await get_dataset_results_definition(curr_dataset_name, user, request.headers, asdict(params))
-                timer.add_activity_time("GET REQUEST total time for DATASET RESULTS endpoint", start)
+                self.logger.log_activity_time("GET REQUEST for DATASET RESULTS", start, request_id=_get_request_id(request))
                 return result
             
             @app.post(curr_results_path, tags=[f"Dataset '{dataset_name}'"], description=dataset_config.description, response_class=JSONResponse)
@@ -425,7 +457,7 @@ class ApiServer:
                 curr_dataset_name = get_dataset_name(request, -1)
                 params: BaseModel = params
                 result = await get_dataset_results_definition(curr_dataset_name, user, request.headers, params.model_dump())
-                timer.add_activity_time("POST REQUEST total time for DATASET RESULTS endpoint", start)
+                self.logger.log_activity_time("POST REQUEST for DATASET RESULTS", start, request_id=_get_request_id(request))
                 return result
         
         # Dashboard Parameters and Results APIs
@@ -446,7 +478,7 @@ class ApiServer:
                 curr_dashboard_name = get_dashboard_name(request, -2)
                 parameters_list = self.manifest_cfg.dashboards[curr_dashboard_name].parameters
                 result = await get_parameters_definition(parameters_list, user, request.headers, asdict(params))
-                timer.add_activity_time("GET REQUEST total time for PARAMETERS endpoint", start)
+                self.logger.log_activity_time("GET REQUEST for PARAMETERS", start, request_id=_get_request_id(request))
                 return result
 
             @app.post(curr_parameters_path, tags=[f"Dashboard '{dashboard_name}'"], description=parameters_description, response_class=JSONResponse)
@@ -458,7 +490,7 @@ class ApiServer:
                 parameters_list = self.manifest_cfg.dashboards[curr_dashboard_name].parameters
                 params: BaseModel = params
                 result = await get_parameters_definition(parameters_list, user, request.headers, params.model_dump())
-                timer.add_activity_time("POST REQUEST total time for PARAMETERS endpoint", start)
+                self.logger.log_activity_time("POST REQUEST for PARAMETERS", start, request_id=_get_request_id(request))
                 return result
             
             @app.get(curr_results_path, tags=[f"Dashboard '{dashboard_name}'"], description=dashboard_config.description, response_class=Response)
@@ -468,7 +500,7 @@ class ApiServer:
                 start = time.time()
                 curr_dashboard_name = get_dashboard_name(request, -1)
                 result = await get_dashboard_results_definition(curr_dashboard_name, user, request.headers, asdict(params))
-                timer.add_activity_time("GET REQUEST total time for DASHBOARD RESULTS endpoint", start)
+                self.logger.log_activity_time("GET REQUEST for DASHBOARD RESULTS", start, request_id=_get_request_id(request))
                 return result
 
             @app.post(curr_results_path, tags=[f"Dashboard '{dashboard_name}'"], description=dashboard_config.description, response_class=Response)
@@ -479,7 +511,7 @@ class ApiServer:
                 curr_dashboard_name = get_dashboard_name(request, -1)
                 params: BaseModel = params
                 result = await get_dashboard_results_definition(curr_dashboard_name, user, request.headers, params.model_dump())
-                timer.add_activity_time("POST REQUEST total time for DASHBOARD RESULTS endpoint", start)
+                self.logger.log_activity_time("POST REQUEST for DASHBOARD RESULTS", start, request_id=_get_request_id(request))
                 return result
 
         # Project Metadata API
@@ -516,5 +548,5 @@ class ApiServer:
         
         # Run API server
         import uvicorn
-        timer.add_activity_time("creating app for api server", start)
+        self.logger.log_activity_time("creating app server", start)
         uvicorn.run(app, host=uvicorn_args.host, port=uvicorn_args.port)

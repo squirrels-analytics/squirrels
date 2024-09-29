@@ -42,7 +42,8 @@ def context_args():
 
 @pytest.fixture(scope="module")
 def modelA_query_file():
-    return m.SqlQueryFile("tests/resources/_models_test/modelA.sql", m.ModelType.FEDERATE)
+    raw_query = 'SELECT * FROM {{ ref("modelB1") }} JOIN {{ ref("modelB2") }} USING (row_id)'
+    return m.SqlQueryFile("dummy/path/modelA.sql", m.ModelType.FEDERATE, raw_query)
 
 
 @pytest.fixture(scope="module")
@@ -57,7 +58,8 @@ def modelB1_query_file():
 
 @pytest.fixture(scope="module")
 def modelB2_query_file():
-    return m.SqlQueryFile("tests/resources/_models_test/modelB2.sql", m.ModelType.FEDERATE)
+    raw_query = 'SELECT row_id, valC FROM {{ ref("modelC1") }} JOIN {{ ref("modelC2") }}'
+    return m.SqlQueryFile("dummy/path/modelB2.sql", m.ModelType.FEDERATE, raw_query)
 
 
 @pytest.fixture(scope="module")
@@ -81,7 +83,8 @@ def modelC1b_query_file():
 
 @pytest.fixture(scope="module")
 def modelC2_query_file():
-    return m.SqlQueryFile("tests/resources/_models_test/modelC2.sql", m.ModelType.FEDERATE)
+    raw_query = 'SELECT 1 AS a'
+    return m.SqlQueryFile("dummy/path/modelC2.sql", m.ModelType.FEDERATE, raw_query)
 
 
 @pytest.fixture(scope="function")

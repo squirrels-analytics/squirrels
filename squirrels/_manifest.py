@@ -2,11 +2,10 @@ from typing import Any
 from typing_extensions import Self
 from enum import Enum
 from pydantic import BaseModel, Field, field_validator, model_validator, ValidationInfo, ValidationError
-import yaml
+import yaml, time
 
 from . import _constants as c, _utils as _u
 from ._environcfg import EnvironConfig
-from ._timer import timer, time
 
 
 class ProjectVarsConfig(BaseModel, extra="allow"):
@@ -202,7 +201,7 @@ class ManifestConfig(BaseModel):
 class ManifestIO:
 
     @classmethod
-    def load_from_file(cls, base_path: str, env_cfg: EnvironConfig) -> ManifestConfig:
+    def load_from_file(cls, logger: _u.Logger, base_path: str, env_cfg: EnvironConfig) -> ManifestConfig:
         start = time.time()
 
         raw_content = _u.read_file(_u.Path(base_path, c.MANIFEST_FILE))
@@ -214,5 +213,5 @@ class ManifestIO:
         except ValidationError as e:
             raise _u.ConfigurationError(f"Failed to process {c.MANIFEST_FILE} file. " + str(e)) from e
         
-        timer.add_activity_time(f"loading {c.MANIFEST_FILE} file", start)
+        logger.log_activity_time(f"loading {c.MANIFEST_FILE} file", start)
         return manifest_cfg

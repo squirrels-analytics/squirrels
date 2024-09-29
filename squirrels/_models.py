@@ -5,8 +5,7 @@ from abc import ABCMeta, abstractmethod
 from enum import Enum
 from pathlib import Path
 from sqlalchemy import create_engine, text, Connection
-import asyncio, os, pandas as pd
-import networkx as nx
+import asyncio, os, time, pandas as pd, networkx as nx
 
 from . import _constants as c, _utils as u, _py_module as pm
 from .arguments.run_time_args import ContextArgs, ModelDepsArgs, ModelArgs
@@ -14,7 +13,6 @@ from ._authenticator import User
 from ._connection_set import ConnectionSet
 from ._manifest import ManifestConfig, DatasetConfig
 from ._parameter_sets import ParameterConfigsSet, ParametersArgs, ParameterSet
-from ._timer import timer, time
 
 ContextFunc = Callable[[dict[str, Any], ContextArgs], None]
 
@@ -65,7 +63,7 @@ class QueryFile:
 
 @dataclass(frozen=True)
 class SqlQueryFile(QueryFile):
-    pass
+    raw_query: str
 
 @dataclass(frozen=True)
 class _RawPyQuery:
@@ -178,6 +176,7 @@ class Model(Referable):
     query_file: QueryFile
     manifest_cfg: ManifestConfig
     conn_set: ConnectionSet
+    logger: u.Logger = field(default_factory=lambda: u.Logger(""))
     j2_env: u.j2.Environment = field(default_factory=lambda: u.j2.Environment(loader=u.j2.FileSystemLoader(".")))
     compiled_query: _Query | None = field(default=None, init=False)
 
@@ -210,6 +209,8 @@ class Model(Referable):
     async def _compile_sql_model(
         self, ctx: dict[str, Any], ctx_args: ContextArgs, placeholders: dict[str, Any], models_dict: dict[str, Referable]
     ) -> tuple[SqlModelQuery, set]:
+        assert isinstance(self.query_file, SqlQueryFile)
+        
         connection_name = self._get_dbview_conn_name()
         materialized = self._get_materialized()
         configuration = _SqlModelConfig(connection_name, materialized)
@@ -229,7 +230,7 @@ class Model(Referable):
             kwargs["ref"] = ref
 
         try:
-            template = self.j2_env.get_template(self.query_file.filepath)
+            template = self.j2_env.from_string(self.query_file.raw_query)
             query = await asyncio.to_thread(template.render, kwargs)
         except Exception as e:
             raise u.FileExecutionError(f'Failed to compile sql model "{self.name}"', e) from e
@@ -301,7 +302,7 @@ class Model(Referable):
         self.wait_count = len(set(dependencies))
 
         model_type = self.get_model_type().name.lower()
-        timer.add_activity_time(f"compiling {model_type} model '{self.name}'", start)
+        self.logger.log_activity_time(f"compiling {model_type} model '{self.name}'", start)
         
         if not recurse:
             return 
@@ -382,7 +383,7 @@ class Model(Referable):
             raise NotImplementedError(f"Query type not supported: {self.query_file.__class__.__name__}")
         
         model_type = self.get_model_type().name.lower()
-        timer.add_activity_time(f"running {model_type} model '{self.name}'", start)
+        self.logger.log_activity_time(f"running {model_type} model '{self.name}'", start)
         
         await super().run_model(conn, placeholders)
     
@@ -399,6 +400,7 @@ class DAG:
     dataset: DatasetConfig
     target_model: Referable
     models_dict: dict[str, Referable]
+    logger: u.Logger = field(default_factory=lambda: u.Logger(""))
     parameter_set: ParameterSet | None = field(default=None, init=False) # set in apply_selections
     placeholders: dict[str, Any] = field(init=False, default_factory=dict)
 
@@ -411,7 +413,7 @@ class DAG:
             dataset_params, selections, user, updates_only=updates_only, request_version=request_version
         )
         self.parameter_set = parameter_set
-        timer.add_activity_time(f"applying selections for dataset '{self.dataset.name}'", start)
+        self.logger.log_activity_time(f"applying selections for dataset '{self.dataset.name}'", start)
     
     def _compile_context(self, param_args: ParametersArgs, context_func: ContextFunc, user: User | None) -> tuple[dict[str, Any], ContextArgs]:
         start = time.time()
@@ -423,7 +425,7 @@ class DAG:
             context_func(context, args)
         except Exception as e:
             raise u.FileExecutionError(f'Failed to run {c.CONTEXT_FILE} for dataset "{self.dataset.name}"', e) from e
-        timer.add_activity_time(f"running context.py for dataset '{self.dataset.name}'", start)
+        self.logger.log_activity_time(f"running context.py for dataset '{self.dataset.name}'", start)
         return context, args
     
     async def _compile_models(self, context: dict[str, Any], ctx_args: ContextArgs, recurse: bool) -> None:
@@ -434,7 +436,7 @@ class DAG:
         terminal_nodes = self.target_model.get_terminal_nodes(set())
         for model in self.models_dict.values():
             model.confirmed_no_cycles = False
-        timer.add_activity_time(f"validating no cycles in model dependencies", start)
+        self.logger.log_activity_time(f"validating no cycles in model dependencies", start)
         return terminal_nodes
 
     async def _run_models(self, terminal_nodes: set[str], placeholders: dict = {}) -> None:
@@ -496,7 +498,7 @@ class DAG:
 class ModelsIO:
 
     @classmethod
-    def load_files(cls, base_path: str) -> dict[str, QueryFile]:
+    def load_files(cls, logger: u.Logger, base_path: str) -> dict[str, QueryFile]:
         start = time.time()
         raw_queries_by_model: dict[str, QueryFile] = {}
 
@@ -509,7 +511,7 @@ class ModelsIO:
                 raw_query = _RawPyQuery(module.get_func_or_class(c.MAIN_FUNC), dependencies_func)
                 query_file = PyQueryFile(filepath.as_posix(), model_type, raw_query)
             elif extension == '.sql':
-                query_file = SqlQueryFile(filepath.as_posix(), model_type)
+                query_file = SqlQueryFile(filepath.as_posix(), model_type, filepath.read_text())
             else:
                 query_file = None
             
@@ -530,16 +532,16 @@ class ModelsIO:
         federates_path = u.Path(base_path, c.MODELS_FOLDER, c.FEDERATES_FOLDER)
         populate_raw_queries_for_type(federates_path, ModelType.FEDERATE)
 
-        timer.add_activity_time("loading files for models", start)
+        logger.log_activity_time("loading files for models", start)
         return raw_queries_by_model
 
     @classmethod
-    def load_context_func(cls, base_path: str) -> ContextFunc:
+    def load_context_func(cls, logger: u.Logger, base_path: str) -> ContextFunc:
         start = time.time()
 
         context_path = u.Path(base_path, c.PYCONFIGS_FOLDER, c.CONTEXT_FILE)
         context_func: ContextFunc = pm.PyModule(context_path).get_func_or_class(c.MAIN_FUNC, default_attr=lambda ctx, sqrl: None)
 
-        timer.add_activity_time("loading file for context.py", start)
+        logger.log_activity_time("loading file for context.py", start)
         return context_func
     

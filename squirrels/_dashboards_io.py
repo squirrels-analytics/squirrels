@@ -1,9 +1,8 @@
 from typing import Type, TypeVar, Callable, Coroutine, Any
 from dataclasses import dataclass
-import inspect, os
+import inspect, os, time
 
 from .arguments.run_time_args import DashboardArgs
-from ._timer import timer, time
 from ._py_module import PyModule
 from . import _constants as c, _utils as u, dashboards as d
 
@@ -47,7 +46,7 @@ class DashboardFunction:
 class DashboardsIO:
 
     @classmethod
-    def load_files(cls, base_path: str) -> dict[str, DashboardFunction]:
+    def load_files(cls, logger: u.Logger, base_path: str) -> dict[str, DashboardFunction]:
         start = time.time()
         
         dashboards_by_name = {}
@@ -58,5 +57,5 @@ class DashboardsIO:
                 if extension == '.py':
                     dashboards_by_name[file_stem] = DashboardFunction(file_stem, filepath)
         
-        timer.add_activity_time("loading files for dashboards", start)
+        logger.log_activity_time("loading files for dashboards", start)
         return dashboards_by_name

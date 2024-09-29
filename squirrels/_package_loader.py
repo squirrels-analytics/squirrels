@@ -2,13 +2,12 @@ import git, shutil, os, time
 
 from . import _constants as c, _utils as _u
 from ._manifest import ManifestConfig
-from ._timer import timer
 
 
 class PackageLoaderIO:
 
     @classmethod
-    def load_packages(cls, manifest_cfg: ManifestConfig, *, reload: bool = False) -> None:
+    def load_packages(cls, logger: _u.Logger, manifest_cfg: ManifestConfig, *, reload: bool = False) -> None:
         start = time.time()
         # If reload, delete the modules directory (if it exists). It will be recreated later
         if reload and os.path.exists(c.PACKAGES_FOLDER):
@@ -23,4 +22,4 @@ class PackageLoaderIO:
                 except git.GitCommandError as e:
                     raise _u.ConfigurationError(f"Git clone of package failed for this repository: {repo.git}") from e
         
-        timer.add_activity_time("loading packages", start)
+        logger.log_activity_time("loading packages", start)
