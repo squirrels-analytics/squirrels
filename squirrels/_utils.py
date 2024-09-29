@@ -1,7 +1,9 @@
-from typing import Sequence, Optional, Union, TypeVar, Callable, Any
+from typing import Sequence, Optional, Union, TypeVar, Callable
 from pathlib import Path
 from pandas.api import types as pd_types
-import os, json, sqlite3, jinja2 as j2, pandas as pd
+from datetime import datetime
+import os, time, logging, json, sqlite3, pandas as pd
+import jinja2 as j2, jinja2.nodes as j2_nodes
 
 from . import _constants as c
 
@@ -32,50 +34,63 @@ class FileExecutionError(Exception):
 
 ## Other utility classes
 
-class MacroLoader(j2.FileSystemLoader):
-    def __init__(self, searchpath, macros_dirs, *, encoding: str = 'utf-8', followlinks: bool = False):
-        super().__init__(searchpath, encoding, followlinks)
-        self.macros_dirs = macros_dirs
-        self.macro_templates = self._load_macro_templates()
+class Logger(logging.Logger):
+    def log_activity_time(self, activity: str, start_timestamp: float, *, request_id: str | None = None) -> None:
+        end_timestamp = time.time()
+        time_taken = round((end_timestamp-start_timestamp) * 10**3, 3)
+        data = { "activity": activity, "start_timestamp": start_timestamp, "end_timestamp": end_timestamp, "time_taken_ms": time_taken }
+        info = { "request_id": request_id } if request_id else {}
+        self.debug(f'Time taken for "{activity}": {time_taken}ms', extra={"data": data, "info": info})
 
-    def _load_macro_templates(self):
+
+class EnvironmentWithMacros(j2.Environment):
+    def __init__(self, logger: logging.Logger, loader: j2.FileSystemLoader, *args, **kwargs):
+        super().__init__(*args, loader=loader, **kwargs)
+        self._logger = logger
+        self._macros = self._load_macro_templates(logger)
+
+    def _load_macro_templates(self, logger: logging.Logger) -> str:
+        macros_dirs = self._get_macro_folders_from_packages()
         macro_templates = []
-        for macros_dir in self.macros_dirs:
+        for macros_dir in macros_dirs:
             for root, _, files in os.walk(macros_dir):
                 files: list[str]
                 for filename in files:
-                    if filename.endswith('.sql'):
+                    if any(filename.endswith(x) for x in [".sql", ".j2", ".jinja", ".jinja2"]):
                         filepath = Path(root, filename)
-                        print(f"Loaded macros from: {filepath}")
-                        with open(filepath, 'r', encoding=self.encoding) as f:
+                        logger.info(f"Loaded macros from: {filepath}")
+                        with open(filepath, 'r') as f:
                             content = f.read()
                         macro_templates.append(content)
-        return macro_templates
+        return '\n'.join(macro_templates)
+    
+    def _get_macro_folders_from_packages(self) -> list[Path]:
+        assert isinstance(self.loader, j2.FileSystemLoader)
+        packages_folder = Path(self.loader.searchpath[0], c.PACKAGES_FOLDER)
+        
+        subdirectories = []
+        if os.path.exists(packages_folder):
+            for item in os.listdir(packages_folder):
+                item_path = Path(packages_folder, item)
+                if os.path.isdir(item_path):
+                    subdirectories.append(Path(item_path, c.MACROS_FOLDER))
+        
+        subdirectories.append(Path(self.loader.searchpath[0], c.MACROS_FOLDER))
+        return subdirectories
 
-    def get_source(self, environment, template):
-        try:
-            source, filename, uptodate = super().get_source(environment, template)
-            for macro_template in self.macro_templates:
-                source = macro_template + '\n' + source
-            return source, filename, uptodate
-        except j2.TemplateNotFound:
-            raise j2.TemplateNotFound(template)
+    def _parse(self, source: str, name: str | None, filename: str | None) -> j2_nodes.Template:
+        source = self._macros + source
+        return super()._parse(source, name, filename)
 
 
 ## Utility functions/variables
-    
-def get_macro_folders_from_packages() -> list[Path]:
-    packages_folder = c.PACKAGES_FOLDER
-    if not os.path.exists(packages_folder):
-        return []
-    
-    subdirectories = []
-    for item in os.listdir(packages_folder):
-        item_path = Path(packages_folder, item)
-        if os.path.isdir(item_path):
-            subdirectories.append(Path(item_path, c.MACROS_FOLDER))
-    
-    return subdirectories
+
+def log_activity_time(logger: logging.Logger, activity: str, start_timestamp: float, *, request_id: str | None = None) -> None:
+    end_timestamp = time.time()
+    time_taken = round((end_timestamp-start_timestamp) * 10**3, 3)
+    data = { "activity": activity, "start_timestamp": start_timestamp, "end_timestamp": end_timestamp, "time_taken_ms": time_taken }
+    info = { "request_id": request_id } if request_id else {}
+    logger.debug(f'Time taken for "{activity}": {time_taken}ms', extra={"data": data, "info": info})
 
 
 def render_string(raw_str: str, *, base_path: str = ".", **kwargs) -> str:

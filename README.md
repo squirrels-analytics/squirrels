@@ -71,7 +71,7 @@ From the root of the git repo, the source code can be found in the `squirrels` f
 
 To understand what a specific squirrels command is doing, start from the `_command_line.py` file as your entry point.
 
-The library version is maintained in both the `pyproject.toml` and the `squirrels/__init__.py` files.
+The library version is maintained in both the `pyproject.toml` and the `squirrels/_version.py` files.
 
 When a user initializes a squirrels project using `sqrl init`, the files are copied from the `squirrels/package_data/base_project` folder. The contents in the `database` subfolder were constructed from the scripts in the `database_elt` folder.
 

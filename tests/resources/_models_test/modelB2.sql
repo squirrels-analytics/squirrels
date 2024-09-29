@@ -1,1 +1,0 @@
-SELECT row_id, valC FROM {{ ref("modelC1") }} JOIN {{ ref("modelC2") }}

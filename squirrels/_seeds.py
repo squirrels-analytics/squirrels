@@ -1,7 +1,6 @@
 from dataclasses import dataclass
-import os, glob, pandas as pd
+import os, time, glob, pandas as pd
 
-from ._timer import timer, time
 from ._manifest import ManifestConfig
 from . import _utils as _u, _constants as c
 
@@ -22,7 +21,7 @@ class Seeds:
 class SeedsIO:
 
     @classmethod
-    def load_files(cls, base_path: str, manifest_cfg: ManifestConfig) -> Seeds:
+    def load_files(cls, logger: _u.Logger, base_path: str, manifest_cfg: ManifestConfig) -> Seeds:
         start = time.time()
         infer_schema: bool = manifest_cfg.settings.get(c.SEEDS_INFER_SCHEMA_SETTING, True)
         na_values: list[str] = manifest_cfg.settings.get(c.SEEDS_NA_VALUES_SETTING, ["NA"])
@@ -36,5 +35,5 @@ class SeedsIO:
             seeds_dict[file_stem] = df
         
         seeds = Seeds(seeds_dict, manifest_cfg)
-        timer.add_activity_time("loading seed files", start)
+        logger.log_activity_time("loading seed files", start)
         return seeds

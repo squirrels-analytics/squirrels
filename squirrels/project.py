@@ -1,5 +1,5 @@
-import typing as _t, matplotlib.pyplot as _plt, networkx as _nx, pandas as _pd
-import functools as _ft, asyncio as _aio, os as _os, shutil as _shutil, json as _json
+import typing as _t, functools as _ft, asyncio as _aio, os as _os, shutil as _shutil, json as _json
+import logging as _l, uuid as _uu, matplotlib.pyplot as _plt, networkx as _nx, pandas as _pd
 
 from . import _utils as _u, _constants as _c, _environcfg as _ec, _manifest as _mf, _authenticator as _auth
 from . import _seeds as _s, _connection_set as _cs, _models as _m, _dashboards_io as _d, _parameter_sets as _ps
@@ -8,63 +8,105 @@ from . import dashboards as _dash
 T = _t.TypeVar('T', bound=_dash.Dashboard)
 
 
+class _CustomJsonFormatter(_l.Formatter):
+    def format(self, record: _l.LogRecord) -> str:
+        super().format(record)
+        info = {
+            "timestamp": self.formatTime(record),
+            "project_id": record.name,
+            "level": record.levelname,
+            "message": record.getMessage(),
+            "thread": record.thread,
+            "thread_name": record.threadName,
+            "process": record.process,
+            **record.__dict__.get("info", {})
+        }
+        output = {
+            "data": record.__dict__.get("data", {}),
+            "info": info
+        }
+        return _json.dumps(output)
+
+
 class SquirrelsProject:
     """
     Initiate an instance of this class to interact with a Squirrels project through Python code. For example this can be handy to experiment with the datasets produced by Squirrels in a Jupyter notebook.
     """
     
-    def __init__(self, *, filepath: str = ".") -> None:
+    def __init__(self, *, filepath: str = ".", log_file: str | None = _c.LOGS_FILE, log_level: str = "INFO", log_format: str = "text") -> None:
         """
         Constructor for SquirrelsProject class. Loads the file contents of the Squirrels project into memory as member fields.
 
         Arguments:
             filepath: The path to the Squirrels project file. Defaults to the current working directory.
+            log_level: The logging level to use. Options are "DEBUG", "INFO", and "WARNING". Default is "INFO".
+            log_file: The name of the log file to write to from the "logs/" subfolder. If None or empty string, then file logging is disabled. Default is "squirrels.log".
+            log_format: The format of the log records. Options are "text" and "json". Default is "text".
         """
         self._filepath = filepath
+        self._logger = self._get_logger(self._filepath, log_file, log_level, log_format)
+    
+    def _get_logger(self, base_path: str, log_file: str | None, log_level: str, log_format: str) -> _u.Logger:
+        logger = _u.Logger(name=_uu.uuid4().hex)
+        logger.setLevel(log_level.upper())
         
-        # Pre-load these attributes
-        self._manifest_cfg
-        self._j2_env
+        if log_file:
+            path = _u.Path(base_path, _c.LOGS_FOLDER, log_file)
+            path.parent.mkdir(parents=True, exist_ok=True)
+
+            handler = _l.FileHandler(path)
+            if log_format.lower() == "json":
+                handler.setFormatter(_CustomJsonFormatter())
+            elif log_format.lower() == "text":
+                formatter = _l.Formatter("[%(name)s] %(asctime)s - %(levelname)s - %(message)s")
+                handler.setFormatter(formatter)
+            else:
+                raise ValueError("log_format must be either 'text' or 'json'")
+            logger.addHandler(handler)
+        else:
+            logger.disabled = True
+        
+        return logger
     
     @property
     @_ft.cache
     def _env_cfg(self) -> _ec.EnvironConfig:
-        return _ec.EnvironConfigIO.load_from_file(self._filepath)
+        return _ec.EnvironConfigIO.load_from_file(self._logger, self._filepath)
 
     @property
     @_ft.cache
     def _manifest_cfg(self) -> _mf.ManifestConfig:
-        return _mf.ManifestIO.load_from_file(self._filepath, self._env_cfg)
+        return _mf.ManifestIO.load_from_file(self._logger, self._filepath, self._env_cfg)
     
     @property
     @_ft.cache
     def _seeds(self) -> _s.Seeds:
-        return _s.SeedsIO.load_files(self._filepath, self._manifest_cfg)
+        return _s.SeedsIO.load_files(self._logger, self._filepath, self._manifest_cfg)
     
     @property
     @_ft.cache
     def _model_files(self) -> dict[str, _m.QueryFile]:
-        return _m.ModelsIO.load_files(self._filepath)
+        return _m.ModelsIO.load_files(self._logger, self._filepath)
     
     @property
     @_ft.cache
     def _context_func(self) -> _m.ContextFunc:
-        return _m.ModelsIO.load_context_func(self._filepath)
+        return _m.ModelsIO.load_context_func(self._logger, self._filepath)
     
     @property
     @_ft.cache
     def _dashboards(self) -> dict[str, _d.DashboardFunction]:
-        return _d.DashboardsIO.load_files(self._filepath)
+        return _d.DashboardsIO.load_files(self._logger, self._filepath)
     
     @property
     @_ft.cache
     def _conn_args(self) -> _cs.ConnectionsArgs:
-        return _cs.ConnectionSetIO.load_conn_py_args(self._env_cfg, self._manifest_cfg)
+        return _cs.ConnectionSetIO.load_conn_py_args(self._logger, self._env_cfg, self._manifest_cfg)
     
     @property
     def _conn_set(self) -> _cs.ConnectionSet:
         if not hasattr(self, "__conn_set") or self.__conn_set is None:
-            self.__conn_set = _cs.ConnectionSetIO.load_from_file(self._filepath, self._manifest_cfg, self._conn_args)
+            self.__conn_set = _cs.ConnectionSetIO.load_from_file(self._logger, self._filepath, self._manifest_cfg, self._conn_args)
         return self.__conn_set
     
     @property
@@ -81,13 +123,14 @@ class SquirrelsProject:
     @property
     @_ft.cache
     def _param_cfg_set(self) -> _ps.ParameterConfigsSet:
-        return _ps.ParameterConfigsSetIO.load_from_file(self._filepath, self._manifest_cfg, self._seeds, self._conn_set, self._param_args)
+        return _ps.ParameterConfigsSetIO.load_from_file(
+            self._logger, self._filepath, self._manifest_cfg, self._seeds, self._conn_set, self._param_args
+        )
     
     @property
     @_ft.cache
-    def _j2_env(self) -> _u.j2.Environment:
-        macros_dirs = [_u.Path(self._filepath, _c.MACROS_FOLDER)] + _u.get_macro_folders_from_packages()
-        return _u.j2.Environment(loader=_u.MacroLoader(self._filepath, macros_dirs))
+    def _j2_env(self) -> _u.EnvironmentWithMacros:
+        return _u.EnvironmentWithMacros(self._logger, loader=_u.j2.FileSystemLoader(self._filepath))
     
     @property
     @_ft.cache
@@ -113,7 +156,7 @@ class SquirrelsProject:
 
         models_dict: dict[str, _m.Referable] = {key: _m.Seed(key, df) for key, df in seeds_dict.items()}
         for key, val in self._model_files.items():
-            models_dict[key] = _m.Model(key, val, self._manifest_cfg, self._conn_set, j2_env=self._j2_env)
+            models_dict[key] = _m.Model(key, val, self._manifest_cfg, self._conn_set, self._logger, j2_env=self._j2_env)
             models_dict[key].needs_pandas = always_pandas
         
         dataset_config = self._manifest_cfg.datasets[dataset]
@@ -121,7 +164,7 @@ class SquirrelsProject:
         target_model = models_dict[target_model_name]
         target_model.is_target = True
         
-        return _m.DAG(self._manifest_cfg, dataset_config, target_model, models_dict)
+        return _m.DAG(self._manifest_cfg, dataset_config, target_model, models_dict, self._logger)
     
     def _draw_dag(self, dag: _m.DAG, output_folder: _u.Path) -> None:
         color_map = {_m.ModelType.SEED: "green", _m.ModelType.DBVIEW: "red", _m.ModelType.FEDERATE: "skyblue"}

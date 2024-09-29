@@ -92,37 +92,33 @@ class Initializer:
         self._copy_file(u.Path(c.MANIFEST_FILE), src_folder=TMP_FOLDER)
 
     def init_project(self, args):
-        options = ["core", "connections", "parameters", "dbview", "federate", "dashboard", "auth", "database"]
-        _, CONNECTIONS, PARAMETERS, DBVIEW, FEDERATE, DASHBOARD, AUTH, DATABASE = options
+        options = ["core", "connections", "parameters", "dbview", "federate", "dashboard", "auth"]
+        _, CONNECTIONS, PARAMETERS, DBVIEW, FEDERATE, DASHBOARD, AUTH = options
 
         answers = { x: getattr(args, x) for x in options }
         if not any(answers.values()):
             questions = [
-                inquirer.List(CONNECTIONS,
-                                message=f"How would you like to configure the database connections?" ,
-                                choices=c.CONF_FORMAT_CHOICES),
-                inquirer.List(PARAMETERS,
-                                message=f"How would you like to configure the parameters?" ,
-                                choices=c.CONF_FORMAT_CHOICES2),
-                inquirer.List(DBVIEW, 
-                                message="What's the file format for the database view model?",
-                                choices=c.FILE_TYPE_CHOICES),
-                inquirer.List(FEDERATE, 
-                                message="What's the file format for the federated model?",
-                                choices=c.FILE_TYPE_CHOICES),
-                inquirer.Confirm(DASHBOARD,
-                                message=f"Do you want to include a dashboard example?" ,
-                                default=False),
-                inquirer.Confirm(AUTH,
-                                message=f"Do you want to add the '{c.AUTH_FILE}' file to enable custom API authentication?" ,
-                                default=False),
-                inquirer.List(DATABASE, 
-                            message="What sample sqlite database do you wish to use (if any)?",
-                            choices= c.DATABASE_CHOICES)
+                inquirer.List(
+                    CONNECTIONS, message=f"How would you like to configure the database connections?", choices=c.CONF_FORMAT_CHOICES
+                ),
+                inquirer.List(
+                    PARAMETERS, message=f"How would you like to configure the parameters?", choices=c.CONF_FORMAT_CHOICES2
+                ),
+                inquirer.List(
+                    DBVIEW, message="What's the file format for the database view model?", choices=c.FILE_TYPE_CHOICES
+                ),
+                inquirer.List(
+                    FEDERATE, message="What's the file format for the federated model?", choices=c.FILE_TYPE_CHOICES
+                ),
+                inquirer.Confirm(
+                    DASHBOARD, message=f"Do you want to include a dashboard example?", default=False
+                ),
+                inquirer.Confirm(
+                    AUTH, message=f"Do you want to add the '{c.AUTH_FILE}' file to enable custom API authentication?", default=False
+                ),
             ]
-            more_answers = inquirer.prompt(questions)
-            assert isinstance(more_answers,  dict)
-            answers.update(more_answers)
+            answers = inquirer.prompt(questions)
+            assert isinstance(answers, dict)
         
         def get_answer(key, default):
             """
@@ -195,15 +191,7 @@ class Initializer:
         if get_answer(AUTH, False):
             self._copy_pyconfig_file(c.AUTH_FILE)
 
-        sample_db = get_answer(DATABASE, c.EXPENSES_DB_NAME)
-        if sample_db == c.NO_DB:
-            pass
-        elif sample_db == c.EXPENSES_DB_NAME:
-            self._copy_database_file(c.EXPENSES_DB_NAME+".db")
-        elif sample_db == c.WEATHER_DB_NAME:
-            self._copy_database_file(c.WEATHER_DB_NAME+".db")
-        else:
-            raise NotImplementedError(f"No database found called '{sample_db}'")
+        self._copy_database_file(c.EXPENSES_DB)
         
         print(f"\nSuccessfully created new Squirrels project in current directory!\n")
     
@@ -226,6 +214,8 @@ class Initializer:
             copy_method(args.file_name + extension)
         elif args.file_name == c.DASHBOARD_FILE_STEM:
             self._copy_dashboard_file(args.file_name + ".py")
+        elif args.file_name in (c.EXPENSES_DB, c.WEATHER_DB):
+            self._copy_database_file(args.file_name)
         else:
             raise NotImplementedError(f"File '{args.file_name}' not supported")
         

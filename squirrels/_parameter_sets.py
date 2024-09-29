@@ -2,7 +2,7 @@ from __future__ import annotations
 from typing import Optional, Sequence
 from dataclasses import dataclass, field
 from collections import OrderedDict
-import concurrent.futures, pandas as pd
+import time, concurrent.futures, pandas as pd
 
 from . import _utils as u, _constants as c, parameters as p, _parameter_configs as _pc, _py_module as pm, _api_response_models as arm
 from .arguments.init_time_args import ParametersArgs
@@ -10,7 +10,6 @@ from ._manifest import ParametersConfig, ManifestConfig
 from ._connection_set import ConnectionSet, ConnectionsArgs
 from ._seeds import Seeds
 from .user_base import User
-from ._timer import timer, time
 
 
 @dataclass
@@ -177,7 +176,7 @@ class ParameterConfigsSetIO:
     
     @classmethod
     def load_from_file(
-        cls, base_path: str, manifest_cfg: ManifestConfig, seeds: Seeds, conn_set: ConnectionSet, param_args: ParametersArgs
+        cls, logger: u.Logger, base_path: str, manifest_cfg: ManifestConfig, seeds: Seeds, conn_set: ConnectionSet, param_args: ParametersArgs
     ) -> ParameterConfigsSet:
         start = time.time()
         cls.obj = ParameterConfigsSet()
@@ -191,5 +190,5 @@ class ParameterConfigsSetIO:
         df_dict = cls._get_df_dict_from_data_sources(default_conn_name, seeds, conn_set)
         cls.obj._post_process_params(df_dict)
         
-        timer.add_activity_time("loading parameters", start)
+        logger.log_activity_time("loading parameters", start)
         return cls.obj

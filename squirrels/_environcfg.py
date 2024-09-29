@@ -1,10 +1,9 @@
 from pathlib import Path
 from typing import Any, Callable
 from pydantic import BaseModel, Field, field_validator, ValidationError
-import os, yaml
+import os, yaml, time
 
 from . import _constants as c, _utils as u
-from ._timer import timer, time
 
 _GLOBAL_SQUIRRELS_CFG_FILE = u.Path(os.path.expanduser('~'), '.squirrels', c.ENV_CONFIG_FILE)
 
@@ -60,7 +59,7 @@ class EnvironConfig(BaseModel):
 class EnvironConfigIO:
     
     @classmethod
-    def load_from_file(cls, base_path: str) -> EnvironConfig:
+    def load_from_file(cls, logger: u.Logger, base_path: str) -> EnvironConfig:
         start = time.time()
         def load_yaml(filename: str | Path) -> dict[str, dict]:
             try:
@@ -81,5 +80,5 @@ class EnvironConfigIO:
         except ValidationError as e:
             raise u.ConfigurationError(f"Failed to process {c.ENV_CONFIG_FILE} file. " + str(e)) from e
         
-        timer.add_activity_time(f"loading {c.ENV_CONFIG_FILE} file", start)
+        logger.log_activity_time(f"loading {c.ENV_CONFIG_FILE} file", start)
         return env_cfg
