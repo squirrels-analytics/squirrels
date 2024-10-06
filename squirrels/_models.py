@@ -266,9 +266,10 @@ class Model(Referable):
             connection_name = dbview_conn_name if connection_name is None else connection_name
             return self.conn_set.run_sql_query_from_conn_name(sql_query, connection_name, placeholders)
         
+        use_duckdb = self.manifest_cfg.settings_obj.do_use_duckdb()
         sqrl_args = ModelArgs(
             ctx_args.proj_vars, ctx_args.env_vars, ctx_args.user, ctx_args.prms, ctx_args.traits, placeholders, ctx, 
-            dbview_conn_name, connections, dependencies, ref, run_external_sql
+            dbview_conn_name, connections, dependencies, ref, run_external_sql, use_duckdb
         )
             
         def compiled_query():

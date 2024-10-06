@@ -6,7 +6,6 @@ import pandas as pd
 from .init_time_args import ConnectionsArgs, ParametersArgs
 from ..user_base import User
 from ..parameters import Parameter, TextValue
-from .._connection_set import ConnectionSet
 from .. import _utils as _u
 
 
@@ -100,6 +99,7 @@ class ModelArgs(ModelDepsArgs):
     _dependencies: Iterable[str]
     _ref: Callable[[str], pd.DataFrame]
     _run_external_sql: Callable[[str, str | None], pd.DataFrame]
+    _use_duckdb: bool
 
     @property
     def connections(self) -> dict[str, Engine]:
@@ -185,8 +185,7 @@ class ModelArgs(ModelDepsArgs):
         if dataframes is None:
             dataframes = {x: self.ref(x) for x in self._dependencies}
 
-        use_duckdb = False # TODO for later: set this based on settings
-        return _u.run_sql_on_dataframes(sql_query, dataframes, use_duckdb)
+        return _u.run_sql_on_dataframes(sql_query, dataframes, self._use_duckdb)
 
 
 @dataclass
