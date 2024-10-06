@@ -103,11 +103,17 @@ class Parameter(metaclass=ABCMeta):
     def _enquote(self, value: str) -> str:
         return "'" + value.replace("'", "''") + "'" 
     
-    def _validate_date(self, input_date: str) -> date:
+    def _validate_input_date(self, input_date: date | str, curr_option: _po._DateTypeParameterOption) -> date:
+        if isinstance(input_date, str):
+            try:
+                input_date = datetime.strptime(input_date.strip(), "%Y-%m-%d").date()
+            except ValueError:
+                raise self._config._invalid_input_error(str(input_date), "Must be a date in YYYY-MM-DD format.")
+        
         try:
-            return datetime.strptime(input_date.strip(), "%Y-%m-%d").date()
-        except ValueError:
-            raise self._config._invalid_input_error(str(input_date), "Must be a date in YYYY-MM-DD format.")
+            return curr_option._validate_date(input_date)
+        except _u.ConfigurationError as e:
+            raise self._config._invalid_input_error(str(input_date), str(e))
     
     def _validate_number(self, input_number: _po.Number, curr_option: _po._NumericParameterOption) -> Decimal:
         try:
@@ -230,6 +236,31 @@ class SingleSelectParameter(_SelectionParameter):
             return selected
         return _u.process_if_not_none(self._selected_id, get_selected_from_id)
     
+    def get_selected_quoted(self, field: str, *, default_field: str | None = None, default: str | None = None, **kwargs) -> str | None:
+        """
+        Gets the selected single-select option surrounded by single quotes
+
+        Arguments:
+            field: The "custom_fields" attribute of the selected option.
+            default_field: If field does not exist for a parameter option and default_field is not None, the default_field is used
+                as the "field" instead.
+            default: If field does not exist for a parameter option, default_field is None, but default is not None, then the default
+                is returned as the selected field. Does nothing if default_field is not None
+
+        Returns:
+            A string surrounded by single quotes
+        """
+        selected_value = self.get_selected(field, default_field=default_field, default=default)
+        
+        def _enquote(x: Any) -> str:
+            if not isinstance(selected_value, str):
+                raise _u.ConfigurationError(
+                    f"Method 'get_selected_quoted' can only be used on fields with only string values"
+                )
+            return self._enquote(x)
+        
+        return _u.process_if_not_none(selected_value, _enquote)
+    
     def get_selected_id(self, **kwargs) -> str | None:
         """
         Gets the ID of the selected option
@@ -237,7 +268,8 @@ class SingleSelectParameter(_SelectionParameter):
         Returns:
             A string ID or None if there are no selectable options
         """
-        def get_id(x: _po.SelectParameterOption): return x._identifier
+        def get_id(x: _po.SelectParameterOption): 
+            return x._identifier
         return _u.process_if_not_none(self.get_selected(), get_id)
     
     def get_selected_id_quoted(self, **kwargs) -> str | None:
@@ -440,6 +472,70 @@ class MultiSelectParameter(_SelectionParameter):
             selected_list = [selected.get_custom_field(field, default_field=default_field, default=default) for selected in selected_list]
         
         return tuple(selected_list)
+    
+    def _get_selected_list_of_strings(
+        self, method: str, field: str, default_field: str | None, default: str | None, **kwargs
+    ) -> list[str]:
+        selected_list = self.get_selected_list(field, default_field=default_field, default=default)
+        list_of_strings: list[str] = []
+        for selected in selected_list:
+            if not isinstance(selected, str):
+                raise _u.ConfigurationError(
+                    f"Method '{method}' can only be used on fields with only string values"
+                )
+            list_of_strings.append(selected)
+        return list_of_strings
+    
+    def get_selected_list_joined(self, field: str, *, default_field: str | None = None, default: str | None = None, **kwargs) -> str:
+        """
+        Gets the selected custom fields joined by comma
+
+        Arguments:
+            field: The "custom_fields" attribute of the selected options.
+            default_field: If field does not exist for a parameter option and default_field is not None, the default_field is used
+                as the "field" instead.
+            default: If field does not exist for a parameter option, default_field is None, but default is not None, the default
+                is returned as the selected field. Does nothing if default_field is not None
+
+        Returns:
+            A string
+        """
+        list_of_strings = self._get_selected_list_of_strings("get_selected_list_joined", field, default_field, default)
+        return ','.join(list_of_strings)
+    
+    def get_selected_list_quoted(self, field: str, *, default_field: str | None = None, default: str | None = None, **kwargs) -> tuple[str, ...]:
+        """
+        Gets the selected custom fields surrounded by single quotes
+
+        Arguments:
+            field: The "custom_fields" attribute of the selected options.
+            default_field: If field does not exist for a parameter option and default_field is not None, the default_field is used
+                as the "field" instead.
+            default: If field does not exist for a parameter option, default_field is None, but default is not None, the default
+                is returned as the selected field. Does nothing if default_field is not None
+
+        Returns:
+            A tuple of strings
+        """
+        list_of_strings = self._get_selected_list_of_strings("get_selected_list_quoted", field, default_field, default)
+        return tuple(self._enquote(x) for x in list_of_strings)
+    
+    def get_selected_list_quoted_joined(self, field: str, *, default_field: str | None = None, default: str | None = None, **kwargs) -> str:
+        """
+        Gets the selected custom fields surrounded by single quotes and joined by comma
+
+        Arguments:
+            field: The "custom_fields" attribute of the selected options.
+            default_field: If field does not exist for a parameter option and default_field is not None, the default_field is used
+                as the "field" instead.
+            default: If field does not exist for a parameter option, default_field is None, but default is not None, the default
+                is returned as the selected field. Does nothing if default_field is not None
+        
+        Returns:
+            A string
+        """
+        list_of_strings = self._get_selected_list_of_strings("get_selected_list_quoted_joined", field, default_field, default)
+        return ','.join(self._enquote(x) for x in list_of_strings)
 
     def get_selected_ids_as_list(self, **kwargs) -> Sequence[str]:
         """
@@ -534,7 +630,25 @@ class MultiSelectParameter(_SelectionParameter):
 
 
 @dataclass
-class DateParameter(Parameter):
+class _DateTypeParameter(Parameter):
+    _curr_option: _po._DateTypeParameterOption | None
+    
+    def is_enabled(self) -> bool:
+        return self._curr_option is not None
+    
+    def _cast_optional_date_to_str(self, date: date | None) -> str | None:
+        return None if date is None else date.strftime("%Y-%m-%d")
+
+    def _to_json_dict0(self):
+        output = super()._to_json_dict0()
+        if self._curr_option is not None:
+            output["min_date"] = self._cast_optional_date_to_str(self._curr_option._min_date)
+            output["max_date"] = self._cast_optional_date_to_str(self._curr_option._max_date)
+        return output
+
+
+@dataclass
+class DateParameter(_DateTypeParameter):
     """
     Class for date parameter widgets.
 
@@ -548,8 +662,8 @@ class DateParameter(Parameter):
     _selected_date: date | str | None
 
     def __post_init__(self):
-        if isinstance(self._selected_date, str):
-            self._selected_date = self._validate_date(self._selected_date)
+        if self._curr_option is not None and self._selected_date is not None:
+            self._selected_date = self._validate_input_date(self._selected_date, self._curr_option)
     
     def is_enabled(self) -> bool:
         return self._curr_option is not None
@@ -561,7 +675,7 @@ class DateParameter(Parameter):
     @classmethod
     def CreateSimple(
         cls, name: str, label: str, default_date: str | date, *, description: str = "", 
-        date_format: str = '%Y-%m-%d', **kwargs
+        min_date: str | date | None = None, max_date: str | date | None = None, date_format: str = '%Y-%m-%d', **kwargs
     ) -> None:
         """
         Method for creating the configurations for a Parameter that doesn't involve user attributes or parent parameters
@@ -573,7 +687,7 @@ class DateParameter(Parameter):
             description: Explains the meaning of the parameter
             date_format: Format of the default date, default is '%Y-%m-%d'
         """
-        single_param_option = _po.DateParameterOption(default_date, date_format=date_format)
+        single_param_option = _po.DateParameterOption(default_date, min_date=min_date, max_date=max_date, date_format=date_format)
         cls.CreateWithOptions(name, label, (single_param_option,), description=description)
     
     def get_selected_date(self, *, date_format: str | None = None, **kwargs) -> str:
@@ -623,7 +737,7 @@ class DateParameter(Parameter):
 
 
 @dataclass
-class DateRangeParameter(Parameter):
+class DateRangeParameter(_DateTypeParameter):
     """
     Class for date range parameter widgets.
 
@@ -639,10 +753,11 @@ class DateRangeParameter(Parameter):
     _selected_end_date: date | str | None
 
     def __post_init__(self):
-        if isinstance(self._selected_start_date, str):
-            self._selected_start_date = self._validate_date(self._selected_start_date)
-        if isinstance(self._selected_end_date, str):
-            self._selected_end_date = self._validate_date(self._selected_end_date)
+        if self._curr_option is not None:
+            if self._selected_start_date is not None:
+                self._selected_start_date = self._validate_input_date(self._selected_start_date, self._curr_option)
+            if self._selected_end_date is not None:
+                self._selected_end_date = self._validate_input_date(self._selected_end_date, self._curr_option)
     
     def is_enabled(self) -> bool:
         return self._curr_option is not None
@@ -654,7 +769,8 @@ class DateRangeParameter(Parameter):
     @classmethod
     def CreateSimple(
         cls, name: str, label: str, default_start_date: str | date, default_end_date: str | date, *, 
-        description: str = "", date_format: str = '%Y-%m-%d', **kwargs
+        description: str = "", min_date: str | date | None = None, max_date: str | date | None = None,
+        date_format: str = '%Y-%m-%d', **kwargs
     ) -> None:
         """
         Method for creating the configurations for a Parameter that doesn't involve user attributes or parent parameters
@@ -667,7 +783,9 @@ class DateRangeParameter(Parameter):
             description: Explains the meaning of the parameter
             date_format: Format of the default date, default is '%Y-%m-%d'
         """
-        single_param_option = _po.DateRangeParameterOption(default_start_date, default_end_date, date_format=date_format)
+        single_param_option = _po.DateRangeParameterOption(
+            default_start_date, default_end_date, min_date=min_date, max_date=max_date, date_format=date_format
+        )
         cls.CreateWithOptions(name, label, (single_param_option,), description=description)
     
     def get_selected_start_date(self, *, date_format: str | None = None, **kwargs) -> str:
@@ -742,7 +860,23 @@ class DateRangeParameter(Parameter):
 
 
 @dataclass
-class NumberParameter(Parameter):
+class _NumberTypeParameter(Parameter):
+    _curr_option: _po._NumericParameterOption | None
+    
+    def is_enabled(self) -> bool:
+        return self._curr_option is not None
+
+    def _to_json_dict0(self):
+        output = super()._to_json_dict0()
+        if self._curr_option is not None:
+            output["min_value"] = float(self._curr_option._min_value)
+            output["max_value"] = float(self._curr_option._max_value)
+            output["increment"] = float(self._curr_option._increment)
+        return output
+    
+
+@dataclass
+class NumberParameter(_NumberTypeParameter):
     """
     Class for number parameter widgets.
 
@@ -758,9 +892,6 @@ class NumberParameter(Parameter):
     def __post_init__(self):
         if self._curr_option is not None and self._selected_value is not None:
             self._selected_value = self._validate_number(self._selected_value, self._curr_option)
-    
-    def is_enabled(self) -> bool:
-        return self._curr_option is not None
     
     @staticmethod
     def _ParameterConfigType():
@@ -806,8 +937,7 @@ class NumberParameter(Parameter):
             A dictionary for the JSON object
         """
         output = super()._to_json_dict0()
-        if self._curr_option is not None:
-            output.update(self._curr_option._to_json_dict())
+        if self.is_enabled():
             output["selected_value"] = self.get_selected_value()
         return output
     
@@ -816,7 +946,7 @@ class NumberParameter(Parameter):
 
 
 @dataclass
-class NumberRangeParameter(Parameter):
+class NumberRangeParameter(_NumberTypeParameter):
     """
     Class for number range parameter widgets.
 
@@ -837,9 +967,6 @@ class NumberRangeParameter(Parameter):
                 self._selected_lower_value = self._validate_number(self._selected_lower_value, self._curr_option)
             if self._selected_upper_value is not None:
                 self._selected_upper_value = self._validate_number(self._selected_upper_value, self._curr_option)
-    
-    def is_enabled(self) -> bool:
-        return self._curr_option is not None
     
     @staticmethod
     def _ParameterConfigType():
@@ -900,8 +1027,7 @@ class NumberRangeParameter(Parameter):
             A dictionary for the JSON object
         """
         output = super()._to_json_dict0()
-        if self._curr_option is not None:
-            output.update(self._curr_option._to_json_dict())
+        if self.is_enabled():
             output['selected_lower_value'] = self.get_selected_lower_value()
             output['selected_upper_value'] = self.get_selected_upper_value()
         return output
@@ -1132,7 +1258,7 @@ class TextParameter(Parameter):
         """
         output = super()._to_json_dict0()
         output['input_type'] = self._config.input_type
-        if self._curr_option is not None:
+        if self.is_enabled():
             output['entered_text'] = self._entered_text
         return output
     

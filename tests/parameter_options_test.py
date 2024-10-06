@@ -63,6 +63,15 @@ def test_invalid_date_parameter_options():
         _po.DateParameterOption('2021-02-29')
     with pytest.raises(_u.ConfigurationError):
         _po.DateRangeParameterOption('2023-01-01', '2022-01-01')
+    
+    with pytest.raises(_u.ConfigurationError):
+        _po.DateParameterOption('2021-01-01', min_date='2022-01-01')
+    with pytest.raises(_u.ConfigurationError):
+        _po.DateParameterOption('2023-01-01', max_date='2022-01-01')
+    with pytest.raises(_u.ConfigurationError):
+        _po.DateRangeParameterOption('2022-01-01', '2024-01-01', min_date='2023-01-01')
+    with pytest.raises(_u.ConfigurationError):
+        _po.DateRangeParameterOption('2022-01-01', '2024-01-01', max_date='2023-01-01')
 
 
 def test_valid_date_parameter_options():

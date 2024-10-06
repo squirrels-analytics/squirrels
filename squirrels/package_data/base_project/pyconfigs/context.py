@@ -16,8 +16,7 @@ def main(ctx: dict[str, Any], sqrl: ContextArgs) -> None:
         
         columns = group_by_param.get_selected("columns")
         aliases = group_by_param.get_selected("aliases", default_field="columns")
-        assert isinstance(columns, list) and all(isinstance(col, str) for col in columns)
-        assert isinstance(aliases, list) and all(isinstance(alias, str) for alias in aliases)
+        assert isinstance(columns, list) and isinstance(aliases, list)
 
         ctx["select_dim_cols"] = ", ".join(x+" as "+y for x, y in zip(columns, aliases))
         ctx["group_by_cols"] = ", ".join(columns)

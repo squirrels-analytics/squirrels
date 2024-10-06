@@ -67,25 +67,29 @@ class MultiSelectParameterModel(SelectParameterModel):
     order_matters: Annotated[bool, Field(description="A boolean for whether the ordering of the input selections would affect the result of the dataset")]
     selected_ids: Annotated[list[str], Field(examples=[["my_option_id"]], description="A list of ids of the selected / default options")]
 
-class DateParameterModel(ParameterModelBase):
+class _DateTypeParameterModel(ParameterModelBase):
+    min_date: Annotated[date | None, Field(examples=["2023-01-01"], description='A string in "yyyy-MM-dd" format for the minimum date')]
+    max_date: Annotated[date | None, Field(examples=["2023-12-31"], description='A string in "yyyy-MM-dd" format for the maximum date')]
+
+class DateParameterModel(_DateTypeParameterModel):
     widget_type: Annotated[str, Field(examples=["date"], description="The parameter type (set to 'date' for this model)")]
     selected_date: Annotated[date, Field(examples=["2023-01-01"], description='A string in "yyyy-MM-dd" format for the selected / default date')]
 
-class DateRangeParameterModel(ParameterModelBase):
+class DateRangeParameterModel(_DateTypeParameterModel):
     widget_type: Annotated[str, Field(examples=["date_range"], description="The parameter type (set to 'date_range' for this model)")]
     selected_start_date: Annotated[date, Field(examples=["2023-01-01"], description='A string in "yyyy-MM-dd" format for the selected / default start date')]
     selected_end_date: Annotated[date, Field(examples=["2023-12-31"], description='A string in "yyyy-MM-dd" format for the selected / default end date')]
 
-class NumericParameterModel(ParameterModelBase):
+class _NumericParameterModel(ParameterModelBase):
     min_value: Annotated[float, Field(examples=[0], description="A number for the lower bound of the selectable number")]
     max_value: Annotated[float, Field(examples=[10], description="A number for the upper bound of the selectable number")]
     increment: Annotated[float, Field(examples=[1], description="A number for the selectable increments between the lower bound and upper bound")]
 
-class NumberParameterModel(NumericParameterModel):
+class NumberParameterModel(_NumericParameterModel):
     widget_type: Annotated[str, Field(examples=["number"], description="The parameter type (set to 'number' for this model)")]
     selected_value: Annotated[float, Field(examples=[2], description="A number for the selected / default number")]
 
-class NumberRangeParameterModel(NumericParameterModel):
+class NumberRangeParameterModel(_NumericParameterModel):
     widget_type: Annotated[str, Field(examples=["number_range"], description="The parameter type (set to 'number_range' for this model)")]
     selected_lower_value: Annotated[float, Field(examples=[2], description="A number for the selected / default lower number")]
     selected_upper_value: Annotated[float, Field(examples=[8], description="A number for the selected / default upper number")]
