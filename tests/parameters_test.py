@@ -137,10 +137,17 @@ class TestMultiSelectParameter:
 
 class TestDateParameter:
     @pytest.fixture(scope="class")
-    def param1(self) -> p.DateParameter:
-        options = (_po.DateParameterOption("2020-01-01"),)
-        config = _pc.DateParameterConfig("test", "Test", options)
-        return p.DateParameter(config, options[0], date(2021,1,1))
+    def config1(self) -> _pc.DateParameterConfig:
+        options = (_po.DateParameterOption("2020-01-01", min_date="2020-01-01"),)
+        return _pc.DateParameterConfig("test", "Test", options)
+    
+    @pytest.fixture(scope="class")
+    def param1(self, config1: _pc.DateParameterConfig) -> p.DateParameter:
+        return p.DateParameter(config1, config1.all_options[0], date(2021,1,1))
+    
+    def test_invalid_init(self, config1: _pc.DateParameterConfig):
+        with pytest.raises(_u.InvalidInputError):
+            p.DateParameter(config1, config1.all_options[0], date(2019,1,1))
     
     def test_get_selected1(self, param1: p.DateParameter):
         assert param1.get_selected_date() == "2021-01-01"
@@ -152,7 +159,9 @@ class TestDateParameter:
             "name": "test",
             "label": "Test",
             "description": "",
-            "selected_date": "2021-01-01"
+            "selected_date": "2021-01-01",
+            "min_date": "2020-01-01",
+            "max_date": None
         }
         assert param1._to_json_dict0() == expected
 
@@ -178,6 +187,8 @@ class TestDateRangeParameter:
             "description": "",
             "selected_start_date": "2022-06-14",
             "selected_end_date": "2023-03-15",
+            "min_date": None,
+            "max_date": None
         }
         assert param1._to_json_dict0() == expected
 

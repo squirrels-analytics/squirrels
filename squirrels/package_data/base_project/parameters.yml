@@ -36,14 +36,16 @@ parameters:
         - parent_option_ids: g0
   
   - type: DateParameter
-    factory: CreateWithOptions
+    factory: CreateFromSource
     arguments:
       name: start_date
       label: Start Date
       description: Start date to filter transactions by
-      all_options:
-        - default_date: 2023-01-01
-          date_format: '%Y-%m-%d'                         ## optional, default, format comes from python datetime, exists for Date and DateRange parameter options
+      data_source:
+        table_or_query: SELECT min(date) AS min_date, max(date) AS max_date FROM transactions
+        default_date_col: min_date
+        min_date_col: min_date
+        max_date_col: max_date
   
   - type: DateParameter
     factory: CreateWithOptions

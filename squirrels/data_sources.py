@@ -12,9 +12,9 @@ class DataSource(metaclass=_abc.ABCMeta):
     _table_or_query: str
     _id_col: str | None
     _is_from_seeds: bool
-    _user_group_col: str | None # = field(default=None, kw_only=True)
-    _parent_id_col: str | None # = field(default=None, kw_only=True)
-    _connection_name: str | None # = field(default=None, kw_only=True)
+    _user_group_col: str | None
+    _parent_id_col: str | None
+    _connection_name: str | None
 
     @_abc.abstractmethod
     def __init__(
@@ -89,9 +89,9 @@ class _SelectionDataSource(DataSource):
     Abstract class for selection parameter data sources
     """
     _options_col: str
-    _order_by_col: str | None # = field(default=None, kw_only=True)
-    _is_default_col: str | None # = field(default=None, kw_only=True)
-    _custom_cols: dict[str, str] # = field(default_factory=dict, kw_only=True)
+    _order_by_col: str | None
+    _is_default_col: str | None
+    _custom_cols: dict[str, str]
 
     @_abc.abstractmethod
     def __init__(
@@ -141,18 +141,6 @@ class _SelectionDataSource(DataSource):
 class SelectDataSource(_SelectionDataSource):
     """
     Lookup table for select parameter options
-
-    Attributes:
-        table_or_query: Either the name of the table to use, or a query to run
-        id_col: The column name of the id
-        options_col: The column name of the options
-        order_by_col: The column name to order the options by. Orders by the id_col instead if this is None
-        is_default_col: The column name that indicates which options are the default
-        custom_cols: Dictionary of attribute to column name for custom fields for the SelectParameterOption
-        from_seeds: Boolean for whether this datasource is created from seeds
-        user_group_col: The column name of the user group that the user is in for this option to be valid
-        parent_id_col: The column name of the parent option id that must be selected for this option to be valid
-        connection_name: Name of the connection to use defined in connections.py
     """
 
     def __init__(
@@ -165,7 +153,16 @@ class SelectDataSource(_SelectionDataSource):
         Constructor for SelectDataSource
 
         Arguments:
-            ...see Attributes of SelectDataSource
+            table_or_query: Either the name of the table to use, or a query to run
+            id_col: The column name of the id
+            options_col: The column name of the options
+            order_by_col: The column name to order the options by. Orders by the id_col instead if this is None
+            is_default_col: The column name that indicates which options are the default
+            custom_cols: Dictionary of attribute to column name for custom fields for the SelectParameterOption
+            from_seeds: Boolean for whether this datasource is created from seeds
+            user_group_col: The column name of the user group that the user is in for this option to be valid
+            parent_id_col: The column name of the parent option id that must be selected for this option to be valid
+            connection_name: Name of the connection to use defined in connections.py
         """
         super().__init__(
             table_or_query, id_col, options_col, order_by_col=order_by_col, is_default_col=is_default_col, custom_cols=custom_cols,
@@ -210,10 +207,7 @@ class SingleSelectDataSource(_SelectionDataSource):
             parent_id_col: str | None = None, connection_name: str | None = None, **kwargs
         ) -> None:
         """
-        Constructor for SelectDataSource
-
-        Arguments:
-            ...see Attributes of SelectDataSource
+        DEPRECATED. Use "SelectDataSource" instead.
         """
         super().__init__(table_or_query, id_col, options_col, order_by_col=order_by_col, is_default_col=is_default_col,
                          custom_cols=custom_cols, user_group_col=user_group_col, parent_id_col=parent_id_col, 
@@ -240,9 +234,9 @@ class MultiSelectDataSource(_SelectionDataSource):
     """
     DEPRECATED. Use "SelectDataSource" instead.
     """
-    _show_select_all: bool # = field(default=True, kw_only=True)
-    _order_matters: bool # = field(default=False, kw_only=True)
-    _none_is_all: bool # = field(default=True, kw_only=True)
+    _show_select_all: bool
+    _order_matters: bool
+    _none_is_all: bool
 
     def __init__(
             self, table_or_query: str, id_col: str, options_col: str, *, order_by_col: str | None = None, 
@@ -251,10 +245,7 @@ class MultiSelectDataSource(_SelectionDataSource):
             parent_id_col: str | None = None, connection_name: str | None = None, **kwargs
         ) -> None:
         """
-        Constructor for SingleSelectDataSource
-
-        Arguments:
-            ...see Attributes of SingleSelectDataSource
+        DEPRECATED. Use "SelectDataSource" instead.
         """
         super().__init__(table_or_query, id_col, options_col, order_by_col=order_by_col, is_default_col=is_default_col,
                          custom_cols=custom_cols, user_group_col=user_group_col, parent_id_col=parent_id_col, 
@@ -287,22 +278,13 @@ class MultiSelectDataSource(_SelectionDataSource):
 class DateDataSource(DataSource):
     """
     Lookup table for date parameter default options
-
-    Attributes:
-        table_or_query: Either the name of the table to use, or a query to run
-        default_date_col: The column name of the default date
-        date_format: The format of the default date(s). Defaults to '%Y-%m-%d'
-        id_col: The column name of the id
-        from_seeds: Boolean for whether this datasource is created from seeds
-        user_group_col: The column name of the user group that the user is in for this option to be valid
-        parent_id_col: The column name of the parent option id that the default date belongs to
-        connection_name: Name of the connection to use defined in connections.py
     """
     _default_date_col: str
-    _date_format: str # = field(default="%Y-%m-%d", kw_only=True)
+    _date_format: str
 
     def __init__(
-        self, table_or_query: str, default_date_col: str, *, date_format: str = '%Y-%m-%d', id_col: str | None = None, 
+        self, table_or_query: str, default_date_col: str, *, min_date_col: str | None = None, 
+        max_date_col: str | None = None, date_format: str = '%Y-%m-%d', id_col: str | None = None, 
         from_seeds: bool = False, user_group_col: str | None = None, parent_id_col: str | None = None, 
         connection_name: str | None = None, **kwargs
     ) -> None:
@@ -310,13 +292,22 @@ class DateDataSource(DataSource):
         Constructor for DateDataSource
 
         Arguments:
-            ...see Attributes of DateDataSource
+            table_or_query: Either the name of the table to use, or a query to run
+            default_date_col: The column name of the default date
+            date_format: The format of the default date(s). Defaults to '%Y-%m-%d'
+            id_col: The column name of the id
+            from_seeds: Boolean for whether this datasource is created from seeds
+            user_group_col: The column name of the user group that the user is in for this option to be valid
+            parent_id_col: The column name of the parent option id that the default date belongs to
+            connection_name: Name of the connection to use defined in connections.py
         """
         super().__init__(
             table_or_query, id_col=id_col, from_seeds=from_seeds, user_group_col=user_group_col, parent_id_col=parent_id_col, 
             connection_name=connection_name
         )
         self._default_date_col = default_date_col
+        self._min_date_col = min_date_col
+        self._max_date_col = max_date_col
         self._date_format = date_format
 
     def _convert(self, ds_param: _pc.DataSourceParameterConfig, df: _pd.DataFrame) -> _pc.DateParameterConfig:
@@ -332,14 +323,18 @@ class DateDataSource(DataSource):
         """
         self._validate_parameter_type(ds_param, _pc.DateParameterConfig)
 
-        columns = [self._default_date_col]
+        columns = [self._default_date_col, self._min_date_col, self._max_date_col]
         df_agg = self._get_aggregated_df(df, columns)
 
         records = df_agg.to_dict("index")
         options = tuple(
-            _po.DateParameterOption(str(record[self._default_date_col]), date_format=self._date_format, 
-                                   user_groups=self._get_key_from_record_as_list(self._user_group_col, record), 
-                                   parent_option_ids=self._get_key_from_record_as_list(self._parent_id_col, record))
+            _po.DateParameterOption(
+                str(record[self._default_date_col]), date_format=self._date_format, 
+                min_date = str(record[self._min_date_col]) if self._min_date_col else None,
+                max_date = str(record[self._max_date_col]) if self._max_date_col else None,
+                user_groups=self._get_key_from_record_as_list(self._user_group_col, record), 
+                parent_option_ids=self._get_key_from_record_as_list(self._parent_id_col, record)
+            )
             for _, record in records.items()
         )
         return _pc.DateParameterConfig(
@@ -352,32 +347,29 @@ class DateDataSource(DataSource):
 class DateRangeDataSource(DataSource):
     """
     Lookup table for date parameter default options
-
-    Attributes:
-        table_or_query: Either the name of the table to use, or a query to run
-        default_start_date_col: The column name of the default start date
-        default_end_date_col: The column name of the default end date
-        date_format: The format of the default date(s). Defaults to '%Y-%m-%d'
-        id_col: The column name of the id
-        from_seeds: Boolean for whether this datasource is created from seeds
-        user_group_col: The column name of the user group that the user is in for this option to be valid
-        parent_id_col: The column name of the parent option id that the default date belongs to
-        connection_name: Name of the connection to use defined in connections.py
     """
     _default_start_date_col: str
     _default_end_date_col: str
-    _date_format: str # = field(default="%Y-%m-%d", kw_only=True)
+    _date_format: str
 
     def __init__(
         self, table_or_query: str, default_start_date_col: str, default_end_date_col: str, *, date_format: str = '%Y-%m-%d',
-        id_col: str | None = None, from_seeds: bool = False, user_group_col: str | None = None, 
-        parent_id_col: str | None = None, connection_name: str | None = None, **kwargs
+        min_date_col: str | None = None, max_date_col: str | None = None, id_col: str | None = None, from_seeds: bool = False, 
+        user_group_col: str | None = None, parent_id_col: str | None = None, connection_name: str | None = None, **kwargs
     ) -> None:
         """
         Constructor for DateRangeDataSource
 
         Arguments:
-            ...see Attributes of DateRangeDataSource
+            table_or_query: Either the name of the table to use, or a query to run
+            default_start_date_col: The column name of the default start date
+            default_end_date_col: The column name of the default end date
+            date_format: The format of the default date(s). Defaults to '%Y-%m-%d'
+            id_col: The column name of the id
+            from_seeds: Boolean for whether this datasource is created from seeds
+            user_group_col: The column name of the user group that the user is in for this option to be valid
+            parent_id_col: The column name of the parent option id that the default date belongs to
+            connection_name: Name of the connection to use defined in connections.py
         """
         super().__init__(
             table_or_query, id_col=id_col, from_seeds=from_seeds, user_group_col=user_group_col, parent_id_col=parent_id_col, 
@@ -385,6 +377,8 @@ class DateRangeDataSource(DataSource):
         )
         self._default_start_date_col = default_start_date_col
         self._default_end_date_col = default_end_date_col
+        self._min_date_col = min_date_col
+        self._max_date_col = max_date_col
         self._date_format = date_format
 
     def _convert(self, ds_param: _pc.DataSourceParameterConfig, df: _pd.DataFrame) -> _pc.DateRangeParameterConfig:
@@ -400,15 +394,19 @@ class DateRangeDataSource(DataSource):
         """
         self._validate_parameter_type(ds_param, _pc.DateRangeParameterConfig)
 
-        columns = [self._default_start_date_col, self._default_end_date_col]
+        columns = [self._default_start_date_col, self._default_end_date_col, self._min_date_col, self._max_date_col]
         df_agg = self._get_aggregated_df(df, columns)
 
         records = df_agg.to_dict("index")
         options = tuple(
-            _po.DateRangeParameterOption(str(record[self._default_start_date_col]), str(record[self._default_end_date_col]),
-                                        date_format=self._date_format, 
-                                        user_groups=self._get_key_from_record_as_list(self._user_group_col, record), 
-                                        parent_option_ids=self._get_key_from_record_as_list(self._parent_id_col, record))
+            _po.DateRangeParameterOption(
+                str(record[self._default_start_date_col]), str(record[self._default_end_date_col]),
+                min_date=str(record[self._min_date_col]) if self._min_date_col else None, 
+                max_date=str(record[self._max_date_col]) if self._max_date_col else None, 
+                date_format=self._date_format, 
+                user_groups=self._get_key_from_record_as_list(self._user_group_col, record), 
+                parent_option_ids=self._get_key_from_record_as_list(self._parent_id_col, record)
+            )
             for _, record in records.items()
         )
         return _pc.DateRangeParameterConfig(
@@ -424,7 +422,7 @@ class _NumericDataSource(DataSource):
     """
     _min_value_col: str
     _max_value_col: str
-    _increment_col: str | None # = field(default=None, kw_only=True)
+    _increment_col: str | None
     
     @_abc.abstractmethod
     def __init__(
@@ -445,20 +443,8 @@ class _NumericDataSource(DataSource):
 class NumberDataSource(_NumericDataSource):
     """
     Lookup table for number parameter default options
-
-    Attributes:
-        table_or_query: Either the name of the table to use, or a query to run
-        min_value_col: The column name of the minimum value
-        max_value_col: The column name of the maximum value
-        increment_col: The column name of the increment value. Defaults to column of 1's if None
-        default_value_col: The column name of the default value. Defaults to min_value_col if None
-        id_col: The column name of the id
-        from_seeds: Boolean for whether this datasource is created from seeds
-        user_group_col: The column name of the user group that the user is in for this option to be valid
-        parent_id_col: The column name of the parent option id that the default value belongs to
-        connection_name: Name of the connection to use defined in connections.py
     """
-    _default_value_col: str | None # = field(default=None, kw_only=True)
+    _default_value_col: str | None
 
     def __init__(
         self, table_or_query: str, min_value_col: str, max_value_col: str, *, increment_col: str | None = None,
@@ -469,7 +455,16 @@ class NumberDataSource(_NumericDataSource):
         Constructor for NumberDataSource
 
         Arguments:
-            ...see Attributes of NumberDataSource
+            table_or_query: Either the name of the table to use, or a query to run
+            min_value_col: The column name of the minimum value
+            max_value_col: The column name of the maximum value
+            increment_col: The column name of the increment value. Defaults to column of 1's if None
+            default_value_col: The column name of the default value. Defaults to min_value_col if None
+            id_col: The column name of the id
+            from_seeds: Boolean for whether this datasource is created from seeds
+            user_group_col: The column name of the user group that the user is in for this option to be valid
+            parent_id_col: The column name of the parent option id that the default value belongs to
+            connection_name: Name of the connection to use defined in connections.py
         """
         super().__init__(
             table_or_query, min_value_col, max_value_col, increment_col=increment_col, id_col=id_col, from_seeds=from_seeds,
@@ -512,22 +507,9 @@ class NumberDataSource(_NumericDataSource):
 class NumberRangeDataSource(_NumericDataSource):
     """
     Lookup table for number range parameter default options
-
-    Attributes:
-        table_or_query: Either the name of the table to use, or a query to 
-        min_value_col: The column name of the minimum value
-        max_value_col: The column name of the maximum value
-        increment_col: The column name of the increment value. Defaults to column of 1's if None
-        default_lower_value_col: The column name of the default lower value. Defaults to min_value_col if None
-        default_upper_value_col: The column name of the default upper value. Defaults to max_value_col if None
-        id_col: The column name of the id
-        from_seeds: Boolean for whether this datasource is created from seeds
-        user_group_col: The column name of the user group that the user is in for this option to be valid
-        parent_id_col: The column name of the parent option id that the default value belongs to
-        connection_name: Name of the connection to use defined in connections.py
     """
-    _default_lower_value_col: str | None # = field(default=None, kw_only=True)
-    _default_upper_value_col: str | None # = field(default=None, kw_only=True)
+    _default_lower_value_col: str | None
+    _default_upper_value_col: str | None
 
     def __init__(
         self, table_or_query: str, min_value_col: str, max_value_col: str, *, increment_col: str | None = None,
@@ -539,7 +521,17 @@ class NumberRangeDataSource(_NumericDataSource):
         Constructor for NumRangeDataSource
 
         Arguments:
-            ...see Attributes of NumRangeDataSource
+            table_or_query: Either the name of the table to use, or a query to 
+            min_value_col: The column name of the minimum value
+            max_value_col: The column name of the maximum value
+            increment_col: The column name of the increment value. Defaults to column of 1's if None
+            default_lower_value_col: The column name of the default lower value. Defaults to min_value_col if None
+            default_upper_value_col: The column name of the default upper value. Defaults to max_value_col if None
+            id_col: The column name of the id
+            from_seeds: Boolean for whether this datasource is created from seeds
+            user_group_col: The column name of the user group that the user is in for this option to be valid
+            parent_id_col: The column name of the parent option id that the default value belongs to
+            connection_name: Name of the connection to use defined in connections.py
         """
         super().__init__(
             table_or_query, min_value_col, max_value_col, increment_col=increment_col, id_col=id_col, from_seeds=from_seeds, 
@@ -584,15 +576,6 @@ class NumberRangeDataSource(_NumericDataSource):
 class TextDataSource(DataSource):
     """
     Lookup table for text parameter default options
-
-    Attributes:
-        table_or_query: Either the name of the table to use, or a query to run
-        default_text_col: The column name of the default text
-        id_col: The column name of the id
-        from_seeds: Boolean for whether this datasource is created from seeds
-        user_group_col: The column name of the user group that the user is in for this option to be valid
-        parent_id_col: The column name of the parent option id that the default date belongs to
-        connection_name: Name of the connection to use defined in connections.py
     """
     _default_text_col: str
 
@@ -602,10 +585,16 @@ class TextDataSource(DataSource):
         **kwargs
     ) -> None:
         """
-        Constructor for DateDataSource
+        Constructor for TextDataSource
 
         Arguments:
-            ...see Attributes of DateDataSource
+            table_or_query: Either the name of the table to use, or a query to run
+            default_text_col: The column name of the default text
+            id_col: The column name of the id
+            from_seeds: Boolean for whether this datasource is created from seeds
+            user_group_col: The column name of the user group that the user is in for this option to be valid
+            parent_id_col: The column name of the parent option id that the default date belongs to
+            connection_name: Name of the connection to use defined in connections.py
         """
         super().__init__(
             table_or_query, id_col=id_col, from_seeds=from_seeds, user_group_col=user_group_col, parent_id_col=parent_id_col, 

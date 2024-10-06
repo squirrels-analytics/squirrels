@@ -1,5 +1,5 @@
 from typing import TypeVar, Iterable, Any
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from decimal import Decimal, InvalidOperation as InvalidDecimalConversion
 from datetime import datetime, date
 from abc import ABCMeta, abstractmethod
@@ -15,8 +15,8 @@ class ParameterOption(metaclass=ABCMeta):
     """
     Abstract class for parameter options
     """
-    _user_groups: frozenset[Any] # = field(default_factory=frozenset, kw_only=True)
-    _parent_option_ids: frozenset[str] # = field(default_factory=frozenset, kw_only=True)
+    _user_groups: frozenset[Any]
+    _parent_option_ids: frozenset[str]
 
     @abstractmethod
     def __init__(
@@ -55,19 +55,11 @@ class ParameterOption(metaclass=ABCMeta):
 class SelectParameterOption(ParameterOption):
     """
     Parameter option for a select parameter
-
-    Attributes:
-        identifier: Unique identifier for this option that never changes over time
-        label: Human readable label that gets shown as a dropdown option
-        is_default: True if this is a default option, False otherwise
-        user_groups: The user groups this parameter option would show for if "user_attribute" is specified in the Parameter factory
-        parent_option_ids: Set of parent option ids this parameter option would show for if "parent" is specified in the Parameter factory
-        custom_fields: Dictionary to associate custom attributes to the parameter option
     """
     _identifier: str
     _label: str
-    _is_default: bool # = field(default=False, kw_only=True)
-    custom_fields: dict[str, Any] # = field(default_factory=False, kw_only=True)
+    _is_default: bool
+    custom_fields: dict[str, Any]
 
     def __init__(
         self, id: str, label: str, *, is_default: bool = False, user_groups: Iterable[Any] | str = frozenset(), 
@@ -77,7 +69,12 @@ class SelectParameterOption(ParameterOption):
         Constructor for SelectParameterOption
 
         Arguments:
-            ...see Attributes of SelectParameterOption
+            identifier: Unique identifier for this option that never changes over time
+            label: Human readable label that gets shown as a dropdown option
+            is_default: True if this is a default option, False otherwise
+            user_groups: The user groups this parameter option would show for if "user_attribute" is specified in the Parameter factory
+            parent_option_ids: Set of parent option ids this parameter option would show for if "parent" is specified in the Parameter factory
+            custom_fields: Dictionary to associate custom attributes to the parameter option
             **kwargs: Any additional keyword arguments specified (except the ones above) gets included into custom_fields as well
         """
         super().__init__(user_groups=user_groups, parent_option_ids=parent_option_ids)
@@ -125,7 +122,7 @@ class _DateTypeParameterOption(ParameterOption):
     """
     _min_date: date | None
     _max_date: date | None
-    _date_format: str # = field(default="%Y-%m-%d", kw_only=True)
+    _date_format: str
 
     @abstractmethod
     def __init__(
@@ -134,28 +131,30 @@ class _DateTypeParameterOption(ParameterOption):
     ) -> None:
         super().__init__(user_groups=user_groups, parent_option_ids=parent_option_ids)
         self._date_format = date_format
+        self._min_date, self._max_date = None, None # preset for using _validate_date()
         self._min_date = self._validate_date(min_date) if min_date is not None else None
         self._max_date = self._validate_date(max_date) if max_date is not None else None
         if self._min_date is not None and self._max_date is not None:
             self._validate_lower_upper_values("min_date", self._min_date, "max_date", self._max_date)
-    
+
     def _validate_date(self, date_str: str | date) -> date:
         try:
-            return datetime.strptime(date_str, self._date_format).date() if isinstance(date_str, str) else date_str
+            date_obj = datetime.strptime(date_str, self._date_format).date() if isinstance(date_str, str) else date_str
         except ValueError as e:
             raise ConfigurationError(f'Invalid format for date "{date_str}".') from e
+        
+        if self._min_date is not None and date_obj < self._min_date:
+            raise ConfigurationError(f'The provided date "{date_obj}" is less than the min date "{self._min_date}"')
+        if self._max_date is not None and date_obj > self._max_date:
+            raise ConfigurationError(f'The provided date "{date_obj}" is greater than the max date "{self._max_date}"')
+        
+        return date_obj
     
 
 @dataclass
 class DateParameterOption(_DateTypeParameterOption):
     """
     Parameter option for default dates if it varies based on selection of another parameter
-
-    Attributes:
-        default_date: Default date for this option
-        date_format: Format of the default date, default is '%Y-%m-%d'
-        user_groups: The user groups this parameter option would show for if "user_attribute" is specified in the Parameter factory
-        parent_option_ids: Set of parent option ids this parameter option would show for if "parent" is specified in the Parameter factory
     """
     _default_date: date
 
@@ -167,31 +166,23 @@ class DateParameterOption(_DateTypeParameterOption):
         Constructor for DateParameterOption
 
         Arguments:
-            ...see Attributes of DateParameterOption
+            default_date: Default date for this option
+            min_date: Minimum date for this option
+            max_date: Maximum date for this option
+            date_format: Format of the default date, default is '%Y-%m-%d'
+            user_groups: The user groups this parameter option would show for if "user_attribute" is specified in the Parameter factory
+            parent_option_ids: Set of parent option ids this parameter option would show for if "parent" is specified in the Parameter factory
         """
         super().__init__(
             date_format=date_format, min_date=min_date, max_date=max_date, user_groups=user_groups, parent_option_ids=parent_option_ids
         )
         self._default_date = self._validate_date(default_date)
-        
-        if self._min_date is not None:
-            self._validate_lower_upper_values("min_date", self._min_date, "default_date", self._default_date)
-        
-        if self._max_date is not None:
-            self._validate_lower_upper_values("default_date", self._default_date, "max_date", self._max_date)
 
 
 @dataclass
 class DateRangeParameterOption(_DateTypeParameterOption):
     """
     Parameter option for default dates if it varies based on selection of another parameter
-
-    Attributes:
-        default_start_date: Default start date for this option
-        default_end_date: Default end date for this option
-        date_format: Format of the default date, default is '%Y-%m-%d'
-        user_groups: The user groups this parameter option would show for if "user_attribute" is specified in the Parameter factory
-        parent_option_ids: Set of parent option ids this parameter option would show for if "parent" is specified in the Parameter factory
     """
     _default_start_date: date
     _default_end_date: date
@@ -205,21 +196,20 @@ class DateRangeParameterOption(_DateTypeParameterOption):
         Constructor for DateRangeParameterOption
 
         Arguments:
-            ...see Attributes of DateRangeParameterOption
+            default_start_date: Default start date for this option
+            default_end_date: Default end date for this option
+            min_date: Minimum date for this option
+            max_date: Maximum date for this option
+            date_format: Format of the default date, default is '%Y-%m-%d'
+            user_groups: The user groups this parameter option would show for if "user_attribute" is specified in the Parameter factory
+            parent_option_ids: Set of parent option ids this parameter option would show for if "parent" is specified in the Parameter factory
         """
         super().__init__(
             date_format=date_format, min_date=min_date, max_date=max_date, user_groups=user_groups, parent_option_ids=parent_option_ids
         )
         self._default_start_date = self._validate_date(default_start_date)
         self._default_end_date = self._validate_date(default_end_date)
-
-        if self._min_date is not None:
-            self._validate_lower_upper_values("min_date", self._min_date, "default_start_date", self._default_start_date)
-        
         self._validate_lower_upper_values("default_start_date", self._default_start_date, "default_end_date", self._default_end_date)
-
-        if self._max_date is not None:
-            self._validate_lower_upper_values("default_end_date", self._default_end_date, "max_date", self._max_date)
 
 
 @dataclass
@@ -229,7 +219,7 @@ class _NumericParameterOption(ParameterOption):
     """
     _min_value: Decimal
     _max_value: Decimal
-    _increment: Decimal # = field(default=1, kw_only=True)
+    _increment: Decimal
 
     @abstractmethod
     def __init__(
@@ -270,29 +260,14 @@ class _NumericParameterOption(ParameterOption):
             raise ConfigurationError(f'The difference between selected value "{value}" and lower value ' +
                 f'"{self._min_value}" must be a multiple of increment "{self._increment}".')
         return value
-    
-    def _to_json_dict(self):
-        return {
-            "min_value": float(self._min_value),
-            "max_value": float(self._max_value),
-            "increment": float(self._increment)
-        }
 
 
 @dataclass
 class NumberParameterOption(_NumericParameterOption):
     """
     Parameter option for default numbers if it varies based on selection of another parameter
-
-    Attributes:
-        min_value: Minimum selectable value
-        max_value: Maximum selectable value
-        increment: Increment of selectable values, and must fit evenly between min_value and max_value
-        default_value: Default value for this option, and must be selectable based on min_value, max_value, and increment
-        user_groups: The user groups this parameter option would show for if "user_attribute" is specified in the Parameter factory
-        parent_option_ids: Set of parent option ids this parameter option would show for if "parent" is specified in the Parameter factory
     """
-    _default_value: Decimal # = field(default=None, kw_only=True)
+    _default_value: Decimal
 
     def __init__(
         self, min_value: Number, max_value: Number, *, increment: Number = 1, default_value: Number | None = None,
@@ -304,7 +279,12 @@ class NumberParameterOption(_NumericParameterOption):
         * Note that the "Number" type denotes an int, a Decimal (from decimal module), or a string that can be parsed to Decimal
 
         Arguments:
-            ...see Attributes of NumberParameterOption
+            min_value: Minimum selectable value
+            max_value: Maximum selectable value
+            increment: Increment of selectable values, and must fit evenly between min_value and max_value
+            default_value: Default value for this option, and must be selectable based on min_value, max_value, and increment
+            user_groups: The user groups this parameter option would show for if "user_attribute" is specified in the Parameter factory
+            parent_option_ids: Set of parent option ids this parameter option would show for if "parent" is specified in the Parameter factory
         """
         super().__init__(min_value, max_value, increment=increment, user_groups=user_groups, parent_option_ids=parent_option_ids)
         self._default_value = self._validate_value(default_value) if default_value is not None else self._min_value
@@ -314,19 +294,9 @@ class NumberParameterOption(_NumericParameterOption):
 class NumberRangeParameterOption(_NumericParameterOption):
     """
     Parameter option for default numeric ranges if it varies based on selection of another parameter
-    
-    Attributes:
-        min_value: Minimum selectable value
-        max_value: Maximum selectable value
-        increment: Increment of selectable values, and must fit evenly between min_value and max_value
-        default_lower_value: Default lower value for this option, and must be selectable based on min_value, max_value, and increment
-        default_upper_value: Default upper value for this option, and must be selectable based on min_value, max_value, and increment. 
-                Must also be greater than default_lower_value
-        user_groups: The user groups this parameter option would show for if "user_attribute" is specified in the Parameter factory
-        parent_option_ids: Set of parent option ids this parameter option would show for if "parent" is specified in the Parameter factory
     """
-    _default_lower_value: Decimal # = field(default=None, kw_only=True)
-    _default_upper_value: Decimal # = field(default=None, kw_only=True)
+    _default_lower_value: Decimal
+    _default_upper_value: Decimal
 
     def __init__(
         self, min_value: Number, max_value: Number, *, increment: Number = 1, default_lower_value: Number | None = None, 
@@ -339,7 +309,14 @@ class NumberRangeParameterOption(_NumericParameterOption):
         * Note that the "Number" type denotes an int, a Decimal (from decimal module), or a string that can be parsed to Decimal
 
         Arguments:
-            ...see Attributes of NumberRangeParameterOption
+            min_value: Minimum selectable value
+            max_value: Maximum selectable value
+            increment: Increment of selectable values, and must fit evenly between min_value and max_value
+            default_lower_value: Default lower value for this option, and must be selectable based on min_value, max_value, and increment
+            default_upper_value: Default upper value for this option, and must be selectable based on min_value, max_value, and increment. 
+                    Must also be greater than default_lower_value
+            user_groups: The user groups this parameter option would show for if "user_attribute" is specified in the Parameter factory
+            parent_option_ids: Set of parent option ids this parameter option would show for if "parent" is specified in the Parameter factory
         """
         super().__init__(min_value, max_value, increment=increment, user_groups=user_groups, parent_option_ids=parent_option_ids)
         self._default_lower_value = self._validate_value(default_lower_value) if default_lower_value is not None else self._min_value
@@ -351,13 +328,8 @@ class NumberRangeParameterOption(_NumericParameterOption):
 class TextParameterOption(ParameterOption):
     """
     Parameter option for default text values if it varies based on selection of another parameter
-
-    Attributes:
-        default_text: Default text for this option
-        user_groups: The user groups this parameter option would show for if "user_attribute" is specified in the Parameter factory
-        parent_option_ids: Set of parent option ids this parameter option would show for if "parent" is specified in the Parameter factory
     """
-    _default_text: str # = field(default=None, kw_only=True)
+    _default_text: str
 
     def __init__(
         self, *, default_text: str = "", user_groups: Iterable[Any] | str = frozenset(), 
@@ -367,7 +339,9 @@ class TextParameterOption(ParameterOption):
         Constructor for TextParameterOption
 
         Arguments:
-            ...see Attributes of TextParameterOption
+            default_text: Default text for this option
+            user_groups: The user groups this parameter option would show for if "user_attribute" is specified in the Parameter factory
+            parent_option_ids: Set of parent option ids this parameter option would show for if "parent" is specified in the Parameter factory
         """
         super().__init__(user_groups=user_groups, parent_option_ids=parent_option_ids)
         self._default_text = default_text

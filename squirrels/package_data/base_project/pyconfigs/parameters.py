@@ -30,26 +30,33 @@ def main(sqrl: ParametersArgs) -> None:
 
     ## Example of creating a TextParameter
     parent_name = "group_by"
-    text_options = [po.TextParameterOption(parent_option_ids="g0")]
+    description_text_options = [
+        po.TextParameterOption(parent_option_ids="g0")
+    ]
     p.TextParameter.CreateWithOptions(
-        "description_filter", "Description Contains", text_options, parent_name=parent_name,
+        "description_filter", "Description Contains", description_text_options, parent_name=parent_name,
         description="Substring of description to filter transactions by"
     )
 
-    ## Example of creating DateParameter
-    p.DateParameter.CreateSimple(
-        "start_date", "Start Date", "2023-01-01", description="Start date to filter transactions by"
+    ## Example of creating DateParameter from lookup query/table
+    start_date_source = ds.DateDataSource(
+        "SELECT min(date) AS min_date, max(date) AS max_date FROM transactions",
+        default_date_col="min_date", min_date_col="min_date", max_date_col="max_date"
+    )
+    p.DateParameter.CreateFromSource(
+        "start_date", "Start Date", start_date_source, description="Start date to filter transactions by"
     )
 
     ## Example of creating DateParameter from list of DateParameterOption's
-    end_date_option = [po.DateParameterOption("2023-12-31")]
+    end_date_option = [po.DateParameterOption("2023-12-31", min_date="2023-01-01", max_date="2023-12-31")]
     p.DateParameter.CreateWithOptions(
         "end_date", "End Date", end_date_option, description="End date to filter transactions by"
     )
 
     ## Example of creating DateRangeParameter
     p.DateRangeParameter.CreateSimple(
-        "date_range", "Date Range", "2023-01-01", "2023-12-31", description="Date range to filter transactions by"
+        "date_range", "Date Range", "2023-01-01", "2023-12-31", min_date="2023-01-01", max_date="2023-12-31",
+        description="Date range to filter transactions by"
     )
 
     ## Example of creating MultiSelectParameter from lookup query/table
