@@ -1,127 +1,106 @@
-import pytest, asyncio, pandas as pd, time
+import pytest, asyncio, polars as pl, time
 
-from squirrels import _models as m, _utils as _u
+from squirrels import _models as m, _utils as _u, _model_queries as mq, _model_configs as mc
 from squirrels.arguments.run_time_args import ContextArgs
 from squirrels._manifest import DatasetConfig
 
 
-@pytest.fixture(scope="function")
-def sql_model_config1():
-    return m._SqlModelConfig("my_conn_name", m._Materialization.VIEW)
-
-
-@pytest.fixture(scope="function")
-def sql_model_config2():
-    return m._SqlModelConfig("default", m._Materialization.TABLE)
-
-
-@pytest.mark.parametrize("fixture,query,expected", [
-    ("sql_model_config1", "SELECT...", "CREATE VIEW my_model AS\nSELECT..."),
-    ("sql_model_config2", "SELECT...", "CREATE TABLE my_model AS\nSELECT...")
-])
-def test_get_sql_for_create(fixture: str, query: str, expected: str, request: pytest.FixtureRequest):
-    sql_model_config: m._SqlModelConfig = request.getfixturevalue(fixture)
-    assert sql_model_config.get_sql_for_create("my_model", query) == expected
-
-
-@pytest.mark.parametrize("fixture,kwargs,expected", [
-    ("sql_model_config1", {"not_exist": "test"}, m._SqlModelConfig("my_conn_name", m._Materialization.VIEW)),
-    ("sql_model_config1", {"materialized": "taBle"}, m._SqlModelConfig("my_conn_name", m._Materialization.TABLE)),
-    ("sql_model_config2", {"connection_name": "Test"}, m._SqlModelConfig("Test", m._Materialization.TABLE))
-])
-def test_set_attribute(fixture: str, kwargs: dict[str, str], expected: m._SqlModelConfig, request: pytest.FixtureRequest):
-    sql_model_config: m._SqlModelConfig = request.getfixturevalue(fixture)
-    assert sql_model_config.set_attribute(**kwargs) == ""
-    assert sql_model_config == expected
+def simple_model_config() -> mc.FederateModelConfig:
+    return mc.FederateModelConfig()
 
 
 @pytest.fixture(scope="module")
-def context_args():
+def context_args() -> ContextArgs:
     return ContextArgs({}, {}, None, {}, {}, {})
 
 
 @pytest.fixture(scope="module")
-def modelA_query_file():
+def modelA_query_file() -> mq.QueryFileWithConfig:
     raw_query = 'SELECT * FROM {{ ref("modelB1") }} JOIN {{ ref("modelB2") }} USING (row_id)'
-    return m.SqlQueryFile("dummy/path/modelA.sql", m.ModelType.FEDERATE, raw_query)
+    query_file = mq.SqlQueryFile("dummy/path/modelA.sql", raw_query)
+    return mq.QueryFileWithConfig(query_file, simple_model_config())
 
 
 @pytest.fixture(scope="module")
-def modelB1_query_file():
+def modelB1_query_file() -> mq.QueryFileWithConfig:
     def main_func(sqrl):
         time.sleep(1)
-        return pd.DataFrame({"row_id": ["a", "b", "c"], "valB": [1, 2, 3]})
+        return pl.LazyFrame({"row_id": ["a", "b", "c"], "valB": [1, 2, 3]})
     
-    raw_query = m._RawPyQuery(main_func, lambda sqrl: ["modelC1", "modelSeed"])
-    return m.PyQueryFile("dummy/path/modelB1.py", m.ModelType.FEDERATE, raw_query)
+    model_config = mc.FederateModelConfig(depends_on=["modelC1", "modelSeed"])
+    query_file = mq.PyQueryFile("dummy/path/modelB1.py", main_func)
+    return mq.QueryFileWithConfig(query_file, model_config)
 
 
 @pytest.fixture(scope="module")
-def modelB2_query_file():
-    raw_query = 'SELECT row_id, valC FROM {{ ref("modelC1") }} JOIN {{ ref("modelC2") }}'
-    return m.SqlQueryFile("dummy/path/modelB2.sql", m.ModelType.FEDERATE, raw_query)
+def modelB2_query_file() -> mq.QueryFileWithConfig:
+    raw_query = 'SELECT row_id, valC FROM {{ ref("modelC1") }} JOIN {{ ref("modelC2") }} ON true'
+    query_file = mq.SqlQueryFile("dummy/path/modelB2.sql", raw_query)
+    return mq.QueryFileWithConfig(query_file, simple_model_config())
 
 
 @pytest.fixture(scope="module")
-def modelC1a_query_file():
+def modelC1a_query_file() -> mq.QueryFileWithConfig:
     def main_func(sqrl):
         time.sleep(1)
-        return pd.DataFrame({"row_id": ["a", "b", "c"], "valC": [10, 20, 30]})
+        return pl.LazyFrame({"row_id": ["a", "b", "c"], "valC": [10, 20, 30]})
     
-    raw_query = m._RawPyQuery(main_func, lambda sqrl: [])
-    return m.PyQueryFile("dummy/path/modelC1.py", m.ModelType.FEDERATE, raw_query)
+    query_file = mq.PyQueryFile("dummy/path/modelC1.py", main_func)
+    return mq.QueryFileWithConfig(query_file, simple_model_config())
 
 
 @pytest.fixture(scope="module")
-def modelC1b_query_file():
+def modelC1b_query_file() -> mq.QueryFileWithConfig:
     def main_func(sqrl):
-        return pd.DataFrame({"row_id": ["a", "b", "c"], "valC": [10, 20, 30]})
+        return pl.LazyFrame({"row_id": ["a", "b", "c"], "valC": [10, 20, 30]})
     
-    raw_query = m._RawPyQuery(main_func, lambda sqrl: ["modelA"])
-    return m.PyQueryFile("dummy/path/modelC1.py", m.ModelType.FEDERATE, raw_query)
+    model_config = mc.FederateModelConfig(depends_on=["modelA"])
+    query_file = mq.PyQueryFile("dummy/path/modelC1.py", main_func)
+    return mq.QueryFileWithConfig(query_file, model_config)
 
 
 @pytest.fixture(scope="module")
-def modelC2_query_file():
+def modelC2_query_file() -> mq.QueryFileWithConfig:
     raw_query = 'SELECT 1 AS a'
-    return m.SqlQueryFile("dummy/path/modelC2.sql", m.ModelType.FEDERATE, raw_query)
+    query_file = mq.SqlQueryFile("dummy/path/modelC2.sql", raw_query)
+    return mq.QueryFileWithConfig(query_file, simple_model_config())
 
 
 @pytest.fixture(scope="function")
-def modelA(modelA_query_file, simple_manifest_config, simple_conn_set):
-    model = m.Model("modelA", modelA_query_file, simple_manifest_config, simple_conn_set)
+def modelA(modelA_query_file: mq.QueryFileWithConfig, simple_manifest_config, simple_conn_set) -> m.FederateModel:
+    model = m.FederateModel("modelA", modelA_query_file.config, modelA_query_file.query_file, simple_manifest_config, simple_conn_set)
     model.is_target = True
     return model
 
 
 @pytest.fixture(scope="function")
-def modelB1(modelB1_query_file, simple_manifest_config, simple_conn_set):
-    return m.Model("modelB1", modelB1_query_file, simple_manifest_config, simple_conn_set)
+def modelB1(modelB1_query_file: mq.QueryFileWithConfig, simple_manifest_config, simple_conn_set) -> m.FederateModel:
+    return m.FederateModel("modelB1", modelB1_query_file.config, modelB1_query_file.query_file, simple_manifest_config, simple_conn_set)
 
 
 @pytest.fixture(scope="function")
-def modelB2(modelB2_query_file, simple_manifest_config, simple_conn_set):
-    return m.Model("modelB2", modelB2_query_file, simple_manifest_config, simple_conn_set)
+def modelB2(modelB2_query_file: mq.QueryFileWithConfig, simple_manifest_config, simple_conn_set) -> m.FederateModel:
+    return m.FederateModel("modelB2", modelB2_query_file.config, modelB2_query_file.query_file, simple_manifest_config, simple_conn_set)
 
 
 @pytest.fixture(scope="function")
-def modelC1a(modelC1a_query_file, simple_manifest_config, simple_conn_set):
-    return m.Model("modelC1", modelC1a_query_file, simple_manifest_config, simple_conn_set)
+def modelC1a(modelC1a_query_file: mq.QueryFileWithConfig, simple_manifest_config, simple_conn_set) -> m.FederateModel:
+    return m.FederateModel("modelC1", modelC1a_query_file.config, modelC1a_query_file.query_file, simple_manifest_config, simple_conn_set)
 
 
 @pytest.fixture(scope="function")
-def modelC1b(modelC1b_query_file, simple_manifest_config, simple_conn_set):
-    return m.Model("modelC1", modelC1b_query_file, simple_manifest_config, simple_conn_set)
+def modelC1b(modelC1b_query_file: mq.QueryFileWithConfig, simple_manifest_config, simple_conn_set) -> m.FederateModel:
+    return m.FederateModel("modelC1", modelC1b_query_file.config, modelC1b_query_file.query_file, simple_manifest_config, simple_conn_set)
 
 
 @pytest.fixture(scope="function")
-def modelC2(modelC2_query_file, simple_manifest_config, simple_conn_set):
-    return m.Model("modelC2", modelC2_query_file, simple_manifest_config, simple_conn_set)
+def modelC2(modelC2_query_file: mq.QueryFileWithConfig, simple_manifest_config, simple_conn_set) -> m.FederateModel:
+    return m.FederateModel("modelC2", modelC2_query_file.config, modelC2_query_file.query_file, simple_manifest_config, simple_conn_set)
 
 
 @pytest.fixture(scope="function")
-def modelSeed():
-    return m.Seed("modelSeed", pd.DataFrame())
+def modelSeed() -> m.Seed:
+    return m.Seed("modelSeed", mc.SeedConfig(), pl.LazyFrame({"row_id": ["a", "b", "c"]}))
 
 
 @pytest.fixture(scope="function")
@@ -143,17 +122,19 @@ def compiled_dag_with_cycle(simple_manifest_config, modelA, modelB1, modelB2, mo
 
 
 def test_compile(compiled_dag: m.DAG):
-    assert isinstance(modelA := compiled_dag.models_dict["modelA"], m.Model)
-    assert isinstance(modelB1 := compiled_dag.models_dict["modelB1"], m.Model)
-    assert isinstance(modelB2 := compiled_dag.models_dict["modelB2"], m.Model)
-    assert isinstance(modelC2 := compiled_dag.models_dict["modelC2"], m.Model)
-    assert isinstance(modelA.compiled_query, m._Query)
+    assert isinstance(modelA := compiled_dag.models_dict["modelA"], m.FederateModel)
+    assert isinstance(modelB1 := compiled_dag.models_dict["modelB1"], m.FederateModel)
+    assert isinstance(modelB2 := compiled_dag.models_dict["modelB2"], m.FederateModel)
+    assert isinstance(modelC1 := compiled_dag.models_dict["modelC1"], m.FederateModel)
+    assert isinstance(modelC2 := compiled_dag.models_dict["modelC2"], m.FederateModel)
+    assert isinstance(modelA.compiled_query, mq.SqlModelQuery)
     assert modelA.compiled_query.query == "SELECT * FROM modelB1 JOIN modelB2 USING (row_id)"
     assert modelA.upstreams == {"modelB1": modelB1, "modelB2": modelB2}
     assert modelA.downstreams == {}
-    assert not modelA.needs_sql_table and not modelA.needs_pandas
-    assert modelB1.needs_sql_table and not modelB1.needs_pandas
-    assert not modelC2.needs_pandas and modelC2.needs_sql_table
+    assert not modelA.needs_python_df
+    assert not modelB1.needs_python_df
+    assert modelC1.needs_python_df
+    assert not modelC2.needs_python_df
     try:
         terminal_nodes = compiled_dag._get_terminal_nodes()
     except _u.ConfigurationError:
@@ -180,5 +161,7 @@ def test_run_models(compiled_dag: m.DAG):
     asyncio.run(compiled_dag._run_models(terminal_nodes))
     end = time.time()
     
-    assert pd.DataFrame(modelA.result).equals(pd.DataFrame({"row_id": ["a", "b", "c"], "valB": [1, 2, 3], "valC": [10, 20, 30]}))
+    assert isinstance(modelA, m.FederateModel)
+    assert isinstance(modelA.result, pl.LazyFrame)
+    assert modelA.result.collect().equals(pl.DataFrame({"row_id": ["a", "b", "c"], "valB": [1, 2, 3], "valC": [10, 20, 30]}))
     assert (end - start) < 2.5

@@ -1,10 +1,10 @@
 from copy import copy
 from datetime import date
 from decimal import Decimal
-import pytest, pandas as pd
+import pytest, polars as pl
 
 from squirrels import _parameter_configs as _pc, parameters as p, parameter_options as _po, data_sources as ds
-from squirrels import _connection_set as cs, _seeds as s, _utils as _u
+from squirrels import _model_configs as mc, _connection_set as cs, _seeds as s, _utils as _u
 from tests.parameter_configs_tests._user_class import User
 
 
@@ -164,17 +164,20 @@ class TestNumberRangeParameterConfig:
 
 class TestDataSourceParameterConfig:
     def test_get_dataframe(self, simple_manifest_config):
-        data_source = ds.SelectDataSource("SELECT DISTINCT col_id, col_val FROM seed_test", "col_id", "col_val", from_seeds=True)
+        data_source = ds.SelectDataSource("SELECT DISTINCT col_id, col_val FROM seed_test ORDER BY col_id", "col_id", "col_val", from_seeds=True)
         ds_config = _pc.DataSourceParameterConfig(_pc.SingleSelectParameterConfig, "ds_test", "", data_source)
 
-        input_df = pd.DataFrame({
+        input_df = pl.DataFrame({
             "col_id": [1, 1, 2, 2, 3],
             "col_val": ["a", "a", "b", "b", "c"]
         })
-        seeds = s.Seeds({"seed_test": input_df}, simple_manifest_config)
+        seed = s.Seed(mc.SeedConfig(), input_df)
+        seeds = s.Seeds({"seed_test": seed}, simple_manifest_config)
         output_df = ds_config.get_dataframe("default", cs.ConnectionSet({}), seeds)
 
-        assert output_df.equals(pd.DataFrame({
+        expected_df = pl.DataFrame({
             "col_id": [1, 2, 3],
             "col_val": ["a", "b", "c"]
-        }))
+        })
+
+        assert output_df.equals(expected_df)

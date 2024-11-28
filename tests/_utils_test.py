@@ -1,4 +1,4 @@
-import pytest, pandas as pd
+import pytest, polars as pl
 
 from squirrels import _utils as _u
 
@@ -15,11 +15,10 @@ def test_load_json_or_comma_delimited_str(input_str, expected):
     assert _u.load_json_or_comma_delimited_str_as_list(input_str) == expected
 
 
-@pytest.mark.parametrize("do_use_duckdb", [True, False])
-def test_run_sql_on_dataframes(do_use_duckdb: bool):
-    df_dict = { "input_df": pd.DataFrame({"a": [1, 2, 3], "b": [4, 5, 6]}) }
-    expected = pd.DataFrame({"total": [5, 7, 9]})
-    result = _u.run_sql_on_dataframes("SELECT a+b AS total FROM input_df", df_dict, do_use_duckdb)
+def test_run_sql_on_dataframes():
+    df_dict = { "input_df": pl.DataFrame({"a": [1, 2, 3], "b": [4, 5, 6]}) }
+    expected = pl.DataFrame({"total": [5, 7, 9]})
+    result = _u.run_sql_on_dataframes("SELECT a+b AS total FROM input_df", df_dict)
     assert result.equals(expected)
 
 
@@ -28,7 +27,7 @@ def test_run_sql_on_dataframes(do_use_duckdb: bool):
     (["A", "B"], ["A", "B"])
 ])
 def test_df_to_json(in_dimensions: list[str] | None, out_dimensions: list[str]):
-    df = pd.DataFrame({'A': [1.0, 2.0], 'B': ['a', 'b'], 'C': [1, 2]})
+    df = pl.DataFrame({'A': [1.0, 2.0], 'B': ['a', 'b'], 'C': [1, 2]})
     actual = _u.df_to_json0(df, in_dimensions)
     expected = {
         "schema": {

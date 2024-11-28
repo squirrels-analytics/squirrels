@@ -1,18 +1,36 @@
 from typing import Type, TypeVar, Callable, Coroutine, Any
+from enum import Enum
 from dataclasses import dataclass
-import inspect, os, time
+from pydantic import BaseModel, Field
+import os, time
 
 from .arguments.run_time_args import DashboardArgs
 from ._py_module import PyModule
+from ._manifest import AnalyticsOutputConfig
 from . import _constants as c, _utils as u, dashboards as d
 
 T = TypeVar('T', bound=d.Dashboard)
 
 
+class DashboardFormat(Enum):
+    PNG = "png"
+    HTML = "html"
+
+class DashboardDependencies(BaseModel):
+    name: str
+    dataset: str
+    fixed_parameters: list[dict[str, str]] = Field(default_factory=list)
+
+class DashboardConfig(AnalyticsOutputConfig):
+    format: DashboardFormat = Field(default=DashboardFormat.PNG)
+    depends_on: list[DashboardDependencies] = Field(default_factory=list)
+
+
 @dataclass
-class DashboardFunction:
+class DashboardDefinition:
     dashboard_name: str
     filepath: str
+    config: DashboardConfig
 
     @property
     def dashboard_func(self) -> Callable[[DashboardArgs], Coroutine[Any, Any, d.Dashboard]]:
@@ -22,14 +40,7 @@ class DashboardFunction:
         return self._dashboard_func
 
     def get_dashboard_format(self) -> str:
-        return_type = inspect.signature(self.dashboard_func).return_annotation
-        assert issubclass(return_type, d.Dashboard), f"Function must return Dashboard type"
-        if return_type == d.PngDashboard:
-            return c.PNG
-        elif return_type == d.HtmlDashboard:
-            return c.HTML
-        else:
-            raise NotImplementedError(f"Dashboard format {return_type} not supported")
+        return self.config.format.value
     
     async def get_dashboard(self, args: DashboardArgs, *, dashboard_type: Type[T] = d.Dashboard) -> T:
         try:
@@ -46,7 +57,7 @@ class DashboardFunction:
 class DashboardsIO:
 
     @classmethod
-    def load_files(cls, logger: u.Logger, base_path: str) -> dict[str, DashboardFunction]:
+    def load_files(cls, logger: u.Logger, base_path: str) -> dict[str, DashboardDefinition]:
         start = time.time()
         
         dashboards_by_name = {}
@@ -54,8 +65,14 @@ class DashboardsIO:
             for file in filenames:
                 filepath = os.path.join(dp, file)
                 file_stem, extension = os.path.splitext(file)
-                if extension == '.py':
-                    dashboards_by_name[file_stem] = DashboardFunction(file_stem, filepath)
-        
+                if not extension == '.py':
+                    continue
+                
+                # Check for corresponding .yml file
+                yml_path = os.path.join(dp, file_stem + '.yml')
+                config_dict = u.load_yaml_config(yml_path) if os.path.exists(yml_path) else {}
+                config = DashboardConfig(name=file_stem, **config_dict)
+                dashboards_by_name[file_stem] = DashboardDefinition(file_stem, filepath, config)
+                
         logger.log_activity_time("loading files for dashboards", start)
         return dashboards_by_name

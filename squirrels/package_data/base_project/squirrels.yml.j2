@@ -3,7 +3,7 @@ project_variables:
   label: Sample Project
   major_version: 1
 
-
+--
 packages: []
 
 ## Example for packages section:
@@ -24,7 +24,7 @@ datasets:
     label: Dataset Example
     model: federate_example               ## optional - if not specified, then the "name" field is used
     scope: public                         ## optional - one of 'public' (default), 'protected', or 'private'
-    parameters:                           ## optional - if not specified, then all parameters are used
+    parameters:                           ## optional - if not specified, then passed through from model
       - group_by
       - description_filter
       - start_date
@@ -47,9 +47,6 @@ datasets:
       - subcategory
       - between_filter
     default_test_set: auth_test1          ## optional - if not specified, uses setting 'selection_test_sets.default_name_used'
-
-
-{{ dashboards -}}
 
 
 selection_test_sets:
@@ -88,7 +85,5 @@ settings: {}
 #   dashboards.cache.ttl_minutes: 60
 #   selection_test_sets.default_name_used: default
 #   connections.default_name_used: default
-#   defaults.federates.materialized: table
-#   in_memory_database: sqlite
 #   seeds.infer_schema: True
-#   seeds.na_values: [NA]
+#   seeds.na_values: []

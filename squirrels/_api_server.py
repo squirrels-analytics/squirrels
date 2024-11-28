@@ -9,7 +9,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from pydantic import create_model, BaseModel
 from cachetools import TTLCache
 from argparse import Namespace
-import os, io, time, mimetypes, traceback, uuid, pandas as pd
+import os, io, time, mimetypes, traceback, uuid, polars as pl
 
 from . import _constants as c, _utils as u, _api_response_models as arm
 from ._version import sq_major_version
@@ -43,7 +43,6 @@ class ApiServer:
         self.param_args = project._param_args
         self.param_cfg_set = project._param_cfg_set
         self.context_func = project._context_func
-        self.model_files = project._model_files
         self.dashboards = project._dashboards
     
     def run(self, uvicorn_args: Namespace) -> None:
@@ -76,7 +75,7 @@ class ApiServer:
                 "description": f"Get parameters or results for dataset '{dataset_name}'",
             })
         
-        for dashboard_name in self.manifest_cfg.dashboards:
+        for dashboard_name in self.dashboards:
             tags_metadata.append({
                 "name": f"Dashboard '{dashboard_name}'",
                 "description": f"Get parameters or results for dashboard '{dashboard_name}'",
@@ -268,7 +267,8 @@ class ApiServer:
                     ))
             
             dashboard_items: list[arm.DashboardItemModel] = []
-            for name, config in self.manifest_cfg.dashboards.items():
+            for name, dashboard in self.dashboards.items():
+                config = dashboard.config
                 if self.authenticator.can_user_access_scope(user, config.scope):
                     name_normalized = u.normalize_name_for_api(name)
 
@@ -340,20 +340,20 @@ class ApiServer:
         # Dataset Results API Helpers
         async def get_dataset_results_helper(
             dataset: str, user: User | None, selections: frozenset[tuple[str, Any]], request_version: int | None
-        ) -> pd.DataFrame:
+        ) -> pl.DataFrame:
             try:
                 return await self.project.dataset(dataset, selections=dict(selections), user=user)
             except PermissionError as e:
                 raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail=str(e), headers={"WWW-Authenticate": "Bearer"}) from e
 
         settings = self.manifest_cfg.settings
-        dataset_results_cache_size = settings.get(c.DATASETS_CACHE_SIZE_SETTING, settings.get(c.RESULTS_CACHE_SIZE_SETTING, 128))
-        dataset_results_cache_ttl = settings.get(c.DATASETS_CACHE_TTL_SETTING, settings.get(c.RESULTS_CACHE_TTL_SETTING, 60))
+        dataset_results_cache_size = settings.get(c.DATASETS_CACHE_SIZE_SETTING, 128)
+        dataset_results_cache_ttl = settings.get(c.DATASETS_CACHE_TTL_SETTING, 60)
         dataset_results_cache = TTLCache(maxsize=dataset_results_cache_size, ttl=dataset_results_cache_ttl*60)
 
         async def get_dataset_results_cachable(
             dataset: str, user: User | None, selections: frozenset[tuple[str, Any]], request_version: int | None
-        ) -> pd.DataFrame:
+        ) -> pl.DataFrame:
             return await do_cachable_action(dataset_results_cache, get_dataset_results_helper, dataset, user, selections, request_version)
         
         async def get_dataset_results_definition(
@@ -461,14 +461,14 @@ class ApiServer:
                 return result
         
         # Dashboard Parameters and Results APIs
-        for dashboard_name, dashboard_config in self.manifest_cfg.dashboards.items():
+        for dashboard_name, dashboard in self.dashboards.items():
             dashboard_normalized = u.normalize_name_for_api(dashboard_name)
             curr_parameters_path = dashboard_parameters_path.format(dashboard=dashboard_normalized)
             curr_results_path = dashboard_results_path.format(dashboard=dashboard_normalized)
 
-            validate_parameters_list(dashboard_config.parameters, "Dashboard")
+            validate_parameters_list(dashboard.config.parameters, "Dashboard")
             
-            QueryModelForGet, QueryModelForPost = get_query_models_from_widget_params(dashboard_config.parameters)
+            QueryModelForGet, QueryModelForPost = get_query_models_from_widget_params(dashboard.config.parameters)
 
             @app.get(curr_parameters_path, tags=[f"Dashboard '{dashboard_name}'"], description=parameters_description, response_class=JSONResponse)
             async def get_dashboard_parameters(
@@ -476,7 +476,7 @@ class ApiServer:
             ) -> arm.ParametersModel:
                 start = time.time()
                 curr_dashboard_name = get_dashboard_name(request, -2)
-                parameters_list = self.manifest_cfg.dashboards[curr_dashboard_name].parameters
+                parameters_list = self.dashboards[curr_dashboard_name].config.parameters
                 result = await get_parameters_definition(parameters_list, user, request.headers, asdict(params))
                 self.logger.log_activity_time("GET REQUEST for PARAMETERS", start, request_id=_get_request_id(request))
                 return result
@@ -487,13 +487,13 @@ class ApiServer:
             ) -> arm.ParametersModel:
                 start = time.time()
                 curr_dashboard_name = get_dashboard_name(request, -2)
-                parameters_list = self.manifest_cfg.dashboards[curr_dashboard_name].parameters
+                parameters_list = self.dashboards[curr_dashboard_name].config.parameters
                 params: BaseModel = params
                 result = await get_parameters_definition(parameters_list, user, request.headers, params.model_dump())
                 self.logger.log_activity_time("POST REQUEST for PARAMETERS", start, request_id=_get_request_id(request))
                 return result
             
-            @app.get(curr_results_path, tags=[f"Dashboard '{dashboard_name}'"], description=dashboard_config.description, response_class=Response)
+            @app.get(curr_results_path, tags=[f"Dashboard '{dashboard_name}'"], description=dashboard.config.description, response_class=Response)
             async def get_dashboard_results(
                 request: Request, params: QueryModelForGet, user: User | None = Depends(get_current_user) # type: ignore
             ) -> Response:
@@ -503,7 +503,7 @@ class ApiServer:
                 self.logger.log_activity_time("GET REQUEST for DASHBOARD RESULTS", start, request_id=_get_request_id(request))
                 return result
 
-            @app.post(curr_results_path, tags=[f"Dashboard '{dashboard_name}'"], description=dashboard_config.description, response_class=Response)
+            @app.post(curr_results_path, tags=[f"Dashboard '{dashboard_name}'"], description=dashboard.config.description, response_class=Response)
             async def get_dashboard_results_with_post(
                 request: Request, params: QueryModelForPost, user: User | None = Depends(get_current_user) # type: ignore
             ) -> Response:

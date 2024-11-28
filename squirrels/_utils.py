@@ -1,13 +1,33 @@
 from typing import Sequence, Optional, Union, TypeVar, Callable
 from pathlib import Path
 from pandas.api import types as pd_types
-from datetime import datetime
-import os, time, logging, json, sqlite3, pandas as pd
+import os, time, logging, json, duckdb, polars as pl, yaml
 import jinja2 as j2, jinja2.nodes as j2_nodes
 
 from . import _constants as c
 
 FilePath = Union[str, Path]
+
+# Polars
+type_to_polars_dtype = {
+    "str": pl.String,
+    "string": pl.String,
+    "int": pl.Int64,
+    "integer": pl.Int64,
+    "int8": pl.Int8,
+    "int16": pl.Int16,
+    "int32": pl.Int32,
+    "int64": pl.Int64,
+    "float": pl.Float64,
+    "float32": pl.Float32,
+    "float64": pl.Float64,
+    "bool": pl.Boolean,
+    "boolean": pl.Boolean,
+    "date": pl.Date,
+    "time": pl.Time,
+    "datetime": pl.Datetime,
+    "timestamp": pl.Datetime,
+}
 
 
 ## Custom Exceptions
@@ -197,7 +217,7 @@ def process_if_not_none(input_val: Optional[X], processor: Callable[[X], Y]) -> 
     return processor(input_val)
 
 
-def run_sql_on_dataframes(sql_query: str, dataframes: dict[str, pd.DataFrame], do_use_duckdb: bool) -> pd.DataFrame:
+def run_sql_on_dataframes(sql_query: str, dataframes: dict[str, pl.LazyFrame]) -> pl.DataFrame:
     """
     Runs a SQL query against a collection of dataframes
 
@@ -208,25 +228,20 @@ def run_sql_on_dataframes(sql_query: str, dataframes: dict[str, pd.DataFrame], d
     Returns:
         The result as a pandas Dataframe from running the query
     """
-    if do_use_duckdb:
-        import duckdb
-        duckdb_conn = duckdb.connect()
-    else:
-        conn = sqlite3.connect(":memory:")
+    duckdb_conn = duckdb.connect()
     
     try:
         for name, df in dataframes.items():
-            if do_use_duckdb:
-                duckdb_conn.execute(f"CREATE TABLE {name} AS FROM df")
-            else:
-                df.to_sql(name, conn, index=False)
+            duckdb_conn.register(name, df)
         
-        return duckdb_conn.execute(sql_query).df() if do_use_duckdb else pd.read_sql(sql_query, conn)
+        result_df = duckdb_conn.sql(sql_query).pl()
     finally:
-        duckdb_conn.close() if do_use_duckdb else conn.close()
+        duckdb_conn.close()
+    
+    return result_df
 
 
-def df_to_json0(df: pd.DataFrame, dimensions: list[str] | None = None) -> dict:
+def df_to_json0(df: pl.DataFrame, dimensions: list[str] | None = None) -> dict:
     """
     Convert a pandas DataFrame to the response format that the dataset result API of Squirrels outputs.
 
@@ -237,7 +252,8 @@ def df_to_json0(df: pd.DataFrame, dimensions: list[str] | None = None) -> dict:
     Returns:
         The response of a Squirrels dataset result API
     """
-    in_df_json = json.loads(df.to_json(orient='table', index=False))
+    df_pandas = df.to_pandas()
+    in_df_json = json.loads(df_pandas.to_json(orient='table', index=False))
     out_fields = []
     non_numeric_fields = []
     for in_column in in_df_json["schema"]["fields"]:
@@ -245,7 +261,7 @@ def df_to_json0(df: pd.DataFrame, dimensions: list[str] | None = None) -> dict:
         out_column = { "name": col_name, "type": in_column["type"] }
         out_fields.append(out_column)
         
-        if not pd_types.is_numeric_dtype(df[col_name].dtype):
+        if not pd_types.is_numeric_dtype(df_pandas[col_name].dtype):
             non_numeric_fields.append(col_name)
     
     out_dimensions = non_numeric_fields if dimensions is None else dimensions
@@ -254,3 +270,11 @@ def df_to_json0(df: pd.DataFrame, dimensions: list[str] | None = None) -> dict:
         "data": in_df_json["data"]
     }
     return dataset_json
+
+
+def load_yaml_config(filepath: FilePath) -> dict:
+    try:
+        with open(filepath, 'r') as f:
+            return yaml.safe_load(f)
+    except yaml.YAMLError as e:
+        raise ConfigurationError(f"Failed to parse yaml file: {filepath}") from e

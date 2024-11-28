@@ -1,0 +1,13 @@
+description: |
+  Lookup table for the categories of the transactions.
+
+cast_column_types: true
+
+columns:
+  - name: category_id
+    type: string
+    description: The category ID
+  
+  - name: category
+    type: string
+    description: The human-readable category name

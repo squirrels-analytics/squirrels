@@ -2,7 +2,7 @@ from squirrels import DashboardArgs, dashboards as d
 from matplotlib import pyplot as plt, figure as f, axes as a
 
 
-async def main(sqrl: DashboardArgs) -> d.PngDashboard:
+async def main(sqrl: DashboardArgs) -> d.Dashboard:
     """
     Create a dashboard by retrieving datasets using "sqrl.dataset" method and transform the datasets to return as a PngDashboard or a HtmlDashboard.
     - The PngDashboard constructor takes a single argument for either a matplotlib.figure.Figure or io.BytesIO/bytes of PNG data

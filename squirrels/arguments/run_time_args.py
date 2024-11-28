@@ -1,7 +1,7 @@
 from typing import Iterable, Callable, Any, Coroutine
 from dataclasses import dataclass
 from sqlalchemy import Engine
-import pandas as pd
+import polars as pl
 
 from .init_time_args import ConnectionsArgs, ParametersArgs
 from ..user_base import User
@@ -81,8 +81,12 @@ class ContextArgs(ParametersArgs):
 
 
 @dataclass
-class ModelDepsArgs(ContextArgs):
+class ModelArgs(ContextArgs):
     _ctx: dict[str, Any]
+    _connections: dict[str, Engine]
+    _dependencies: Iterable[str]
+    _ref: Callable[[str], pl.LazyFrame]
+    _run_external_sql: Callable[[str, str | None], pl.DataFrame]
 
     @property
     def ctx(self) -> dict[str, Any]:
@@ -90,16 +94,6 @@ class ModelDepsArgs(ContextArgs):
         Dictionary of context variables
         """
         return self._ctx.copy()
-
-
-@dataclass
-class ModelArgs(ModelDepsArgs):
-    connection_name: str
-    _connections: dict[str, Engine]
-    _dependencies: Iterable[str]
-    _ref: Callable[[str], pd.DataFrame]
-    _run_external_sql: Callable[[str, str | None], pd.DataFrame]
-    _use_duckdb: bool
 
     @property
     def connections(self) -> dict[str, Engine]:
@@ -143,22 +137,22 @@ class ModelArgs(ModelDepsArgs):
         """
         return self._placeholders.get(placeholder)
     
-    def ref(self, model: str) -> pd.DataFrame:
+    def ref(self, model: str) -> pl.LazyFrame:
         """
-        Returns the result (as pandas DataFrame) of a dependent model (predefined in "dependencies" function)
+        Returns the result (as polars DataFrame) of a dependent model (predefined in "dependencies" function)
 
         Note: This is different behaviour than the "ref" function for SQL models, which figures out the dependent models for you, 
-        and returns a string for the table/view name in SQLite instead of a pandas DataFrame.
+        and returns a string for the table/view name instead of a polars DataFrame.
 
         Arguments:
             model: The model name
         
         Returns:
-            A pandas DataFrame
+            A polars DataFrame
         """
         return self._ref(model)
 
-    def run_external_sql(self, sql_query: str, *, connection_name: str | None = None, **kwargs) -> pd.DataFrame:
+    def run_external_sql(self, sql_query: str, *, connection_name: str | None = None, **kwargs) -> pl.DataFrame:
         """
         Runs a SQL query against an external database, with option to specify the connection name. Placeholder values are provided automatically
 
@@ -167,32 +161,32 @@ class ModelArgs(ModelDepsArgs):
             connection_name: The connection name for the database. If None, uses the one configured for the model
         
         Returns:
-            The query result as a pandas DataFrame
+            The query result as a polars DataFrame
         """
         return self._run_external_sql(sql_query, connection_name)
 
-    def run_sql_on_dataframes(self, sql_query: str, *, dataframes: dict[str, pd.DataFrame] | None = None, **kwargs) -> pd.DataFrame:
+    def run_sql_on_dataframes(self, sql_query: str, *, dataframes: dict[str, pl.LazyFrame] | None = None, **kwargs) -> pl.DataFrame:
         """
         Uses a dictionary of dataframes to execute a SQL query in an embedded in-memory database (sqlite or duckdb based on setting)
 
         Arguments:
             sql_query: The SQL query to run
-            dataframes: A dictionary of table names to their pandas Dataframe. If None, uses results of dependent models
+            dataframes: A dictionary of table names to their polars LazyFrame. If None, uses results of dependent models
         
         Returns:
-            The result as a pandas Dataframe from running the query
+            The result as a polars LazyFrame from running the query
         """
         if dataframes is None:
             dataframes = {x: self.ref(x) for x in self._dependencies}
 
-        return _u.run_sql_on_dataframes(sql_query, dataframes, self._use_duckdb)
+        return _u.run_sql_on_dataframes(sql_query, dataframes)
 
 
 @dataclass
 class DashboardArgs(ParametersArgs):
-    _get_dataset: Callable[[str, dict[str, Any]], Coroutine[Any, Any, pd.DataFrame]]
+    _get_dataset: Callable[[str, dict[str, Any]], Coroutine[Any, Any, pl.DataFrame]]
 
-    async def dataset(self, name: str, *, fixed_parameters: dict[str, Any] = {}) -> pd.DataFrame:
+    async def dataset(self, name: str, *, fixed_parameters: dict[str, Any] = {}) -> pl.DataFrame:
         """
         Get dataset as DataFrame given dataset name. Can use this to access protected/private datasets regardless of user authenticated to the dashboard.
 

@@ -36,13 +36,27 @@ class _ConfigWithNameBaseModel(BaseModel):
     name: str
 
 
-class DbConnConfig(_ConfigWithNameBaseModel):
-    credential: str | None = None
-    url: str
+class ConnectionType(Enum):
+    SQLALCHEMY = "sqlalchemy"
+    CONNECTORX = "connectorx"
+    ADBC = "adbc"
 
-    def finalize_url(self, base_path: str, env_cfg: EnvironConfig) -> Self:
-        username, password = env_cfg.get_credential(self.credential)
-        self.url = self.url.format(username=username, password=password, project_path=base_path)
+
+class ConnectionProperties(BaseModel):
+    """
+    A class for holding the properties of a connection
+
+    Arguments:
+        type: The type of connection, one of "sqlalchemy", "connectorx", or "adbc"
+        uri: The URI for the connection
+    """
+    type: ConnectionType
+    uri: str
+
+
+class DbConnConfig(ConnectionProperties, _ConfigWithNameBaseModel):
+    def finalize_uri(self, base_path: str) -> Self:
+        self.uri = self.uri.format(project_path=base_path)
         return self
 
 
@@ -104,11 +118,6 @@ class DatasetConfig(AnalyticsOutputConfig):
         return self
 
 
-class DashboardConfig(AnalyticsOutputConfig):
-    def __hash__(self) -> int:
-        return hash("dashboard_"+self.name)
-
-
 class TestSetsConfig(_ConfigWithNameBaseModel):
     datasets: list[str] | None = None
     is_authenticated: bool = False
@@ -127,9 +136,6 @@ class Settings(BaseModel):
     
     def get_default_connection_name(self) -> str:
         return self.data.get(c.DB_CONN_DEFAULT_USED_SETTING, c.DEFAULT_DB_CONN)
-    
-    def do_use_duckdb(self) -> bool:
-        return self.data.get(c.IN_MEMORY_DB_SETTING, c.SQLITE) == c.DUCKDB
 
 
 class ManifestConfig(BaseModel):
@@ -142,7 +148,6 @@ class ManifestConfig(BaseModel):
     dbviews: dict[str, DbviewConfig] = Field(default_factory=dict)
     federates: dict[str, FederateConfig] = Field(default_factory=dict)
     datasets: dict[str, DatasetConfig] = Field(default_factory=dict)
-    dashboards: dict[str, DashboardConfig] = Field(default_factory=dict)
     settings: dict[str, Any] = Field(default_factory=dict)
     base_path: str = "."
 
@@ -156,7 +161,7 @@ class ManifestConfig(BaseModel):
             set_of_directories.add(package.directory)
         return packages
     
-    @field_validator("connections", "selection_test_sets", "dbviews", "federates", "datasets", "dashboards", mode="before")
+    @field_validator("connections", "selection_test_sets", "dbviews", "federates", "datasets", mode="before")
     @classmethod
     def names_are_unique(cls, values: list[dict] | dict[str, dict], info: ValidationInfo) -> dict[str, dict]:
         if isinstance(values, list):
@@ -173,7 +178,7 @@ class ManifestConfig(BaseModel):
     @model_validator(mode="after")
     def finalize_connections(self) -> Self:
         for conn in self.connections.values():
-            conn.finalize_url(self.base_path, self.env_cfg)
+            conn.finalize_uri(self.base_path)
         return self
     
     @property
