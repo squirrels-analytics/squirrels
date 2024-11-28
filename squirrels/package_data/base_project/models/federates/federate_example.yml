@@ -1,0 +1,49 @@
+description: |
+  This is an example of a federate view model. It is usually used to combine the results of multiple database views.
+  However, this example simply returns the results of a single database view ordered by the dimension specified in the "group_by" parameter.
+
+depends_on:
+  - dbview_example
+
+eager: false   # Optional, defaults to false. Only applies to SQL models.
+
+columns:
+  - name: id
+    depends_on:
+      - dbview_example.id
+    pass_through: true
+
+  - name: date
+    depends_on:
+      - dbview_example.date
+    pass_through: true
+
+  - name: description
+    depends_on:
+      - dbview_example.description
+    pass_through: true
+  
+  - name: day
+    depends_on:
+      - dbview_example.day
+    pass_through: true
+  
+  - name: month
+    depends_on:
+      - dbview_example.month
+    pass_through: true
+
+  - name: category
+    depends_on:
+      - dbview_example.category
+    pass_through: true
+  
+  - name: subcategory
+    depends_on:
+      - dbview_example.subcategory
+    pass_through: true
+
+  - name: total_amount
+    depends_on:
+      - dbview_example.total_amount
+    pass_through: true

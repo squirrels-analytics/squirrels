@@ -1,0 +1,44 @@
+sources:
+  - name: transactions
+    connection: default
+    table: transactions              # optional - if not provided, will use the name of the source
+    
+    ## TBA
+    # update_hints:                    # only applicable if the connection is type 'database'
+    #   increasing_column: date
+    #   is_strictly_increasing: false  # optional - defaults to true
+    #   unique_key: [id]               # optional - defaults to the increasing_column (can be a string or a list of strings)
+    #   overwrite_from: null           # optional - defaults to null
+
+    columns:
+      - name: id
+        type: string
+        description: The unique identifier for the transaction
+
+      - name: date
+        type: date
+        description: The date of the transaction
+      
+      - name: category
+        type: string
+        description: The category of the transaction
+
+      - name: subcategory
+        type: string
+        description: The subcategory of the transaction
+      
+      - name: vendor
+        type: string
+        description: The vendor of the transaction
+
+      - name: amount
+        type: float
+        description: The amount of the transaction
+      
+      - name: balance
+        type: float
+        description: The balance of the account after the transaction
+
+      - name: description
+        type: string
+        description: The description of the transaction

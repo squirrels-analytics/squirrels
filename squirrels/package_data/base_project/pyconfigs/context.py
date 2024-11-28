@@ -28,15 +28,15 @@ def main(ctx: dict[str, Any], sqrl: ContextArgs) -> None:
         assert isinstance(descript_param, p.TextParameter)
 
         desc_pattern = descript_param.get_entered_text().apply_percent_wrap()
-
         sqrl.set_placeholder("desc_pattern", desc_pattern)
+    else:
+        sqrl.set_placeholder("desc_pattern", "%%")
 
     if sqrl.param_exists("start_date"):
         start_date_param = sqrl.prms["start_date"]
         assert isinstance(start_date_param, p.DateParameter)
 
         start_date = start_date_param.get_selected_date()
-        
         sqrl.set_placeholder("start_date", start_date)
     
     if sqrl.param_exists("end_date"):
@@ -44,7 +44,6 @@ def main(ctx: dict[str, Any], sqrl: ContextArgs) -> None:
         assert isinstance(end_date_param, p.DateParameter)
 
         end_date = end_date_param.get_selected_date()
-
         sqrl.set_placeholder("end_date", end_date)
 
     if sqrl.param_exists("date_range"):
@@ -76,7 +75,6 @@ def main(ctx: dict[str, Any], sqrl: ContextArgs) -> None:
         assert isinstance(min_amount_filter, p.NumberParameter)
 
         min_amount = min_amount_filter.get_selected_value()
-
         sqrl.set_placeholder("min_amount", min_amount)
     
     if sqrl.param_exists("max_filter"):
@@ -84,7 +82,6 @@ def main(ctx: dict[str, Any], sqrl: ContextArgs) -> None:
         assert isinstance(max_amount_filter, p.NumberParameter)
 
         max_amount = max_amount_filter.get_selected_value()
-
         sqrl.set_placeholder("max_amount", max_amount)
 
     if sqrl.param_exists("between_filter"):

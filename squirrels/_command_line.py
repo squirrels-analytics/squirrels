@@ -30,12 +30,12 @@ def main():
         subparser = with_help(subparsers.add_parser(cmd, description=help_text, help=help_text, add_help=False))
         return subparser
 
-    init_parser = add_subparser(subparsers, c.INIT_CMD, 'Initialize a squirrels project')
+    init_parser = add_subparser(subparsers, c.INIT_CMD, 'Create a new squirrels project')
+    init_parser.add_argument('-n', '--name', type=str, help='The name of the project')
     init_parser.add_argument('-o', '--overwrite', action='store_true', help="Overwrite files that already exist")
     init_parser.add_argument('--core', action='store_true', help='Include all core files')
     init_parser.add_argument('--connections', type=str, choices=c.CONF_FORMAT_CHOICES, help=f'Configure database connections as yaml (default) or python')
     init_parser.add_argument('--parameters', type=str, choices=c.CONF_FORMAT_CHOICES, help=f'Configure parameters as python (default) or yaml')
-    init_parser.add_argument('--dbview', type=str, choices=c.FILE_TYPE_CHOICES, help='Create database view model as sql (default) or python file')
     init_parser.add_argument('--federate', type=str, choices=c.FILE_TYPE_CHOICES, help='Create federated model as sql (default) or python file')
     init_parser.add_argument('--dashboard', action='store_true', help=f'Include a sample dashboard file')
     init_parser.add_argument('--auth', action='store_true', help=f'Include the {c.AUTH_FILE} file')
@@ -57,13 +57,16 @@ def main():
     add_subparser(get_file_subparsers, c.CONNECTIONS_FILE, f'Get a sample {c.CONNECTIONS_FILE} file')
     add_subparser(get_file_subparsers, c.PARAMETERS_FILE, f'Get a sample {c.PARAMETERS_FILE} file')
     add_subparser(get_file_subparsers, c.CONTEXT_FILE, f'Get a sample {c.CONTEXT_FILE} file')
-    with_file_format_options(add_subparser(get_file_subparsers, c.DBVIEW_FILE_STEM, f'Get a sample dbview model file'))
+    add_subparser(get_file_subparsers, c.SOURCES_FILE, f'Get a sample {c.SOURCES_FILE} file')
+    add_subparser(get_file_subparsers, c.DBVIEW_FILE_STEM, f'Get a sample dbview model file')
     with_file_format_options(add_subparser(get_file_subparsers, c.FEDERATE_FILE_STEM, f'Get a sample federate model file'))
     add_subparser(get_file_subparsers, c.DASHBOARD_FILE_STEM, f'Get a sample dashboard file')
     add_subparser(get_file_subparsers, c.EXPENSES_DB, f'Get the sample SQLite database on expenses')
     add_subparser(get_file_subparsers, c.WEATHER_DB, f'Get the sample SQLite database on weather')
+    add_subparser(get_file_subparsers, c.SEED_CATEGORY_FILE_STEM, f'Get the sample seed files for categories lookup')
+    add_subparser(get_file_subparsers, c.SEED_SUBCATEGORY_FILE_STEM, f'Get the sample seed files for subcategories lookup')
     
-    add_subparser(subparsers, c.DEPS_CMD, f'Load all packages specified in {c.MANIFEST_FILE} (from git)')
+    deps_parser = add_subparser(subparsers, c.DEPS_CMD, f'Load all packages specified in {c.MANIFEST_FILE} (from git)')
 
     compile_parser = add_subparser(subparsers, c.COMPILE_CMD, 'Create rendered SQL files in the folder "./target/compile"')
     compile_dataset_group = compile_parser.add_mutually_exclusive_group(required=True)
@@ -81,12 +84,15 @@ def main():
     run_parser.add_argument('--port', type=int, default=4465, help="The port to run on")
 
     args, _ = parser.parse_known_args()
-    project = SquirrelsProject(log_level=args.log_level, log_format=args.log_format, log_file=args.log_file)
+    if args.command is not None and args.command not in [c.INIT_CMD, c.GET_FILE_CMD]:
+        project = SquirrelsProject(log_level=args.log_level, log_format=args.log_format, log_file=args.log_file)
+    else:
+        project = None
     
     if args.version:
         print(__version__)
     elif args.command == c.INIT_CMD:
-        Initializer(overwrite=args.overwrite).init_project(args)
+        Initializer(project_name=args.name, overwrite=args.overwrite).init_project(args)
     elif args.command == c.GET_FILE_CMD:
         Initializer().get_file(args)
     elif args.command == c.DEPS_CMD:

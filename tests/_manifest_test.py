@@ -54,23 +54,22 @@ class TestPackageConfig:
 class TestDbConnConfig:
     @pytest.fixture(scope="class")
     def db_conn_config1(self) -> m.DbConnConfig:
-        data = {"name": "default", "credential": "test_cred_key", "url": "{username}:{password}/my/url"}
+        data = {"name": "default", "type": "sqlalchemy", "uri": "sqlite:///{project_path}/my/database.db"}
         return m.DbConnConfig(**data)
 
     @pytest.fixture(scope="class")
     def db_conn_config2(self) -> m.DbConnConfig:
-        data = {"name": "default", "url": "{username}:{password}/my/url"}
+        data = {"name": "default", "type": "connectorx", "uri": "sqlite:///{project_path}/my/database.db"}
         return m.DbConnConfig(**data)
 
     @pytest.mark.parametrize("fixture,expected", [
-        ("db_conn_config1", "user1:pass1/my/url"),
-        ("db_conn_config2", ":/my/url")
+        ("db_conn_config1", "sqlite:///./my/database.db"),
+        ("db_conn_config2", "sqlite:///./my/database.db")
     ])
     def test_db_conn_url(self, fixture: str, expected: str, request: pytest.FixtureRequest):
         db_conn: m.DbConnConfig = request.getfixturevalue(fixture)
-        env_cfg = request.getfixturevalue("simple_env_config")
-        db_conn.finalize_url(".", env_cfg)
-        assert db_conn.url == expected
+        db_conn.finalize_uri(".")
+        assert db_conn.uri == expected
 
 
 class TestDatasetConfig:
@@ -130,23 +129,6 @@ class TestDatasetConfig:
     def test_invalid_dataset(self):
         with pytest.raises(ValidationError):
             m.DatasetConfig(name="my_dataset", scope="not_valid") # type: ignore
-
-
-class TestDashboardConfig:
-    @pytest.fixture(scope="class")
-    def dashboard_config1(self) -> m.DashboardConfig:
-        data: dict[str, Any] = {"name": "my_dashboard"}
-        return m.DashboardConfig(**data)
-
-    @pytest.fixture(scope="class")
-    def dashboard_config2(self) -> m.DashboardConfig:
-        data = {
-            "name": "my_dashboard", "label": "My Dataset", "scope": "protected", "parameters": []
-        }
-        return m.DashboardConfig(**data)
-    
-    def test_hash(self, dashboard_config1: m.DashboardConfig):
-        assert hash(dashboard_config1) == hash("dashboard_my_dashboard")
 
 
 class TestTestSetsConfig:

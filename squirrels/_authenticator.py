@@ -33,7 +33,7 @@ class Authenticator:
         return str(secret_key)
     
     def _get_auth_args(self, username: str, password: str):
-        connections = self.conn_set.get_engines_as_dict()
+        connections = self.conn_set.get_connections_as_dict()
         return AuthArgs(self.conn_args.proj_vars, self.conn_args.env_vars, self.conn_args._get_credential, connections, username, password)
 
     def authenticate_user(self, username: str, password: str) -> Optional[User]:

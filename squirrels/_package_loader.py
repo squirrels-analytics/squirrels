@@ -1,4 +1,4 @@
-import git, shutil, os, time
+import shutil, os, time
 
 from . import _constants as c, _utils as _u
 from ._manifest import ManifestConfig
@@ -9,6 +9,10 @@ class PackageLoaderIO:
     @classmethod
     def load_packages(cls, logger: _u.Logger, manifest_cfg: ManifestConfig, *, reload: bool = False) -> None:
         start = time.time()
+        
+        # Importing git here avoids requirement of having git installed on system if not needed
+        import git
+
         # If reload, delete the modules directory (if it exists). It will be recreated later
         if reload and os.path.exists(c.PACKAGES_FOLDER):
             shutil.rmtree(c.PACKAGES_FOLDER)

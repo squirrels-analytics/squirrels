@@ -1,5 +1,5 @@
 from sqlalchemy import create_engine
-import pandas as pd
+import polars as pl
 import pytest
 
 from squirrels import _connection_set as cs, _utils as _u
@@ -27,16 +27,16 @@ def connection_set():
 
 def test_get_connection_pool(connection_set: cs.ConnectionSet):
     with pytest.raises(_u.ConfigurationError):
-        connection_set._get_engine('does_not_exist')
+        connection_set._get_connection('does_not_exist')
 
 
 def test_run_sql_query_from_conn_name(connection_set: cs.ConnectionSet):
-    df: pd.DataFrame = connection_set.run_sql_query_from_conn_name("SELECT id, name FROM test WHERE id < 0", "db2")
-    expected_df = pd.DataFrame(columns=["id", "name"]) # empty dataframe
+    df: pl.DataFrame = connection_set.run_sql_query_from_conn_name("SELECT id, name FROM test WHERE id < 0", "db2")
+    expected_df = pl.DataFrame({"id": [], "name": []})
     assert df.equals(expected_df)
 
-    df: pd.DataFrame = connection_set.run_sql_query_from_conn_name("SELECT name, avg(number) AS avg_number FROM test GROUP BY name", "db2")
-    expected_df = pd.DataFrame({
+    df: pl.DataFrame = connection_set.run_sql_query_from_conn_name("SELECT name, avg(number) AS avg_number FROM test GROUP BY name", "db2")
+    expected_df = pl.DataFrame({
         "name": ["test1", "test2"],
         "avg_number": [15.0, 30.0]
     })

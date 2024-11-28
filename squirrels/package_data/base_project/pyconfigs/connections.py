@@ -1,19 +1,13 @@
-from sqlalchemy import create_engine, Engine
-from squirrels import ConnectionsArgs
+from typing import Any
+from squirrels import ConnectionsArgs, ConnectionProperties
 
 
-def main(connections: dict[str, Engine], sqrl: ConnectionsArgs) -> None:
+def main(connections: dict[str, ConnectionProperties | Any], sqrl: ConnectionsArgs) -> None:
     """
     Define sqlalchemy engines by adding them to the "connections" dictionary
     """
-    
     ## SQLAlchemy URL for a connection engine
-    conn_str = 'sqlite:///./assets/expenses.db' 
+    conn_str: str = sqrl.env_vars["sqlite_uri"]
 
-    ## Can also leverage environment variables and credentials in the env.yml file for connection details
-    # conn_str_raw: str = sqrl.env_vars["sqlite_conn_str"]
-    # username, password = sqrl.get_credential('my_key')
-    # conn_str = conn_str_raw.format(username=username, password=password) 
-    
     ## Assigning names to connection engines
-    connections["default"] = create_engine(conn_str)
+    connections["default"] = ConnectionProperties(type="sqlalchemy", uri=conn_str)

@@ -7,7 +7,7 @@ from abc import ABCMeta, abstractmethod
 from copy import copy
 from fastapi import Query
 from pydantic.fields import Field
-import pandas as pd, re
+import polars as pl, re
 
 from . import parameter_options as _po, parameters as p, data_sources as d, _utils as _u, _constants as c
 from .user_base import User
@@ -574,10 +574,10 @@ class DataSourceParameterConfig(ParameterConfigBase):
         self.data_source = data_source
         self.extra_args = extra_args
 
-    def convert(self, df: pd.DataFrame) -> ParameterConfig:
+    def convert(self, df: pl.DataFrame) -> ParameterConfig:
         return self.data_source._convert(self, df)
     
-    def get_dataframe(self, default_conn_name: str, conn_set: ConnectionSet, seeds: Seeds) -> pd.DataFrame:
+    def get_dataframe(self, default_conn_name: str, conn_set: ConnectionSet, seeds: Seeds) -> pl.DataFrame:
         datasource = self.data_source
         query = datasource._get_query()
         if datasource._is_from_seeds:

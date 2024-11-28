@@ -2,7 +2,7 @@ from __future__ import annotations
 from typing import Optional, Sequence
 from dataclasses import dataclass, field
 from collections import OrderedDict
-import time, concurrent.futures, pandas as pd
+import time, concurrent.futures, polars as pl
 
 from . import _utils as u, _constants as c, parameters as p, _parameter_configs as _pc, _py_module as pm, _api_response_models as arm
 from .arguments.init_time_args import ParametersArgs
@@ -51,7 +51,7 @@ class ParameterConfigsSet:
     def _get_all_ds_param_configs(self) -> Sequence[_pc.DataSourceParameterConfig]:
         return list(self._data_source_params.values())
 
-    def __convert_datasource_params(self, df_dict: dict[str, pd.DataFrame]) -> None:
+    def __convert_datasource_params(self, df_dict: dict[str, pl.DataFrame]) -> None:
         done = set()
         for curr_name in self._data_source_params:
             stack = [curr_name] # Note: parents must be converted first before children
@@ -98,7 +98,7 @@ class ParameterConfigsSet:
                 
                 parent._add_child_mutate(param_config)
     
-    def _post_process_params(self, df_dict: dict[str, pd.DataFrame]) -> None:
+    def _post_process_params(self, df_dict: dict[str, pl.DataFrame]) -> None:
         self.__convert_datasource_params(df_dict)
         self.__validate_param_relationships()
     
@@ -154,8 +154,8 @@ class ParameterConfigsSetIO:
     obj: ParameterConfigsSet # this is static (set in load_from_file) to simplify development experience for pyconfigs/parameters.py
     
     @classmethod
-    def _get_df_dict_from_data_sources(cls, default_conn_name: str, seeds: Seeds, conn_set: ConnectionSet) -> dict[str, pd.DataFrame]:
-        def get_dataframe(ds_param_config: _pc.DataSourceParameterConfig) -> tuple[str, pd.DataFrame]:
+    def _get_df_dict_from_data_sources(cls, default_conn_name: str, seeds: Seeds, conn_set: ConnectionSet) -> dict[str, pl.DataFrame]:
+        def get_dataframe(ds_param_config: _pc.DataSourceParameterConfig) -> tuple[str, pl.DataFrame]:
             return ds_param_config.name, ds_param_config.get_dataframe(default_conn_name, conn_set, seeds)
         
         ds_param_configs = cls.obj._get_all_ds_param_configs()

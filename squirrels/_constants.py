@@ -1,5 +1,5 @@
 # Squirrels CLI commands
-INIT_CMD = 'init'
+INIT_CMD = 'new'
 GET_FILE_CMD = 'get-file'
 DEPS_CMD = 'deps'
 COMPILE_CMD = 'compile'
@@ -30,6 +30,7 @@ PACKAGES_FOLDER = 'sqrl_packages'
 MACROS_FOLDER = 'macros'
 
 MODELS_FOLDER = 'models'
+SOURCES_FILE = 'sources.yml'
 DBVIEWS_FOLDER = 'dbviews'
 DBVIEW_FILE_STEM = 'dbview_example'
 FEDERATES_FOLDER = 'federates'
@@ -48,15 +49,13 @@ TARGET_FOLDER = 'target'
 COMPILE_FOLDER = 'compile'
 
 SEEDS_FOLDER = 'seeds'
-CATEGORY_SEED_FILE = 'seed_categories.csv'
-SUBCATEGORY_SEED_FILE = 'seed_subcategories.csv'
+SEED_CATEGORY_FILE_STEM = 'seed_categories'
+SEED_SUBCATEGORY_FILE_STEM = 'seed_subcategories'
 
 # Dataset setting names
 AUTH_TOKEN_EXPIRE_SETTING = 'auth.token.expire_minutes'
 PARAMETERS_CACHE_SIZE_SETTING = 'parameters.cache.size'
 PARAMETERS_CACHE_TTL_SETTING = 'parameters.cache.ttl_minutes'
-RESULTS_CACHE_SIZE_SETTING = 'results.cache.size' # deprecated
-RESULTS_CACHE_TTL_SETTING = 'results.cache.ttl_minutes' # deprecated
 DATASETS_CACHE_SIZE_SETTING = 'datasets.cache.size'
 DATASETS_CACHE_TTL_SETTING = 'datasets.cache.ttl_minutes'
 DASHBOARDS_CACHE_SIZE_SETTING = 'dashboards.cache.size'
@@ -65,13 +64,8 @@ TEST_SET_DEFAULT_USED_SETTING = 'selection_test_sets.default_name_used'
 DEFAULT_TEST_SET_NAME = 'default'
 DB_CONN_DEFAULT_USED_SETTING = 'connections.default_name_used'
 DEFAULT_DB_CONN = 'default'
-DEFAULT_MATERIALIZE_SETTING = 'defaults.federates.materialized'
-DEFAULT_MATERIALIZE = 'table'
 SEEDS_INFER_SCHEMA_SETTING = 'seeds.infer_schema'
 SEEDS_NA_VALUES_SETTING = 'seeds.na_values'
-IN_MEMORY_DB_SETTING = 'in_memory_database'
-SQLITE = 'sqlite'
-DUCKDB = 'duckdb'
 
 # Selection cfg sections
 USER_ATTRIBUTES_SECTION = 'user_attributes'

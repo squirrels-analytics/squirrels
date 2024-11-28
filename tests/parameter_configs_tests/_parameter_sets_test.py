@@ -1,5 +1,5 @@
 from collections import OrderedDict
-import pytest, pandas as pd
+import pytest, polars as pl
 
 from squirrels import _parameter_sets as ps, parameters as p, _parameter_configs as _pc, parameter_options as _po, data_sources as d
 from squirrels import _utils as _u
@@ -84,17 +84,22 @@ def param_configs_set2(
     config_set = ps.ParameterConfigsSet()
     config_set.add(ss_config_with_ms_parent.copy())
 
-    datasource = d.SelectDataSource("ms_table", "my_id", "my_label", is_default_col="my_default_flag", 
-                                    user_group_col="my_user_group")
-    ms_ds_param = _pc.DataSourceParameterConfig(_pc.MultiSelectParameterConfig, ms_config_basic.name, ms_config_basic.label, datasource,
-                                               user_attribute=ms_config_basic.user_attribute)
+    datasource = d.SelectDataSource(
+        "ms_table", "my_id", "my_label", is_default_col="my_default_flag", user_group_col="my_user_group"
+    )
+    ms_ds_param = _pc.DataSourceParameterConfig(
+        _pc.MultiSelectParameterConfig, ms_config_basic.name, ms_config_basic.label, datasource, 
+        user_attribute=ms_config_basic.user_attribute
+    )
     config_set.add(ms_ds_param)
 
-    data_datasource = d.DateDataSource("date_table", "my_default", id_col="my_id", user_group_col="my_user_group", 
-                                       parent_id_col="my_parent_id")
-    date_ds_param = _pc.DataSourceParameterConfig(_pc.DateParameterConfig, date_config_with_parent.name, date_config_with_parent.label, 
-                                                 data_datasource, user_attribute=date_config_with_parent.user_attribute, 
-                                                 parent_name=ss_config_with_ms_parent.name)
+    data_datasource = d.DateDataSource(
+        "date_table", "my_default", id_col="my_id", user_group_col="my_user_group", parent_id_col="my_parent_id"
+    )
+    date_ds_param = _pc.DataSourceParameterConfig(
+        _pc.DateParameterConfig, date_config_with_parent.name, date_config_with_parent.label, data_datasource, 
+        user_attribute=date_config_with_parent.user_attribute, parent_name=ss_config_with_ms_parent.name
+    )
     config_set.add(date_ds_param)
 
     df_dict = {}
@@ -103,7 +108,7 @@ def param_configs_set2(
         return {"my_id": x._identifier, "my_label": x._label, "my_default_flag": int(x._is_default), "my_user_group": user_group}
     
     ms_data = [make_ms_option(x, user_group) for x in ms_config_basic.all_options for user_group in x._user_groups]
-    df_dict[ms_ds_param.name] = pd.DataFrame(ms_data)
+    df_dict[ms_ds_param.name] = pl.DataFrame(ms_data)
 
     def make_date_option(x: _po.DateParameterOption, user_group: str, parent_id: str):
         default_date = x._default_date.strftime("%Y-%m-%d")
@@ -113,7 +118,7 @@ def param_configs_set2(
         make_date_option(x, user_group, parent_id)
         for x in date_config_with_parent.all_options for user_group in x._user_groups for parent_id in x._parent_option_ids
     ]
-    df_dict[date_ds_param.name] = pd.DataFrame(date_data)
+    df_dict[date_ds_param.name] = pl.DataFrame(date_data)
     
     config_set._post_process_params(df_dict)
     return config_set

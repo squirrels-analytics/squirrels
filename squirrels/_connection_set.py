@@ -1,11 +1,12 @@
+from typing import Any
 from dataclasses import dataclass
 from sqlalchemy import Engine, create_engine
-import time, pandas as pd
+import time, polars as pl
 
 from . import _utils as u, _constants as c, _py_module as pm
 from .arguments.init_time_args import ConnectionsArgs
 from ._environcfg import EnvironConfig
-from ._manifest import ManifestConfig
+from ._manifest import ManifestConfig, ConnectionProperties, ConnectionType
 
 
 @dataclass
@@ -16,33 +17,42 @@ class ConnectionSet:
     Attributes:
         _engines: A dictionary of connection name to the corresponding sqlalchemy engine
     """
-    _engines: dict[str, Engine]
+    _connections: dict[str, Any]
 
-    def get_engines_as_dict(self):
-        return self._engines.copy()
+    def get_connections_as_dict(self):
+        return self._connections.copy()
     
-    def _get_engine(self, conn_name: str) -> Engine:
+    def _get_connection(self, conn_name: str) -> Engine:
         try:
-            connection_pool = self._engines[conn_name]
+            connection = self._connections[conn_name]
         except KeyError as e:
             raise u.ConfigurationError(f'Connection name "{conn_name}" was not configured') from e
-        return connection_pool
+        return connection
     
-    def run_sql_query_from_conn_name(self, query: str, conn_name: str, placeholders: dict = {}) -> pd.DataFrame:
-        engine = self._get_engine(conn_name)
+    def run_sql_query_from_conn_name(self, query: str, conn_name: str, placeholders: dict = {}) -> pl.DataFrame:
+        conn = self._get_connection(conn_name)
+        is_conn_arrow_based = isinstance(conn, ConnectionProperties) and (conn.type == ConnectionType.CONNECTORX or conn.type == ConnectionType.ADBC)
+        if is_conn_arrow_based and len(placeholders) > 0:
+            raise u.ConfigurationError(f"Connection '{conn_name}' is a ConnectorX or ADBC connection, which does not support placeholders")
+        
         try:
-            df = pd.read_sql(query, engine, params=placeholders)
+            if is_conn_arrow_based:
+                df = pl.read_database_uri(query, conn.uri, engine=conn.type.value)
+            else:
+                df = pl.read_database(query, conn, execute_options={"parameters": placeholders})
             return df
         except Exception as e:
             raise RuntimeError(e) from e
 
     def dispose(self) -> None:
         """
-        Disposes of all the engines in this ConnectionSet
+        Disposes / closes all the connections in this ConnectionSet
         """
-        for pool in self._engines.values():
-            if isinstance(pool, Engine):
-                pool.dispose()
+        for conn in self._connections.values():
+            if isinstance(conn, Engine):
+                conn.dispose()
+            if hasattr(conn, 'close') and callable(conn.close):
+                conn.close()
 
 
 class ConnectionSetIO:
@@ -68,13 +78,21 @@ class ConnectionSetIO:
             A ConnectionSet with the DB connections from both squirrels.yml and connections.py
         """
         start = time.time()
-        engines: dict[str, Engine] = {}
+        connections: dict[str, ConnectionProperties | Any] = {}
         
         for config in manifest_cfg.connections.values():
-            engines[config.name] = create_engine(config.url)
+            connections[config.name] = ConnectionProperties(type=config.type, uri=config.uri)
 
-        pm.run_pyconfig_main(base_path, c.CONNECTIONS_FILE, {"connections": engines, "sqrl": conn_args})
-        conn_set = ConnectionSet(engines)
+        pm.run_pyconfig_main(base_path, c.CONNECTIONS_FILE, {"connections": connections, "sqrl": conn_args})
+
+        finalized_connections = {}
+        for conn_name, conn_props in connections.items():
+            if isinstance(conn_props, ConnectionProperties) and conn_props.type == ConnectionType.SQLALCHEMY:
+                finalized_connections[conn_name] = create_engine(conn_props.uri)
+            else:
+                finalized_connections[conn_name] = conn_props
+
+        conn_set = ConnectionSet(finalized_connections)
 
         logger.log_activity_time("creating sqlalchemy engines", start)
         return conn_set

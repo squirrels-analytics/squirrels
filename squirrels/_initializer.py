@@ -8,7 +8,8 @@ base_proj_dir = u.Path(os.path.dirname(__file__), c.PACKAGE_DATA_FOLDER, c.BASE_
 
 
 class Initializer:
-    def __init__(self, *, overwrite: bool = False):
+    def __init__(self, *, project_name: Optional[str] = None, overwrite: bool = False):
+        self.project_name = project_name
         self.overwrite = overwrite
 
     def _path_exists(self, filepath: u.Path) -> bool:
@@ -26,27 +27,31 @@ class Initializer:
     def _copy_file(self, filepath: u.Path, *, src_folder: str = ""):
         src_path = u.Path(base_proj_dir, src_folder, filepath)
         
-        dest_dir = os.path.dirname(filepath)
+        filepath2 = u.Path(self.project_name, filepath) if self.project_name else filepath
+        dest_dir = os.path.dirname(filepath2)
         if dest_dir != "":
             os.makedirs(dest_dir, exist_ok=True)
         
         perform_copy = True
-        if self._path_exists(filepath):
-            old_filepath = filepath
-            if self._files_have_same_content(src_path, filepath):
+        if self._path_exists(filepath2):
+            old_filepath = filepath2
+            if self._files_have_same_content(src_path, filepath2):
                 perform_copy = False
                 extra_msg = "Skipping... file contents is same as source"
             elif self.overwrite:
                 extra_msg = "Overwriting file..."
             else:
-                filepath = self._add_timestamp_to_filename(old_filepath)
-                extra_msg = f'Creating file as "{filepath}" instead...'
+                filepath2 = self._add_timestamp_to_filename(old_filepath)
+                extra_msg = f'Creating file as "{filepath2}" instead...'
             print(f'File "{old_filepath}" already exists.', extra_msg)
         else:
-            print(f'Creating file "{filepath}"...')
+            print(f'Creating file "{filepath2}"...')
         
         if perform_copy:
-            shutil.copy(src_path, filepath)
+            shutil.copy(src_path, filepath2)
+
+    def _copy_models_file(self, filepath: str):
+        self._copy_file(u.Path(c.MODELS_FOLDER, filepath))
 
     def _copy_dbview_file(self, filepath: str):
         self._copy_file(u.Path(c.MODELS_FOLDER, c.DBVIEWS_FOLDER, filepath))
@@ -66,7 +71,7 @@ class Initializer:
     def _copy_dashboard_file(self, filepath: str):
         self._copy_file(u.Path(c.DASHBOARDS_FOLDER, filepath))
 
-    def _create_manifest_file(self, has_connections: bool, has_parameters: bool, has_dashboards: bool):
+    def _create_manifest_file(self, has_connections: bool, has_parameters: bool):
         TMP_FOLDER = "tmp"
 
         def get_content(file_name: Optional[str]) -> str:
@@ -79,7 +84,6 @@ class Initializer:
         file_name_dict = {
             "parameters": c.PARAMETERS_YML_FILE if has_parameters else None, 
             "connections": c.CONNECTIONS_YML_FILE if has_connections else None,
-            "dashboards": c.DASHBOARDS_YML_FILE if has_dashboards else None
         }
         substitutions = {key: get_content(val) for key, val in file_name_dict.items()}
         
@@ -92,8 +96,17 @@ class Initializer:
         self._copy_file(u.Path(c.MANIFEST_FILE), src_folder=TMP_FOLDER)
 
     def init_project(self, args):
-        options = ["core", "connections", "parameters", "dbview", "federate", "dashboard", "auth"]
-        _, CONNECTIONS, PARAMETERS, DBVIEW, FEDERATE, DASHBOARD, AUTH = options
+        options = ["core", "connections", "parameters", "federate", "dashboard", "auth"]
+        _, CONNECTIONS, PARAMETERS, FEDERATE, DASHBOARD, AUTH = options
+
+        # Add project name prompt if not provided
+        if self.project_name is None:
+            questions = [
+                inquirer.Text('project_name', message="What is your project name?")
+            ]
+            answers = inquirer.prompt(questions)
+            assert isinstance(answers, dict)
+            self.project_name = answers['project_name']
 
         answers = { x: getattr(args, x) for x in options }
         if not any(answers.values()):
@@ -103,9 +116,6 @@ class Initializer:
                 ),
                 inquirer.List(
                     PARAMETERS, message=f"How would you like to configure the parameters?", choices=c.CONF_FORMAT_CHOICES2
-                ),
-                inquirer.List(
-                    DBVIEW, message="What's the file format for the database view model?", choices=c.FILE_TYPE_CHOICES
                 ),
                 inquirer.List(
                     FEDERATE, message="What's the file format for the federated model?", choices=c.FILE_TYPE_CHOICES
@@ -141,14 +151,11 @@ class Initializer:
         parameters_use_yaml = (parameters_format == c.YML_FORMAT)
         parameters_use_py = (parameters_format == c.PYTHON_FORMAT)
 
-        dbview_format = get_answer(DBVIEW, c.SQL_FILE_TYPE)
-        if dbview_format == c.SQL_FILE_TYPE:
-            db_view_file = c.DBVIEW_FILE_STEM + ".sql"
-        elif dbview_format == c.PYTHON_FILE_TYPE:
-            db_view_file = c.DBVIEW_FILE_STEM + ".py"
-        else:
-            raise NotImplementedError(f"Dbview model format '{dbview_format}' not supported")
+        db_view_config_file = c.DBVIEW_FILE_STEM + ".yml"
+        db_view_file = c.DBVIEW_FILE_STEM + ".sql"
     
+        federate_config_file = c.FEDERATE_FILE_STEM + ".yml"
+
         federate_format = get_answer(FEDERATE, c.SQL_FILE_TYPE)
         if federate_format == c.SQL_FILE_TYPE:
             federate_file = c.FEDERATE_FILE_STEM + ".sql"
@@ -159,7 +166,7 @@ class Initializer:
 
         dashboards_enabled = get_answer(DASHBOARD, False)
 
-        self._create_manifest_file(connections_use_yaml, parameters_use_yaml, dashboards_enabled)
+        self._create_manifest_file(connections_use_yaml, parameters_use_yaml)
         
         self._copy_file(u.Path(".gitignore"))
         self._copy_file(u.Path(c.ENV_CONFIG_FILE))
@@ -179,14 +186,20 @@ class Initializer:
             raise NotImplementedError(f"Format '{parameters_format}' not supported for configuring widget parameters")
         
         self._copy_pyconfig_file(c.CONTEXT_FILE)
-        self._copy_seed_file(c.CATEGORY_SEED_FILE)
-        self._copy_seed_file(c.SUBCATEGORY_SEED_FILE)
+        self._copy_seed_file(c.SEED_CATEGORY_FILE_STEM + ".csv")
+        self._copy_seed_file(c.SEED_CATEGORY_FILE_STEM + ".yml")
+        self._copy_seed_file(c.SEED_SUBCATEGORY_FILE_STEM + ".csv")
+        self._copy_seed_file(c.SEED_SUBCATEGORY_FILE_STEM + ".yml")
 
+        self._copy_models_file(c.SOURCES_FILE)
         self._copy_dbview_file(db_view_file)
+        self._copy_dbview_file(db_view_config_file)
         self._copy_federate_file(federate_file)
+        self._copy_federate_file(federate_config_file)
         
         if dashboards_enabled:
             self._copy_dashboard_file(c.DASHBOARD_FILE_STEM + ".py")
+            self._copy_dashboard_file(c.DASHBOARD_FILE_STEM + ".yml")
         
         if get_answer(AUTH, False):
             self._copy_pyconfig_file(c.AUTH_FILE)
@@ -200,11 +213,13 @@ class Initializer:
             self._copy_file(u.Path(c.ENV_CONFIG_FILE))
             print("PLEASE ENSURE THE FILE IS INCLUDED IN .gitignore")
         elif args.file_name == c.MANIFEST_FILE:
-            self._create_manifest_file(not args.no_connections, args.parameters, args.dashboards)
+            self._create_manifest_file(not args.no_connections, args.parameters)
         elif args.file_name in (c.AUTH_FILE, c.CONNECTIONS_FILE, c.PARAMETERS_FILE, c.CONTEXT_FILE):
             self._copy_pyconfig_file(args.file_name)
+        elif args.file_name == c.SOURCES_FILE:
+            self._copy_models_file(args.file_name)
         elif args.file_name in (c.DBVIEW_FILE_STEM, c.FEDERATE_FILE_STEM):
-            if args.format == c.SQL_FILE_TYPE:
+            if args.file_name == c.DBVIEW_FILE_STEM or args.format == c.SQL_FILE_TYPE:
                 extension = ".sql"
             elif args.format == c.PYTHON_FILE_TYPE:
                 extension = ".py"
@@ -212,10 +227,15 @@ class Initializer:
                 raise NotImplementedError(f"Format '{args.format}' not supported for {args.file_name}")
             copy_method = self._copy_dbview_file if args.file_name == c.DBVIEW_FILE_STEM else self._copy_federate_file
             copy_method(args.file_name + extension)
+            copy_method(args.file_name + ".yml")
         elif args.file_name == c.DASHBOARD_FILE_STEM:
             self._copy_dashboard_file(args.file_name + ".py")
+            self._copy_dashboard_file(args.file_name + ".yml")
         elif args.file_name in (c.EXPENSES_DB, c.WEATHER_DB):
             self._copy_database_file(args.file_name)
+        elif args.file_name in (c.SEED_CATEGORY_FILE_STEM, c.SEED_SUBCATEGORY_FILE_STEM):
+            self._copy_seed_file(args.file_name + ".csv")
+            self._copy_seed_file(args.file_name + ".yml")
         else:
             raise NotImplementedError(f"File '{args.file_name}' not supported")
         

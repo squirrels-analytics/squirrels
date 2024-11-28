@@ -1,9 +1,9 @@
 import typing as _t, functools as _ft, asyncio as _aio, os as _os, shutil as _shutil, json as _json
-import logging as _l, uuid as _uu, matplotlib.pyplot as _plt, networkx as _nx, pandas as _pd
+import logging as _l, uuid as _uu, matplotlib.pyplot as _plt, networkx as _nx, polars as _pl
 
 from . import _utils as _u, _constants as _c, _environcfg as _ec, _manifest as _mf, _authenticator as _auth
 from . import _seeds as _s, _connection_set as _cs, _models as _m, _dashboards_io as _d, _parameter_sets as _ps
-from . import dashboards as _dash
+from . import _model_queries as _mq, dashboards as _dash
 
 T = _t.TypeVar('T', bound=_dash.Dashboard)
 
@@ -85,7 +85,7 @@ class SquirrelsProject:
     
     @property
     @_ft.cache
-    def _model_files(self) -> dict[str, _m.QueryFile]:
+    def _model_files(self) -> dict[_m.ModelType, dict[str, _mq.QueryFileWithConfig]]:
         return _m.ModelsIO.load_files(self._logger, self._filepath)
     
     @property
@@ -95,7 +95,7 @@ class SquirrelsProject:
     
     @property
     @_ft.cache
-    def _dashboards(self) -> dict[str, _d.DashboardFunction]:
+    def _dashboards(self) -> dict[str, _d.DashboardDefinition]:
         return _d.DashboardsIO.load_files(self._logger, self._filepath)
     
     @property
@@ -151,13 +151,18 @@ class SquirrelsProject:
     def __exit__(self, exc_type, exc_val, traceback):
         self.close()
     
-    def _generate_dag(self, dataset: str, *, target_model_name: str | None = None, always_pandas: bool = False) -> _m.DAG:
+    def _generate_dag(self, dataset: str, *, target_model_name: str | None = None, always_python_df: bool = False) -> _m.DAG:
         seeds_dict = self._seeds.get_dataframes()
 
-        models_dict: dict[str, _m.Referable] = {key: _m.Seed(key, df) for key, df in seeds_dict.items()}
-        for key, val in self._model_files.items():
-            models_dict[key] = _m.Model(key, val, self._manifest_cfg, self._conn_set, self._logger, j2_env=self._j2_env)
-            models_dict[key].needs_pandas = always_pandas
+        models_dict: dict[str, _m.Referable] = {key: _m.Seed(key, seed.config, seed.df) for key, seed in seeds_dict.items()}
+
+        for name, val in self._model_files[_m.ModelType.DBVIEW].items():
+            models_dict[name] = _m.DbviewModel(name, val.config, val.query_file, self._manifest_cfg, self._conn_set, logger=self._logger, j2_env=self._j2_env)
+            models_dict[name].needs_python_df = always_python_df
+        
+        for name, val in self._model_files[_m.ModelType.FEDERATE].items():
+            models_dict[name] = _m.FederateModel(name, val.config, val.query_file, self._manifest_cfg, self._conn_set, logger=self._logger, j2_env=self._j2_env)
+            models_dict[name].needs_python_df = always_python_df
         
         dataset_config = self._manifest_cfg.datasets[dataset]
         target_model_name = dataset_config.model if target_model_name is None else target_model_name
@@ -215,8 +220,8 @@ class SquirrelsProject:
         if dataset_conf.scope == _mf.DatasetScope.PRIVATE and not is_internal:
             raise _u.ConfigurationError(f"{error_msg_intro}\n Private datasets require a test set with user_attribute 'is_internal' set to true")
 
-        # always_pandas is set to True for creating CSV files from results (when runquery is True)
-        dag = self._generate_dag(dataset, target_model_name=select, always_pandas=True)
+        # always_python_df is set to True for creating CSV files from results (when runquery is True)
+        dag = self._generate_dag(dataset, target_model_name=select, always_python_df=runquery)
         placeholders = await dag.execute(self._param_args, self._param_cfg_set, self._context_func, user, selections, runquery=runquery, recurse=recurse)
         
         output_folder = _u.Path(self._filepath, _c.TARGET_FOLDER, _c.COMPILE_FOLDER, dataset, test_set)
@@ -230,18 +235,18 @@ class SquirrelsProject:
                 _json.dump(placeholders, f, indent=4)
         
         def write_model_outputs(model: _m.Referable) -> None:
-            assert isinstance(model, _m.Model)
-            subfolder = _c.DBVIEWS_FOLDER if model.query_file.model_type == _m.ModelType.DBVIEW else _c.FEDERATES_FOLDER
+            assert isinstance(model, _m.QueryModel)
+            subfolder = _c.DBVIEWS_FOLDER if model.model_type == _m.ModelType.DBVIEW else _c.FEDERATES_FOLDER
             subpath = _u.Path(output_folder, subfolder)
             _os.makedirs(subpath, exist_ok=True)
-            if isinstance(model.compiled_query, _m.SqlModelQuery):
+            if isinstance(model.compiled_query, _mq.SqlModelQuery):
                 output_filepath = _u.Path(subpath, model.name+'.sql')
                 query = model.compiled_query.query
                 with open(output_filepath, 'w') as f:
                     f.write(query)
-            if runquery and isinstance(model.result, _pd.DataFrame):
+            if runquery and isinstance(model.result, _pl.LazyFrame):
                 output_filepath = _u.Path(subpath, model.name+'.csv')
-                model.result.to_csv(output_filepath, index=False)
+                model.result.collect().write_csv(output_filepath)
 
         write_placeholders()
         all_model_names = dag.get_all_query_models()
@@ -251,8 +256,8 @@ class SquirrelsProject:
         if recurse:
             self._draw_dag(dag, output_folder)
         
-        if isinstance(dag.target_model, _m.Model) and dag.target_model.compiled_query is not None:
-            return dag.target_model.compiled_query.query # else return None
+        if isinstance(dag.target_model, _m.QueryModel) and dag.target_model.compiled_query is not None:
+            return dag.target_model.compiled_query.query
     
     async def compile(
         self, *, dataset: str | None = None, do_all_datasets: bool = False, selected_model: str | None = None, test_set: str | None = None, 
@@ -305,7 +310,7 @@ class SquirrelsProject:
         username = None if user is None else user.username
         return PermissionError(f"User '{username}' does not have permission to access {scope} {data_type}: {data_name}")
     
-    def seed(self, name: str) -> _pd.DataFrame:
+    def seed(self, name: str) -> _pl.DataFrame:
         """
         Method to retrieve a seed as a pandas DataFrame given a seed name.
 
@@ -317,21 +322,22 @@ class SquirrelsProject:
         """
         seeds_dict = self._seeds.get_dataframes()
         try:
-            return seeds_dict[name]
+            return seeds_dict[name].df
         except KeyError:
             available_seeds = list(seeds_dict.keys())
             raise KeyError(f"Seed '{name}' not found. Available seeds are: {available_seeds}")
     
     async def _dataset_helper(
         self, name: str, selections: dict[str, _t.Any], user: _auth.User | None
-    ) -> _pd.DataFrame:
+    ) -> _pl.DataFrame:
         dag = self._generate_dag(name)
         await dag.execute(self._param_args, self._param_cfg_set, self._context_func, user, dict(selections))
-        return _pd.DataFrame(dag.target_model.result)
+        assert isinstance(dag.target_model.result, _pl.LazyFrame)
+        return dag.target_model.result.collect()
     
     async def dataset(
         self, name: str, *, selections: dict[str, _t.Any] = {}, user: _auth.User | None = None
-    ) -> _pd.DataFrame:
+    ) -> _pl.DataFrame:
         """
         Async method to retrieve a dataset as a pandas DataFrame given parameter selections.
 
@@ -363,11 +369,11 @@ class SquirrelsProject:
         Returns:
             The dashboard type specified by the "dashboard_type" argument.
         """
-        scope = self._manifest_cfg.dashboards[name].scope
+        scope = self._dashboards[name].config.scope
         if not self._authenticator.can_user_access_scope(user, scope):
             raise self._permission_error(user, "dashboard", name, scope.name)
         
-        async def get_dataset(dataset_name: str, fixed_params: dict[str, _t.Any]) -> _pd.DataFrame:
+        async def get_dataset(dataset_name: str, fixed_params: dict[str, _t.Any]) -> _pl.DataFrame:
             final_selections = {**selections, **fixed_params}
             return await self._dataset_helper(dataset_name, final_selections, user)
         
