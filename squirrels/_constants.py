@@ -2,6 +2,7 @@
 INIT_CMD = 'new'
 GET_FILE_CMD = 'get-file'
 DEPS_CMD = 'deps'
+BUILD_CMD = 'build'
 COMPILE_CMD = 'compile'
 RUN_CMD = 'run'
 
@@ -47,6 +48,9 @@ PARAMETERS_FILE = 'parameters.py'
 
 TARGET_FOLDER = 'target'
 COMPILE_FOLDER = 'compile'
+DUCKDB_VENV_FILE = '.venv.duckdb'
+DUCKDB_DEV_FILE = '.dev.duckdb'
+DUCKDB_STG_FILE = '.stg.duckdb'
 
 SEEDS_FOLDER = 'seeds'
 SEED_CATEGORY_FILE_STEM = 'seed_categories'
@@ -91,7 +95,8 @@ PNG = "png"
 HTML = "html"
 
 # Function names
-GET_USER_FUNC = "get_user_if_valid"
+GET_USER_FROM_LOGIN_FUNC = "get_user_from_login"
+GET_USER_FROM_TOKEN_FUNC = "get_user_from_token"
 DEP_FUNC = "dependencies"
 MAIN_FUNC = "main"
 

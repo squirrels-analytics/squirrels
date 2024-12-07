@@ -4,27 +4,28 @@ from dataclasses import dataclass, field, KW_ONLY
 from abc import ABCMeta, abstractmethod
 from enum import Enum
 from pathlib import Path
-import asyncio, os, re, time, yaml, duckdb
+import asyncio, os, re, time, duckdb, sqlglot
 import polars as pl, pandas as pd, networkx as nx
 
-from . import _constants as c, _utils as u, _py_module as pm, _model_queries as mq, _model_configs as mc
+from . import _constants as c, _utils as u, _py_module as pm, _model_queries as mq, _model_configs as mc, _sources as src
 from .arguments.run_time_args import ContextArgs, ModelArgs
 from ._authenticator import User
-from ._connection_set import ConnectionSet
-from ._manifest import ManifestConfig, DatasetConfig
+from ._connection_set import ConnectionSet, ConnectionProperties
+from ._manifest import Settings, DatasetConfig
 from ._parameter_sets import ParameterConfigsSet, ParametersArgs, ParameterSet
 
 ContextFunc = Callable[[dict[str, Any], ContextArgs], None]
 
 
 class ModelType(Enum):
+    SOURCE = "source"
     DBVIEW = "dbview"
     FEDERATE = "federate"
     SEED = "seed"
 
 
 @dataclass
-class Referable(metaclass=ABCMeta):
+class DataModel(metaclass=ABCMeta):
     name: str
     model_config: mc.ModelConfig
     is_target: bool = field(default=False, init=False)
@@ -34,8 +35,13 @@ class Referable(metaclass=ABCMeta):
 
     wait_count: int = field(default=0, init=False, repr=False)
     confirmed_no_cycles: bool = field(default=False, init=False)
-    upstreams: dict[str, Referable] = field(default_factory=dict, init=False, repr=False)
-    downstreams: dict[str, Referable] = field(default_factory=dict, init=False, repr=False)
+    upstreams: dict[str, DataModel] = field(default_factory=dict, init=False, repr=False)
+    downstreams: dict[str, DataModel] = field(default_factory=dict, init=False, repr=False)
+
+    _: KW_ONLY
+    logger: u.Logger = field(default_factory=lambda: u.Logger(""))
+    settings: Settings = field(default_factory=lambda: Settings(data={}))
+    conn_set: ConnectionSet = field(default_factory=ConnectionSet)
 
     @property
     @abstractmethod
@@ -43,7 +49,7 @@ class Referable(metaclass=ABCMeta):
         pass
 
     async def compile(
-        self, ctx: dict[str, Any], ctx_args: ContextArgs, placeholders: dict[str, Any], models_dict: dict[str, Referable], recurse: bool
+        self, ctx: dict[str, Any], ctx_args: ContextArgs, placeholders: dict[str, Any], models_dict: dict[str, DataModel], recurse: bool
     ) -> None:
         pass
 
@@ -66,20 +72,23 @@ class Referable(metaclass=ABCMeta):
         
         self.confirmed_no_cycles = True
         return terminal_nodes
-
-    def _register_python_df_to_duckdb(self, df: pl.LazyFrame, conn: duckdb.DuckDBPyConnection) -> None:
-        conn.register(self.name, df)
             
-    def _load_duckdb_view_to_python_df(self, conn: duckdb.DuckDBPyConnection) -> pl.LazyFrame:
-        query = f"SELECT * FROM {self.name}"
-        return conn.sql(query).pl().lazy()
+    def _load_duckdb_view_to_python_df(self, conn: duckdb.DuckDBPyConnection, *, use_venv: bool = False) -> pl.LazyFrame:
+        table_name = ("venv." if use_venv else "") + self.name
+        try:
+            return conn.table(table_name).pl().lazy()
+        except duckdb.CatalogException as e:
+            raise u.ConfigurationError(f'Failed to load duckdb table or view "{self.name}" to python dataframe') from e
+    
+    def _run_sql_query_on_connection(self, connection_name: str, query: str, placeholders: dict = {}) -> pl.DataFrame:
+        self.logger.info(f"Running sql query on connection '{connection_name}': {query}")
+        return self.conn_set.run_sql_query_from_conn_name(query, connection_name, placeholders)
     
     async def _trigger(self, conn: duckdb.DuckDBPyConnection, placeholders: dict = {}) -> None:
         self.wait_count -= 1
         if (self.wait_count == 0):
             await self.run_model(conn, placeholders)
     
-    @abstractmethod
     async def run_model(self, conn: duckdb.DuckDBPyConnection, placeholders: dict = {}) -> None:
         coroutines = []
         for model in self.downstreams.values():
@@ -88,6 +97,13 @@ class Referable(metaclass=ABCMeta):
     
     def retrieve_dependent_query_models(self, dependent_model_names: set[str]) -> None:
         pass
+
+    def register_all_upstream_python_df(self, conn: duckdb.DuckDBPyConnection) -> None:
+        show_table_query = f"FROM (SHOW TABLES) WHERE name = '{self.name}'"
+        if self.result is not None and conn.sql(show_table_query).fetchone() is None:
+            conn.register(self.name, self.result)
+        for dep_model in self.upstreams.values():
+            dep_model.register_all_upstream_python_df(conn)
 
     def get_max_path_length_to_target(self) -> int | None:
         if not hasattr(self, "max_path_len_to_target"):
@@ -103,7 +119,7 @@ class Referable(metaclass=ABCMeta):
 
 
 @dataclass
-class Seed(Referable):
+class Seed(DataModel):
     model_config: mc.SeedConfig
     result: pl.LazyFrame
 
@@ -111,24 +127,44 @@ class Seed(Referable):
     def model_type(self) -> ModelType:
         return ModelType.SEED
 
+
+@dataclass
+class SourceModel(DataModel):
+    model_config: src.Source
+
+    @property
+    def model_type(self) -> ModelType:
+        return ModelType.SOURCE
+    
+    def _get_result(self, conn: duckdb.DuckDBPyConnection) -> pl.LazyFrame:
+        local_conn = conn.cursor()
+        try:
+            return self._load_duckdb_view_to_python_df(local_conn, use_venv=True)
+        except Exception as e:
+            query = f"SELECT * FROM {self.model_config.get_table()}"
+            connection_name = self.model_config.get_connection(self.settings)
+            return self._run_sql_query_on_connection(connection_name, query).lazy()
+    
     async def run_model(self, conn: duckdb.DuckDBPyConnection, placeholders: dict = {}) -> None:
-        self._register_python_df_to_duckdb(self.result, conn)
+        start = time.time()
+
+        if self.needs_python_df or self.is_target:
+            self.result = await asyncio.to_thread(self._get_result, conn)
+        
+        self.logger.log_activity_time(f"running source model '{self.name}'", start)
+
         await super().run_model(conn, placeholders)
 
 
 @dataclass
-class QueryModel(Referable):
+class QueryModel(DataModel):
     query_file: mq.QueryFile
     compiled_query: mq.Query | None = field(default=None, init=False)
-
-    manifest_cfg: ManifestConfig
-    conn_set: ConnectionSet
     _: KW_ONLY
-    logger: u.Logger = field(default_factory=lambda: u.Logger(""))
     j2_env: u.j2.Environment = field(default_factory=lambda: u.j2.Environment(loader=u.j2.FileSystemLoader(".")))
 
     def _get_compile_sql_model_args(
-        self, ctx: dict[str, Any], ctx_args: ContextArgs, placeholders: dict[str, Any], models_dict: dict[str, Referable]
+        self, ctx: dict[str, Any], ctx_args: ContextArgs, placeholders: dict[str, Any], models_dict: dict[str, DataModel]
     ) -> dict[str, Any]:
         is_placeholder = lambda placeholder: placeholder in placeholders
         kwargs = {
@@ -158,45 +194,94 @@ class DbviewModel(QueryModel):
     model_config: mc.DbviewModelConfig
     query_file: mq.SqlQueryFile
     compiled_query: mq.SqlModelQuery | None = field(default=None, init=False)
+    sources: dict[str, src.Source] = field(default_factory=dict, init=False)
 
     @property
     def model_type(self) -> ModelType:
         return ModelType.DBVIEW
 
-    def _compile_sql_model(
-        self, ctx: dict[str, Any], ctx_args: ContextArgs, placeholders: dict[str, Any], models_dict: dict[str, Referable]
-    ) -> mq.SqlModelQuery:
-        kwargs = self._get_compile_sql_model_args(ctx, ctx_args, placeholders, models_dict)
+    def _get_compile_sql_model_args(
+        self, ctx: dict[str, Any], ctx_args: ContextArgs, placeholders: dict[str, Any], models_dict: dict[str, DataModel]
+    ) -> dict[str, Any]:
+        kwargs = super()._get_compile_sql_model_args(ctx, ctx_args, placeholders, models_dict)
+        
+        def source(source_name: str) -> str:
+            if source_name not in models_dict or not isinstance(source_model := models_dict[source_name], SourceModel):
+                raise u.ConfigurationError(f'Dbview "{self.name}" references unknown source "{source_name}"')
+            if source_model.model_config.get_connection(self.settings) != self.model_config.get_connection(self.settings):
+                raise u.ConfigurationError(f'Dbview "{self.name}" references source "{source_name}" with different connection')
+            self.model_config.depends_on.add(source_name)
+            self.sources[source_name] = source_model.model_config
+            return "{{ source(\"" + source_name + "\") }}"
+        
+        kwargs["source"] = source
+        return kwargs
+
+    def _compile_sql_model(self, kwargs: dict[str, Any]) -> mq.SqlModelQuery:
         compiled_query_str = self._get_compiled_sql_query_str(self.query_file.raw_query, kwargs)
         compiled_query = mq.SqlModelQuery(compiled_query_str)
         return compiled_query
     
     async def compile(
-        self, ctx: dict[str, Any], ctx_args: ContextArgs, placeholders: dict[str, Any], models_dict: dict[str, Referable], recurse: bool
+        self, ctx: dict[str, Any], ctx_args: ContextArgs, placeholders: dict[str, Any], models_dict: dict[str, DataModel], recurse: bool
     ) -> None:
         if self.compiled_query is not None:
             return
+        else:
+            self.compiled_query = mq.WorkInProgress() # type: ignore
         
         start = time.time()
-
-        self.compiled_query = mq.WorkInProgress()
-        self.compiled_query = self._compile_sql_model(ctx, ctx_args, placeholders, models_dict)
+        
+        kwargs = self._get_compile_sql_model_args(ctx, ctx_args, placeholders, models_dict)
+        self.compiled_query = self._compile_sql_model(kwargs)
         
         self.logger.log_activity_time(f"compiling dbview model '{self.name}'", start)
     
+    def _get_duckdb_query(self, read_dialect: str, query: str) -> str:
+        kwargs = {
+            "source": lambda source_name: "venv." + source_name
+        }
+        compiled_query = self._get_compiled_sql_query_str(query, kwargs)
+        return sqlglot.transpile(compiled_query, read=read_dialect, write="duckdb")[0]
+    
     async def _run_sql_model(self, conn: duckdb.DuckDBPyConnection, placeholders: dict = {}) -> None:
+        assert self.compiled_query is not None
         query = self.compiled_query.query
-        default_connection_name = self.manifest_cfg.settings_obj.get_default_connection_name()
-        connection_name = self.model_config.connection if self.model_config.connection else default_connection_name
+        
+        kwargs = {
+            "source": lambda source_name: self.sources[source_name].get_table()
+        }
+        compiled_query = self._get_compiled_sql_query_str(query, kwargs)
 
-        def run_sql_query():
+        connection_name = self.model_config.get_connection(self.settings)
+        connection_props = self.conn_set.get_connection(connection_name)
+        if isinstance(connection_props, ConnectionProperties):
+            kwargs2 = {
+                "source": lambda source_name: "venv." + source_name
+            }
+            compiled_query2 = self._get_compiled_sql_query_str(query, kwargs2)
+            duckdb_query = self._get_duckdb_query(connection_props.dialect, compiled_query2)
+        else:
+            duckdb_query = None
+        
+        def run_sql_query_on_connection(duckdb_query: str | None, query: str, placeholders: dict) -> pl.DataFrame:
+            if duckdb_query is not None:
+                local_conn = conn.cursor()
+                try:
+                    self.logger.info(f"Running duckdb query: {duckdb_query}")
+                    return local_conn.sql(duckdb_query, params=placeholders).pl()
+                except Exception as e:
+                    pass # will try to run query on connection instead
+                finally:
+                    local_conn.close()
+                
             try:
-                return self.conn_set.run_sql_query_from_conn_name(query, connection_name, placeholders)
+                return self._run_sql_query_on_connection(connection_name, query, placeholders)
             except RuntimeError as e:
                 raise u.FileExecutionError(f'Failed to run dbview sql model "{self.name}"', e) from e
         
-        self.result = await asyncio.to_thread(run_sql_query)
-        self._register_python_df_to_duckdb(self.result, conn)
+        result = await asyncio.to_thread(run_sql_query_on_connection, duckdb_query, compiled_query, placeholders)
+        self.result = result.lazy()
 
     async def run_model(self, conn: duckdb.DuckDBPyConnection, placeholders: dict = {}) -> None:
         start = time.time()
@@ -218,7 +303,7 @@ class FederateModel(QueryModel):
     def model_type(self) -> ModelType:
         return ModelType.FEDERATE
 
-    def _add_upstream(self, other: Referable) -> None:
+    def _add_upstream(self, other: DataModel) -> None:
         self.upstreams[other.name] = other
         other.downstreams[self.name] = self
         
@@ -226,7 +311,7 @@ class FederateModel(QueryModel):
             other.needs_python_df = True
 
     def _get_compile_sql_model_args(
-        self, ctx: dict[str, Any], ctx_args: ContextArgs, placeholders: dict[str, Any], models_dict: dict[str, Referable]
+        self, ctx: dict[str, Any], ctx_args: ContextArgs, placeholders: dict[str, Any], models_dict: dict[str, DataModel]
     ) -> dict[str, Any]:
         kwargs = super()._get_compile_sql_model_args(ctx, ctx_args, placeholders, models_dict)
         
@@ -234,20 +319,21 @@ class FederateModel(QueryModel):
             if dependent_model_name not in models_dict:
                 raise u.ConfigurationError(f'Model "{self.name}" references unknown model "{dependent_model_name}"')
             self.model_config.depends_on.add(dependent_model_name)
-            return dependent_model_name
+            prefix = "venv." if isinstance(models_dict[dependent_model_name], SourceModel) else ""
+            return prefix + dependent_model_name
         
         kwargs["ref"] = ref
         return kwargs
 
     def _compile_sql_model(
-        self, ctx: dict[str, Any], ctx_args: ContextArgs, placeholders: dict[str, Any], models_dict: dict[str, Referable]
+        self, query_file: mq.SqlQueryFile, ctx: dict[str, Any], ctx_args: ContextArgs, placeholders: dict[str, Any], models_dict: dict[str, DataModel]
     ) -> mq.SqlModelQuery:
         kwargs = self._get_compile_sql_model_args(ctx, ctx_args, placeholders, models_dict)
-        compiled_query_str = self._get_compiled_sql_query_str(self.query_file.raw_query, kwargs)
+        compiled_query_str = self._get_compiled_sql_query_str(query_file.raw_query, kwargs)
         compiled_query = mq.SqlModelQuery(compiled_query_str)
         return compiled_query
     
-    def _get_python_model_args(self, ctx: dict[str, Any], ctx_args: ContextArgs, placeholders: dict[str, Any]) -> dict[str, Any]:
+    def _get_python_model_args(self, ctx: dict[str, Any], ctx_args: ContextArgs, placeholders: dict[str, Any]) -> ModelArgs:
         dependencies = self.model_config.depends_on
         connections = self.conn_set.get_connections_as_dict()
 
@@ -258,41 +344,41 @@ class FederateModel(QueryModel):
             assert df is not None
             return df
         
-        def run_external_sql(sql_query: str, connection_name: str | None):
-            return self.conn_set.run_sql_query_from_conn_name(sql_query, connection_name, placeholders)
+        def run_external_sql(connection_name: str, sql_query: str):
+            return self._run_sql_query_on_connection(connection_name, sql_query, placeholders)
         
         return ModelArgs(
-            ctx_args.proj_vars, ctx_args.env_vars, ctx_args.user, ctx_args.prms, ctx_args.traits, placeholders, ctx, 
-            connections, dependencies, ref, run_external_sql
+            ctx_args.proj_vars, ctx_args.env_vars, ctx_args.user, ctx_args.prms, ctx_args.traits, placeholders, 
+            connections, ctx, dependencies, ref, run_external_sql
         )
 
     def _compile_python_model(
-        self, ctx: dict[str, Any], ctx_args: ContextArgs, placeholders: dict[str, Any], models_dict: dict[str, Referable]
+        self, query_file: mq.PyQueryFile, ctx: dict[str, Any], ctx_args: ContextArgs, placeholders: dict[str, Any], models_dict: dict[str, DataModel]
     ) -> mq.PyModelQuery:
         sqrl_args = self._get_python_model_args(ctx, ctx_args, placeholders)
             
         def compiled_query() -> pl.LazyFrame | pd.DataFrame:
             try:
-                raw_query: Callable[[ModelArgs], pl.LazyFrame | pd.DataFrame] = self.query_file.raw_query
-                return raw_query(sqrl_args)
+                return query_file.raw_query(sqrl_args)
             except Exception as e:
                 raise u.FileExecutionError(f'Failed to run "{c.MAIN_FUNC}" function for python model "{self.name}"', e) from e
         
         return mq.PyModelQuery(compiled_query)
     
     async def compile(
-        self, ctx: dict[str, Any], ctx_args: ContextArgs, placeholders: dict[str, Any], models_dict: dict[str, Referable], recurse: bool
+        self, ctx: dict[str, Any], ctx_args: ContextArgs, placeholders: dict[str, Any], models_dict: dict[str, DataModel], recurse: bool
     ) -> None:
         if self.compiled_query is not None:
             return
+        else:
+            self.compiled_query = mq.WorkInProgress() # type: ignore
         
         start = time.time()
-        self.compiled_query = mq.WorkInProgress()
 
         if isinstance(self.query_file, mq.SqlQueryFile):
-            self.compiled_query = self._compile_sql_model(ctx, ctx_args, placeholders, models_dict)
+            self.compiled_query = self._compile_sql_model(self.query_file, ctx, ctx_args, placeholders, models_dict)
         elif isinstance(self.query_file, mq.PyQueryFile):
-            self.compiled_query = self._compile_python_model(ctx, ctx_args, placeholders, models_dict)
+            self.compiled_query = self._compile_python_model(self.query_file, ctx, ctx_args, placeholders, models_dict)
         else:
             raise NotImplementedError(f"Query type not supported: {self.query_file.__class__.__name__}")
         
@@ -312,8 +398,10 @@ class FederateModel(QueryModel):
             coroutines.append(coro)
         await asyncio.gather(*coroutines)
 
-    async def _run_sql_model(self, conn: duckdb.DuckDBPyConnection, placeholders: dict = {}) -> None:
-        query = self.compiled_query.query
+    async def _run_sql_model(self, compiled_query: mq.SqlModelQuery, conn: duckdb.DuckDBPyConnection, placeholders: dict = {}) -> None:
+        local_conn = conn.cursor()
+        self.register_all_upstream_python_df(local_conn)
+        query = compiled_query.query
 
         def create_table():
             placeholer_exists = lambda key: re.search(r"\$" + key + r"(?!\w)", query)
@@ -321,31 +409,30 @@ class FederateModel(QueryModel):
 
             create_query = self.model_config.get_sql_for_create(self.name, query)
             try:
-                return conn.execute(create_query, existing_placeholders)
+                return local_conn.execute(create_query, existing_placeholders)
             except Exception as e:
                 raise u.FileExecutionError(f'Failed to run federate sql model "{self.name}"', e) from e
         
         await asyncio.to_thread(create_table)
         if self.needs_python_df or self.is_target:
-            self.result = await asyncio.to_thread(self._load_duckdb_view_to_python_df, conn)
+            self.result = await asyncio.to_thread(self._load_duckdb_view_to_python_df, local_conn)
 
-    async def _run_python_model(self, conn: duckdb.DuckDBPyConnection) -> None:
-        query_result = await asyncio.to_thread(self.compiled_query.query)
+    async def _run_python_model(self, compiled_query: mq.PyModelQuery) -> None:
+        query_result = await asyncio.to_thread(compiled_query.query)
         if isinstance(query_result, pd.DataFrame):
             query_result = pl.from_pandas(query_result)
         if isinstance(query_result, pl.DataFrame):
             query_result = query_result.lazy()
         
         self.result = query_result
-        self._register_python_df_to_duckdb(query_result, conn)
 
     async def run_model(self, conn: duckdb.DuckDBPyConnection, placeholders: dict = {}) -> None:
         start = time.time()
         
         if isinstance(self.compiled_query, mq.SqlModelQuery):
-            await self._run_sql_model(conn, placeholders)
+            await self._run_sql_model(self.compiled_query, conn, placeholders)
         elif isinstance(self.compiled_query, mq.PyModelQuery):
-            await self._run_python_model(conn)
+            await self._run_python_model(self.compiled_query)
         else:
             raise NotImplementedError(f"Query type not supported: {self.query_file.__class__.__name__}")
         
@@ -356,10 +443,10 @@ class FederateModel(QueryModel):
 
 @dataclass
 class DAG:
-    manifest_cfg: ManifestConfig
     dataset: DatasetConfig
-    target_model: Referable
-    models_dict: dict[str, Referable]
+    target_model: DataModel
+    models_dict: dict[str, DataModel]
+    duckdb_filepath: str = field(default="")
     logger: u.Logger = field(default_factory=lambda: u.Logger(""))
     parameter_set: ParameterSet | None = field(default=None, init=False) # set in apply_selections
     placeholders: dict[str, Any] = field(init=False, default_factory=dict)
@@ -400,13 +487,27 @@ class DAG:
         return terminal_nodes
 
     async def _run_models(self, terminal_nodes: set[str], placeholders: dict = {}) -> None:
+        try:
+            # create an empty duckdb venv file if it does not exist
+            conn = duckdb.connect(self.duckdb_filepath)
+            conn.close()
+        except duckdb.IOException as e:
+            pass # unable to create duckdb venv file means it already exists
+        
         conn = duckdb.connect()
         try:
+            read_only = "(READ_ONLY)" if self.duckdb_filepath else ""
+            try:
+                conn.execute(f"ATTACH '{self.duckdb_filepath}' AS venv {read_only}")
+            except duckdb.IOException as e:
+                pass # ignore if file does not exist
+            
             coroutines = []
             for model_name in terminal_nodes:
                 model = self.models_dict[model_name]
                 coroutines.append(model.run_model(conn, placeholders))
             await asyncio.gather(*coroutines)
+            
         finally:
             conn.close()
     
@@ -473,19 +574,18 @@ class ModelsIO:
             filepath = Path(dp, file)
             file_stem, extension = os.path.splitext(file)
             
-            # Skip files that are not query files
-            if extension not in ['.py', '.sql']:
-                return
-            
             if extension == '.py':
                 module = pm.PyModule(filepath)
                 raw_query = module.get_func_or_class(c.MAIN_FUNC)
                 query_file = mq.PyQueryFile(filepath.as_posix(), raw_query)
             elif extension == '.sql':
                 query_file = mq.SqlQueryFile(filepath.as_posix(), filepath.read_text())
+            else:
+                return # Skip files that are not query files
                 
             if file_stem in raw_queries_by_model:
-                conflicts = [raw_queries_by_model[file_stem].filepath, filepath]
+                assert isinstance(prior_query_file := raw_queries_by_model[file_stem].query_file, mq.QueryFile)
+                conflicts = [prior_query_file.filepath, query_file.filepath]
                 raise u.ConfigurationError(f"Multiple models found for '{file_stem}': {conflicts}")
             
             model_config = load_model_config(filepath, model_type)

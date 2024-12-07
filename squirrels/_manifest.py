@@ -1,10 +1,13 @@
+from functools import cached_property
 from typing import Any
+from urllib.parse import urlparse
+from sqlalchemy import Engine, create_engine
 from typing_extensions import Self
 from enum import Enum
 from pydantic import BaseModel, Field, field_validator, model_validator, ValidationInfo, ValidationError
 import yaml, time
 
-from . import _constants as c, _utils as _u
+from . import _constants as c, _utils as u
 from ._environcfg import EnvironConfig
 
 
@@ -53,6 +56,55 @@ class ConnectionProperties(BaseModel):
     type: ConnectionType
     uri: str
 
+    @cached_property
+    def engine(self) -> Engine:
+        """
+        Creates and caches a SQLAlchemy engine if the connection type is sqlalchemy.
+        Returns None for other connection types.
+        """
+        if self.type == ConnectionType.SQLALCHEMY:
+            return create_engine(self.uri)
+        else:
+            raise ValueError(f'Connection type "{self.type}" does not support engine property')
+
+    @cached_property
+    def dialect(self) -> str:
+        if self.type == ConnectionType.SQLALCHEMY:
+            dialect = self.engine.dialect.name
+        else:
+            url = urlparse(self.uri)
+            dialect = url.scheme
+        
+        processed_dialect = next((d for d in ['sqlite', 'postgres', 'mysql'] if dialect.lower().startswith(d)), None)
+        dialect = processed_dialect if processed_dialect is not None else dialect
+        return dialect
+    
+    @cached_property
+    def attach_uri_for_duckdb(self) -> str | None:
+        if self.type == ConnectionType.SQLALCHEMY:
+            url = self.engine.url
+            host = url.host
+            port = url.port
+            username = url.username
+            password = url.password
+            database = url.database
+            sqlite_database = database if database is not None else ""
+        else:
+            url = urlparse(self.uri)
+            host = url.hostname
+            port = url.port
+            username = url.username
+            password = url.password
+            database = url.path.lstrip('/')
+            sqlite_database = self.uri.replace(f"{self.dialect}://", "")
+        
+        if self.dialect == 'sqlite':
+            return sqlite_database
+        elif self.dialect in ('postgres', 'mysql'):
+            return f"dbname={database} user={username} password={password} host={host} port={port}"
+        else:
+            return None
+
 
 class DbConnConfig(ConnectionProperties, _ConfigWithNameBaseModel):
     def finalize_uri(self, base_path: str) -> Self:
@@ -74,7 +126,7 @@ class FederateConfig(_ConfigWithNameBaseModel):
     materialized: str | None = None
 
 
-class DatasetScope(Enum):
+class PermissionScope(Enum):
     PUBLIC = 0
     PROTECTED = 1
     PRIVATE = 2
@@ -83,7 +135,7 @@ class DatasetScope(Enum):
 class AnalyticsOutputConfig(_ConfigWithNameBaseModel):
     label: str = ""
     description: str = ""
-    scope: DatasetScope = DatasetScope.PUBLIC
+    scope: PermissionScope = PermissionScope.PUBLIC
     parameters: list[str] = Field(default_factory=list)
 
     @model_validator(mode="after")
@@ -94,12 +146,12 @@ class AnalyticsOutputConfig(_ConfigWithNameBaseModel):
 
     @field_validator("scope", mode="before")
     @classmethod
-    def validate_scope(cls, value: str, info: ValidationInfo) -> DatasetScope:
+    def validate_scope(cls, value: str, info: ValidationInfo) -> PermissionScope:
         try:
-            return DatasetScope[str(value).upper()]
+            return PermissionScope[str(value).upper()]
         except KeyError as e:
             name = info.data.get("name")
-            scope_list = [scope.name.lower() for scope in DatasetScope]
+            scope_list = [scope.name.lower() for scope in PermissionScope]
             raise ValueError(f'Scope "{value}" is invalid for dataset/dashboard "{name}". Scope must be one of {scope_list}') from e
 
 
@@ -206,17 +258,17 @@ class ManifestConfig(BaseModel):
 class ManifestIO:
 
     @classmethod
-    def load_from_file(cls, logger: _u.Logger, base_path: str, env_cfg: EnvironConfig) -> ManifestConfig:
+    def load_from_file(cls, logger: u.Logger, base_path: str, env_cfg: EnvironConfig) -> ManifestConfig:
         start = time.time()
 
-        raw_content = _u.read_file(_u.Path(base_path, c.MANIFEST_FILE))
+        raw_content = u.read_file(u.Path(base_path, c.MANIFEST_FILE))
         env_vars = env_cfg.get_all_env_vars()
-        content = _u.render_string(raw_content, base_path=base_path, env_vars=env_vars)
+        content = u.render_string(raw_content, base_path=base_path, env_vars=env_vars)
         manifest_content = yaml.safe_load(content)
         try:
             manifest_cfg = ManifestConfig(base_path=base_path, env_cfg=env_cfg, **manifest_content)
         except ValidationError as e:
-            raise _u.ConfigurationError(f"Failed to process {c.MANIFEST_FILE} file. " + str(e)) from e
+            raise u.ConfigurationError(f"Failed to process {c.MANIFEST_FILE} file. " + str(e)) from e
         
         logger.log_activity_time(f"loading {c.MANIFEST_FILE} file", start)
         return manifest_cfg

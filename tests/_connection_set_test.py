@@ -2,7 +2,7 @@ from sqlalchemy import create_engine
 import polars as pl
 import pytest
 
-from squirrels import _connection_set as cs, _utils as _u
+from squirrels import _connection_set as cs, _utils as u
 
 
 @pytest.fixture(scope="module")
@@ -26,8 +26,8 @@ def connection_set():
 
 
 def test_get_connection_pool(connection_set: cs.ConnectionSet):
-    with pytest.raises(_u.ConfigurationError):
-        connection_set._get_connection('does_not_exist')
+    with pytest.raises(u.ConfigurationError):
+        connection_set.get_connection('does_not_exist')
 
 
 def test_run_sql_query_from_conn_name(connection_set: cs.ConnectionSet):

@@ -9,25 +9,23 @@ from . import _constants as c
 FilePath = Union[str, Path]
 
 # Polars
-type_to_polars_dtype = {
-    "str": pl.String,
-    "string": pl.String,
-    "int": pl.Int64,
-    "integer": pl.Int64,
-    "int8": pl.Int8,
-    "int16": pl.Int16,
-    "int32": pl.Int32,
-    "int64": pl.Int64,
-    "float": pl.Float64,
-    "float32": pl.Float32,
-    "float64": pl.Float64,
-    "bool": pl.Boolean,
-    "boolean": pl.Boolean,
-    "date": pl.Date,
-    "time": pl.Time,
-    "datetime": pl.Datetime,
-    "timestamp": pl.Datetime,
+polars_dtypes_to_sqrl_dtypes: dict[type[pl.DataType], list[str]] = {
+    pl.String: ["string", "varchar", "char", "text"],
+    pl.Int8: ["tinyint", "int1"],
+    pl.Int16: ["smallint", "short", "int2"],
+    pl.Int32: ["integer", "int", "int4"],
+    pl.Int64: ["bigint", "long", "int8"],
+    pl.Float32: ["float", "float4", "real"],
+    pl.Float64: ["double", "float8"],
+    pl.Boolean: ["boolean", "bool", "logical"],
+    pl.Date: ["date"],
+    pl.Time: ["time"],
+    pl.Datetime: ["timestamp", "datetime"],
+    pl.Duration: ["interval"],
+    pl.Binary: ["blob", "binary", "varbinary"]
 }
+
+sqrl_dtypes_to_polars_dtypes: dict[str, type[pl.DataType]] = {sqrl_type: k for k, v in polars_dtypes_to_sqrl_dtypes.items() for sqrl_type in v}
 
 
 ## Custom Exceptions

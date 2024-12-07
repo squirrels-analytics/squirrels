@@ -9,7 +9,7 @@ from .arguments.init_time_args import ParametersArgs
 from ._manifest import ParametersConfig, ManifestConfig
 from ._connection_set import ConnectionSet, ConnectionsArgs
 from ._seeds import Seeds
-from .user_base import User
+from ._user_base import User
 
 
 @dataclass

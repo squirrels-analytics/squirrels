@@ -4,7 +4,7 @@ from decimal import Decimal
 import pytest, polars as pl
 
 from squirrels import _parameter_configs as _pc, parameters as p, parameter_options as _po, data_sources as ds
-from squirrels import _model_configs as mc, _connection_set as cs, _seeds as s, _utils as _u
+from squirrels import _model_configs as mc, _seeds as s, _utils as u
 from tests.parameter_configs_tests._user_class import User
 
 
@@ -44,7 +44,7 @@ class TestMultiSelectParameterConfig:
         assert param == expected
 
     def test_invalid_with_selection(self, user: User, ms_config_basic: _pc.MultiSelectParameterConfig):
-        with pytest.raises(_u.InvalidInputError):
+        with pytest.raises(u.InvalidInputError):
             ms_config_basic.with_selection('["ms0","ms2"]', user=user, parent_param=None)
 
 
@@ -75,7 +75,7 @@ class TestSingleSelectParameterConfig:
     def test_invalid_with_selection(
         self, user: User, ms_param_basic: p.MultiSelectParameter, ss_config_with_ms_parent: _pc.SingleSelectParameterConfig
     ):
-        with pytest.raises(_u.InvalidInputError):
+        with pytest.raises(u.InvalidInputError):
             ss_config_with_ms_parent.with_selection('ss1', user, ms_param_basic)
 
 
@@ -104,9 +104,9 @@ class TestDateParameterConfig:
         assert param == expected
     
     def test_invalid_with_selection(self, user: User, date_config_with_parent: _pc.DateParameterConfig):
-        with pytest.raises(_u.InvalidInputError):
+        with pytest.raises(u.InvalidInputError):
             date_config_with_parent.with_selection("01-01-2023", user, None)
-        with pytest.raises(_u.ConfigurationError):
+        with pytest.raises(u.ConfigurationError):
             date_config_with_parent.with_selection("2023-01-01", None, None)
 
 
@@ -124,9 +124,9 @@ class TestDateRangeParameterConfig:
         assert param == expected
 
     def test_invalid_with_selection(self, date_range_config: _pc.DateRangeParameterConfig):
-        with pytest.raises(_u.InvalidInputError):
+        with pytest.raises(u.InvalidInputError):
             date_range_config.with_selection("2023-02-01,2023-10-31,2023-11-30", None, None)
-        with pytest.raises(_u.InvalidInputError):
+        with pytest.raises(u.InvalidInputError):
             date_range_config.with_selection("2023-02-01", None, None)
 
 
@@ -138,11 +138,11 @@ class TestNumberParameterConfig:
         assert expected == param
     
     def test_invalid_with_selection(self, ss_param_with_ms_parent: p.SingleSelectParameter, num_config_with_parent: _pc.NumberParameterConfig):
-        with pytest.raises(_u.InvalidInputError):
+        with pytest.raises(u.InvalidInputError):
             num_config_with_parent.with_selection("2.0.0", None, ss_param_with_ms_parent) # not a number
-        with pytest.raises(_u.InvalidInputError):
+        with pytest.raises(u.InvalidInputError):
             num_config_with_parent.with_selection("8", None, ss_param_with_ms_parent) # out of range
-        with pytest.raises(_u.InvalidInputError):
+        with pytest.raises(u.InvalidInputError):
             num_config_with_parent.with_selection("2.3", None, ss_param_with_ms_parent) # not in increment
 
 
@@ -154,16 +154,16 @@ class TestNumberRangeParameterConfig:
         assert param == expected
 
     def test_invalid_with_selection(self, user: User, num_range_config: _pc.NumberRangeParameterConfig):
-        with pytest.raises(_u.InvalidInputError):
+        with pytest.raises(u.InvalidInputError):
             num_range_config.with_selection("10.9", user, None) # only one number
-        with pytest.raises(_u.InvalidInputError):
+        with pytest.raises(u.InvalidInputError):
             num_range_config.with_selection("10.9,12.1,12.5", user, None) # three numbers
-        with pytest.raises(_u.InvalidInputError):
+        with pytest.raises(u.InvalidInputError):
             num_range_config.with_selection("10.9.0,12.1", user, None) # wrong number format
 
 
 class TestDataSourceParameterConfig:
-    def test_get_dataframe(self, simple_manifest_config):
+    def test_get_dataframe(self, simple_conn_set):
         data_source = ds.SelectDataSource("SELECT DISTINCT col_id, col_val FROM seed_test ORDER BY col_id", "col_id", "col_val", from_seeds=True)
         ds_config = _pc.DataSourceParameterConfig(_pc.SingleSelectParameterConfig, "ds_test", "", data_source)
 
@@ -172,8 +172,8 @@ class TestDataSourceParameterConfig:
             "col_val": ["a", "a", "b", "b", "c"]
         })
         seed = s.Seed(mc.SeedConfig(), input_df)
-        seeds = s.Seeds({"seed_test": seed}, simple_manifest_config)
-        output_df = ds_config.get_dataframe("default", cs.ConnectionSet({}), seeds)
+        seeds = s.Seeds({"seed_test": seed})
+        output_df = ds_config.get_dataframe("default", simple_conn_set, seeds)
 
         expected_df = pl.DataFrame({
             "col_id": [1, 2, 3],

@@ -1,6 +1,8 @@
 from enum import Enum
 from pydantic import BaseModel, Field
 
+from ._manifest import Settings
+
 
 class ColumnCategory(Enum):
     DIMENSION = "dimension"
@@ -10,7 +12,7 @@ class ColumnCategory(Enum):
 
 class ColumnConfig(BaseModel):
     name: str = Field(description="The name of the column")
-    type: str | None = Field(default=None, description="The type of the column such as 'string', 'integer', 'float', 'boolean', 'datetime', etc.")
+    type: str = Field(default="", description="The type of the column such as 'string', 'integer', 'float', 'boolean', 'datetime', etc.")
     condition: str = Field(default="", description="The condition of when the column is included")
     description: str = Field(default="", description="The description of the column")
     category: ColumnCategory = Field(default=ColumnCategory.MISC, description="The category of the column, either 'dimension', 'measure', or 'misc'")
@@ -20,7 +22,7 @@ class ColumnConfig(BaseModel):
 
 class ModelConfig(BaseModel):
     description: str = Field(default="", description="The description of the model")
-    columns: list[ColumnConfig] = Field(default_factory=list,description="The columns of the model")
+    columns: list[ColumnConfig] = Field(default_factory=list, description="The columns of the model")
 
 
 class SeedConfig(ModelConfig):
@@ -30,8 +32,14 @@ class SeedConfig(ModelConfig):
 class QueryModelConfig(ModelConfig):
     depends_on: set[str] = Field(default_factory=set, description="The dependencies of the model")
 
+
 class DbviewModelConfig(QueryModelConfig):
     connection: str | None = Field(default=None, description="The connection name of the database view")
+
+    def get_connection(self, settings_obj: Settings) -> str:
+        default_connection_name = settings_obj.get_default_connection_name()
+        return self.connection if self.connection is not None else default_connection_name
+
 
 class FederateModelConfig(QueryModelConfig):
     eager: bool = Field(default=False, description="Whether the model should be materialized for SQL models")

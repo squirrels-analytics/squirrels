@@ -1,6 +1,6 @@
 from typing import Any
-from dataclasses import dataclass
-from sqlalchemy import Engine, create_engine
+from dataclasses import dataclass, field
+from sqlalchemy import Engine
 import time, polars as pl
 
 from . import _utils as u, _constants as c, _py_module as pm
@@ -17,12 +17,12 @@ class ConnectionSet:
     Attributes:
         _engines: A dictionary of connection name to the corresponding sqlalchemy engine
     """
-    _connections: dict[str, Any]
+    _connections: dict[str, ConnectionProperties | Any] = field(default_factory=dict)
 
     def get_connections_as_dict(self):
         return self._connections.copy()
     
-    def _get_connection(self, conn_name: str) -> Engine:
+    def get_connection(self, conn_name: str) -> ConnectionProperties | Any:
         try:
             connection = self._connections[conn_name]
         except KeyError as e:
@@ -30,16 +30,18 @@ class ConnectionSet:
         return connection
     
     def run_sql_query_from_conn_name(self, query: str, conn_name: str, placeholders: dict = {}) -> pl.DataFrame:
-        conn = self._get_connection(conn_name)
+        conn = self.get_connection(conn_name)
         is_conn_arrow_based = isinstance(conn, ConnectionProperties) and (conn.type == ConnectionType.CONNECTORX or conn.type == ConnectionType.ADBC)
         if is_conn_arrow_based and len(placeholders) > 0:
             raise u.ConfigurationError(f"Connection '{conn_name}' is a ConnectorX or ADBC connection, which does not support placeholders")
         
         try:
             if is_conn_arrow_based:
-                df = pl.read_database_uri(query, conn.uri, engine=conn.type.value)
+                df = pl.read_database_uri(query, conn.uri, engine=conn.type.value) # type: ignore
             else:
-                df = pl.read_database(query, conn, execute_options={"parameters": placeholders})
+                if isinstance(conn, ConnectionProperties) and conn.type == ConnectionType.SQLALCHEMY:
+                    conn = conn.engine
+                df = pl.read_database(query, conn, execute_options={"parameters": placeholders}) # type: ignore
             return df
         except Exception as e:
             raise RuntimeError(e) from e
@@ -51,7 +53,10 @@ class ConnectionSet:
         for conn in self._connections.values():
             if isinstance(conn, Engine):
                 conn.dispose()
-            if hasattr(conn, 'close') and callable(conn.close):
+            elif isinstance(conn, ConnectionProperties):
+                if conn.type == ConnectionType.SQLALCHEMY:
+                    conn.engine.dispose()
+            elif hasattr(conn, 'close'):
                 conn.close()
 
 
@@ -63,7 +68,7 @@ class ConnectionSetIO:
         
         proj_vars = manifest_cfg.project_variables.model_dump()
         env_vars = env_cfg.get_all_env_vars()
-        conn_args = ConnectionsArgs(proj_vars, env_vars, env_cfg.get_credential)
+        conn_args = ConnectionsArgs(proj_vars, env_vars)
         
         logger.log_activity_time("setting up arguments for connections.py", start)
         return conn_args
@@ -87,10 +92,7 @@ class ConnectionSetIO:
 
         finalized_connections = {}
         for conn_name, conn_props in connections.items():
-            if isinstance(conn_props, ConnectionProperties) and conn_props.type == ConnectionType.SQLALCHEMY:
-                finalized_connections[conn_name] = create_engine(conn_props.uri)
-            else:
-                finalized_connections[conn_name] = conn_props
+            finalized_connections[conn_name] = conn_props
 
         conn_set = ConnectionSet(finalized_connections)
 

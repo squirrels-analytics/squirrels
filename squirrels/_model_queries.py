@@ -1,6 +1,6 @@
 from abc import ABCMeta
 from dataclasses import dataclass, field
-from typing import Callable, Any
+from typing import Callable, Generic, TypeVar, Any
 import polars as pl, pandas as pd
 
 from .arguments.run_time_args import ModelArgs
@@ -23,10 +23,13 @@ class PyQueryFile(QueryFile):
     raw_query: Callable[[ModelArgs], pl.LazyFrame | pd.DataFrame]
 
 
+Q = TypeVar('Q', bound=QueryFile)
+M = TypeVar('M', bound=ModelConfig)
+
 @dataclass(frozen=True)
-class QueryFileWithConfig:
-    query_file: QueryFile
-    config: ModelConfig
+class QueryFileWithConfig(Generic[Q, M]):
+    query_file: Q
+    config: M
 
 
 # Compiled query classes

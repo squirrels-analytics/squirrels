@@ -1,8 +1,8 @@
 from dataclasses import dataclass
-import os, time, yaml, glob, polars as pl
+from typing import Any
+import os, time, glob, polars as pl
 
-from ._manifest import ManifestConfig
-from . import _utils as _u, _constants as c, _model_configs as mc
+from . import _utils as u, _constants as c, _model_configs as mc
 
 
 @dataclass
@@ -16,9 +16,8 @@ class Seed:
         
         exprs = []
         for col_config in self.config.columns:
-            polars_dtype = _u.type_to_polars_dtype.get(col_config.type)
-            if polars_dtype is not None:
-                exprs.append(pl.col(col_config.name).cast(polars_dtype))
+            polars_dtype = u.sqrl_dtypes_to_polars_dtypes.get(col_config.type, pl.String)
+            exprs.append(pl.col(col_config.name).cast(polars_dtype))
 
         self.df = self.df.with_columns(*exprs)
 
@@ -26,11 +25,10 @@ class Seed:
 @dataclass
 class Seeds:
     _data: dict[str, Seed]
-    _manifest_cfg: ManifestConfig
     
     def run_query(self, sql_query: str) -> pl.DataFrame:
         dataframes = {key: seed.df for key, seed in self._data.items()}
-        return _u.run_sql_on_dataframes(sql_query, dataframes)
+        return u.run_sql_on_dataframes(sql_query, dataframes)
     
     def get_dataframes(self) -> dict[str, Seed]:
         return self._data.copy()
@@ -39,10 +37,10 @@ class Seeds:
 class SeedsIO:
 
     @classmethod
-    def load_files(cls, logger: _u.Logger, base_path: str, manifest_cfg: ManifestConfig) -> Seeds:
+    def load_files(cls, logger: u.Logger, base_path: str, *, settings: dict[str, Any] = {}) -> Seeds:
         start = time.time()
-        infer_schema: bool = manifest_cfg.settings.get(c.SEEDS_INFER_SCHEMA_SETTING, True)
-        na_values: list[str] = manifest_cfg.settings.get(c.SEEDS_NA_VALUES_SETTING, [])
+        infer_schema: bool = settings.get(c.SEEDS_INFER_SCHEMA_SETTING, True)
+        na_values: list[str] = settings.get(c.SEEDS_NA_VALUES_SETTING, [])
         
         seeds_dict = {}
         csv_files = glob.glob(os.path.join(base_path, c.SEEDS_FOLDER, '**/*.csv'), recursive=True)
@@ -51,10 +49,10 @@ class SeedsIO:
             df = pl.read_csv(csv_file, try_parse_dates=True, infer_schema=infer_schema, null_values=na_values).lazy()
             
             config_file = os.path.splitext(csv_file)[0] + '.yml'
-            config_dict = _u.load_yaml_config(config_file) if os.path.exists(config_file) else {}
+            config_dict = u.load_yaml_config(config_file) if os.path.exists(config_file) else {}
             config = mc.SeedConfig(**config_dict)
             seeds_dict[file_stem] = Seed(config, df)
         
-        seeds = Seeds(seeds_dict, manifest_cfg)
+        seeds = Seeds(seeds_dict)
         logger.log_activity_time("loading seed files", start)
         return seeds

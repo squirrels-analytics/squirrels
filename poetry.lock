@@ -2457,6 +2457,21 @@ pymysql = ["pymysql"]
 sqlcipher = ["sqlcipher3_binary"]
 
 [[package]]
+name = "sqlglot"
+version = "25.32.1"
+description = "An easily customizable SQL parser and transpiler"
+optional = false
+python-versions = ">=3.7"
+files = [
+    {file = "sqlglot-25.32.1-py3-none-any.whl", hash = "sha256:98f6c0d70669086a6ee004b0b17bd59b5857eb1ddb5ac5a11665dc22f301ba42"},
+    {file = "sqlglot-25.32.1.tar.gz", hash = "sha256:a1743f71aa4947c65a9309a4ce293bc9bcf9fb2187a0cee5404bf85f53aa1906"},
+]
+
+[package.extras]
+dev = ["duckdb (>=0.6)", "maturin (>=1.4,<2.0)", "mypy", "pandas", "pandas-stubs", "pdoc", "pre-commit", "python-dateutil", "pytz", "ruff (==0.7.2)", "types-python-dateutil", "types-pytz", "typing-extensions"]
+rs = ["sqlglotrs (==0.3.0)"]
+
+[[package]]
 name = "stack-data"
 version = "0.6.3"
 description = "Extract data from python stack frames and tracebacks for informative displays"
@@ -2619,4 +2634,4 @@ files = [
 [metadata]
 lock-version = "2.0"
 python-versions = "^3.10"
-content-hash = "95c20164dd40df4950e514e28955e87adaabd9af1be7866c9baa9fd4705807a9"
+content-hash = "0b85de59115f3aabe2d6bf5752925227f00c1a3169d365276f0a0b8d07324617"

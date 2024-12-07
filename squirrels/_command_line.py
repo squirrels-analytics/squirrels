@@ -7,7 +7,7 @@ from ._version import __version__
 from ._api_server import ApiServer
 from ._initializer import Initializer
 from ._package_loader import PackageLoaderIO
-from .project import SquirrelsProject
+from ._project import SquirrelsProject
 from . import _constants as c
 
 
@@ -78,16 +78,16 @@ def main():
     compile_parser.add_argument('-s', '--select', type=str, help="Select single model to compile. If not specified, all models for the dataset are compiled. Ignored if using --all-datasets")
     compile_parser.add_argument('-r', '--runquery', action='store_true', help='Runs all target models, and produce the results as csv files')
 
+    build_parser = add_subparser(subparsers, c.BUILD_CMD, 'Build the virtual data environment (with duckdb) for the project')
+    build_parser.add_argument('-f', '--full-refresh', action='store_true', help='Drop all tables before building')
+    build_parser.add_argument('-s', '--stage', type=str, help='If the venv file is in use, stage the duckdb file to replace the venv later')
+
     run_parser = add_subparser(subparsers, c.RUN_CMD, 'Run the API server')
     run_parser.add_argument('--no-cache', action='store_true', help='Do not cache any api results')
     run_parser.add_argument('--host', type=str, default='127.0.0.1', help="The host to run on")
     run_parser.add_argument('--port', type=int, default=4465, help="The port to run on")
 
     args, _ = parser.parse_known_args()
-    if args.command is not None and args.command not in [c.INIT_CMD, c.GET_FILE_CMD]:
-        project = SquirrelsProject(log_level=args.log_level, log_format=args.log_format, log_file=args.log_file)
-    else:
-        project = None
     
     if args.version:
         print(__version__)
@@ -95,11 +95,17 @@ def main():
         Initializer(project_name=args.name, overwrite=args.overwrite).init_project(args)
     elif args.command == c.GET_FILE_CMD:
         Initializer().get_file(args)
-    elif args.command == c.DEPS_CMD:
-        PackageLoaderIO.load_packages(project._logger, project._manifest_cfg, reload=True)
-    elif args.command in [c.RUN_CMD, c.COMPILE_CMD]:
+    elif args.command is None:
+        print(f'Command is missing. Enter "squirrels -h" for help.')
+    else:
+        project = SquirrelsProject(log_level=args.log_level, log_format=args.log_format, log_file=args.log_file)
         try:
-            if args.command == c.RUN_CMD:
+            if args.command == c.DEPS_CMD:
+                PackageLoaderIO.load_packages(project._logger, project._manifest_cfg, reload=True)
+            elif args.command == c.BUILD_CMD:
+                task = project.build(full_refresh=args.full_refresh, stage_file=args.stage)
+                asyncio.run(task)
+            elif args.command == c.RUN_CMD:
                 server = ApiServer(args.no_cache, project)
                 server.run(args)
             elif args.command == c.COMPILE_CMD:
@@ -108,6 +114,9 @@ def main():
                     do_all_test_sets=args.all_test_sets, runquery=args.runquery
                 )
                 asyncio.run(task)
+            else:
+                print(f'Error: No such command "{args.command}". Enter "squirrels -h" for help.')
+
         except KeyboardInterrupt:
             pass
         except Exception as e:
@@ -118,10 +127,6 @@ def main():
             project._logger.error(err_msg)
         finally:
             project.close()
-    elif args.command is None:
-        print(f'Command is missing. Enter "squirrels -h" for help.')
-    else:
-        print(f'Error: No such command "{args.command}". Enter "squirrels -h" for help.')
 
 
 if __name__ == '__main__':

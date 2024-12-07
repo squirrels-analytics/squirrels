@@ -1,5 +1,5 @@
 from typing import Union
-from squirrels import User as UserBase, AuthArgs, WrongPassword
+from squirrels import User as UserBase, AuthLoginArgs, WrongPassword
 
 
 class User(UserBase):
@@ -11,7 +11,7 @@ class User(UserBase):
         self.role = kwargs["role"]
 
 
-def get_user_if_valid(sqrl: AuthArgs) -> Union[User, WrongPassword, None]:
+def get_user_from_login(sqrl: AuthLoginArgs) -> Union[User, WrongPassword, None]:
     """
     This function allows the squirrels framework to know how to authenticate input username and password.
 

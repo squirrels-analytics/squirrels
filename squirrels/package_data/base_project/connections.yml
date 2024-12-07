@@ -1,7 +1,7 @@
 ## Connection URIs are usually in format "dialect://username:password@host:port/database" for database connections
 ## However, subtle differences exist depending on the "type" specified. For example, sqlite URIs are slightly different.
 ##   sqlalchemy:      sqlite:///relative/path/to/database.db
-##   connectorx/adbc: sqlite://relative/path/to/database.db  (adbc URI format matches connectorx thanks to polars APIs)
+##   connectorx/adbc: sqlite://relative/path/to/database.db  (adbc URI format matches connectorx thanks to polars integration)
 ## Refer to specific documentation for supported databases by type (with URI examples):
 ##   sqlalchemy: https://docs.sqlalchemy.org/en/latest/core/engines.html#database-urls
 ##   connectorx: https://sfu-db.github.io/connector-x/databases.html

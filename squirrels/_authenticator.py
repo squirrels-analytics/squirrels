@@ -4,11 +4,11 @@ from jwt.exceptions import InvalidTokenError
 import secrets, jwt
 
 from . import _utils as u, _constants as c
-from .arguments.run_time_args import AuthArgs
+from .arguments.run_time_args import AuthLoginArgs, AuthTokenArgs
 from ._py_module import PyModule
-from .user_base import User, WrongPassword
+from ._user_base import User, WrongPassword
 from ._environcfg import EnvironConfig
-from ._manifest import DatasetScope
+from ._manifest import PermissionScope
 from ._connection_set import ConnectionsArgs, ConnectionSet
 
 
@@ -31,17 +31,14 @@ class Authenticator:
     def _get_secret_key(self) -> str:
         secret_key = self.env_cfg.get_secret(c.JWT_SECRET_KEY, default_factory=lambda: secrets.token_hex(32))
         return str(secret_key)
-    
-    def _get_auth_args(self, username: str, password: str):
-        connections = self.conn_set.get_connections_as_dict()
-        return AuthArgs(self.conn_args.proj_vars, self.conn_args.env_vars, self.conn_args._get_credential, connections, username, password)
 
     def authenticate_user(self, username: str, password: str) -> Optional[User]:
-        get_user = self.auth_helper.get_func_or_class(c.GET_USER_FUNC, is_required=False)
+        get_user = self.auth_helper.get_func_or_class(c.GET_USER_FROM_LOGIN_FUNC, is_required=False)
         try:
-            real_user = get_user(self._get_auth_args(username, password)) if get_user is not None else None
+            sqrl = AuthLoginArgs(self.conn_args.proj_vars, self.conn_args.env_vars, self.conn_set.get_connections_as_dict(), username, password)
+            real_user = get_user(sqrl) if get_user is not None else None
         except Exception as e:
-            raise u.FileExecutionError(f'Failed to run "{c.GET_USER_FUNC}" in {c.AUTH_FILE}', e) from e
+            raise u.FileExecutionError(f'Failed to run "{c.GET_USER_FROM_LOGIN_FUNC}" in {c.AUTH_FILE}', e) from e
         
         if isinstance(real_user, User):
             return real_user
@@ -66,20 +63,34 @@ class Authenticator:
         return encoded_jwt, expire
     
     def get_user_from_token(self, token: Optional[str]) -> Optional[User]:
-        if token is not None:
+        if token is None:
+            return None
+        
+        get_user = self.auth_helper.get_func_or_class(c.GET_USER_FROM_TOKEN_FUNC, is_required=False)
+        if get_user is not None:
             try:
-                payload: dict = jwt.decode(token, self.secret_key, algorithms=[self.algorithm])
-                payload.pop("exp")
-                return self.user_cls._FromDict(payload)
-            except InvalidTokenError:
-                return None
+                sqrl = AuthTokenArgs(self.conn_args.proj_vars, self.conn_args.env_vars, self.conn_set.get_connections_as_dict(), token)
+                user = get_user(sqrl)
+                if isinstance(user, User):
+                    return user
+                else:
+                    raise u.FileExecutionError(f'The "{c.GET_USER_FROM_TOKEN_FUNC}" function in {c.AUTH_FILE} must return a User instance')
+            except Exception as e:
+                raise u.FileExecutionError(f'Failed to run "{c.GET_USER_FROM_TOKEN_FUNC}" in {c.AUTH_FILE}', e) from e
+        
+        try:
+            payload: dict = jwt.decode(token, self.secret_key, algorithms=[self.algorithm])
+            payload.pop("exp")
+            return self.user_cls._FromDict(payload)
+        except InvalidTokenError:
+            return None
 
-    def can_user_access_scope(self, user: Optional[User], scope: DatasetScope) -> bool:
+    def can_user_access_scope(self, user: Optional[User], scope: PermissionScope) -> bool:
         if user is None:
-            user_level = DatasetScope.PUBLIC
+            user_level = PermissionScope.PUBLIC
         elif not user.is_internal:
-            user_level = DatasetScope.PROTECTED
+            user_level = PermissionScope.PROTECTED
         else:
-            user_level = DatasetScope.PRIVATE
+            user_level = PermissionScope.PRIVATE
         
         return user_level.value >= scope.value
