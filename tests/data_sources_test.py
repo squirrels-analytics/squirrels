@@ -1,7 +1,7 @@
 from typing import Optional
 import pytest, polars as pl
 
-from squirrels import data_sources as d, _parameter_configs as _pc, parameter_options as _po, _utils as _u
+from squirrels import data_sources as d, _parameter_configs as _pc, parameter_options as _po, _utils as u
 
 
 class TestSelectDataSource:
@@ -92,7 +92,7 @@ class TestSelectDataSource:
             'test_options': ['zero', 'one', 'two'],
             'test_is_default': [0, 1, 1]
         })
-        with pytest.raises(_u.ConfigurationError):
+        with pytest.raises(u.ConfigurationError):
             ds_param.convert(df)
         
         df = pl.DataFrame({
@@ -100,7 +100,7 @@ class TestSelectDataSource:
             'test_options': ['zero', 'one', 'two'],
             'invalid_name': [0, 1, 1]
         })
-        with pytest.raises(_u.ConfigurationError):
+        with pytest.raises(u.ConfigurationError):
             ds_param.convert(df)
 
 

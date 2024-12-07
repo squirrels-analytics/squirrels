@@ -16,6 +16,9 @@ class User:
     def __hash__(self) -> int:
         return hash(self.username)
     
+    def __str__(self) -> str:
+        return self.username
+    
     def set_attributes(self, **kwargs) -> None:
         """
         Can be overwritten in "auth.py" to introduce custom attributes. Does nothing by default

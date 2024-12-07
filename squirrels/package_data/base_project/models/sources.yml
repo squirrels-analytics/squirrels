@@ -1,15 +1,13 @@
 sources:
-  - name: transactions
-    connection: default
+  - name: src_transactions
+    connection: default              # optional - if not provided, will use the default connection specified in settings
     table: transactions              # optional - if not provided, will use the name of the source
+    primary_key: [id]                # optional - defaults to empty list where no primary key is assumed
     
-    ## TBA
-    # update_hints:                    # only applicable if the connection is type 'database'
-    #   increasing_column: date
-    #   is_strictly_increasing: false  # optional - defaults to true
-    #   unique_key: [id]               # optional - defaults to the increasing_column (can be a string or a list of strings)
-    #   overwrite_from: null           # optional - defaults to null
-
+    update_hints:
+      increasing_column: date        # optional - defaults to null - when not null, incremental loading occurs, otherwise will do a full refresh
+      strictly_increasing: false     # optional - defaults to true - when false, the max value of the increasing column is deleted before incremental loads
+      
     columns:
       - name: id
         type: string
@@ -26,18 +24,10 @@ sources:
       - name: subcategory
         type: string
         description: The subcategory of the transaction
-      
-      - name: vendor
-        type: string
-        description: The vendor of the transaction
 
       - name: amount
         type: float
         description: The amount of the transaction
-      
-      - name: balance
-        type: float
-        description: The balance of the account after the transaction
 
       - name: description
         type: string

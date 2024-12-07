@@ -1,7 +1,7 @@
 from __future__ import annotations as _a
 import polars as _pl, typing as _t, dataclasses as _d, abc as _abc
 
-from . import _parameter_configs as _pc, parameter_options as _po, _utils as _u
+from . import _parameter_configs as _pc, parameter_options as _po, _utils as u
 
 
 @_d.dataclass
@@ -55,7 +55,7 @@ class DataSource(metaclass=_abc.ABCMeta):
         if ds_param.parameter_type != target_parameter_type:
             parameter_type_name = ds_param.parameter_type.__name__
             datasource_type_name = self.__class__.__name__
-            raise _u.ConfigurationError(f'Invalid widget type "{parameter_type_name}" for {datasource_type_name}')
+            raise u.ConfigurationError(f'Invalid widget type "{parameter_type_name}" for {datasource_type_name}')
     
     def _get_aggregated_df(self, df: _pl.DataFrame, columns_to_include: _t.Iterable[str]) -> _pl.DataFrame:
         if self._id_col is None:
@@ -73,7 +73,7 @@ class DataSource(metaclass=_abc.ABCMeta):
         try:
             df_agg = df.group_by(self._id_col).agg(agg_rules).sort(by=self._id_col)
         except _pl.exceptions.ColumnNotFoundError as e:
-            raise _u.ConfigurationError(e)
+            raise u.ConfigurationError(e)
         
         return df_agg
         
@@ -196,7 +196,7 @@ class SelectDataSource(_SelectionDataSource):
                 user_attribute=ds_param.user_attribute, parent_name=ds_param.parent_name, **ds_param.extra_args
             )
         else:
-            raise _u.ConfigurationError(f'Invalid widget type "{ds_param.parameter_type}" for SelectDataSource')
+            raise u.ConfigurationError(f'Invalid widget type "{ds_param.parameter_type}" for SelectDataSource')
 
 
 @_d.dataclass

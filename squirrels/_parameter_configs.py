@@ -9,8 +9,8 @@ from fastapi import Query
 from pydantic.fields import Field
 import polars as pl, re
 
-from . import parameter_options as _po, parameters as p, data_sources as d, _utils as _u, _constants as c
-from .user_base import User
+from . import parameter_options as _po, parameters as p, data_sources as d, _utils as u, _constants as c
+from ._user_base import User
 from ._connection_set import ConnectionSet
 from ._seeds import Seeds
 
@@ -69,7 +69,7 @@ class ParameterConfigBase(metaclass=ABCMeta):
     def _get_user_group(self, user: User | None) -> Any:
         if self.user_attribute is not None:
             if user is None:
-                raise _u.ConfigurationError(f"Non-authenticated users (only allowed for public datasets) cannot use parameter " +
+                raise u.ConfigurationError(f"Non-authenticated users (only allowed for public datasets) cannot use parameter " +
                                            f"'{self.name}' because 'user_attribute' is defined on this parameter.")
             return getattr(user, self.user_attribute)
         
@@ -117,8 +117,8 @@ class ParameterConfig(Generic[ParamOptionType], ParameterConfigBase):
     def DataSource(*args, **kwargs) -> d.DataSource:
         pass
     
-    def _invalid_input_error(self, selection: str, more_details: str = '') -> _u.InvalidInputError:
-        return _u.InvalidInputError(f'Selected value "{selection}" is not valid for parameter "{self.name}". ' + more_details)
+    def _invalid_input_error(self, selection: str, more_details: str = '') -> u.InvalidInputError:
+        return u.InvalidInputError(f'Selected value "{selection}" is not valid for parameter "{self.name}". ' + more_details)
     
     @abstractmethod
     def with_selection(
@@ -256,7 +256,7 @@ class MultiSelectParameterConfig(SelectionParameterConfig):
         if selection is None:
             selected_ids = tuple(self._get_default_ids_iterator(options))
         else:
-            selected_ids = _u.load_json_or_comma_delimited_str_as_list(selection)
+            selected_ids = u.load_json_or_comma_delimited_str_as_list(selection)
         return p.MultiSelectParameter(self, options, selected_ids)
     
     def get_api_field_info(self) -> APIParamFieldInfo:
@@ -358,7 +358,7 @@ class DateRangeParameterConfig(_DateTypeParameterConfig[_po.DateRangeParameterOp
                 selected_start_date, selected_end_date = None, None
         else:
             try:
-                selected_start_date, selected_end_date = _u.load_json_or_comma_delimited_str_as_list(selection)
+                selected_start_date, selected_end_date = u.load_json_or_comma_delimited_str_as_list(selection)
             except ValueError:
                 raise self._invalid_input_error(selection, "Date range parameter selection must be two dates.")
         return p.DateRangeParameter(self, curr_option, selected_start_date, selected_end_date)
@@ -462,7 +462,7 @@ class NumberRangeParameterConfig(_NumericParameterConfig[_po.NumberRangeParamete
                 selected_lower_value, selected_upper_value = None, None
         else:
             try:
-                selected_lower_value, selected_upper_value = _u.load_json_or_comma_delimited_str_as_list(selection)
+                selected_lower_value, selected_upper_value = u.load_json_or_comma_delimited_str_as_list(selection)
             except ValueError:
                 raise self._invalid_input_error(selection, "Number range parameter selection must be two numbers.")
         return p.NumberRangeParameter(self, curr_option, selected_lower_value, selected_upper_value)
@@ -490,7 +490,7 @@ class TextParameterConfig(ParameterConfig[_po.TextParameterOption]):
         
         allowed_input_types = ["text", "textarea", "number", "date", "datetime-local", "month", "time", "color", "password"]
         if input_type not in allowed_input_types:
-            raise _u.ConfigurationError(f"Invalid input type '{input_type}' for text parameter '{name}'. Must be one of {allowed_input_types}.")
+            raise u.ConfigurationError(f"Invalid input type '{input_type}' for text parameter '{name}'. Must be one of {allowed_input_types}.")
 
         self.input_type = input_type
         for option in self._all_options:
@@ -587,5 +587,5 @@ class DataSourceParameterConfig(ParameterConfigBase):
                 conn_name = datasource._get_connection_name(default_conn_name)
                 df = conn_set.run_sql_query_from_conn_name(query, conn_name)
             except RuntimeError as e:
-                raise _u.ConfigurationError(f'Error executing query for datasource parameter "{self.name}"') from e
+                raise u.ConfigurationError(f'Error executing query for datasource parameter "{self.name}"') from e
         return df

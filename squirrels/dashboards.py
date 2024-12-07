@@ -1,6 +1,6 @@
 import matplotlib.figure as _figure, io as _io, abc as _abc, typing as _t
 
-from . import _constants as _c
+from . import _constants as c
 
 
 class Dashboard(metaclass=_abc.ABCMeta):
@@ -33,7 +33,7 @@ class PngDashboard(Dashboard):
         """
         if isinstance(content, _figure.Figure):
             buffer = _io.BytesIO()
-            content.savefig(buffer, format=_c.PNG)
+            content.savefig(buffer, format=c.PNG)
             content = buffer.getvalue()
         
         if isinstance(content, _io.BytesIO):
@@ -47,7 +47,7 @@ class PngDashboard(Dashboard):
     
     @property
     def _format(self) -> _t.Literal['png']:
-        return _c.PNG
+        return c.PNG
     
     def _repr_png_(self):
         return self._content
@@ -76,7 +76,7 @@ class HtmlDashboard(Dashboard):
     
     @property
     def _format(self) -> _t.Literal['html']:
-        return _c.HTML
+        return c.HTML
     
     def _repr_html_(self):
         return self._content

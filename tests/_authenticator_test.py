@@ -1,9 +1,9 @@
 from typing import Optional, Union
 import pytest
 
-from squirrels import AuthArgs
+from squirrels import AuthLoginArgs
 from squirrels._authenticator import Authenticator, User as UserBase, WrongPassword
-from squirrels._manifest import DatasetScope
+from squirrels._manifest import PermissionScope
 
 
 class AuthHelper:    
@@ -14,7 +14,7 @@ class AuthHelper:
         def __eq__(self, other) -> bool:
             return type(other) is self.__class__ and self.__dict__ == other.__dict__
     
-    def get_user_if_valid(self, sqrl: AuthArgs) -> Union[User, WrongPassword, None]:
+    def get_user_from_login(self, sqrl: AuthLoginArgs) -> Union[User, WrongPassword, None]:
         mock_db = {
             "johndoe": {
                 "username": "johndoe",
@@ -91,6 +91,6 @@ def test_get_user_from_token(user_fixture: str, auth: Authenticator, request: py
 def test_can_user_access_scope(user_fixture: str, public: bool, protected: bool, private: bool,
                                auth: Authenticator, request: pytest.FixtureRequest):
     input_user = request.getfixturevalue(user_fixture) if user_fixture is not None else None
-    assert auth.can_user_access_scope(input_user, DatasetScope.PUBLIC) == public
-    assert auth.can_user_access_scope(input_user, DatasetScope.PROTECTED) == protected
-    assert auth.can_user_access_scope(input_user, DatasetScope.PRIVATE) == private
+    assert auth.can_user_access_scope(input_user, PermissionScope.PUBLIC) == public
+    assert auth.can_user_access_scope(input_user, PermissionScope.PROTECTED) == protected
+    assert auth.can_user_access_scope(input_user, PermissionScope.PRIVATE) == private

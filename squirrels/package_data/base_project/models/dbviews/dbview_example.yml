@@ -6,9 +6,6 @@ description: |
 
 connection: default
 
-depends_on:
-  - transactions
-
 columns:
   - name: id
     type: string

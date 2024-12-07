@@ -1,28 +1,35 @@
 from typing import Iterable, Callable, Any, Coroutine
 from dataclasses import dataclass
-from sqlalchemy import Engine
 import polars as pl
 
 from .init_time_args import ConnectionsArgs, ParametersArgs
-from ..user_base import User
+from .._manifest import ConnectionProperties
+from .._user_base import User
 from ..parameters import Parameter, TextValue
-from .. import _utils as _u
+from .. import _utils as u
 
 
 @dataclass
-class AuthArgs(ConnectionsArgs):
-    _connections: dict[str, Engine]
-    username: str
-    password: str
+class _AuthArgs(ConnectionsArgs):
+    _connections: dict[str, ConnectionProperties | Any]
 
     @property
-    def connections(self) -> dict[str, Engine]:
+    def connections(self) -> dict[str, ConnectionProperties | Any]:
         """
         A dictionary of connection keys to SQLAlchemy Engines for database connections. 
         
         Can also be used to store other in-memory objects in advance such as ML models.
         """
         return self._connections.copy()
+
+@dataclass
+class AuthLoginArgs(_AuthArgs):
+    username: str
+    password: str
+
+@dataclass
+class AuthTokenArgs(_AuthArgs):
+    token: str
 
 
 @dataclass
@@ -81,12 +88,11 @@ class ContextArgs(ParametersArgs):
 
 
 @dataclass
-class ModelArgs(ContextArgs):
+class ModelArgs(_AuthArgs, ContextArgs):
     _ctx: dict[str, Any]
-    _connections: dict[str, Engine]
     _dependencies: Iterable[str]
     _ref: Callable[[str], pl.LazyFrame]
-    _run_external_sql: Callable[[str, str | None], pl.DataFrame]
+    _run_external_sql: Callable[[str, str], pl.DataFrame]
 
     @property
     def ctx(self) -> dict[str, Any]:
@@ -94,15 +100,6 @@ class ModelArgs(ContextArgs):
         Dictionary of context variables
         """
         return self._ctx.copy()
-
-    @property
-    def connections(self) -> dict[str, Engine]:
-        """
-        A dictionary of connection keys to SQLAlchemy Engines for database connections. 
-        
-        Can also be used to store other in-memory objects in advance such as ML models.
-        """
-        return self._connections.copy()
 
     @property
     def dependencies(self) -> set[str]:
@@ -152,7 +149,7 @@ class ModelArgs(ContextArgs):
         """
         return self._ref(model)
 
-    def run_external_sql(self, sql_query: str, *, connection_name: str | None = None, **kwargs) -> pl.DataFrame:
+    def run_external_sql(self, connection_name: str, sql_query: str, **kwargs) -> pl.DataFrame:
         """
         Runs a SQL query against an external database, with option to specify the connection name. Placeholder values are provided automatically
 
@@ -179,7 +176,7 @@ class ModelArgs(ContextArgs):
         if dataframes is None:
             dataframes = {x: self.ref(x) for x in self._dependencies}
 
-        return _u.run_sql_on_dataframes(sql_query, dataframes)
+        return u.run_sql_on_dataframes(sql_query, dataframes)
 
 
 @dataclass

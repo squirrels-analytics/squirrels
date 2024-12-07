@@ -1,7 +1,7 @@
 import pytest, asyncio, polars as pl
 from pathlib import Path
 
-from squirrels import _models as m, _utils as _u, _model_queries as mq
+from squirrels import _models as m, _utils as u, _model_queries as mq
 from squirrels.arguments.run_time_args import ContextArgs
 from squirrels._manifest import DatasetConfig, ManifestConfig
 from squirrels._model_configs import DbviewModelConfig, FederateModelConfig, SeedConfig
@@ -30,10 +30,10 @@ def test_seed_model(seed_model: m.Seed):
 
 # Dbview Model Tests
 @pytest.fixture(scope="function")
-def dbview_model(simple_manifest_config, simple_conn_set) -> m.DbviewModel:
+def dbview_model() -> m.DbviewModel:
     config = DbviewModelConfig()
     query_file = mq.SqlQueryFile("test.sql", "SELECT * FROM table")
-    return m.DbviewModel("test_model", config, query_file, simple_manifest_config, simple_conn_set)
+    return m.DbviewModel("test_model", config, query_file)
 
 def test_dbview_model(dbview_model: m.DbviewModel):
     assert dbview_model.name == "test_model"
@@ -44,10 +44,10 @@ def test_dbview_model(dbview_model: m.DbviewModel):
 
 # Federate Model Tests
 @pytest.fixture(scope="function")
-def federate_model(simple_manifest_config, simple_conn_set) -> m.FederateModel:
+def federate_model() -> m.FederateModel:
     config = FederateModelConfig()
     query_file = mq.SqlQueryFile("test.sql", 'SELECT * FROM {{ ref("upstream") }}')
-    return m.FederateModel("test_model", config, query_file, simple_manifest_config, simple_conn_set)
+    return m.FederateModel("test_model", config, query_file)
 
 def test_federate_model(federate_model: m.FederateModel):
     assert federate_model.name == "test_model"
@@ -57,22 +57,22 @@ def test_federate_model(federate_model: m.FederateModel):
 
 # DAG Tests
 @pytest.fixture(scope="function")
-def simple_dag(simple_manifest_config) -> m.DAG:
+def simple_dag() -> m.DAG:
     # Create a simple DAG: A -> B -> C
     model_c = m.Seed("C", SeedConfig(), pl.LazyFrame({"id": [1, 2, 3]}))
     
     config_b = FederateModelConfig()
     query_b = 'SELECT * FROM {{ ref("C") }}'
     query_file_b = mq.SqlQueryFile("B.sql", query_b)
-    model_b = m.FederateModel("B", config_b, query_file_b, simple_manifest_config, None)
+    model_b = m.FederateModel("B", config_b, query_file_b)
     
     config_a = FederateModelConfig()
     query_a = 'SELECT * FROM {{ ref("B") }}'
     query_file_a = mq.SqlQueryFile("A.sql", query_a)
-    model_a = m.FederateModel("A", config_a, query_file_a, simple_manifest_config, None)
+    model_a = m.FederateModel("A", config_a, query_file_a)
     
     models = {"A": model_a, "B": model_b, "C": model_c}
-    return m.DAG(simple_manifest_config, DatasetConfig(name="test"), model_a, models)
+    return m.DAG(DatasetConfig(name="test"), model_a, models)
 
 def test_dag_compilation(simple_dag: m.DAG):
     ctx = {}
@@ -95,26 +95,26 @@ def test_dag_terminal_nodes(simple_dag: m.DAG):
     terminal_nodes = simple_dag._get_terminal_nodes()
     assert terminal_nodes == {"C"}
 
-def test_dag_cycle_detection(simple_manifest_config: ManifestConfig):
+def test_dag_cycle_detection():
     # Create a DAG with cycle: A -> B -> A
     config_b = FederateModelConfig()
     query_b = 'SELECT * FROM {{ ref("A") }}'
     query_file_b = mq.SqlQueryFile("B.sql", query_b)
-    model_b = m.FederateModel("B", config_b, query_file_b, simple_manifest_config, None)
+    model_b = m.FederateModel("B", config_b, query_file_b)
     
     config_a = FederateModelConfig()
     query_a = 'SELECT * FROM {{ ref("B") }}'
     query_file_a = mq.SqlQueryFile("A.sql", query_a)
-    model_a = m.FederateModel("A", config_a, query_file_a, simple_manifest_config, None)
+    model_a = m.FederateModel("A", config_a, query_file_a)
     
-    models = {"A": model_a, "B": model_b}
-    dag = m.DAG(simple_manifest_config, DatasetConfig(name="test"), model_a, models)
+    models: dict[str, m.DataModel] = {"A": model_a, "B": model_b}
+    dag = m.DAG(DatasetConfig(name="test"), model_a, models)
     
     ctx = {}
     ctx_args = ContextArgs({}, {}, None, {}, {}, {})
     asyncio.run(dag._compile_models(ctx, ctx_args, True))
     
-    with pytest.raises(_u.ConfigurationError, match="Cycle found in model dependency graph"):
+    with pytest.raises(u.ConfigurationError, match="Cycle found in model dependency graph"):
         dag._get_terminal_nodes()
 
 
@@ -133,7 +133,7 @@ def test_load_files(tmp_path: Path):
     # Create a federate model
     (federates_path / "model2.sql").write_text('SELECT * FROM {{ ref("model1") }}')
     
-    logger = _u.Logger("")
+    logger = u.Logger("")
     model_files = m.ModelsIO.load_files(logger, str(tmp_path))
     
     assert set(model_files.keys()) == {m.ModelType.DBVIEW, m.ModelType.FEDERATE}

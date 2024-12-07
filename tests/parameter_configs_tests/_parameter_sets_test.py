@@ -2,7 +2,7 @@ from collections import OrderedDict
 import pytest, polars as pl
 
 from squirrels import _parameter_sets as ps, parameters as p, _parameter_configs as _pc, parameter_options as _po, data_sources as d
-from squirrels import _utils as _u
+from squirrels import _utils as u
 from tests.parameter_configs_tests._user_class import User
 
 
@@ -168,7 +168,7 @@ def test_invalid_non_select_parent():
     configs_set = ps.ParameterConfigsSet()
     configs_set.add(_pc.DateParameterConfig("parent_date", "My Date", (_po.DateParameterOption("2023-01-01"),)))
     configs_set.add(_pc.SingleSelectParameterConfig("child_ss", "My Single Select", (), parent_name="parent_date"))
-    with pytest.raises(_u.ConfigurationError):
+    with pytest.raises(u.ConfigurationError):
         configs_set._post_process_params({})
 
 
@@ -176,7 +176,7 @@ def test_invalid_ms_parent_on_non_select_child():
     configs_set = ps.ParameterConfigsSet()
     configs_set.add(_pc.MultiSelectParameterConfig("parent_ms", "My Multi Select", ()))
     configs_set.add(_pc.DateParameterConfig("child_date", "My Date", (_po.DateParameterOption("2023-01-01"),), parent_name="parent_ms"))
-    with pytest.raises(_u.ConfigurationError):
+    with pytest.raises(u.ConfigurationError):
         configs_set._post_process_params({})
 
 
@@ -189,7 +189,7 @@ def test_invalid_overlapping_parent_options():
         _po.NumberParameterOption(0, 20, parent_option_ids="ss0")
     ]
     configs_set.add(_pc.NumberParameterConfig("child_number", "My Number", number_options, parent_name="parent_ss"))
-    with pytest.raises(_u.ConfigurationError):
+    with pytest.raises(u.ConfigurationError):
         configs_set._post_process_params({})
 
 
@@ -205,12 +205,12 @@ def test_invalid_overlapping_parent_options_within_user_group():
     configs_set.add(_pc.NumberParameterConfig("child_number", "My Number", number_options, parent_name="parent_ss"))
     try:
         configs_set._post_process_params({})
-    except _u.ConfigurationError:
+    except u.ConfigurationError:
         pytest.fail("Duplicate parent_option_ids under different user_groups should not error")
     
     number_options.append(_po.NumberParameterOption(0, 40, parent_option_ids="ss1", user_groups="org2"))
     configs_set.add(_pc.NumberParameterConfig("child_number", "My Number", number_options, parent_name="parent_ss"))
-    with pytest.raises(_u.ConfigurationError):
+    with pytest.raises(u.ConfigurationError):
         configs_set._post_process_params({})
 
 

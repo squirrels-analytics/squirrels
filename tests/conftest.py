@@ -32,17 +32,9 @@ def simple_env_config():
 
 
 @pytest.fixture(scope="session")
-def simple_manifest_config(simple_env_config: EnvironConfig):
-    return m.ManifestConfig(
-        env_cfg=simple_env_config,
-        project_variables=m.ProjectVarsConfig(name="", major_version=0)
-    )
-
-
-@pytest.fixture(scope="session")
 def simple_conn_args():
-    return ConnectionsArgs({}, {}, lambda x: ("", ""))
+    return ConnectionsArgs({}, {})
 
 @pytest.fixture(scope="session")
 def simple_conn_set():
-    return ConnectionSet({})
+    return ConnectionSet()

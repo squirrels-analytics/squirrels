@@ -7,16 +7,20 @@ from fastapi.staticfiles import StaticFiles
 from fastapi.security import OAuth2PasswordBearer, OAuth2PasswordRequestForm
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import create_model, BaseModel
+from contextlib import asynccontextmanager
 from cachetools import TTLCache
 from argparse import Namespace
 import os, io, time, mimetypes, traceback, uuid, polars as pl
+import asyncio
+from pathlib import Path
 
 from . import _constants as c, _utils as u, _api_response_models as arm
 from ._version import sq_major_version
+from ._manifest import PermissionScope
 from ._authenticator import User
 from ._parameter_sets import ParameterSet
 from .dashboards import Dashboard
-from .project import SquirrelsProject
+from ._project import SquirrelsProject
 
 mimetypes.add_type('application/javascript', '.js')
 
@@ -45,6 +49,36 @@ class ApiServer:
         self.context_func = project._context_func
         self.dashboards = project._dashboards
     
+    
+    async def _monitor_for_staging_file(self) -> None:
+        """Background task that monitors for staging file and renames it when present"""
+        project_path = self.project._filepath
+        staging_file = Path(project_path, c.TARGET_FOLDER, c.DUCKDB_STG_FILE)
+        target_file = Path(project_path, c.TARGET_FOLDER, c.DUCKDB_VENV_FILE)
+                
+        while True:
+            try:
+                if staging_file.exists():
+                    try:
+                        staging_file.replace(target_file)
+                        self.logger.info("Successfully renamed staging database to virtual environment database")
+                    except OSError:
+                        # Silently continue if file cannot be renamed (will retry next iteration)
+                        pass
+                
+            except Exception as e:
+                # Log any unexpected errors but keep running
+                self.logger.error(f"Error in monitoring {c.DUCKDB_STG_FILE}: {str(e)}")
+            
+            await asyncio.sleep(1)  # Check every second
+    
+    @asynccontextmanager
+    async def _run_background_tasks(self, app: FastAPI):
+        task = asyncio.create_task(self._monitor_for_staging_file())
+        yield
+        task.cancel()
+    
+    
     def run(self, uvicorn_args: Namespace) -> None:
         """
         Runs the API server with uvicorn for CLI "squirrels run"
@@ -64,8 +98,8 @@ class ApiServer:
                 "description": "Submit username and password, and get token for authentication",
             },
             {
-                "name": "Catalogs",
-                "description": "Get catalog of datasets and dashboards with endpoints for their parameters and results",
+                "name": "Update",
+                "description": "Actions to update the data components of the project",
             }
         ]
 
@@ -83,7 +117,8 @@ class ApiServer:
         
         app = FastAPI(
             title=f"Squirrels APIs for '{self.manifest_cfg.project_variables.label}'", openapi_tags=tags_metadata,
-            description="For specifying parameter selections to dataset APIs, you can choose between using query parameters with the GET method or using request body with the POST method"
+            description="For specifying parameter selections to dataset APIs, you can choose between using query parameters with the GET method or using request body with the POST method",
+            lifespan=self._run_background_tasks
         )
 
         async def _log_request_run(request: Request) -> None:
@@ -227,6 +262,25 @@ class ApiServer:
             dashboard_raw = _get_section_from_request_path(request, section)
             return u.normalize_name(dashboard_raw)
         
+        # Project Metadata API
+        def get_project_metadata0() -> arm.ProjectModel:
+            return arm.ProjectModel(
+                name=self.manifest_cfg.project_variables.name,
+                label=self.manifest_cfg.project_variables.label,
+                versions=[arm.ProjectVersionModel(
+                    major_version=self.manifest_cfg.project_variables.major_version,
+                    minor_versions=[0],
+                    token_path=token_path,
+                    data_catalog_path=data_catalog_path
+                )]
+            )
+        
+        @app.get(squirrels_version_path, tags=["Project Metadata"], response_class=JSONResponse)
+        async def get_project_metadata(request: Request) -> arm.ProjectModel:
+            return process_based_on_response_version_header(request.headers, {
+                0: lambda: get_project_metadata0()
+            })
+        
         # Login & Authorization
         token_path = base_path + '/token'
 
@@ -285,7 +339,7 @@ class ApiServer:
             
             return arm.CatalogModel(datasets=dataset_items, dashboards=dashboard_items)
         
-        @app.get(data_catalog_path, tags=["Catalogs"], summary="Get list of datasets and dashboards available for user")
+        @app.get(data_catalog_path, tags=["Project Metadata"], summary="Get catalog of datasets and dashboards available for user")
         def get_catalog_of_datasets_and_dashboards(request: Request, user: User | None = Depends(get_current_user)) -> arm.CatalogModel:
             return process_based_on_response_version_header(request.headers, {
                 0: lambda: get_data_catalog0(user)
@@ -514,24 +568,13 @@ class ApiServer:
                 self.logger.log_activity_time("POST REQUEST for DASHBOARD RESULTS", start, request_id=_get_request_id(request))
                 return result
 
-        # Project Metadata API
-        def get_project_metadata0() -> arm.ProjectModel:
-            return arm.ProjectModel(
-                name=self.manifest_cfg.project_variables.name,
-                label=self.manifest_cfg.project_variables.label,
-                versions=[arm.ProjectVersionModel(
-                    major_version=self.manifest_cfg.project_variables.major_version,
-                    minor_versions=[0],
-                    token_path=token_path,
-                    data_catalog_path=data_catalog_path
-                )]
-            )
-        
-        @app.get(squirrels_version_path, tags=["Project Metadata"], response_class=JSONResponse)
-        async def get_project_metadata(request: Request) -> arm.ProjectModel:
-            return process_based_on_response_version_header(request.headers, {
-                0: lambda: get_project_metadata0()
-            })
+        # Build Project API
+        @app.post(base_path + '/build', tags=["Update"], summary="Build or update the virtual data environment for the project")
+        async def build(request: Request, user: User | None = Depends(get_current_user)): # type: ignore
+            if not self.authenticator.can_user_access_scope(user, PermissionScope.PRIVATE):
+                raise PermissionError(f"User '{user}' does not have permission to build the virtual data environment")
+            await self.project.build(stage_file=True)
+            return Response(status_code=status.HTTP_200_OK)
         
         # Squirrels Testing UI
         static_dir = u.Path(os.path.dirname(__file__), c.PACKAGE_DATA_FOLDER, c.ASSETS_FOLDER)
@@ -546,7 +589,6 @@ class ApiServer:
                 'request': request, 'project_metadata_path': squirrels_version_path, 'token_path': token_path
             })
         
-        # Run API server
         import uvicorn
         self.logger.log_activity_time("creating app server", start)
         uvicorn.run(app, host=uvicorn_args.host, port=uvicorn_args.port)

@@ -1,13 +1,13 @@
 import shutil, os, time
 
-from . import _constants as c, _utils as _u
+from . import _constants as c, _utils as u
 from ._manifest import ManifestConfig
 
 
 class PackageLoaderIO:
 
     @classmethod
-    def load_packages(cls, logger: _u.Logger, manifest_cfg: ManifestConfig, *, reload: bool = False) -> None:
+    def load_packages(cls, logger: u.Logger, manifest_cfg: ManifestConfig, *, reload: bool = False) -> None:
         start = time.time()
         
         # Importing git here avoids requirement of having git installed on system if not needed
@@ -24,6 +24,6 @@ class PackageLoaderIO:
                 try:
                     git.Repo.clone_from(repo.git, target_dir, branch=repo.revision, depth=1)
                 except git.GitCommandError as e:
-                    raise _u.ConfigurationError(f"Git clone of package failed for this repository: {repo.git}") from e
+                    raise u.ConfigurationError(f"Git clone of package failed for this repository: {repo.git}") from e
         
         logger.log_activity_time("loading packages", start)
