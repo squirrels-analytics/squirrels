@@ -102,7 +102,7 @@ class Initializer:
         # Add project name prompt if not provided
         if self.project_name is None:
             questions = [
-                inquirer.Text('project_name', message="What is your project name? (will create new folder with this name)")
+                inquirer.Text('project_name', message="What is your project name? (leave blank to create in current directory)")
             ]
             answers = inquirer.prompt(questions)
             assert isinstance(answers, dict)
