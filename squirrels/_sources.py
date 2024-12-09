@@ -44,7 +44,22 @@ class Source(mc.DbviewModelConfig):
         if full_refresh:
             return "true"
         increasing_col_type = next(col.type for col in self.columns if col.name == increasing_col)
-        return f"{increasing_col}::{increasing_col_type} > ({self.get_max_incr_col_query()})"
+        return f"CAST({increasing_col} AS {increasing_col_type}) > ({self.get_max_incr_col_query()})"
+    
+    def get_query_for_insert(self, dialect: str, conn_name: str, table_name: str, max_value_of_increasing_col: Any | None, *, full_refresh: bool = True) -> str:
+        if full_refresh or max_value_of_increasing_col is None:
+            return f"FROM db_{conn_name}.{table_name}"
+        
+        increasing_col = self.update_hints.increasing_column
+        increasing_col_type = next(col.type for col in self.columns if col.name == increasing_col)
+        where_cond = f"CAST({increasing_col} AS {increasing_col_type}) > CAST(''{max_value_of_increasing_col}'' AS {increasing_col_type})"
+        pushdown_query = f"SELECT {self.get_cols_for_insert_stmt()} FROM {table_name} WHERE {where_cond}"
+        if dialect == 'postgres':
+            return f"FROM postgres_query('db_{conn_name}', '{pushdown_query}')"
+        elif dialect == 'mysql':
+            return f"FROM mysql_query('db_{conn_name}', '{pushdown_query}')"
+        modified_where_cond = where_cond.replace("''", "'")
+        return f"SELECT {self.get_cols_for_insert_stmt()} FROM db_{conn_name}.{table_name} WHERE {modified_where_cond}"
     
     def get_insert_on_conflict_clause(self) -> str:
         if len(self.primary_key) == 0:

@@ -20,7 +20,8 @@ class ModelBuilder:
             self._logger.error(f"Failed to run statement: {stmt}", exc_info=e)
             raise e
     
-    def _attach_connections(self, duckdb_conn: duckdb.DuckDBPyConnection) -> None:
+    def _attach_connections(self, duckdb_conn: duckdb.DuckDBPyConnection) -> dict[str, str]:
+        dialect_by_conn_name: dict[str, str] = {}
         for conn_name, conn_props in self._conn_set.get_connections_as_dict().items():
             dialect = conn_props.dialect
             attach_uri = conn_props.attach_uri_for_duckdb
@@ -28,11 +29,14 @@ class ModelBuilder:
                 continue # skip unsupported dialects
             attach_stmt = f"ATTACH IF NOT EXISTS '{attach_uri}' AS db_{conn_name} (TYPE {dialect}, READ_ONLY)"
             self._run_duckdb_stmt(duckdb_conn, attach_stmt)
+            dialect_by_conn_name[conn_name] = dialect
+        return dialect_by_conn_name
     
-    def _process_source(self, duckdb_conn: duckdb.DuckDBPyConnection, source: so.Source, full_refresh: bool) -> None:
+    def _process_source(self, duckdb_conn: duckdb.DuckDBPyConnection, source: so.Source, dialect_by_conn_name: dict[str, str], full_refresh: bool) -> None:
         local_conn = duckdb_conn.cursor()
 
         conn_name = source.get_connection(self._settings)
+        dialect = dialect_by_conn_name[conn_name]
         result = self._run_duckdb_stmt(local_conn, f"FROM (SHOW DATABASES) WHERE database_name = 'db_{conn_name}'").fetchone()
         if result is None:
             return # skip this source if connection is not attached
@@ -62,16 +66,17 @@ class ModelBuilder:
                 stmt = f"DELETE FROM {new_table_name} WHERE {increasing_column} = ({source.get_max_incr_col_query()})"
                 self._run_duckdb_stmt(local_conn, stmt)
         
+        max_val_of_incr_col = None
         if increasing_column is not None:
-            max_val_of_incr_col = self._run_duckdb_stmt(local_conn, source.get_max_incr_col_query()).fetchone()
+            max_val_of_incr_col_tuple = self._run_duckdb_stmt(local_conn, source.get_max_incr_col_query()).fetchone()
+            max_val_of_incr_col = max_val_of_incr_col_tuple[0] if isinstance(max_val_of_incr_col_tuple, tuple) else None
             if max_val_of_incr_col is None:
                 recreate_table = True
 
         insert_cols_clause = source.get_cols_for_insert_stmt()
         insert_on_conflict_clause = source.get_insert_on_conflict_clause()
-        insert_cond = source.get_insert_where_cond(full_refresh=recreate_table)
-        query = f"SELECT {insert_cols_clause} FROM db_{conn_name}.{table_name} WHERE {insert_cond}"
-        stmt = f"INSERT INTO {new_table_name} {query} {insert_on_conflict_clause}"
+        query = source.get_query_for_insert(dialect, conn_name, table_name, max_val_of_incr_col, full_refresh=recreate_table)
+        stmt = f"INSERT INTO {new_table_name} ({insert_cols_clause}) {query} {insert_on_conflict_clause}"
         self._run_duckdb_stmt(local_conn, stmt)
 
     async def _build_sources(self, duckdb_conn: duckdb.DuckDBPyConnection, full_refresh: bool) -> None:
@@ -79,10 +84,10 @@ class ModelBuilder:
         Creates the source tables as DuckDB tables for supported source connections.
         Supported connections: sqlite, postgres, mysql
         """
-        self._attach_connections(duckdb_conn)
+        dialect_by_conn_name = self._attach_connections(duckdb_conn)
 
         # Create tasks for all sources and run them concurrently
-        tasks = [asyncio.to_thread(self._process_source, duckdb_conn, source, full_refresh) for source in self._sources.sources]
+        tasks = [asyncio.to_thread(self._process_source, duckdb_conn, source, dialect_by_conn_name, full_refresh) for source in self._sources.sources]
         await asyncio.gather(*tasks)
 
     async def build(self, *, full_refresh: bool = False, stage_file: bool = False) -> None:
