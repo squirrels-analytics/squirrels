@@ -12,12 +12,18 @@ class ModelBuilder:
     _sources: so.Sources
     _logger: u.Logger = field(default_factory=lambda: u.Logger(""))
 
-    def _run_duckdb_stmt(self, duckdb_conn: duckdb.DuckDBPyConnection, stmt: str, *, params: dict[str, t.Any] | None = None) -> duckdb.DuckDBPyConnection:
-        self._logger.info(f"Running statement: {stmt}", extra={"data": {"params": params}})
+    def _run_duckdb_stmt(
+        self, duckdb_conn: duckdb.DuckDBPyConnection, stmt: str, *, params: dict[str, t.Any] | None = None, redacted_values: list[str] = []
+    ) -> duckdb.DuckDBPyConnection:
+        redacted_stmt = stmt
+        for value in redacted_values:
+            redacted_stmt = redacted_stmt.replace(value, "[REDACTED]")
+        
+        self._logger.info(f"Running statement: {redacted_stmt}", extra={"data": {"params": params}})
         try:
             return duckdb_conn.execute(stmt, params)
         except duckdb.ParserException as e:
-            self._logger.error(f"Failed to run statement: {stmt}", exc_info=e)
+            self._logger.error(f"Failed to run statement: {redacted_stmt}", exc_info=e)
             raise e
     
     def _attach_connections(self, duckdb_conn: duckdb.DuckDBPyConnection) -> dict[str, str]:
@@ -28,7 +34,7 @@ class ModelBuilder:
             if attach_uri is None:
                 continue # skip unsupported dialects
             attach_stmt = f"ATTACH IF NOT EXISTS '{attach_uri}' AS db_{conn_name} (TYPE {dialect}, READ_ONLY)"
-            self._run_duckdb_stmt(duckdb_conn, attach_stmt)
+            self._run_duckdb_stmt(duckdb_conn, attach_stmt, redacted_values=[attach_uri])
             dialect_by_conn_name[conn_name] = dialect
         return dialect_by_conn_name
     
@@ -107,6 +113,10 @@ class ModelBuilder:
             elif duckdb_path.exists():
                 shutil.copy(duckdb_path, duckdb_dev_path)
         
+        self._logger.log_activity_time("creating development copy of virtual data environment", start)
+        
+        start = time.time()
+
         try:
             # Connect to DuckDB file
             duckdb_conn = duckdb.connect(duckdb_dev_path)
