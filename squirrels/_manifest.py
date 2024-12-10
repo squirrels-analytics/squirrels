@@ -55,6 +55,7 @@ class ConnectionProperties(BaseModel):
     """
     type: ConnectionType
     uri: str
+    sa_create_engine_args: dict[str, Any] = Field(default_factory=dict)
 
     @cached_property
     def engine(self) -> Engine:
@@ -63,7 +64,7 @@ class ConnectionProperties(BaseModel):
         Returns None for other connection types.
         """
         if self.type == ConnectionType.SQLALCHEMY:
-            return create_engine(self.uri)
+            return create_engine(self.uri, **self.sa_create_engine_args)
         else:
             raise ValueError(f'Connection type "{self.type}" does not support engine property')
 

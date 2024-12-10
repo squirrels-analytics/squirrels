@@ -58,7 +58,7 @@ class Logger(logging.Logger):
         time_taken = round((end_timestamp-start_timestamp) * 10**3, 3)
         data = { "activity": activity, "start_timestamp": start_timestamp, "end_timestamp": end_timestamp, "time_taken_ms": time_taken }
         info = { "request_id": request_id } if request_id else {}
-        self.debug(f'Time taken for "{activity}": {time_taken}ms', extra={"data": data, "info": info})
+        self.info(f'Time taken for "{activity}": {time_taken}ms', extra={"data": data, "info": info})
 
 
 class EnvironmentWithMacros(j2.Environment):

@@ -1,5 +1,5 @@
 from typing import Any
-from squirrels import ConnectionsArgs, ConnectionProperties
+from squirrels import ConnectionsArgs, ConnectionProperties, ConnectionType
 
 
 def main(connections: dict[str, ConnectionProperties | Any], sqrl: ConnectionsArgs) -> None:
@@ -10,4 +10,5 @@ def main(connections: dict[str, ConnectionProperties | Any], sqrl: ConnectionsAr
     conn_str: str = sqrl.env_vars["sqlite_uri"]
 
     ## Assigning names to connection engines
-    connections["default"] = ConnectionProperties(type="sqlalchemy", uri=conn_str)
+    connections["default"] = ConnectionProperties(type=ConnectionType.SQLALCHEMY, uri=conn_str)
+    
