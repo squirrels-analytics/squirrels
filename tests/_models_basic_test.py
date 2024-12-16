@@ -121,10 +121,15 @@ def test_dag_cycle_detection():
 # ModelsIO Tests
 def test_load_files(tmp_path: Path):
     # Create temporary model files
+    builds_path = tmp_path / "models" / "builds"
     dbviews_path = tmp_path / "models" / "dbviews"
     federates_path = tmp_path / "models" / "federates"
+    builds_path.mkdir(parents=True)
     dbviews_path.mkdir(parents=True)
     federates_path.mkdir(parents=True)
+
+    # Create a build model
+    (builds_path / "model0.sql").write_text("SELECT * FROM table0")
     
     # Create a dbview model
     (dbviews_path / "model1.sql").write_text("SELECT * FROM table1")
@@ -134,8 +139,11 @@ def test_load_files(tmp_path: Path):
     (federates_path / "model2.sql").write_text('SELECT * FROM {{ ref("model1") }}')
     
     logger = u.Logger("")
-    model_files = m.ModelsIO.load_files(logger, str(tmp_path))
+    build_model_files = m.ModelsIO.load_build_files(logger, str(tmp_path))
+    dbview_model_files = m.ModelsIO.load_dbview_files(logger, str(tmp_path))
+    federate_model_files = m.ModelsIO.load_federate_files(logger, str(tmp_path))
     
-    assert set(model_files.keys()) == {m.ModelType.DBVIEW, m.ModelType.FEDERATE}
-    assert set(model_files[m.ModelType.DBVIEW].keys()) == {"model1"}
-    assert set(model_files[m.ModelType.FEDERATE].keys()) == {"model2"}
+    assert set(build_model_files.keys()) == {"model0"}
+    assert set(dbview_model_files.keys()) == {"model1"}
+    assert set(federate_model_files.keys()) == {"model2"}
+

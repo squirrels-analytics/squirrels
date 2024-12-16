@@ -1,5 +1,6 @@
 from argparse import ArgumentParser, _SubParsersAction
-import sys, asyncio, traceback, io
+from pathlib import Path
+import sys, asyncio, traceback, io, os
 
 sys.path.append('.')
 
@@ -8,7 +9,7 @@ from ._api_server import ApiServer
 from ._initializer import Initializer
 from ._package_loader import PackageLoaderIO
 from ._project import SquirrelsProject
-from . import _constants as c
+from . import _constants as c, _utils as u
 
 
 def main():
@@ -36,6 +37,7 @@ def main():
     init_parser.add_argument('--core', action='store_true', help='Include all core files')
     init_parser.add_argument('--connections', type=str, choices=c.CONF_FORMAT_CHOICES, help=f'Configure database connections as yaml (default) or python')
     init_parser.add_argument('--parameters', type=str, choices=c.CONF_FORMAT_CHOICES, help=f'Configure parameters as python (default) or yaml')
+    init_parser.add_argument('--build', type=str, choices=c.FILE_TYPE_CHOICES, help='Create build model as sql (default) or python file')
     init_parser.add_argument('--federate', type=str, choices=c.FILE_TYPE_CHOICES, help='Create federated model as sql (default) or python file')
     init_parser.add_argument('--dashboard', action='store_true', help=f'Include a sample dashboard file')
     init_parser.add_argument('--auth', action='store_true', help=f'Include the {c.AUTH_FILE} file')
@@ -57,7 +59,9 @@ def main():
     add_subparser(get_file_subparsers, c.CONNECTIONS_FILE, f'Get a sample {c.CONNECTIONS_FILE} file')
     add_subparser(get_file_subparsers, c.PARAMETERS_FILE, f'Get a sample {c.PARAMETERS_FILE} file')
     add_subparser(get_file_subparsers, c.CONTEXT_FILE, f'Get a sample {c.CONTEXT_FILE} file')
+    add_subparser(get_file_subparsers, c.MACROS_FILE, f'Get a sample {c.MACROS_FILE} file')
     add_subparser(get_file_subparsers, c.SOURCES_FILE, f'Get a sample {c.SOURCES_FILE} file')
+    with_file_format_options(add_subparser(get_file_subparsers, c.BUILD_FILE_STEM, f'Get a sample build model file'))
     add_subparser(get_file_subparsers, c.DBVIEW_FILE_STEM, f'Get a sample dbview model file')
     with_file_format_options(add_subparser(get_file_subparsers, c.FEDERATE_FILE_STEM, f'Get a sample federate model file'))
     add_subparser(get_file_subparsers, c.DASHBOARD_FILE_STEM, f'Get a sample dashboard file')
@@ -80,7 +84,10 @@ def main():
 
     build_parser = add_subparser(subparsers, c.BUILD_CMD, 'Build the virtual data environment (with duckdb) for the project')
     build_parser.add_argument('-f', '--full-refresh', action='store_true', help='Drop all tables before building')
-    build_parser.add_argument('-s', '--stage', type=str, help='If the venv file is in use, stage the duckdb file to replace the venv later')
+    build_parser.add_argument('-s', '--select', type=str, help="Select one static model to build. If not specified, all models are built")
+    build_parser.add_argument('--stage', type=str, help='If the venv file is in use, stage the duckdb file to replace the venv later')
+
+    duckdb_parser = add_subparser(subparsers, c.DUCKDB_CMD, 'Run the duckdb command line tool')
 
     run_parser = add_subparser(subparsers, c.RUN_CMD, 'Run the API server')
     run_parser.add_argument('--no-cache', action='store_true', help='Do not cache any api results')
@@ -103,8 +110,17 @@ def main():
             if args.command == c.DEPS_CMD:
                 PackageLoaderIO.load_packages(project._logger, project._manifest_cfg, reload=True)
             elif args.command == c.BUILD_CMD:
-                task = project.build(full_refresh=args.full_refresh, stage_file=args.stage)
+                task = project.build(full_refresh=args.full_refresh, select=args.select, stage_file=args.stage)
                 asyncio.run(task)
+            elif args.command == c.DUCKDB_CMD:
+                target_init_path = Path(c.TARGET_FOLDER, c.DUCKDB_INIT_FILE)
+                target_init_path.parent.mkdir(parents=True, exist_ok=True)
+                init_sql = u._read_duckdb_init_sql()
+                target_init_path.write_text(init_sql)
+
+                status = os.system(f'duckdb -init {target_init_path} {project._duckdb_venv_path}')
+                if status != 0:
+                    print(f'The DuckDB CLI must be installed to use this command. Please install it from: https://duckdb.org/docs/installation/')
             elif args.command == c.RUN_CMD:
                 server = ApiServer(args.no_cache, project)
                 server.run(args)

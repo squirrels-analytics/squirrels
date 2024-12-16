@@ -1,8 +1,9 @@
-from typing import Sequence, Optional, Union, TypeVar, Callable
+from typing import Sequence, Optional, Union, TypeVar, Callable, Any
 from pathlib import Path
 from pandas.api import types as pd_types
 import os, time, logging, json, duckdb, polars as pl, yaml
 import jinja2 as j2, jinja2.nodes as j2_nodes
+from functools import lru_cache
 
 from . import _constants as c
 
@@ -58,7 +59,7 @@ class Logger(logging.Logger):
         time_taken = round((end_timestamp-start_timestamp) * 10**3, 3)
         data = { "activity": activity, "start_timestamp": start_timestamp, "end_timestamp": end_timestamp, "time_taken_ms": time_taken }
         info = { "request_id": request_id } if request_id else {}
-        self.debug(f'Time taken for "{activity}": {time_taken}ms', extra={"data": data, "info": info})
+        self.info(f'Time taken for "{activity}": {time_taken}ms', extra={"data": data, "info": info})
 
 
 class EnvironmentWithMacros(j2.Environment):
@@ -215,18 +216,63 @@ def process_if_not_none(input_val: Optional[X], processor: Callable[[X], Y]) -> 
     return processor(input_val)
 
 
+@lru_cache(maxsize=1)
+def _read_duckdb_init_sql() -> str:
+    """
+    Reads and caches the duckdb init file content.
+    Returns None if file doesn't exist or is empty.
+    """
+    try:
+        init_contents = []
+        global_init_path = Path(os.path.expanduser('~'), c.GLOBAL_ENV_FOLDER, c.DUCKDB_INIT_FILE)
+        if global_init_path.exists():
+            with open(global_init_path, 'r') as f:
+                init_contents.append(f.read())
+        
+        if Path(c.DUCKDB_INIT_FILE).exists():
+            with open(c.DUCKDB_INIT_FILE, 'r') as f:
+                init_contents.append(f.read())
+        
+        return "\n".join(init_contents)
+    except Exception as e:
+        raise ConfigurationError(f"Failed to read {c.DUCKDB_INIT_FILE}: {str(e)}") from e
+
+def create_duckdb_connection(filepath: str | Path = ":memory:", *, read_only: bool = False) -> duckdb.DuckDBPyConnection:
+    """
+    Creates a DuckDB connection and initializes it with statements from duckdb init file
+
+    Arguments:
+        filepath: Path to the DuckDB database file. Defaults to in-memory database.
+        read_only: Whether to open the database in read-only mode. Defaults to False.
+    
+    Returns:
+        A DuckDB connection
+    """
+    conn = duckdb.connect(filepath, read_only=read_only)
+    
+    try:
+        init_sql = _read_duckdb_init_sql()
+        if init_sql:
+            conn.execute(init_sql)
+    except Exception as e:
+        conn.close()
+        raise ConfigurationError(f"Failed to execute {c.DUCKDB_INIT_FILE}: {str(e)}") from e
+    
+    return conn
+
+
 def run_sql_on_dataframes(sql_query: str, dataframes: dict[str, pl.LazyFrame]) -> pl.DataFrame:
     """
     Runs a SQL query against a collection of dataframes
 
     Arguments:
         sql_query: The SQL query to run
-        dataframes: A dictionary of table names to their pandas Dataframe
+        dataframes: A dictionary of table names to their polars LazyFrame
     
     Returns:
-        The result as a pandas Dataframe from running the query
+        The result as a polars Dataframe from running the query
     """
-    duckdb_conn = duckdb.connect()
+    duckdb_conn = create_duckdb_connection()
     
     try:
         for name, df in dataframes.items():
@@ -241,7 +287,7 @@ def run_sql_on_dataframes(sql_query: str, dataframes: dict[str, pl.LazyFrame]) -
 
 def df_to_json0(df: pl.DataFrame, dimensions: list[str] | None = None) -> dict:
     """
-    Convert a pandas DataFrame to the response format that the dataset result API of Squirrels outputs.
+    Convert a polars DataFrame to the response format that the dataset result API of Squirrels outputs.
 
     Arguments:
         df: The dataframe to convert into an API response
@@ -276,3 +322,18 @@ def load_yaml_config(filepath: FilePath) -> dict:
             return yaml.safe_load(f)
     except yaml.YAMLError as e:
         raise ConfigurationError(f"Failed to parse yaml file: {filepath}") from e
+
+
+def run_duckdb_stmt(
+    logger: Logger, duckdb_conn: duckdb.DuckDBPyConnection, stmt: str, *, params: dict[str, Any] | None = None, redacted_values: list[str] = []
+) -> duckdb.DuckDBPyConnection:
+    redacted_stmt = stmt
+    for value in redacted_values:
+        redacted_stmt = redacted_stmt.replace(value, "[REDACTED]")
+    
+    logger.info(f"Running statement: {redacted_stmt}", extra={"data": {"params": params}})
+    try:
+        return duckdb_conn.execute(stmt, params)
+    except duckdb.ParserException as e:
+        logger.error(f"Failed to run statement: {redacted_stmt}", exc_info=e)
+        raise e

@@ -74,7 +74,7 @@ class Authenticator:
                 if isinstance(user, User):
                     return user
                 else:
-                    raise u.FileExecutionError(f'The "{c.GET_USER_FROM_TOKEN_FUNC}" function in {c.AUTH_FILE} must return a User instance')
+                    raise u.ConfigurationError(f'The "{c.GET_USER_FROM_TOKEN_FUNC}" function in {c.AUTH_FILE} must return a User instance')
             except Exception as e:
                 raise u.FileExecutionError(f'Failed to run "{c.GET_USER_FROM_TOKEN_FUNC}" in {c.AUTH_FILE}', e) from e
         

@@ -50,8 +50,14 @@ class Initializer:
         if perform_copy:
             shutil.copy(src_path, filepath2)
 
+    def _copy_macros_file(self, filepath: str):
+        self._copy_file(u.Path(c.MACROS_FOLDER, filepath))
+
     def _copy_models_file(self, filepath: str):
         self._copy_file(u.Path(c.MODELS_FOLDER, filepath))
+
+    def _copy_build_file(self, filepath: str):
+        self._copy_file(u.Path(c.MODELS_FOLDER, c.BUILDS_FOLDER, filepath))
 
     def _copy_dbview_file(self, filepath: str):
         self._copy_file(u.Path(c.MODELS_FOLDER, c.DBVIEWS_FOLDER, filepath))
@@ -96,8 +102,8 @@ class Initializer:
         self._copy_file(u.Path(c.MANIFEST_FILE), src_folder=TMP_FOLDER)
 
     def init_project(self, args):
-        options = ["core", "connections", "parameters", "federate", "dashboard", "auth"]
-        _, CONNECTIONS, PARAMETERS, FEDERATE, DASHBOARD, AUTH = options
+        options = ["core", "connections", "parameters", "build", "federate", "dashboard", "auth"]
+        _, CONNECTIONS, PARAMETERS, BUILD, FEDERATE, DASHBOARD, AUTH = options
 
         # Add project name prompt if not provided
         if self.project_name is None:
@@ -116,6 +122,9 @@ class Initializer:
                 ),
                 inquirer.List(
                     PARAMETERS, message=f"How would you like to configure the parameters?", choices=c.CONF_FORMAT_CHOICES2
+                ),
+                inquirer.List(
+                    BUILD, message="What's the file format for the build model?", choices=c.FILE_TYPE_CHOICES
                 ),
                 inquirer.List(
                     FEDERATE, message="What's the file format for the federated model?", choices=c.FILE_TYPE_CHOICES
@@ -151,11 +160,19 @@ class Initializer:
         parameters_use_yaml = (parameters_format == c.YML_FORMAT)
         parameters_use_py = (parameters_format == c.PYTHON_FORMAT)
 
+        build_config_file = c.BUILD_FILE_STEM + ".yml"
+        build_format = get_answer(BUILD, c.PYTHON_FILE_TYPE)
+        if build_format == c.SQL_FILE_TYPE:
+            build_file = c.BUILD_FILE_STEM + ".sql"
+        elif build_format == c.PYTHON_FILE_TYPE:
+            build_file = c.BUILD_FILE_STEM + ".py"
+        else:
+            raise NotImplementedError(f"Build model format '{build_format}' not supported")
+
         db_view_config_file = c.DBVIEW_FILE_STEM + ".yml"
         db_view_file = c.DBVIEW_FILE_STEM + ".sql"
     
         federate_config_file = c.FEDERATE_FILE_STEM + ".yml"
-
         federate_format = get_answer(FEDERATE, c.SQL_FILE_TYPE)
         if federate_format == c.SQL_FILE_TYPE:
             federate_file = c.FEDERATE_FILE_STEM + ".sql"
@@ -191,7 +208,11 @@ class Initializer:
         self._copy_seed_file(c.SEED_SUBCATEGORY_FILE_STEM + ".csv")
         self._copy_seed_file(c.SEED_SUBCATEGORY_FILE_STEM + ".yml")
 
+        self._copy_macros_file(c.MACROS_FILE)
+
         self._copy_models_file(c.SOURCES_FILE)
+        self._copy_build_file(build_file)
+        self._copy_build_file(build_config_file)
         self._copy_dbview_file(db_view_file)
         self._copy_dbview_file(db_view_config_file)
         self._copy_federate_file(federate_file)
@@ -216,16 +237,27 @@ class Initializer:
             self._create_manifest_file(not args.no_connections, args.parameters)
         elif args.file_name in (c.AUTH_FILE, c.CONNECTIONS_FILE, c.PARAMETERS_FILE, c.CONTEXT_FILE):
             self._copy_pyconfig_file(args.file_name)
+        elif args.file_name == c.MACROS_FILE:
+            self._copy_macros_file(args.file_name)
         elif args.file_name == c.SOURCES_FILE:
             self._copy_models_file(args.file_name)
-        elif args.file_name in (c.DBVIEW_FILE_STEM, c.FEDERATE_FILE_STEM):
+        elif args.file_name in (c.BUILD_FILE_STEM, c.DBVIEW_FILE_STEM, c.FEDERATE_FILE_STEM):
             if args.file_name == c.DBVIEW_FILE_STEM or args.format == c.SQL_FILE_TYPE:
                 extension = ".sql"
             elif args.format == c.PYTHON_FILE_TYPE:
                 extension = ".py"
             else:
                 raise NotImplementedError(f"Format '{args.format}' not supported for {args.file_name}")
-            copy_method = self._copy_dbview_file if args.file_name == c.DBVIEW_FILE_STEM else self._copy_federate_file
+            
+            if args.file_name == c.BUILD_FILE_STEM:
+                copy_method = self._copy_build_file
+            elif args.file_name == c.DBVIEW_FILE_STEM:
+                copy_method = self._copy_dbview_file
+            elif args.file_name == c.FEDERATE_FILE_STEM:
+                copy_method = self._copy_federate_file
+            else:
+                raise NotImplementedError(f"File '{args.file_name}' not supported")
+            
             copy_method(args.file_name + extension)
             copy_method(args.file_name + ".yml")
         elif args.file_name == c.DASHBOARD_FILE_STEM:

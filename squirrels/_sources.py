@@ -1,6 +1,6 @@
 from typing import Any
 from pydantic import BaseModel, Field
-import time
+import time, sqlglot
 
 from . import _utils as u, _constants as c, _model_configs as mc
 
@@ -38,19 +38,25 @@ class Source(mc.DbviewModelConfig):
     
     def get_max_incr_col_query(self) -> str:
         return f"SELECT max({self.update_hints.increasing_column}) FROM {self.name}"
-
-    def get_insert_where_cond(self, *, full_refresh: bool = True) -> str:
-        increasing_col = self.update_hints.increasing_column
-        if full_refresh:
-            return "true"
-        increasing_col_type = next(col.type for col in self.columns if col.name == increasing_col)
-        return f"{increasing_col}::{increasing_col_type} > ({self.get_max_incr_col_query()})"
     
-    def get_insert_on_conflict_clause(self) -> str:
-        if len(self.primary_key) == 0:
-            return ""
-        set_clause = ", ".join([f'{col.name} = EXCLUDED.{col.name}' for col in self.columns if col.name not in self.primary_key])
-        return f"ON CONFLICT DO UPDATE SET {set_clause}"
+    def get_query_for_insert(self, dialect: str, conn_name: str, table_name: str, max_value_of_increasing_col: Any | None, *, full_refresh: bool = True) -> str:
+        select_cols = self.get_cols_for_insert_stmt()
+        if full_refresh or max_value_of_increasing_col is None:
+            return f"SELECT {select_cols} FROM db_{conn_name}.{table_name}"
+        
+        increasing_col = self.update_hints.increasing_column
+        increasing_col_type = next(col.type for col in self.columns if col.name == increasing_col)
+        where_cond = f"{increasing_col}::{increasing_col_type} > '{max_value_of_increasing_col}'::{increasing_col_type}"
+        pushdown_query = f"SELECT {select_cols} FROM {table_name} WHERE {where_cond}"
+        
+        if dialect in ['postgres', 'mysql']:
+            transpiled_query = sqlglot.transpile(pushdown_query, read='duckdb', write=dialect)[0].replace("'", "''")
+            return f"FROM {dialect}_query('db_{conn_name}', '{transpiled_query}')"
+        
+        return f"SELECT {select_cols} FROM db_{conn_name}.{table_name} WHERE {where_cond}"
+    
+    def get_insert_replace_clause(self) -> str:
+        return "" if len(self.primary_key) == 0 else "OR REPLACE"
 
 
 class Sources(BaseModel):
@@ -68,7 +74,8 @@ class SourcesIO:
     def load_file(cls, logger: u.Logger, base_path: str) -> Sources:
         start = time.time()
         
-        sources_data = u.load_yaml_config(u.Path(base_path, c.MODELS_FOLDER, "sources.yml"))
+        sources_path = u.Path(base_path, c.MODELS_FOLDER, c.SOURCES_FILE)
+        sources_data = u.load_yaml_config(sources_path) if sources_path.exists() else {}
         sources = Sources(**sources_data)
         
         logger.log_activity_time("loading sources", start)

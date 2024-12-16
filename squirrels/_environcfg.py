@@ -5,7 +5,7 @@ import os, yaml, time
 
 from . import _constants as c, _utils as u
 
-_GLOBAL_SQUIRRELS_CFG_FILE = u.Path(os.path.expanduser('~'), '.squirrels', c.ENV_CONFIG_FILE)
+_GLOBAL_SQUIRRELS_CFG_FILE = u.Path(os.path.expanduser('~'), c.GLOBAL_ENV_FOLDER, c.ENV_CONFIG_FILE)
 
 
 class _UserConfig(BaseModel, extra="allow"):

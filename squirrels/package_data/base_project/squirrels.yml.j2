@@ -20,28 +20,26 @@ packages: []
 
 
 datasets:
-  - name: dataset_example                 ## model name uses same name unless "model" field is specified
-    label: Dataset Example
-    model: federate_example               ## optional - if not specified, then the "name" field is used
+  - name: dbview_dataset_example          ## model name uses same name unless "model" field is specified
+    label: Dataset from DBView Example
+    description: Aggregated expense transactions by month using dbview_example model
+    model: dbview_example 
     scope: public                         ## optional - one of 'public' (default), 'protected', or 'private'
-    parameters:                           ## optional - if not specified, then passed through from model
-      - group_by
-      - description_filter
+    parameters:                           ## optional - if not specified, then all parameters are used
       - start_date
       - end_date
-      - category
-      - subcategory
       - min_filter
       - max_filter
     traits: {}                            ## optional - defaults to empty object
   
-  - name: protected_dataset_example       ## requires auth.py file to work
-    label: Dataset Example 2
-    model: federate_example
-    scope: protected
+  - name: federate_dataset_example
+    label: Dataset from Federate Example
+    description: Aggregated expense transactions by custom dimension using federate_example model
+    model: federate_example 
+    scope: protected                      ## using an auth.py file is suggested for protected or private datasets
     parameters:
       - group_by
-      - description_filter
+      - limit
       - date_range
       - category
       - subcategory
@@ -85,5 +83,7 @@ settings: {}
 #   dashboards.cache.ttl_minutes: 60
 #   selection_test_sets.default_name_used: default
 #   connections.default_name_used: default
+#   defaults.federates.materialized: view
 #   seeds.infer_schema: True
-#   seeds.na_values: []
+#   seeds.na_values: [NA]
+#   duckdb_venv.file_path: target/.venv.duckdb

@@ -7,7 +7,8 @@ from . import _utils as u, _constants as c, _environcfg as ec, _manifest as mf, 
 from . import _seeds as s, _connection_set as cs, _models as m, _dashboards_io as d, _parameter_sets as ps
 from . import _model_queries as mq, dashboards as dash, _sources as so
 
-T = t.TypeVar('T', bound=dash.Dashboard)
+T = t.TypeVar("T", bound=dash.Dashboard)
+M = t.TypeVar("M", bound=m.DataModel)
 
 
 class _CustomJsonFormatter(l.Formatter):
@@ -51,115 +52,139 @@ class SquirrelsProject:
     def _get_logger(self, base_path: str, log_file: str | None, log_level: str, log_format: str) -> u.Logger:
         logger = u.Logger(name=uuid4().hex)
         logger.setLevel(log_level.upper())
+
+        handler = l.StreamHandler()
+        handler.setLevel("WARNING")
+        handler.setFormatter(l.Formatter("%(levelname)s:   %(asctime)s - %(message)s"))
+        logger.addHandler(handler)
         
+        if log_format.lower() == "json":
+            formatter = _CustomJsonFormatter()
+        elif log_format.lower() == "text":
+            formatter = l.Formatter("[%(name)s] %(asctime)s - %(levelname)s - %(message)s")
+        else:
+            raise ValueError("log_format must be either 'text' or 'json'")
+            
         if log_file:
             path = u.Path(base_path, c.LOGS_FOLDER, log_file)
             path.parent.mkdir(parents=True, exist_ok=True)
 
             handler = l.FileHandler(path)
-            if log_format.lower() == "json":
-                handler.setFormatter(_CustomJsonFormatter())
-            elif log_format.lower() == "text":
-                formatter = l.Formatter("[%(name)s] %(asctime)s - %(levelname)s - %(message)s")
-                handler.setFormatter(formatter)
-            else:
-                raise ValueError("log_format must be either 'text' or 'json'")
+            handler.setFormatter(formatter)
             logger.addHandler(handler)
-        else:
-            logger.disabled = True
         
         return logger
     
-    @property
-    @ft.cache
+    @ft.cached_property
     def _env_cfg(self) -> ec.EnvironConfig:
         return ec.EnvironConfigIO.load_from_file(self._logger, self._filepath)
 
-    @property
-    @ft.cache
+    @ft.cached_property
     def _manifest_cfg(self) -> mf.ManifestConfig:
         return mf.ManifestIO.load_from_file(self._logger, self._filepath, self._env_cfg)
     
-    @property
-    @ft.cache
+    @ft.cached_property
     def _seeds(self) -> s.Seeds:
         return s.SeedsIO.load_files(self._logger, self._filepath, settings=self._manifest_cfg.settings)
     
-    @property
-    @ft.cache
+    @ft.cached_property
     def _sources(self) -> so.Sources:
         return so.SourcesIO.load_file(self._logger, self._filepath)
     
-    @property
-    @ft.cache
-    def _model_files(self) -> dict[m.ModelType, dict[str, mq.QueryFileWithConfig]]:
-        return m.ModelsIO.load_files(self._logger, self._filepath)
+    @ft.cached_property
+    def _build_model_files(self) -> dict[str, mq.QueryFileWithConfig]:
+        return m.ModelsIO.load_build_files(self._logger, self._filepath)
     
-    @property
-    @ft.cache
+    @ft.cached_property
+    def _dbview_model_files(self) -> dict[str, mq.QueryFileWithConfig]:
+        return m.ModelsIO.load_dbview_files(self._logger, self._filepath)
+    
+    @ft.cached_property
+    def _federate_model_files(self) -> dict[str, mq.QueryFileWithConfig]:
+        return m.ModelsIO.load_federate_files(self._logger, self._filepath)
+    
+    @ft.cached_property
     def _context_func(self) -> m.ContextFunc:
         return m.ModelsIO.load_context_func(self._logger, self._filepath)
     
-    @property
-    @ft.cache
+    @ft.cached_property
     def _dashboards(self) -> dict[str, d.DashboardDefinition]:
         return d.DashboardsIO.load_files(self._logger, self._filepath)
     
-    @property
-    @ft.cache
+    @ft.cached_property
     def _conn_args(self) -> cs.ConnectionsArgs:
         return cs.ConnectionSetIO.load_conn_py_args(self._logger, self._env_cfg, self._manifest_cfg)
     
-    @property
+    @ft.cached_property
     def _conn_set(self) -> cs.ConnectionSet:
-        if not hasattr(self, "__conn_set") or self.__conn_set is None:
-            self.__conn_set = cs.ConnectionSetIO.load_from_file(self._logger, self._filepath, self._manifest_cfg, self._conn_args)
-        return self.__conn_set
+        return cs.ConnectionSetIO.load_from_file(self._logger, self._filepath, self._manifest_cfg, self._conn_args)
     
-    @property
-    @ft.cache
+    @ft.cached_property
     def _authenticator(self) -> auth.Authenticator:
         token_expiry_minutes = self._manifest_cfg.settings.get(c.AUTH_TOKEN_EXPIRE_SETTING, 30)
         return auth.Authenticator(self._filepath, self._env_cfg, self._conn_args, self._conn_set, token_expiry_minutes)
     
-    @property
-    @ft.cache
+    @ft.cached_property
     def _param_args(self) -> ps.ParametersArgs:
         return ps.ParameterConfigsSetIO.get_param_args(self._conn_args)
     
-    @property
-    @ft.cache
+    @ft.cached_property
     def _param_cfg_set(self) -> ps.ParameterConfigsSet:
         return ps.ParameterConfigsSetIO.load_from_file(
             self._logger, self._filepath, self._manifest_cfg, self._seeds, self._conn_set, self._param_args
         )
     
-    @property
-    @ft.cache
+    @ft.cached_property
     def _j2_env(self) -> u.EnvironmentWithMacros:
         return u.EnvironmentWithMacros(self._logger, loader=u.j2.FileSystemLoader(self._filepath))
     
-    @property
-    @ft.cache
+    @ft.cached_property
     def User(self) -> type[auth.User]:
         """
         A direct reference to the User class in the `auth.py` file (if applicable). If `auth.py` does not exist, then this returns the `squirrels.User` class.
         """
         return self._authenticator.user_cls
+
+    @ft.cached_property
+    def _duckdb_venv_path(self) -> str:
+        duckdb_filepath_setting_val = self._manifest_cfg.settings.get(c.DUCKDB_VENV_FILE_PATH_SETTING, c.DEFAULT_DUCKDB_VENV_FILE_PATH)
+        return str(u.Path(self._filepath, duckdb_filepath_setting_val))
     
     def close(self) -> None:
         """
         Deliberately close any open resources within the Squirrels project, such as database connections (instead of relying on the garbage collector).
         """
-        if hasattr(self, "__conn_set") and self.__conn_set is not None:
-            self.__conn_set.dispose()
-            self.__conn_set = None
+        self._conn_set.dispose()
 
     def __exit__(self, exc_type, exc_val, traceback):
         self.close()
 
     
-    async def build(self, *, full_refresh: bool = False, stage_file: bool = False) -> None:
+    def _add_model(self, models_dict: dict[str, M], model: M) -> None:
+        if model.name in models_dict:
+            raise u.ConfigurationError(f"Names across all models (including seeds and sources) must be unique. Model '{model.name}' is duplicated")
+        models_dict[model.name] = model
+    
+
+    def _get_static_models(self) -> dict[str, m.StaticModel]:
+        settings = self._manifest_cfg.settings_obj
+        models_dict: dict[str, m.StaticModel] = {}
+
+        seeds_dict = self._seeds.get_dataframes()
+        for key, seed in seeds_dict.items():
+            self._add_model(models_dict, m.Seed(key, seed.config, seed.df, logger=self._logger, settings=settings, conn_set=self._conn_set))
+
+        for source_config in self._sources.sources:
+            self._add_model(models_dict, m.SourceModel(source_config.name, source_config, logger=self._logger, settings=settings, conn_set=self._conn_set))
+
+        for name, val in self._build_model_files.items():
+            model = m.BuildModel(name, val.config, val.query_file, logger=self._logger, settings=settings, conn_set=self._conn_set, j2_env=self._j2_env) 
+            self._add_model(models_dict, model)
+
+        return models_dict
+
+
+    async def build(self, *, full_refresh: bool = False, select: str | None = None, stage_file: bool = False) -> None:
         """
         Build the virtual data environment for the Squirrels project
 
@@ -167,31 +192,23 @@ class SquirrelsProject:
             full_refresh: Whether to drop all tables and rebuild the virtual data environment from scratch. Default is False.
             stage_file: Whether to stage the DuckDB file to overwrite the existing one later if the virtual data environment is in use. Default is False.
         """
-        builder = ModelBuilder(self._filepath, self._manifest_cfg.settings_obj, self._conn_set, self._sources, self._logger)
-        await builder.build(full_refresh=full_refresh, stage_file=stage_file)
+        models_dict: dict[str, m.StaticModel] = self._get_static_models()
+        
+        proj_vars = self._conn_args.proj_vars
+        env_vars = self._conn_args.env_vars
+        builder = ModelBuilder(self._duckdb_venv_path, self._conn_set, models_dict, proj_vars, env_vars, self._logger)
+        await builder.build(full_refresh, select, stage_file)
     
     
     def _generate_dag(self, dataset: str, *, target_model_name: str | None = None, always_python_df: bool = False) -> m.DAG:
-        seeds_dict = self._seeds.get_dataframes()
-
-        models_dict: dict[str, m.DataModel] = {}
-        def add_model(model: m.DataModel) -> None:
-            if model.name in models_dict:
-                raise u.ConfigurationError(f"Names across all models (seeds, sources, dbviews, and federates) must be unique. Model '{model.name}' is duplicated")
-            models_dict[model.name] = model
-
-        for key, seed in seeds_dict.items():
-            add_model(m.Seed(key, seed.config, seed.df, logger=self._logger))
-
-        for source_config in self._sources.sources:
-            add_model(m.SourceModel(source_config.name, source_config, logger=self._logger))
-
-        for name, val in self._model_files[m.ModelType.DBVIEW].items():
-            add_model(m.DbviewModel(name, val.config, val.query_file, logger=self._logger, settings=self._manifest_cfg.settings_obj, conn_set=self._conn_set, j2_env=self._j2_env))
+        models_dict: dict[str, m.DataModel] = {k:v for k, v in self._get_static_models().items()}
+        
+        for name, val in self._dbview_model_files.items():
+            self._add_model(models_dict, m.DbviewModel(name, val.config, val.query_file, logger=self._logger, settings=self._manifest_cfg.settings_obj, conn_set=self._conn_set, j2_env=self._j2_env))
             models_dict[name].needs_python_df = always_python_df
         
-        for name, val in self._model_files[m.ModelType.FEDERATE].items():
-            add_model(m.FederateModel(name, val.config, val.query_file, logger=self._logger, settings=self._manifest_cfg.settings_obj, conn_set=self._conn_set, j2_env=self._j2_env))
+        for name, val in self._federate_model_files.items():
+            self._add_model(models_dict, m.FederateModel(name, val.config, val.query_file, logger=self._logger, settings=self._manifest_cfg.settings_obj, conn_set=self._conn_set, j2_env=self._j2_env))
             models_dict[name].needs_python_df = always_python_df
         
         dataset_config = self._manifest_cfg.datasets[dataset]
@@ -199,8 +216,7 @@ class SquirrelsProject:
         target_model = models_dict[target_model_name]
         target_model.is_target = True
         
-        duckdb_filepath = str(u.Path(self._filepath, c.TARGET_FOLDER, c.DUCKDB_VENV_FILE))
-        return m.DAG(dataset_config, target_model, models_dict, duckdb_filepath, self._logger)
+        return m.DAG(dataset_config, target_model, models_dict, self._duckdb_venv_path, self._logger)
     
     def _draw_dag(self, dag: m.DAG, output_folder: u.Path) -> None:
         color_map = {m.ModelType.SEED: "green", m.ModelType.DBVIEW: "red", m.ModelType.FEDERATE: "skyblue"}
@@ -370,7 +386,7 @@ class SquirrelsProject:
         self, name: str, *, selections: dict[str, t.Any] = {}, user: auth.User | None = None
     ) -> pl.DataFrame:
         """
-        Async method to retrieve a dataset as a pandas DataFrame given parameter selections.
+        Async method to retrieve a dataset as a polars DataFrame given parameter selections.
 
         Arguments:
             name: The name of the dataset to retrieve.
@@ -378,7 +394,7 @@ class SquirrelsProject:
             user: The user to use for authentication. If None, no user is used. Optional, default is None.
         
         Returns:
-            A pandas DataFrame containing the dataset.
+            A polars DataFrame containing the dataset.
         """
         scope = self._manifest_cfg.datasets[name].scope
         if not self._authenticator.can_user_access_scope(user, scope):

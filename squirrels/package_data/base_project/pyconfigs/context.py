@@ -16,81 +16,71 @@ def main(ctx: dict[str, Any], sqrl: ContextArgs) -> None:
         
         columns = group_by_param.get_selected("columns")
         aliases = group_by_param.get_selected("aliases", default_field="columns")
-        assert isinstance(columns, list) and isinstance(aliases, list)
+        assert isinstance(columns, list) and isinstance(aliases, list) and len(columns) == len(aliases)
 
         ctx["select_dim_cols"] = ", ".join(x+" as "+y for x, y in zip(columns, aliases))
         ctx["group_by_cols"] = ", ".join(columns)
         ctx["order_by_cols"] = ", ".join((x+" DESC") for x in aliases)
-        ctx["order_by_cols_list"] = aliases
+        ctx["group_by_cols_list"] = columns
+        ctx["rename_dict"] = {old: new for old, new in zip(columns, aliases)}
+    
+    if sqrl.param_exists("limit"):
+        limit_param = sqrl.prms["limit"]
+        assert isinstance(limit_param, p.NumberParameter)
 
-    if sqrl.param_exists("description_filter"):
-        descript_param = sqrl.prms["description_filter"]
-        assert isinstance(descript_param, p.TextParameter)
-
-        desc_pattern = descript_param.get_entered_text().apply_percent_wrap()
-        sqrl.set_placeholder("desc_pattern", desc_pattern)
+        ctx["limit_clause"] = f"LIMIT {limit_param.get_selected_value()}"
     else:
-        sqrl.set_placeholder("desc_pattern", "%%")
+        ctx["limit_clause"] = ""
 
     if sqrl.param_exists("start_date"):
         start_date_param = sqrl.prms["start_date"]
         assert isinstance(start_date_param, p.DateParameter)
 
-        start_date = start_date_param.get_selected_date()
-        sqrl.set_placeholder("start_date", start_date)
+        ctx["start_date"] = start_date_param.get_selected_date_quoted()
     
     if sqrl.param_exists("end_date"):
         end_date_param = sqrl.prms["end_date"]
         assert isinstance(end_date_param, p.DateParameter)
 
-        end_date = end_date_param.get_selected_date()
-        sqrl.set_placeholder("end_date", end_date)
+        ctx["end_date"] = end_date_param.get_selected_date_quoted()
 
     if sqrl.param_exists("date_range"):
         date_range_param = sqrl.prms["date_range"]
         assert isinstance(date_range_param, p.DateRangeParameter)
 
-        start_date = date_range_param.get_selected_start_date()
-        end_date = date_range_param.get_selected_end_date()
-
-        sqrl.set_placeholder("start_date", start_date)
-        sqrl.set_placeholder("end_date", end_date)
+        ctx["start_date"] = date_range_param.get_selected_start_date_quoted()
+        ctx["end_date"] = date_range_param.get_selected_end_date_quoted()
     
     if sqrl.param_exists("category"):
         category_param = sqrl.prms["category"]
         assert isinstance(category_param, p.MultiSelectParameter)
 
         ctx["has_categories"] = category_param.has_non_empty_selection()
-        ctx["categories"] = category_param.get_selected_labels_quoted_joined()
+        ctx["categories"] = category_param.get_selected_ids_quoted_joined()
     
     if sqrl.param_exists("subcategory"):
         subcategory_param = sqrl.prms["subcategory"]
         assert isinstance(subcategory_param, p.MultiSelectParameter)
 
         ctx["has_subcategories"] = subcategory_param.has_non_empty_selection()
-        ctx["subcategories"] = subcategory_param.get_selected_labels_quoted_joined()
+        ctx["subcategories"] = subcategory_param.get_selected_ids_quoted_joined()
     
     if sqrl.param_exists("min_filter"):
         min_amount_filter = sqrl.prms["min_filter"]
         assert isinstance(min_amount_filter, p.NumberParameter)
 
-        min_amount = min_amount_filter.get_selected_value()
-        sqrl.set_placeholder("min_amount", min_amount)
+        ctx["min_amount"] = min_amount_filter.get_selected_value()
     
     if sqrl.param_exists("max_filter"):
         max_amount_filter = sqrl.prms["max_filter"]
         assert isinstance(max_amount_filter, p.NumberParameter)
 
-        max_amount = max_amount_filter.get_selected_value()
-        sqrl.set_placeholder("max_amount", max_amount)
+        ctx["max_amount"] = max_amount_filter.get_selected_value()
 
     if sqrl.param_exists("between_filter"):
         between_filter = sqrl.prms["between_filter"]
         assert isinstance(between_filter, p.NumberRangeParameter)
 
-        min_amount = between_filter.get_selected_lower_value()
-        max_amount = between_filter.get_selected_upper_value()
-
-        sqrl.set_placeholder("min_amount", min_amount)
-        sqrl.set_placeholder("max_amount", max_amount)
+        ctx["min_amount"] = between_filter.get_selected_lower_value()
+        ctx["max_amount"] = between_filter.get_selected_upper_value()
     

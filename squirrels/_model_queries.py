@@ -3,8 +3,8 @@ from dataclasses import dataclass, field
 from typing import Callable, Generic, TypeVar, Any
 import polars as pl, pandas as pd
 
-from .arguments.run_time_args import ModelArgs
-from ._model_configs import ModelConfig, DbviewModelConfig, FederateModelConfig
+from .arguments.run_time_args import BuildModelArgs
+from ._model_configs import ModelConfig
 
 
 # Input query file classes
@@ -20,7 +20,7 @@ class SqlQueryFile(QueryFile):
 
 @dataclass(frozen=True)
 class PyQueryFile(QueryFile):
-    raw_query: Callable[[ModelArgs], pl.LazyFrame | pd.DataFrame]
+    raw_query: Callable[[BuildModelArgs], pl.LazyFrame | pd.DataFrame]
 
 
 Q = TypeVar('Q', bound=QueryFile)

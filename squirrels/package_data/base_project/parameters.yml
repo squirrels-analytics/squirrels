@@ -4,18 +4,21 @@ parameters:
     arguments:                                            ## arguments to specify depend on values for 'type' and 'factory'
       name: group_by
       label: Group By
-      description: Dimension to aggregate by              ## optional, default is empty string
+      description: Dimension(s) to aggregate by           ## optional, default is empty string
       all_options:
         - id: g0
           label: Transaction
-          columns: ["masked_id", "date", "description"]   ## custom field
-          aliases: ["id", "date", "description"]          ## custom field
+          columns: ["date", "category", "subcategory", "description"]   ## custom field
           is_default: false                               ## optional, default, exists for SingleSelect or MultiSelect options only
           user_groups: []                                 ## optional, default, exists for all parameter options
           parent_option_ids: []                           ## optional, default, exists for all parameter options
         - id: g1
           label: Date
           columns: [date]
+          aliases: [day]                                  ## custom field
+        - id: g4
+          label: Month
+          columns: [month]
         - id: g2
           label: Category
           columns: [category]
@@ -25,15 +28,19 @@ parameters:
       user_attribute: null                                ## optional, default, exists for all parameter types
       parent_name: null                                   ## optional, default, exists for all parameter types
   
-  - type: TextParameter
+  - type: NumberParameter
     factory: CreateWithOptions
     arguments:
-      name: description_filter
-      label: Description Contains
-      description: Substring of description to filter transactions by
+      name: limit
+      label: Number of Rows
+      description: Number of rows to return
       parent_name: group_by
       all_options:
-        - parent_option_ids: g0
+        - min_value: 0
+          max_value: 1000
+          increment: 10
+          default_value: 1000
+          parent_option_ids: g0
   
   - type: DateParameter
     factory: CreateFromSource
@@ -42,7 +49,7 @@ parameters:
       label: Start Date
       description: Start date to filter transactions by
       data_source:
-        table_or_query: SELECT min(date) AS min_date, max(date) AS max_date FROM transactions
+        table_or_query: SELECT min(date) AS min_date, max(date) AS max_date FROM expenses
         default_date_col: min_date
         min_date_col: min_date
         max_date_col: max_date
@@ -54,7 +61,9 @@ parameters:
       label: End Date
       description: End date to filter transactions by
       all_options:
-        - default_date: 2023-12-31
+        - default_date: 2024-12-31
+          min_date: 2000-01-01
+          max_date: 2024-12-31
   
   - type: DateRangeParameter
     factory: CreateWithOptions
@@ -63,8 +72,10 @@ parameters:
       label: Date Range
       description: Date range to filter transactions by
       all_options:
-        - default_start_date: 2023-01-01
-          default_end_date: 2023-12-31
+        - default_start_date: 2024-01-01
+          default_end_date: 2024-12-31
+          min_date: 2024-01-01
+          max_date: 2024-12-31
   
   - type: MultiSelectParameter
     factory: CreateFromSource
@@ -107,7 +118,7 @@ parameters:
       description: Number to filter on transactions with an amount greater than this value
       all_options:
         - min_value: 0
-          max_value: 500
+          max_value: 300
           increment: 10                                   ## optional, default is 1, exists for Number and NumberRange options
           default_value: null                             ## optional, default, exists for Number options only
   
@@ -118,12 +129,12 @@ parameters:
       label: Amounts Less Than
       description: Number to filter on transactions with an amount less than this value
       data_source:
-        table_or_query: "SELECT 0 as min_value, max(-amount) as max_value, 10 as increment FROM transactions WHERE category <> 'Income'"
+        table_or_query: "SELECT 0 as min_value, 300 as max_value, 10 as increment"
         min_value_col: min_value
         max_value_col: max_value
         increment_col: increment                          ## optional, default is null
         default_value_col: max_value                      ## optional, default is null
-        id_col: null                                      ## optional, default, required for SingleSelect and MultiSelect, optional for all others
+        id_col: null                                      ## optional, default, required for SingleSelect and MultiSelect, optional for others
   
   - type: NumberRangeParameter
     factory: CreateWithOptions
@@ -133,8 +144,8 @@ parameters:
       description: Number range to filter on transactions with an amount within this range
       all_options:
         - min_value: 0
-          max_value: 500
-          default_lower_value: 10                         ## optional, default is null (or min_value), exists for NumRange options only
-          default_upper_value: 400                        ## optional, default is null (or max_value), exists for NumRange options only
+          max_value: 300
+          default_lower_value: 0                          ## optional, default is null (or min_value), exists for NumRange options only
+          default_upper_value: 300                        ## optional, default is null (or max_value), exists for NumRange options only
 
 

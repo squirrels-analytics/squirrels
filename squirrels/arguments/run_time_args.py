@@ -2,33 +2,19 @@ from typing import Iterable, Callable, Any, Coroutine
 from dataclasses import dataclass
 import polars as pl
 
-from .init_time_args import ConnectionsArgs, ParametersArgs
-from .._manifest import ConnectionProperties
+from .init_time_args import _WithConnectionDictArgs, ParametersArgs, BuildModelArgs
 from .._user_base import User
 from ..parameters import Parameter, TextValue
 from .. import _utils as u
 
 
 @dataclass
-class _AuthArgs(ConnectionsArgs):
-    _connections: dict[str, ConnectionProperties | Any]
-
-    @property
-    def connections(self) -> dict[str, ConnectionProperties | Any]:
-        """
-        A dictionary of connection keys to SQLAlchemy Engines for database connections. 
-        
-        Can also be used to store other in-memory objects in advance such as ML models.
-        """
-        return self._connections.copy()
-
-@dataclass
-class AuthLoginArgs(_AuthArgs):
+class AuthLoginArgs(_WithConnectionDictArgs):
     username: str
     password: str
 
 @dataclass
-class AuthTokenArgs(_AuthArgs):
+class AuthTokenArgs(_WithConnectionDictArgs):
     token: str
 
 
@@ -88,11 +74,8 @@ class ContextArgs(ParametersArgs):
 
 
 @dataclass
-class ModelArgs(_AuthArgs, ContextArgs):
+class ModelArgs(BuildModelArgs, ContextArgs):
     _ctx: dict[str, Any]
-    _dependencies: Iterable[str]
-    _ref: Callable[[str], pl.LazyFrame]
-    _run_external_sql: Callable[[str, str], pl.DataFrame]
 
     @property
     def ctx(self) -> dict[str, Any]:
@@ -100,13 +83,6 @@ class ModelArgs(_AuthArgs, ContextArgs):
         Dictionary of context variables
         """
         return self._ctx.copy()
-
-    @property
-    def dependencies(self) -> set[str]:
-        """
-        The set of dependent data model names
-        """
-        return set(self._dependencies)
     
     def is_placeholder(self, placeholder: str) -> bool:
         """
@@ -133,50 +109,6 @@ class ModelArgs(_AuthArgs, ContextArgs):
             An type for the value of the placeholder
         """
         return self._placeholders.get(placeholder)
-    
-    def ref(self, model: str) -> pl.LazyFrame:
-        """
-        Returns the result (as polars DataFrame) of a dependent model (predefined in "dependencies" function)
-
-        Note: This is different behaviour than the "ref" function for SQL models, which figures out the dependent models for you, 
-        and returns a string for the table/view name instead of a polars DataFrame.
-
-        Arguments:
-            model: The model name
-        
-        Returns:
-            A polars DataFrame
-        """
-        return self._ref(model)
-
-    def run_external_sql(self, connection_name: str, sql_query: str, **kwargs) -> pl.DataFrame:
-        """
-        Runs a SQL query against an external database, with option to specify the connection name. Placeholder values are provided automatically
-
-        Arguments:
-            sql_query: The SQL query. Can be parameterized with placeholders
-            connection_name: The connection name for the database. If None, uses the one configured for the model
-        
-        Returns:
-            The query result as a polars DataFrame
-        """
-        return self._run_external_sql(sql_query, connection_name)
-
-    def run_sql_on_dataframes(self, sql_query: str, *, dataframes: dict[str, pl.LazyFrame] | None = None, **kwargs) -> pl.DataFrame:
-        """
-        Uses a dictionary of dataframes to execute a SQL query in an embedded in-memory database (sqlite or duckdb based on setting)
-
-        Arguments:
-            sql_query: The SQL query to run
-            dataframes: A dictionary of table names to their polars LazyFrame. If None, uses results of dependent models
-        
-        Returns:
-            The result as a polars LazyFrame from running the query
-        """
-        if dataframes is None:
-            dataframes = {x: self.ref(x) for x in self._dependencies}
-
-        return u.run_sql_on_dataframes(sql_query, dataframes)
 
 
 @dataclass

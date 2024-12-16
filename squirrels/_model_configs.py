@@ -33,6 +33,21 @@ class QueryModelConfig(ModelConfig):
     depends_on: set[str] = Field(default_factory=set, description="The dependencies of the model")
 
 
+class BuildModelConfig(QueryModelConfig):
+    materialization: str = Field(default="TABLE", description="The materialization of the model (ignored if Python model which is always a table)")
+
+    def get_sql_for_build(self, model_name: str, select_query: str) -> str:
+        if self.materialization.upper() == "TABLE":
+            materialization = "TABLE"
+        elif self.materialization.upper() == "VIEW":
+            materialization = "VIEW"
+        else:
+            raise ValueError(f"Invalid materialization: {self.materialization}")
+        
+        create_prefix = f"CREATE OR REPLACE {materialization} {model_name} AS\n"
+        return create_prefix + select_query
+
+
 class DbviewModelConfig(QueryModelConfig):
     connection: str | None = Field(default=None, description="The connection name of the database view")
 

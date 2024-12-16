@@ -52,9 +52,9 @@ class ApiServer:
     
     async def _monitor_for_staging_file(self) -> None:
         """Background task that monitors for staging file and renames it when present"""
-        project_path = self.project._filepath
-        staging_file = Path(project_path, c.TARGET_FOLDER, c.DUCKDB_STG_FILE)
-        target_file = Path(project_path, c.TARGET_FOLDER, c.DUCKDB_VENV_FILE)
+        duckdb_venv_path = self.project._duckdb_venv_path
+        staging_file = Path(duckdb_venv_path + ".stg")
+        target_file = Path(duckdb_venv_path)
                 
         while True:
             try:
@@ -68,7 +68,7 @@ class ApiServer:
                 
             except Exception as e:
                 # Log any unexpected errors but keep running
-                self.logger.error(f"Error in monitoring {c.DUCKDB_STG_FILE}: {str(e)}")
+                self.logger.error(f"Error in monitoring {c.DUCKDB_VENV_FILE + '.stg'}: {str(e)}")
             
             await asyncio.sleep(1)  # Check every second
     

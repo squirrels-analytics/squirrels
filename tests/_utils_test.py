@@ -16,7 +16,7 @@ def test_load_json_or_comma_delimited_str(input_str, expected):
 
 
 def test_run_sql_on_dataframes():
-    df_dict = { "input_df": pl.DataFrame({"a": [1, 2, 3], "b": [4, 5, 6]}) }
+    df_dict = { "input_df": pl.LazyFrame({"a": [1, 2, 3], "b": [4, 5, 6]}) }
     expected = pl.DataFrame({"total": [5, 7, 9]})
     result = u.run_sql_on_dataframes("SELECT a+b AS total FROM input_df", df_dict)
     assert result.equals(expected)

@@ -167,7 +167,7 @@ class TestDataSourceParameterConfig:
         data_source = ds.SelectDataSource("SELECT DISTINCT col_id, col_val FROM seed_test ORDER BY col_id", "col_id", "col_val", from_seeds=True)
         ds_config = _pc.DataSourceParameterConfig(_pc.SingleSelectParameterConfig, "ds_test", "", data_source)
 
-        input_df = pl.DataFrame({
+        input_df = pl.LazyFrame({
             "col_id": [1, 1, 2, 2, 3],
             "col_val": ["a", "a", "b", "b", "c"]
         })

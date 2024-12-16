@@ -1,12 +1,12 @@
 **/__pycache__/
 
 # common virtual environment names
-.env/
 .venv/
 venv/
 
 # squirrels files to ignore
 env.yml
+duckdb_init.sql
 logs/
 target/
 sqrl_packages/
