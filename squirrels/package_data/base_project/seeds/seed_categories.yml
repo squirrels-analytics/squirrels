@@ -1,5 +1,5 @@
 description: |
-  Lookup table for the categories of the transactions.
+  Lookup table for the category IDs and names of transactions.
 
 cast_column_types: true
 

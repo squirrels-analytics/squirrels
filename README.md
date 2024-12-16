@@ -22,7 +22,7 @@ Here are a few of the things that squirrels can do:
 - Connect to any database by specifying its SQLAlchemy url (in `squirrels.yml`) or by using its native connector library in python (in `connections.py`).
 - Configure API routes for datasets (in `squirrels.yml`) without writing code.
 - Configure parameter widgets (types include single-select, multi-select, date, number, etc.) for your datasets (in `parameters.py`).
-- Use Jinja SQL templates (just like dbt!) or python functions (that return a pandas dataframe) to define dynamic query logic based on parameter selections.
+- Use Jinja SQL templates (just like dbt!) or python functions (that return a Python dataframe such as polars or pandas) to define dynamic query logic based on parameter selections.
 - Query multiple databases and join the results together in a final view in one API endpoint/dataset!
 - Test your API endpoints with an interactive UI or by a command line that generates rendered sql queries and results (for a given set of parameter selections).
 - Define authentication logic (in `auth.py`) and authorize privacy scope per dataset (in `squirrels.yml`). The user's attributes can even be used in your query logic!

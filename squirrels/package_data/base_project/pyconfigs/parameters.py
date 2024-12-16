@@ -18,7 +18,7 @@ def main(sqrl: ParametersArgs) -> None:
 
     ## Example of creating SingleSelectParameter and specifying each option by code
     group_by_options = [
-        po.SelectParameterOption("g0", "Transaction", columns=["masked_id", "date", "description"], aliases=["id", "date", "description"]),
+        po.SelectParameterOption("g0", "Transaction", columns=["date", "category", "subcategory", "description"]),
         po.SelectParameterOption("g1", "Day", columns=["date"], aliases=["day"]),
         po.SelectParameterOption("g4", "Month", columns=["month"]),
         po.SelectParameterOption("g2", "Category", columns=["category"]),
@@ -28,19 +28,16 @@ def main(sqrl: ParametersArgs) -> None:
         "group_by", "Group By", group_by_options, description="Dimension(s) to aggregate by"
     )
 
-    ## Example of creating a TextParameter
-    parent_name = "group_by"
-    description_text_options = [
-        po.TextParameterOption(parent_option_ids="g0")
-    ]
-    p.TextParameter.CreateWithOptions(
-        "description_filter", "Description Contains", description_text_options, parent_name=parent_name,
-        description="Substring of description to filter transactions by"
+    ## Example of creating NumberParameter with options
+    parent = "group_by"
+    limit_options = [po.NumberParameterOption(0, 1000, increment=10, default_value=1000, parent_option_ids="g0")]
+    p.NumberParameter.CreateWithOptions(
+        "limit", "Max Number of Rows", limit_options, parent_name=parent, description="Maximum number of rows to return"
     )
 
-    ## Example of creating DateParameter from lookup query/table
+    ## Example of creating DateParameter
     start_date_source = ds.DateDataSource(
-        "SELECT min(date) AS min_date, max(date) AS max_date FROM transactions",
+        "SELECT min(date) AS min_date, max(date) AS max_date FROM expenses",
         default_date_col="min_date", min_date_col="min_date", max_date_col="max_date"
     )
     p.DateParameter.CreateFromSource(
@@ -48,14 +45,14 @@ def main(sqrl: ParametersArgs) -> None:
     )
 
     ## Example of creating DateParameter from list of DateParameterOption's
-    end_date_option = [po.DateParameterOption("2023-12-31", min_date="2023-01-01", max_date="2023-12-31")]
+    end_date_option = [po.DateParameterOption("2024-12-31", min_date="2000-01-01", max_date="2024-12-31")]
     p.DateParameter.CreateWithOptions(
         "end_date", "End Date", end_date_option, description="End date to filter transactions by"
     )
 
     ## Example of creating DateRangeParameter
     p.DateRangeParameter.CreateSimple(
-        "date_range", "Date Range", "2023-01-01", "2023-12-31", min_date="2023-01-01", max_date="2023-12-31",
+        "date_range", "Date Range", "2024-01-01", "2024-12-31", min_date="2024-01-01", max_date="2024-12-31",
         description="Date range to filter transactions by"
     )
 
@@ -77,12 +74,12 @@ def main(sqrl: ParametersArgs) -> None:
 
     ## Example of creating NumberParameter
     p.NumberParameter.CreateSimple(
-        "min_filter", "Amounts Greater Than", min_value=0, max_value=500, increment=10,
+        "min_filter", "Amounts Greater Than", min_value=0, max_value=300, increment=10,
         description="Number to filter on transactions with an amount greater than this value"
     )
     
     ## Example of creating NumberParameter from lookup query/table
-    query = "SELECT 0 as min_value, max(-amount) as max_value, 10 as increment FROM transactions WHERE category <> 'Income'"
+    query = "SELECT 0 as min_value, 300 as max_value, 10 as increment"
     max_amount_ds = ds.NumberDataSource(query, "min_value", "max_value", increment_col="increment", default_value_col="max_value")
     p.NumberParameter.CreateFromSource(
         "max_filter", "Amounts Less Than", max_amount_ds, description="Number to filter on transactions with an amount less than this value"
@@ -90,6 +87,6 @@ def main(sqrl: ParametersArgs) -> None:
 
     ## Example of creating NumberRangeParameter
     p.NumberRangeParameter.CreateSimple(
-        "between_filter", "Amounts Between", 0, 500, default_lower_value=10, default_upper_value=400,
+        "between_filter", "Amounts Between", 0, 300, default_lower_value=0, default_upper_value=300,
         description="Number range to filter on transactions with an amount within this range"
     )

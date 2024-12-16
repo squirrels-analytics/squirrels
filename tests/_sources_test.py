@@ -65,25 +65,25 @@ def test_source_get_query_for_insert():
         name="test",
         table="table_test",
         columns=[
-            ColumnConfig(name="id", type="INTEGER"),
-            ColumnConfig(name="timestamp", type="TIMESTAMP")
+            ColumnConfig(name="id", type="integer"),
+            ColumnConfig(name="timestamp", type="timestamp")
         ],
         update_hints=UpdateHints(increasing_column="timestamp")
     )
-    expected = "FROM db_default.table_test"
+    expected = "SELECT id, timestamp FROM db_default.table_test"
     assert source.get_query_for_insert(dialect="postgres", conn_name="default", table_name="table_test", max_value_of_increasing_col=None) == expected
     assert source.get_query_for_insert(dialect="postgres", conn_name="default", table_name="table_test", max_value_of_increasing_col="2024-01-01", full_refresh=True) == expected
     
     expected = "FROM postgres_query('db_default', 'SELECT id, timestamp FROM table_test WHERE CAST(timestamp AS TIMESTAMP) > CAST(''2024-01-01'' AS TIMESTAMP)')"
     assert source.get_query_for_insert(dialect="postgres", conn_name="default", table_name="table_test", max_value_of_increasing_col="2024-01-01", full_refresh=False) == expected
 
-    expected = "FROM mysql_query('db_default', 'SELECT id, timestamp FROM table_test WHERE CAST(timestamp AS TIMESTAMP) > CAST(''2024-01-01'' AS TIMESTAMP)')"
+    expected = "FROM mysql_query('db_default', 'SELECT id, timestamp FROM table_test WHERE CAST(timestamp AS DATETIME) > CAST(''2024-01-01'' AS DATETIME)')"
     assert source.get_query_for_insert(dialect="mysql", conn_name="default", table_name="table_test", max_value_of_increasing_col="2024-01-01", full_refresh=False) == expected
 
-    expected = "SELECT id, timestamp FROM db_default.table_test WHERE CAST(timestamp AS TIMESTAMP) > CAST('2024-01-01' AS TIMESTAMP)"
+    expected = "SELECT id, timestamp FROM db_default.table_test WHERE timestamp::timestamp > '2024-01-01'::timestamp"
     assert source.get_query_for_insert(dialect="sqlite", conn_name="default", table_name="table_test", max_value_of_increasing_col="2024-01-01", full_refresh=False) == expected
 
-def test_source_get_insert_on_conflict_clause():
+def test_source_get_insert_replace_clause():
     source = Source(
         name="test",
         columns=[
@@ -93,15 +93,15 @@ def test_source_get_insert_on_conflict_clause():
         ],
         primary_key=["id"]
     )
-    expected = "ON CONFLICT DO UPDATE SET name = EXCLUDED.name, value = EXCLUDED.value"
-    assert source.get_insert_on_conflict_clause() == expected
+    expected = "OR REPLACE"
+    assert source.get_insert_replace_clause() == expected
     
     # Test with no primary key
     source_no_pk = Source(
         name="test",
         columns=[ColumnConfig(name="id", type="INTEGER")]
     )
-    assert source_no_pk.get_insert_on_conflict_clause() == ""
+    assert source_no_pk.get_insert_replace_clause() == ""
 
 def test_sources_duplicate_names():
     # Test that duplicate source names raise ConfigurationError

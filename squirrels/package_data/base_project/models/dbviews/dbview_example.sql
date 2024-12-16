@@ -1,29 +1,12 @@
-WITH
-transactions_with_masked_id AS (
-    
-    SELECT *,
-{%- if user.role == "manager" %}
-        id as masked_id
-{%- else %}
-        '***' as masked_id
-{%- endif %},
-        STRFTIME('%Y-%m', date) AS month
-    
-    FROM {{ source("src_transactions") }}
+{# SQLite dialect (based on connection used) #}
 
-)
+SELECT STRFTIME('%Y-%m', date) AS month
+    , SUM(amount) as total_amount
 
-SELECT {{ ctx.select_dim_cols }}
-    , SUM(-amount) as total_amount
+FROM {{ source("src_transactions") }}
 
-FROM transactions_with_masked_id
+WHERE {{ date_and_amount_filters(ctx) }}
 
-WHERE date >= :start_date
-    AND date <= :end_date
-    AND -amount >= :min_amount
-    AND -amount <= :max_amount
-    AND description LIKE :desc_pattern
-    {% if ctx.has_categories -%} AND category IN ({{ ctx.categories }}) {%- endif %}
-    {% if ctx.has_subcategories -%} AND subcategory IN ({{ ctx.subcategories }}) {%- endif %}
+GROUP BY 1
 
-GROUP BY {{ ctx.group_by_cols }}
+ORDER BY 1 DESC

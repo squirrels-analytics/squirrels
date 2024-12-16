@@ -1,6 +1,6 @@
 from typing import Any
 from pydantic import BaseModel, Field
-import time
+import time, sqlglot
 
 from . import _utils as u, _constants as c, _model_configs as mc
 
@@ -40,25 +40,23 @@ class Source(mc.DbviewModelConfig):
         return f"SELECT max({self.update_hints.increasing_column}) FROM {self.name}"
     
     def get_query_for_insert(self, dialect: str, conn_name: str, table_name: str, max_value_of_increasing_col: Any | None, *, full_refresh: bool = True) -> str:
+        select_cols = self.get_cols_for_insert_stmt()
         if full_refresh or max_value_of_increasing_col is None:
-            return f"FROM db_{conn_name}.{table_name}"
+            return f"SELECT {select_cols} FROM db_{conn_name}.{table_name}"
         
         increasing_col = self.update_hints.increasing_column
         increasing_col_type = next(col.type for col in self.columns if col.name == increasing_col)
-        where_cond = f"CAST({increasing_col} AS {increasing_col_type}) > CAST(''{max_value_of_increasing_col}'' AS {increasing_col_type})"
-        pushdown_query = f"SELECT {self.get_cols_for_insert_stmt()} FROM {table_name} WHERE {where_cond}"
-        if dialect == 'postgres':
-            return f"FROM postgres_query('db_{conn_name}', '{pushdown_query}')"
-        elif dialect == 'mysql':
-            return f"FROM mysql_query('db_{conn_name}', '{pushdown_query}')"
-        modified_where_cond = where_cond.replace("''", "'")
-        return f"SELECT {self.get_cols_for_insert_stmt()} FROM db_{conn_name}.{table_name} WHERE {modified_where_cond}"
+        where_cond = f"{increasing_col}::{increasing_col_type} > '{max_value_of_increasing_col}'::{increasing_col_type}"
+        pushdown_query = f"SELECT {select_cols} FROM {table_name} WHERE {where_cond}"
+        
+        if dialect in ['postgres', 'mysql']:
+            transpiled_query = sqlglot.transpile(pushdown_query, read='duckdb', write=dialect)[0].replace("'", "''")
+            return f"FROM {dialect}_query('db_{conn_name}', '{transpiled_query}')"
+        
+        return f"SELECT {select_cols} FROM db_{conn_name}.{table_name} WHERE {where_cond}"
     
-    def get_insert_on_conflict_clause(self) -> str:
-        if len(self.primary_key) == 0:
-            return ""
-        set_clause = ", ".join([f'{col.name} = EXCLUDED.{col.name}' for col in self.columns if col.name not in self.primary_key])
-        return f"ON CONFLICT DO UPDATE SET {set_clause}"
+    def get_insert_replace_clause(self) -> str:
+        return "" if len(self.primary_key) == 0 else "OR REPLACE"
 
 
 class Sources(BaseModel):

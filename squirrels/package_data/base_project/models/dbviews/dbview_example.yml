@@ -1,92 +1,24 @@
 description: |
-  This is an example of a database view model. It finds the total amount spent by a group by dimension, specified as a parameter. 
-  If grouping by the transaction level, the transaction ID is masked unless the user is a manager.
+  This is an example of a database view model. It finds the total amount spent by month.
 
-  Parameters are available to filter the category, date, and amount of the transactions.
+  Parameters are available to filter the date and amount of the transactions.
 
 connection: default
 
-columns:
-  - name: id
-    type: string
-    condition: parameter "group_by" (Group By) is "g0" (Transaction)
-    description: The id for the transaction. Masked as '***' if user is not manager
-    category: dimension
-    depends_on:
-      - transactions.id
-    tests:
-      - not_null
-      - one_of:
-        - check_that: col = '***'
-        - unique
-  
-  - name: date
-    type: string
-    condition: parameter "group_by" (Group By) is "g0" (Transaction)
-    description: The date of the transaction
-    category: dimension
-    depends_on:
-      - transactions.date
-    tests:
-      - not_null
-  
-  - name: description
-    type: string
-    condition: parameter "group_by" (Group By) is "g0" (Transaction)
-    description: The description of the transaction
-    category: dimension
-    depends_on:
-      - transactions.description
-  
-  - name: day
-    type: string
-    condition: parameter "group_by" (Group By) is "g1" (Day)
-    description: The day for which the amount is aggregated by
-    category: dimension
-    depends_on:
-      - transactions.date
-    tests:
-      - not_null
-      - unique
+depends_on:
+  - src_transactions
 
+columns:
   - name: month
     type: string
-    condition: parameter "group_by" (Group By) is "g4" (Month)
     description: The months for which the amount is aggregated by
     category: dimension
     depends_on:
-      - transactions.date
-    tests:
-      - not_null
-      - unique
-  
-  - name: category
-    type: string
-    condition: parameter "group_by" (Group By) is "g2" (Category) or "g3" (Subcategory)
-    description: The category for which the amount is aggregated by
-    category: dimension
-    depends_on:
-      - transactions.category
-    tests:
-      - not_null
-
-  - name: subcategory
-    type: string
-    condition: parameter "group_by" (Group By) is "g3" (Subcategory)
-    description: The subcategory for which the amount is aggregated by
-    category: dimension
-    depends_on:
-      - transactions.subcategory
-    tests:
-      - not_null
-      - unique
+      - src_transactions.date
   
   - name: total_amount
     type: float
     description: The total amount spent by the group by dimension
     category: measure
     depends_on:
-      - transactions.amount
-    tests:
-      - not_null
-      - check_that: col >= 0
+      - src_transactions.amount

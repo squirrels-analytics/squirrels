@@ -5,6 +5,7 @@ DEPS_CMD = 'deps'
 BUILD_CMD = 'build'
 COMPILE_CMD = 'compile'
 RUN_CMD = 'run'
+DUCKDB_CMD = 'duckdb'
 
 # Environment config keys
 JWT_SECRET_KEY = 'jwt_secret'
@@ -15,12 +16,14 @@ BASE_PROJECT_FOLDER = 'base_project'
 ASSETS_FOLDER = 'assets'
 TEMPLATES_FOLDER = 'templates'
 
+GLOBAL_ENV_FOLDER = '.squirrels'
 ENV_CONFIG_FILE = 'env.yml'
 MANIFEST_JINJA_FILE = 'squirrels.yml.j2'
 CONNECTIONS_YML_FILE = 'connections.yml'
 PARAMETERS_YML_FILE = 'parameters.yml'
 DASHBOARDS_YML_FILE = 'dashboards.yml'
 MANIFEST_FILE = 'squirrels.yml'
+DUCKDB_INIT_FILE = 'duckdb_init.sql'
 
 LOGS_FOLDER = 'logs'
 LOGS_FILE = 'squirrels.log'
@@ -29,9 +32,12 @@ DATABASE_FOLDER = 'assets'
 PACKAGES_FOLDER = 'sqrl_packages'
 
 MACROS_FOLDER = 'macros'
+MACROS_FILE = 'macros_example.sql'
 
 MODELS_FOLDER = 'models'
 SOURCES_FILE = 'sources.yml'
+BUILDS_FOLDER = 'builds'
+BUILD_FILE_STEM = 'build_example'
 DBVIEWS_FOLDER = 'dbviews'
 DBVIEW_FILE_STEM = 'dbview_example'
 FEDERATES_FOLDER = 'federates'
@@ -49,8 +55,6 @@ PARAMETERS_FILE = 'parameters.py'
 TARGET_FOLDER = 'target'
 COMPILE_FOLDER = 'compile'
 DUCKDB_VENV_FILE = '.venv.duckdb'
-DUCKDB_DEV_FILE = '.dev.duckdb'
-DUCKDB_STG_FILE = '.stg.duckdb'
 
 SEEDS_FOLDER = 'seeds'
 SEED_CATEGORY_FILE_STEM = 'seed_categories'
@@ -70,6 +74,8 @@ DB_CONN_DEFAULT_USED_SETTING = 'connections.default_name_used'
 DEFAULT_DB_CONN = 'default'
 SEEDS_INFER_SCHEMA_SETTING = 'seeds.infer_schema'
 SEEDS_NA_VALUES_SETTING = 'seeds.na_values'
+DUCKDB_VENV_FILE_PATH_SETTING = 'duckdb_venv.file_path'
+DEFAULT_DUCKDB_VENV_FILE_PATH = f"{TARGET_FOLDER}/{DUCKDB_VENV_FILE}"
 
 # Selection cfg sections
 USER_ATTRIBUTES_SECTION = 'user_attributes'

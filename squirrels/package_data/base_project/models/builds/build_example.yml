@@ -1,0 +1,55 @@
+description: |
+  This is an example of a build model. It adds a new column called "month" to the source table "src_transactions".
+
+depends_on:
+  - src_transactions
+  - seed_categories
+  - seed_subcategories
+
+columns:
+  - name: id
+    depends_on:
+      - src_transactions.id
+    pass_through: true
+
+  - name: date
+    type: string
+    description: The day of the transaction in 'YYYY-MM-DD' format
+    depends_on:
+      - src_transactions.date
+
+  - name: month
+    type: string
+    description: The month of the transaction in 'YYYY-MM' format
+    depends_on:
+      - src_transactions.date
+  
+  - name: category_id
+    depends_on:
+      - seed_categories.category_id
+    pass_through: true
+
+  - name: category
+    depends_on:
+      - seed_categories.category
+    pass_through: true
+  
+  - name: subcategory_id
+    depends_on:
+      - seed_subcategories.subcategory_id
+    pass_through: true
+
+  - name: subcategory
+    depends_on:
+      - seed_subcategories.subcategory
+    pass_through: true
+
+  - name: amount
+    depends_on:
+      - src_transactions.amount
+    pass_through: true
+
+  - name: description
+    depends_on:
+      - src_transactions.description
+    pass_through: true
