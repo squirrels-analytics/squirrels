@@ -14,19 +14,24 @@ sources:
       - name: id
         type: string
         description: The unique identifier for the transaction
+        category: dimension
 
       - name: date
         type: date
         description: The date of the transaction
+        category: dimension
 
       - name: subcategory_id
         type: string
         description: The ID of the subcategory of the transaction
+        category: dimension
 
       - name: amount
         type: float
         description: The amount of the transaction
+        category: measure
 
       - name: description
         type: string
         description: The description of the transaction
+        category: dimension

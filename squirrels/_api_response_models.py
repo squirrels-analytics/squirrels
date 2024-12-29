@@ -113,16 +113,21 @@ class ParametersModel(BaseModel):
 
 class ColumnModel(BaseModel):
     name: Annotated[str, Field(examples=["mycol"], description="Name of column")]
-    type: Annotated[str, Field(examples=["string", "number", "integer", "boolean", "datetime"], description='Column type. One of "string", "number", "integer", "boolean", and "datetime"')]
+    type: Annotated[str, Field(examples=["string", "integer", "boolean", "datetime"], description='Column type (such as "string", "integer", "boolean", "datetime", etc.)')]
+    description: Annotated[str, Field(examples=["My column description"], description="The description of the column")]
+    category: Annotated[str, Field(examples=["dimension", "measure", "misc"], description="The category of the column (such as 'dimension', 'measure', or 'misc')")]
+    condition: Annotated[str | None, Field(None, examples=["My condition"], description="The condition of when the column is included (such as based on a parameter selection)")]
 
 class SchemaModel(BaseModel):
     fields: Annotated[list[ColumnModel], Field(description="A list of JSON objects containing the 'name' and 'type' for each of the columns in the result")]
-    dimensions: Annotated[list[str], Field(examples=[["mycol"]], description="A list of column names that are dimensions")]
 
-class DatasetResultModel(BaseModel):
+class DatasetMetadataModel(BaseModel):
+    description: Annotated[str, Field(examples=["My dataset description"], description="Text for describing the dataset")]
     data_schema: Annotated[SchemaModel, Field(alias="schema", description="JSON object describing the schema of the dataset")]
+
+class DatasetResultModel(DatasetMetadataModel):
     data: Annotated[list[dict], Field(
-        examples=[[{"mycol": "myval"}]],
+        examples=[[{"col_name": "col_value"}]],
         description="A list of JSON objects where each object is a row of the tabular results. The keys and values of the object are column names (described in fields) and values of the row."
     )]
 

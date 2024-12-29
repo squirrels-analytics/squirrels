@@ -19,3 +19,5 @@ from ._user_base import User, WrongPassword
 from ._manifest import ConnectionProperties, ConnectionType
 
 from ._project import SquirrelsProject
+
+from .dataset_result import DatasetResult

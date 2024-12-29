@@ -20,27 +20,3 @@ def test_run_sql_on_dataframes():
     expected = pl.DataFrame({"total": [5, 7, 9]})
     result = u.run_sql_on_dataframes("SELECT a+b AS total FROM input_df", df_dict)
     assert result.equals(expected)
-
-
-@pytest.mark.parametrize('in_dimensions,out_dimensions', [
-    (None, ["B"]),
-    (["A", "B"], ["A", "B"])
-])
-def test_df_to_json(in_dimensions: list[str] | None, out_dimensions: list[str]):
-    df = pl.DataFrame({'A': [1.0, 2.0], 'B': ['a', 'b'], 'C': [1, 2]})
-    actual = u.df_to_json0(df, in_dimensions)
-    expected = {
-        "schema": {
-            "fields": [
-                {"name": "A", "type": "number"},
-                {"name": "B", "type": "string"},
-                {"name": "C", "type": "integer"}
-            ],
-            "dimensions": out_dimensions
-        },
-        "data": [
-            {"A": 1.0, "B": "a", "C": 1},
-            {"A": 2.0, "B": "b", "C": 2}
-        ]
-    }
-    assert actual == expected

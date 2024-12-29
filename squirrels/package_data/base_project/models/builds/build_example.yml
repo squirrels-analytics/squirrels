@@ -14,13 +14,13 @@ columns:
 
   - name: date
     type: string
-    description: The day of the transaction in 'YYYY-MM-DD' format
+    description: The day of the transaction as a string in 'YYYY-MM-DD' format
     depends_on:
       - src_transactions.date
 
   - name: month
     type: string
-    description: The month of the transaction in 'YYYY-MM' format
+    description: The month of the transaction as a string in 'YYYY-MM' format
     depends_on:
       - src_transactions.date
   

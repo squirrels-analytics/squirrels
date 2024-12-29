@@ -133,6 +133,19 @@ class DataModel(metaclass=ABCMeta):
         finally:
             local_conn.close()
     
+    def _process_pass_through_columns(self, models_dict: dict[str, DataModel]) -> None:
+        pass
+            
+    def process_pass_through_columns_recursively(self, models_dict: dict[str, DataModel]) -> None:
+        if getattr(self, "processed_pass_through_columns", False):
+            return
+        
+        for dep_model in self.upstreams.values():
+            dep_model.process_pass_through_columns_recursively(models_dict)
+        
+        self._process_pass_through_columns(models_dict)
+        self.processed_pass_through_columns = True
+
 
 @dataclass
 class StaticModel(DataModel):
@@ -271,6 +284,7 @@ class SourceModel(StaticModel):
 
 @dataclass
 class QueryModel(DataModel):
+    model_config: mc.QueryModelConfig
     query_file: mq.QueryFile
     compiled_query: mq.Query | None = field(default=None, init=False)
     _: KW_ONLY
@@ -282,6 +296,19 @@ class QueryModel(DataModel):
         
         if isinstance(self.query_file, mq.PyQueryFile):
             other.needs_python_df = True
+
+    def _ref_for_sql(self, dependent_model_name: str, models_dict: dict[str, DataModel]):
+        if dependent_model_name not in models_dict:
+            raise u.ConfigurationError(f'Model "{self.name}" references unknown model "{dependent_model_name}"')
+        self.model_config.depends_on.add(dependent_model_name)
+        return dependent_model_name
+    
+    def _ref_for_python(self, dependent_model_name: str) -> pl.LazyFrame:
+        if dependent_model_name not in self.upstreams:
+            raise u.ConfigurationError(f'Model "{self.name}" must include model "{dependent_model_name}" as a dependency to use')
+        df = self.upstreams[dependent_model_name].result
+        assert df is not None
+        return df
 
     def _get_compile_sql_model_args_from_ctx_args(
         self, ctx: dict[str, Any], ctx_args: ContextArgs, placeholders: dict[str, Any], models_dict: dict[str, DataModel]
@@ -301,6 +328,43 @@ class QueryModel(DataModel):
         except Exception as e:
             raise u.FileExecutionError(f'Failed to compile sql model "{self.name}"', e) from e
         return query
+    
+    def _process_pass_through_columns(self, models_dict: dict[str, DataModel]) -> None:
+        for col in self.model_config.columns:
+            if col.pass_through:
+                # Validate pass-through column has exactly one dependency
+                if len(col.depends_on) != 1:
+                    raise u.ConfigurationError(
+                        f'Column "{self.name}.{col.name}" has pass_through=true but does not have exactly one depends_on value'
+                    )
+                
+                # Get the upstream column reference
+                upstream_col_ref = next(iter(col.depends_on))
+                table_name, col_name = upstream_col_ref.split('.')
+                self.model_config.depends_on.add(table_name)
+                
+                # Get the upstream model
+                if table_name not in models_dict:
+                    raise u.ConfigurationError(
+                        f'Column "{self.name}.{col.name}" depends on unknown model "{table_name}"'
+                    )
+                upstream_model = models_dict[table_name]
+                
+                # Find the upstream column config
+                upstream_col = next(
+                    (c for c in upstream_model.model_config.columns if c.name == col_name),
+                    None
+                )
+                if upstream_col is None:
+                    raise u.ConfigurationError(
+                        f'Column "{self.name}.{col.name}" depends on unknown column "{upstream_col_ref}"'
+                    )
+                
+                # Copy metadata from upstream column
+                col.type = upstream_col.type if col.type == "" else col.type
+                col.condition = upstream_col.condition if col.condition == "" else col.condition
+                col.description = upstream_col.description if col.description == "" else col.description
+                col.category = upstream_col.category if col.category == mc.ColumnCategory.MISC else col.category
 
     def retrieve_dependent_query_models(self, dependent_model_names: set[str]) -> None:
         if self.name not in dependent_model_names:
@@ -351,7 +415,7 @@ class DbviewModel(QueryModel):
             self.compiled_query = mq.WorkInProgress() # type: ignore
         
         start = time.time()
-        
+
         kwargs = self._get_compile_sql_model_args(ctx, ctx_args, placeholders, models_dict)
         self.compiled_query = self._compile_sql_model(kwargs)
         
@@ -428,9 +492,7 @@ class FederateModel(QueryModel):
         kwargs = self._get_compile_sql_model_args_from_ctx_args(ctx, ctx_args, placeholders, models_dict)
         
         def ref(dependent_model_name):
-            if dependent_model_name not in models_dict:
-                raise u.ConfigurationError(f'Model "{self.name}" references unknown model "{dependent_model_name}"')
-            self.model_config.depends_on.add(dependent_model_name)
+            dependent_model_name = self._ref_for_sql(dependent_model_name, models_dict)
             prefix = "venv." if isinstance(models_dict[dependent_model_name], (SourceModel, BuildModel)) else ""
             return prefix + dependent_model_name
         
@@ -448,20 +510,13 @@ class FederateModel(QueryModel):
     def _get_python_model_args(self, ctx: dict[str, Any], ctx_args: ContextArgs, placeholders: dict[str, Any]) -> ModelArgs:
         dependencies = self.model_config.depends_on
         connections = self.conn_set.get_connections_as_dict()
-
-        def ref(dependent_model_name: str) -> pl.LazyFrame:
-            if dependent_model_name not in self.upstreams:
-                raise u.ConfigurationError(f'Model "{self.name}" must include model "{dependent_model_name}" as a dependency to use')
-            df = self.upstreams[dependent_model_name].result
-            assert df is not None
-            return df
         
         def run_external_sql(connection_name: str, sql_query: str):
             return self._run_sql_query_on_connection(connection_name, sql_query, placeholders)
         
         return ModelArgs(
             ctx_args.proj_vars, ctx_args.env_vars, ctx_args.user, ctx_args.prms, ctx_args.traits, placeholders, 
-            connections, dependencies, ref, run_external_sql, ctx
+            connections, dependencies, self._ref_for_python, run_external_sql, ctx
         )
 
     def _compile_python_model(
@@ -563,21 +618,14 @@ class BuildModel(StaticModel, QueryModel):
     @property
     def model_type(self) -> ModelType:
         return ModelType.BUILD
-
+    
     def _get_compile_sql_model_args_for_build(
         self, proj_vars: dict[str, Any], env_vars: dict[str, Any], models_dict: dict[str, StaticModel]
     ) -> dict[str, Any]:
         kwargs: dict[str, Any] = {
             "proj_vars": proj_vars, "env_vars": env_vars
         }
-        
-        def ref(dependent_model_name):
-            if dependent_model_name not in models_dict:
-                raise u.ConfigurationError(f'Build model "{self.name}" references unknown model "{dependent_model_name}"')
-            self.model_config.depends_on.add(dependent_model_name)
-            return dependent_model_name
-        
-        kwargs["ref"] = ref
+        kwargs["ref"] = lambda dependent_model_name: self._ref_for_sql(dependent_model_name, dict(models_dict))
         return kwargs
 
     def _compile_sql_model_for_build(
@@ -592,18 +640,12 @@ class BuildModel(StaticModel, QueryModel):
         self, proj_vars: dict[str, Any], env_vars: dict[str, Any], models_dict: dict[str, StaticModel]
     ) -> BuildModelArgs:
         
-        def ref(dependent_model_name: str) -> pl.LazyFrame:
-            if dependent_model_name not in self.upstreams:
-                raise u.ConfigurationError(f'Model "{self.name}" must include model "{dependent_model_name}" as a dependency to use')
-            df = self.upstreams[dependent_model_name].result
-            assert df is not None
-            return df
-        
         def run_external_sql(connection_name: str, sql_query: str):
             return self._run_sql_query_on_connection(connection_name, sql_query)
         
         return BuildModelArgs(
-            proj_vars, env_vars, self.conn_set.get_connections_as_dict(), self.model_config.depends_on, ref, run_external_sql
+            proj_vars, env_vars, self.conn_set.get_connections_as_dict(), self.model_config.depends_on, 
+            self._ref_for_python, run_external_sql
         )
 
     def _compile_python_model_for_build(
@@ -776,6 +818,7 @@ class DAG:
         placeholders = ctx_args._placeholders.copy()
         if runquery:
             await self._run_models(terminal_nodes, placeholders)
+            self.target_model.process_pass_through_columns_recursively(self.models_dict)
 
         return placeholders
     

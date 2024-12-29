@@ -199,7 +199,7 @@ def load_json_or_comma_delimited_str_as_list(input_str: Union[str, Sequence]) ->
         return [x.strip() for x in input_str.split(",")]
 
 
-X, Y = TypeVar('X'), TypeVar('Y')
+X = TypeVar('X'); Y = TypeVar('Y')
 def process_if_not_none(input_val: Optional[X], processor: Callable[[X], Y]) -> Optional[Y]:
     """
     Given a input value and a function that processes the value, return the output of the function unless input is None
@@ -217,7 +217,7 @@ def process_if_not_none(input_val: Optional[X], processor: Callable[[X], Y]) -> 
 
 
 @lru_cache(maxsize=1)
-def _read_duckdb_init_sql() -> str:
+def _read_duckdb_init_sql() -> tuple[str, Path | None]:
     """
     Reads and caches the duckdb init file content.
     Returns None if file doesn't exist or is empty.
@@ -233,7 +233,14 @@ def _read_duckdb_init_sql() -> str:
             with open(c.DUCKDB_INIT_FILE, 'r') as f:
                 init_contents.append(f.read())
         
-        return "\n".join(init_contents)
+        init_sql = "\n".join(init_contents).strip()
+        target_init_path = None
+        if init_sql:
+            target_init_path = Path(c.TARGET_FOLDER, c.DUCKDB_INIT_FILE)
+            target_init_path.parent.mkdir(parents=True, exist_ok=True)
+            target_init_path.write_text(init_sql)
+        
+        return init_sql, target_init_path
     except Exception as e:
         raise ConfigurationError(f"Failed to read {c.DUCKDB_INIT_FILE}: {str(e)}") from e
 
@@ -251,7 +258,7 @@ def create_duckdb_connection(filepath: str | Path = ":memory:", *, read_only: bo
     conn = duckdb.connect(filepath, read_only=read_only)
     
     try:
-        init_sql = _read_duckdb_init_sql()
+        init_sql, _ = _read_duckdb_init_sql()
         if init_sql:
             conn.execute(init_sql)
     except Exception as e:
@@ -283,37 +290,6 @@ def run_sql_on_dataframes(sql_query: str, dataframes: dict[str, pl.LazyFrame]) -
         duckdb_conn.close()
     
     return result_df
-
-
-def df_to_json0(df: pl.DataFrame, dimensions: list[str] | None = None) -> dict:
-    """
-    Convert a polars DataFrame to the response format that the dataset result API of Squirrels outputs.
-
-    Arguments:
-        df: The dataframe to convert into an API response
-        dimensions: The list of declared dimensions. If None, all non-numeric columns are assumed as dimensions
-
-    Returns:
-        The response of a Squirrels dataset result API
-    """
-    df_pandas = df.to_pandas()
-    in_df_json = json.loads(df_pandas.to_json(orient='table', index=False))
-    out_fields = []
-    non_numeric_fields = []
-    for in_column in in_df_json["schema"]["fields"]:
-        col_name: str = in_column["name"]
-        out_column = { "name": col_name, "type": in_column["type"] }
-        out_fields.append(out_column)
-        
-        if not pd_types.is_numeric_dtype(df_pandas[col_name].dtype):
-            non_numeric_fields.append(col_name)
-    
-    out_dimensions = non_numeric_fields if dimensions is None else dimensions
-    dataset_json = {
-        "schema": { "fields": out_fields, "dimensions": out_dimensions },
-        "data": in_df_json["data"]
-    }
-    return dataset_json
 
 
 def load_yaml_config(filepath: FilePath) -> dict:

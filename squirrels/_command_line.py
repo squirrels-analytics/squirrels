@@ -1,6 +1,5 @@
 from argparse import ArgumentParser, _SubParsersAction
-from pathlib import Path
-import sys, asyncio, traceback, io, os
+import sys, asyncio, traceback, io, os, subprocess
 
 sys.path.append('.')
 
@@ -113,14 +112,13 @@ def main():
                 task = project.build(full_refresh=args.full_refresh, select=args.select, stage_file=args.stage)
                 asyncio.run(task)
             elif args.command == c.DUCKDB_CMD:
-                target_init_path = Path(c.TARGET_FOLDER, c.DUCKDB_INIT_FILE)
-                target_init_path.parent.mkdir(parents=True, exist_ok=True)
-                init_sql = u._read_duckdb_init_sql()
-                target_init_path.write_text(init_sql)
-
-                status = os.system(f'duckdb -init {target_init_path} {project._duckdb_venv_path}')
+                _, target_init_path = u._read_duckdb_init_sql()
+                init_args = f"-init {target_init_path}" if target_init_path else ""
+                command = f'duckdb {init_args} -readonly {project._duckdb_venv_path}'
+                print(f'Running command: {command}')
+                status = os.system(command)
                 if status != 0:
-                    print(f'The DuckDB CLI must be installed to use this command. Please install it from: https://duckdb.org/docs/installation/')
+                    print("Failed to run DuckDB CLI. If the CLI is not installed, please install it from: https://duckdb.org/docs/installation/")
             elif args.command == c.RUN_CMD:
                 server = ApiServer(args.no_cache, project)
                 server.run(args)

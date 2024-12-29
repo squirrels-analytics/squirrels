@@ -7,6 +7,7 @@ def main(sqrl: BuildModelArgs) -> pl.LazyFrame | pl.DataFrame | pd.DataFrame:
     Create a build model by joining/processing sources or other build models to form a new
     Python DataFrame (using polars LazyFrame, polars DataFrame, or pandas DataFrame).
     """
+    # sqrl.ref() can be used on a sources, seeds, or other build models
     expenses_df = sqrl.ref("src_transactions")
     categories_df = sqrl.ref("seed_categories")
     subcategories_df = sqrl.ref("seed_subcategories")

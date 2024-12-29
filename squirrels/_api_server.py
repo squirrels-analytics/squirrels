@@ -21,6 +21,7 @@ from ._authenticator import User
 from ._parameter_sets import ParameterSet
 from .dashboards import Dashboard
 from ._project import SquirrelsProject
+from .dataset_result import DatasetResult, DatasetMetadata
 
 mimetypes.add_type('application/javascript', '.js')
 
@@ -306,6 +307,7 @@ class ApiServer:
         data_catalog_path = base_path + '/data-catalog'
         dataset_results_path = base_path + '/dataset/{dataset}'
         dataset_parameters_path = dataset_results_path + '/parameters'
+        dataset_metadata_path = dataset_results_path + '/metadata'
         dashboard_results_path = base_path + '/dashboard/{dashboard}'
         dashboard_parameters_path = dashboard_results_path + '/parameters'
         
@@ -352,10 +354,20 @@ class ApiServer:
                 "selection to this endpoint whenever it changes to refresh the parameter options of children parameters."
         
         async def get_parameters_helper(
-            parameters_tuple: tuple[str, ...], user: User | None, selections: frozenset[tuple[str, Any]], request_version: int | None
+            parameters_tuple: tuple[str, ...], entity_type: str, entity_name: str, entity_scope: PermissionScope,
+            user: User | None, selections: frozenset[tuple[str, Any]], request_version: int | None
         ) -> ParameterSet:
             if len(selections) > 1:
                 raise u.InvalidInputError(f"The /parameters endpoint takes at most 1 query parameter. Got {dict(selections)}")
+            
+            try:
+                if not self.authenticator.can_user_access_scope(user, entity_scope):
+                    raise self.project._permission_error(user, entity_type, entity_name, entity_scope.name)
+            except PermissionError as e:
+                raise HTTPException(
+                    status_code=status.HTTP_401_UNAUTHORIZED,
+                    detail=str(e), headers={"WWW-Authenticate": "Bearer"}
+                )
             
             param_set = self.param_cfg_set.apply_selections(
                 parameters_tuple, dict(selections), user, updates_only=True, request_version=request_version
@@ -368,16 +380,18 @@ class ApiServer:
         params_cache = TTLCache(maxsize=parameters_cache_size, ttl=parameters_cache_ttl*60)
 
         async def get_parameters_cachable(
-            parameters_tuple: tuple[str, ...], user: User | None, selections: frozenset[tuple[str, Any]], request_version: int | None
+            parameters_tuple: tuple[str, ...], entity_type: str, entity_name: str, entity_scope: PermissionScope,
+            user: User | None, selections: frozenset[tuple[str, Any]], request_version: int | None
         ) -> ParameterSet:
-            return await do_cachable_action(params_cache, get_parameters_helper, parameters_tuple, user, selections, request_version)
+            return await do_cachable_action(params_cache, get_parameters_helper, parameters_tuple, entity_type, entity_name, entity_scope, user, selections, request_version)
         
         async def get_parameters_definition(
-            parameters_list: list[str], user: User | None, headers: Mapping, params: Mapping
+            parameters_list: list[str], entity_type: str, entity_name: str, entity_scope: PermissionScope,
+            user: User | None, headers: Mapping, params: Mapping
         ) -> arm.ParametersModel:
             get_parameters_function = get_parameters_helper if self.no_cache else get_parameters_cachable
             selections, request_version = get_selections_and_request_version(params, headers)
-            result = await get_parameters_function(tuple(parameters_list), user, selections, request_version)
+            result = await get_parameters_function(tuple(parameters_list), entity_type, entity_name, entity_scope, user, selections, request_version)
             return process_based_on_response_version_header(headers, {
                 0: result.to_api_response_model0
             })
@@ -391,14 +405,42 @@ class ApiServer:
                     raise u.ConfigurationError(f"{entity_type} '{dataset_name}' use parameter '{param}' which doesn't exist. Available parameters are:"
                                                f"\n  {all_params}")
         
+        # Dataset Metadata API Helpers
+        async def get_dataset_metadata_helper(dataset: str, user: User | None) -> DatasetMetadata:
+            try:
+                return self.project.dataset_metadata(dataset, user=user)
+            except PermissionError as e:
+                raise HTTPException(
+                    status_code=status.HTTP_401_UNAUTHORIZED, 
+                    detail=str(e), headers={"WWW-Authenticate": "Bearer"}
+                )
+
+        settings = self.manifest_cfg.settings
+        metadata_cache_size = settings.get(c.PARAMETERS_CACHE_SIZE_SETTING, 1024)
+        metadata_cache_ttl = settings.get(c.PARAMETERS_CACHE_TTL_SETTING, 60)
+        metadata_cache = TTLCache(maxsize=metadata_cache_size, ttl=metadata_cache_ttl*60)
+        
+        async def get_dataset_metadata_cachable(dataset: str, user: User | None) -> DatasetMetadata:
+            return await do_cachable_action(metadata_cache, get_dataset_metadata_helper, dataset, user)
+        
+        async def get_dataset_metadata_definition(dataset_name: str, user: User | None, headers: Mapping) -> arm.DatasetMetadataModel:
+            get_metadata_function = get_dataset_metadata_helper if self.no_cache else get_dataset_metadata_cachable
+            result = await get_metadata_function(dataset_name, user)
+            return process_based_on_response_version_header(headers, {
+                0: lambda: arm.DatasetMetadataModel(**result.to_json())
+            })
+        
         # Dataset Results API Helpers
         async def get_dataset_results_helper(
             dataset: str, user: User | None, selections: frozenset[tuple[str, Any]], request_version: int | None
-        ) -> pl.DataFrame:
+        ) -> DatasetResult:
             try:
                 return await self.project.dataset(dataset, selections=dict(selections), user=user)
             except PermissionError as e:
-                raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail=str(e), headers={"WWW-Authenticate": "Bearer"}) from e
+                raise HTTPException(
+                    status_code=status.HTTP_401_UNAUTHORIZED, 
+                    detail=str(e), headers={"WWW-Authenticate": "Bearer"}
+                )
 
         settings = self.manifest_cfg.settings
         dataset_results_cache_size = settings.get(c.DATASETS_CACHE_SIZE_SETTING, 128)
@@ -407,7 +449,7 @@ class ApiServer:
 
         async def get_dataset_results_cachable(
             dataset: str, user: User | None, selections: frozenset[tuple[str, Any]], request_version: int | None
-        ) -> pl.DataFrame:
+        ) -> DatasetResult:
             return await do_cachable_action(dataset_results_cache, get_dataset_results_helper, dataset, user, selections, request_version)
         
         async def get_dataset_results_definition(
@@ -417,7 +459,7 @@ class ApiServer:
             selections, request_version = get_selections_and_request_version(params, headers)
             result = await get_dataset_function(dataset_name, user, selections, request_version)
             return process_based_on_response_version_header(headers, {
-                0: lambda: arm.DatasetResultModel(**u.df_to_json0(result))
+                0: lambda: arm.DatasetResultModel(**result.to_json())
             })
         
         # Dashboard Results API Helpers
@@ -458,39 +500,48 @@ class ApiServer:
         for dataset_name, dataset_config in self.manifest_cfg.datasets.items():
             dataset_normalized = u.normalize_name_for_api(dataset_name)
             curr_parameters_path = dataset_parameters_path.format(dataset=dataset_normalized)
+            curr_metadata_path = dataset_metadata_path.format(dataset=dataset_normalized)
             curr_results_path = dataset_results_path.format(dataset=dataset_normalized)
 
             validate_parameters_list(dataset_config.parameters, "Dataset")
 
             QueryModelForGet, QueryModelForPost = get_query_models_from_widget_params(dataset_config.parameters)
 
-            @app.get(
-                curr_parameters_path, tags=[f"Dataset '{dataset_name}'"], openapi_extra={"dataset": dataset_name},
-                description=parameters_description, response_class=JSONResponse
-            )
+            @app.get(curr_parameters_path, tags=[f"Dataset '{dataset_name}'"], description=parameters_description, response_class=JSONResponse)
             async def get_dataset_parameters(
                 request: Request, params: QueryModelForGet, user: User | None = Depends(get_current_user) # type: ignore
             ) -> arm.ParametersModel:
                 start = time.time()
                 curr_dataset_name = get_dataset_name(request, -2)
                 parameters_list = self.manifest_cfg.datasets[curr_dataset_name].parameters
-                result = await get_parameters_definition(parameters_list, user, request.headers, asdict(params))
+                scope = self.manifest_cfg.datasets[curr_dataset_name].scope
+                result = await get_parameters_definition(
+                    parameters_list, "dataset", curr_dataset_name, scope, user, request.headers, asdict(params)
+                )
                 self.logger.log_activity_time("GET REQUEST for PARAMETERS", start, request_id=_get_request_id(request))
                 return result
 
-            @app.post(
-                curr_parameters_path, tags=[f"Dataset '{dataset_name}'"], openapi_extra={"dataset": dataset_name},
-                description=parameters_description, response_class=JSONResponse
-            )
+            @app.post(curr_parameters_path, tags=[f"Dataset '{dataset_name}'"], description=parameters_description, response_class=JSONResponse)
             async def get_dataset_parameters_with_post(
                 request: Request, params: QueryModelForPost, user: User | None = Depends(get_current_user) # type: ignore
             ) -> arm.ParametersModel:
                 start = time.time()
                 curr_dataset_name = get_dataset_name(request, -2)
                 parameters_list = self.manifest_cfg.datasets[curr_dataset_name].parameters
+                scope = self.manifest_cfg.datasets[curr_dataset_name].scope
                 params: BaseModel = params
-                result = await get_parameters_definition(parameters_list, user, request.headers, params.model_dump())
+                result = await get_parameters_definition(
+                    parameters_list, "dataset", curr_dataset_name, scope, user, request.headers, params.model_dump()
+                )
                 self.logger.log_activity_time("POST REQUEST for PARAMETERS", start, request_id=_get_request_id(request))
+                return result
+            
+            @app.get(curr_metadata_path, tags=[f"Dataset '{dataset_name}'"], response_class=JSONResponse)
+            async def get_dataset_metadata(request: Request, user: User | None = Depends(get_current_user)) -> arm.DatasetMetadataModel:
+                start = time.time()
+                curr_dataset_name = get_dataset_name(request, -2)
+                result = await get_dataset_metadata_definition(curr_dataset_name, user, request.headers)
+                self.logger.log_activity_time("GET REQUEST for DATASET METADATA", start, request_id=_get_request_id(request))
                 return result
             
             @app.get(curr_results_path, tags=[f"Dataset '{dataset_name}'"], description=dataset_config.description, response_class=JSONResponse)
@@ -530,8 +581,11 @@ class ApiServer:
             ) -> arm.ParametersModel:
                 start = time.time()
                 curr_dashboard_name = get_dashboard_name(request, -2)
-                parameters_list = self.dashboards[curr_dashboard_name].config.parameters
-                result = await get_parameters_definition(parameters_list, user, request.headers, asdict(params))
+                parameters_list = self.dashboards[curr_dashboard_name].config.parameters    
+                scope = self.dashboards[curr_dashboard_name].config.scope
+                result = await get_parameters_definition(
+                    parameters_list, "dashboard", curr_dashboard_name, scope, user, request.headers, asdict(params)
+                )
                 self.logger.log_activity_time("GET REQUEST for PARAMETERS", start, request_id=_get_request_id(request))
                 return result
 
@@ -542,8 +596,11 @@ class ApiServer:
                 start = time.time()
                 curr_dashboard_name = get_dashboard_name(request, -2)
                 parameters_list = self.dashboards[curr_dashboard_name].config.parameters
+                scope = self.dashboards[curr_dashboard_name].config.scope
                 params: BaseModel = params
-                result = await get_parameters_definition(parameters_list, user, request.headers, params.model_dump())
+                result = await get_parameters_definition(
+                    parameters_list, "dashboard", curr_dashboard_name, scope, user, request.headers, params.model_dump()
+                )
                 self.logger.log_activity_time("POST REQUEST for PARAMETERS", start, request_id=_get_request_id(request))
                 return result
             
