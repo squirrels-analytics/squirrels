@@ -7,7 +7,9 @@ columns:
   - name: category_id
     type: string
     description: The category ID
+    category: dimension
   
   - name: category
     type: string
     description: The human-readable category name
+    category: dimension

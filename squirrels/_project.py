@@ -5,7 +5,7 @@ import logging as l, matplotlib.pyplot as plt, networkx as nx, polars as pl
 from ._model_builder import ModelBuilder
 from . import _utils as u, _constants as c, _environcfg as ec, _manifest as mf, _authenticator as auth
 from . import _seeds as s, _connection_set as cs, _models as m, _dashboards_io as d, _parameter_sets as ps
-from . import _model_queries as mq, dashboards as dash, _sources as so
+from . import _model_queries as mq, dashboards as dash, _sources as so, dataset_result as dr
 
 T = t.TypeVar("T", bound=dash.Dashboard)
 M = t.TypeVar("M", bound=m.DataModel)
@@ -354,8 +354,8 @@ class SquirrelsProject:
             print()
 
     def _permission_error(self, user: auth.User | None, data_type: str, data_name: str, scope: str) -> PermissionError:
-        username = None if user is None else user.username
-        return PermissionError(f"User '{username}' does not have permission to access {scope} {data_type}: {data_name}")
+        username = "" if user is None else f" '{user.username}'"
+        return PermissionError(f"User{username} does not have permission to access {scope} {data_type}: {data_name}")
     
     def seed(self, name: str) -> pl.LazyFrame:
         """
@@ -374,19 +374,33 @@ class SquirrelsProject:
             available_seeds = list(seeds_dict.keys())
             raise KeyError(f"Seed '{name}' not found. Available seeds are: {available_seeds}")
     
-    async def _dataset_helper(
-        self, name: str, selections: dict[str, t.Any], user: auth.User | None
-    ) -> pl.DataFrame:
+    def dataset_metadata(self, name: str, *, user: auth.User | None = None) -> dr.DatasetMetadata:
+        """
+        Method to retrieve the metadata of a dataset given a dataset name.
+
+        Arguments:
+            name: The name of the dataset to retrieve.
+            user: The user to use for authentication. If None, no user is used. Optional, default is None.
+        
+        Returns:
+            A DatasetMetadata object containing the dataset description and column details.
+        """
+        scope = self._manifest_cfg.datasets[name].scope
+        if not self._authenticator.can_user_access_scope(user, scope):
+            raise self._permission_error(user, "dataset", name, scope.name)
+        
         dag = self._generate_dag(name)
-        await dag.execute(self._param_args, self._param_cfg_set, self._context_func, user, dict(selections))
-        assert isinstance(dag.target_model.result, pl.LazyFrame)
-        return dag.target_model.result.collect()
+        dag.target_model.process_pass_through_columns_recursively(dag.models_dict)
+        return dr.DatasetMetadata(
+            description=dag.dataset.description, 
+            target_model_config=dag.target_model.model_config
+        )
     
     async def dataset(
-        self, name: str, *, selections: dict[str, t.Any] = {}, user: auth.User | None = None
-    ) -> pl.DataFrame:
+        self, name: str, *, selections: dict[str, t.Any] = {}, user: auth.User | None = None, require_auth: bool = True
+    ) -> dr.DatasetResult:
         """
-        Async method to retrieve a dataset as a polars DataFrame given parameter selections.
+        Async method to retrieve a dataset as a DatasetResult object (with metadata) given parameter selections.
 
         Arguments:
             name: The name of the dataset to retrieve.
@@ -394,12 +408,20 @@ class SquirrelsProject:
             user: The user to use for authentication. If None, no user is used. Optional, default is None.
         
         Returns:
-            A polars DataFrame containing the dataset.
+            A DatasetResult object containing the dataset result (as a polars DataFrame), its description, and the column details.
         """
         scope = self._manifest_cfg.datasets[name].scope
-        if not self._authenticator.can_user_access_scope(user, scope):
+        if require_auth and not self._authenticator.can_user_access_scope(user, scope):
             raise self._permission_error(user, "dataset", name, scope.name)
-        return await self._dataset_helper(name, selections, user)
+        
+        dag = self._generate_dag(name)
+        await dag.execute(self._param_args, self._param_cfg_set, self._context_func, user, dict(selections))
+        assert isinstance(dag.target_model.result, pl.LazyFrame)
+        return dr.DatasetResult(
+            description=dag.dataset.description, 
+            target_model_config=dag.target_model.model_config, 
+            df=dag.target_model.result.collect()
+        )
     
     async def dashboard(
         self, name: str, *, selections: dict[str, t.Any] = {}, user: auth.User | None = None, dashboard_type: t.Type[T] = dash.Dashboard
@@ -420,11 +442,12 @@ class SquirrelsProject:
         if not self._authenticator.can_user_access_scope(user, scope):
             raise self._permission_error(user, "dashboard", name, scope.name)
         
-        async def get_dataset(dataset_name: str, fixed_params: dict[str, t.Any]) -> pl.DataFrame:
+        async def get_dataset_df(dataset_name: str, fixed_params: dict[str, t.Any]) -> pl.DataFrame:
             final_selections = {**selections, **fixed_params}
-            return await self._dataset_helper(dataset_name, final_selections, user)
+            result = await self.dataset(dataset_name, selections=final_selections, user=user, require_auth=False)
+            return result.df
         
-        args = d.DashboardArgs(self._param_args.proj_vars, self._param_args.env_vars, get_dataset)
+        args = d.DashboardArgs(self._param_args.proj_vars, self._param_args.env_vars, get_dataset_df)
         try:
             return await self._dashboards[name].get_dashboard(args, dashboard_type=dashboard_type)
         except KeyError:
