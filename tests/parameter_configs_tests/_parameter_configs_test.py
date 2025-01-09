@@ -4,8 +4,7 @@ from decimal import Decimal
 import pytest, polars as pl
 
 from squirrels import _parameter_configs as _pc, parameters as p, parameter_options as _po, data_sources as ds
-from squirrels import _model_configs as mc, _seeds as s, _utils as u
-from tests.parameter_configs_tests._user_class import User
+from squirrels import _model_configs as mc, _seeds as s, _utils as u, User
 
 
 @pytest.fixture(scope="module")

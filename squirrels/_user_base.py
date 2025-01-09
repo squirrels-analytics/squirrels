@@ -1,4 +1,5 @@
 import typing as _t, dataclasses as _dc
+from typing_extensions import Self
 
 
 @_dc.dataclass
@@ -19,14 +20,11 @@ class User:
     def __str__(self) -> str:
         return self.username
     
-    def set_attributes(self, **kwargs) -> None:
-        """
-        Can be overwritten in "auth.py" to introduce custom attributes. Does nothing by default
-        """
-        pass
+    def __eq__(self, other) -> bool:
+        return type(other) is self.__class__ and self.__dict__ == other.__dict__
     
     @classmethod
-    def Create(cls, username: str, *, is_internal: bool = False, **kwargs):
+    def Create(cls, username: str, *, is_internal: bool = False, **kwargs) -> Self:
         """
         Creates an instance of the User class and calls the `set_attributes` method on the new instance.
 
@@ -37,7 +35,8 @@ class User:
             is_internal: Setting this to True lets the user access "private" datasets. Default is False
         """
         user = cls(username, is_internal)
-        user.set_attributes(**kwargs)
+        for key, val in kwargs.items():
+            setattr(user, key, val)
         return user
     
     @classmethod

@@ -1,18 +1,20 @@
 from typing import Coroutine, Mapping, Callable, TypeVar, Annotated, Any
-from dataclasses import make_dataclass, asdict
-from fastapi import Depends, FastAPI, Request, HTTPException, Response, status
+from dataclasses import make_dataclass, asdict, field
+from fastapi import Depends, FastAPI, Request, HTTPException, Response, status, Query
 from fastapi.responses import HTMLResponse, JSONResponse
 from fastapi.templating import Jinja2Templates
 from fastapi.staticfiles import StaticFiles
 from fastapi.security import OAuth2PasswordBearer, OAuth2PasswordRequestForm
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.datastructures import QueryParams
 from pydantic import create_model, BaseModel
 from contextlib import asynccontextmanager
 from cachetools import TTLCache
 from argparse import Namespace
-import os, io, time, mimetypes, traceback, uuid, polars as pl
-import asyncio
 from pathlib import Path
+from datetime import datetime, timezone
+import os, io, time, mimetypes, traceback, uuid
+import asyncio
 
 from . import _constants as c, _utils as u, _api_response_models as arm
 from ._version import sq_major_version
@@ -21,7 +23,8 @@ from ._authenticator import User
 from ._parameter_sets import ParameterSet
 from .dashboards import Dashboard
 from ._project import SquirrelsProject
-from .dataset_result import DatasetResult, DatasetMetadata
+from .dataset_result import DatasetResult
+from ._parameter_configs import APIParamFieldInfo
 
 mimetypes.add_type('application/javascript', '.js')
 
@@ -78,7 +81,13 @@ class ApiServer:
         task = asyncio.create_task(self._monitor_for_staging_file())
         yield
         task.cancel()
-    
+
+
+    def _validate_request_params(self, all_request_params: Mapping, params: Mapping) -> None:
+        invalid_params = [param for param in all_request_params if param not in params]
+        if params.get("x_verify_params", False) and invalid_params:
+            raise u.InvalidInputError(f"Invalid query parameters: {', '.join(invalid_params)}")
+        
     
     def run(self, uvicorn_args: Namespace) -> None:
         """
@@ -181,56 +190,31 @@ class ApiServer:
             expose_headers=["Applied-Username"]
         )
 
-        squirrels_version_path = f'/squirrels-v{sq_major_version}'
-        partial_base_path = f'/{self.manifest_cfg.project_variables.name}/v{self.manifest_cfg.project_variables.major_version}'
-        base_path = squirrels_version_path + u.normalize_name_for_api(partial_base_path)
+        squirrels_version_path = f'/api/squirrels-v{sq_major_version}'
+        project_name = u.normalize_name_for_api(self.manifest_cfg.project_variables.name)
+        project_version_id = f"{project_name}/v{self.manifest_cfg.project_variables.major_version}"
+
+        projects_path = squirrels_version_path + '/projects'
+        base_path = squirrels_version_path + f"/project/{project_version_id}"
         
+        param_fields = self.param_cfg_set.get_all_api_field_info()
+
         # Helpers
         T = TypeVar('T')
         
-        def get_versioning_request_header(headers: Mapping, header_key: str):
-            header_value = headers.get(header_key)
-            if header_value is None:
-                return None
-            
-            try:
-                result = int(header_value)
-            except ValueError:
-                raise u.InvalidInputError(f"Request header '{header_key}' must be an integer. Got '{header_value}'")
-            
-            if result < 0 or result > int(sq_major_version):
-                raise u.InvalidInputError(f"Request header '{header_key}' not in valid range. Got '{result}'")
-            
-            return result
-
-        def get_request_version_header(headers: Mapping):
-            REQUEST_VERSION_REQUEST_HEADER = "squirrels-request-version"
-            return get_versioning_request_header(headers, REQUEST_VERSION_REQUEST_HEADER)
-        
-        def process_based_on_response_version_header(headers: Mapping, processes: dict[int, Callable[[], T]]) -> T:
-            RESPONSE_VERSION_REQUEST_HEADER = "squirrels-response-version"
-            response_version = get_versioning_request_header(headers, RESPONSE_VERSION_REQUEST_HEADER)
-            if response_version is None or response_version >= 0:
-                return processes[0]()
-            else:
-                raise u.InvalidInputError(f'Invalid value for "{RESPONSE_VERSION_REQUEST_HEADER}" header: {response_version}')
-        
-        def get_selections_and_request_version(params: Mapping, headers: Mapping) -> tuple[frozenset[tuple[str, Any]], int | None]:
-            # Changing selections into a cachable "frozenset" that will later be converted to dictionary
-            selections = set()
+        def get_selections_as_immutable(params: Mapping, uncached_keys: set[str]) -> tuple[tuple[str, Any], ...]:
+            # Changing selections into a cachable "tuple of pairs" that will later be converted to dictionary
+            selections = list()
             for key, val in params.items():
-                if val is None:
+                if key in uncached_keys or val is None:
                     continue
                 if isinstance(val, (list, tuple)):
                     if len(val) == 1: # for backward compatibility
                         val = val[0]
                     else:
                         val = tuple(val)
-                selections.add((u.normalize_name(key), val))
-            selections = frozenset(selections)
-            
-            request_version = get_request_version_header(headers)
-            return selections, request_version
+                selections.append((u.normalize_name(key), val))
+            return tuple(selections)
 
         async def do_cachable_action(cache: TTLCache, action: Callable[..., Coroutine[Any, Any, T]], *args) -> T:
             cache_key = tuple(args)
@@ -239,17 +223,41 @@ class ApiServer:
                 result = await action(*args)
                 cache[cache_key] = result
             return result
-        
-        def get_query_models_from_widget_params(parameters: list):
+
+        def _get_query_models_helper(widget_parameters: list[str], predefined_params: list[APIParamFieldInfo]):
             QueryModelForGetRaw = make_dataclass("QueryParams", [
-                param_fields[param].as_query_info() for param in parameters
-            ])
+                param_fields[param].as_query_info() for param in widget_parameters
+            ] + [param.as_query_info() for param in predefined_params])
             QueryModelForGet = Annotated[QueryModelForGetRaw, Depends()]
 
-            QueryModelForPost = create_model("RequestBodyParams", **{
-                param: param_fields[param].as_body_info() for param in parameters
-            }) # type: ignore
+            field_definitions = {param: param_fields[param].as_body_info() for param in widget_parameters}
+            for param in predefined_params:
+                field_definitions[param.name] = param.as_body_info()
+            QueryModelForPost = create_model("RequestBodyParams", **field_definitions) # type: ignore
             return QueryModelForGet, QueryModelForPost
+        
+        def get_query_models_for_parameters(widget_parameters: list):
+            predefined_params = [
+                APIParamFieldInfo("x_verify_params", bool, default=False, description="If true, the query parameters are verified to be valid for the dataset"),
+                APIParamFieldInfo("x_parent_param", str, description="The parameter name used for parameter updates. If not provided, then all parameters are retrieved"),
+            ]
+            return _get_query_models_helper(widget_parameters, predefined_params)
+        
+        def get_query_models_for_dataset(widget_parameters: list):
+            predefined_params = [
+                APIParamFieldInfo("x_verify_params", bool, default=False, description="If true, the query parameters are verified to be valid for the dataset"),
+                APIParamFieldInfo("x_orientation", str, default="records", description="The orientation of the data to return, one of 'records' or 'columns'"),
+                APIParamFieldInfo("x_select", list[str], examples=[[]], description="The columns to select from the dataset. All are returned if not specified"), 
+                APIParamFieldInfo("x_offset", int, default=0, description="The number of rows to skip before returning data (applied after data caching)"),
+                APIParamFieldInfo("x_limit", int, default=1000, description="The maximum number of rows to return (applied after data caching and offset)"),
+            ]
+            return _get_query_models_helper(widget_parameters, predefined_params)
+        
+        def get_query_models_for_dashboard(widget_parameters: list):
+            predefined_params = [
+                APIParamFieldInfo("x_verify_params", bool, default=False, description="If true, the query parameters are verified to be valid for the dashboard"),
+            ]
+            return _get_query_models_helper(widget_parameters, predefined_params)
         
         def _get_section_from_request_path(request: Request, section: int) -> str:
             url_path: str = request.scope['route'].path
@@ -263,24 +271,31 @@ class ApiServer:
             dashboard_raw = _get_section_from_request_path(request, section)
             return u.normalize_name(dashboard_raw)
         
+        current_time = datetime.now(timezone.utc).replace(microsecond=0)
+
         # Project Metadata API
-        def get_project_metadata0() -> arm.ProjectModel:
+        def get_project_metadata() -> arm.ProjectModel:
             return arm.ProjectModel(
-                name=self.manifest_cfg.project_variables.name,
+                name=project_name,
                 label=self.manifest_cfg.project_variables.label,
+                description=self.manifest_cfg.project_variables.description,
                 versions=[arm.ProjectVersionModel(
+                    id=project_version_id,
                     major_version=self.manifest_cfg.project_variables.major_version,
-                    minor_versions=[0],
+                    created_at=current_time, updated_at=current_time, # dummy values
                     token_path=token_path,
                     data_catalog_path=data_catalog_path
                 )]
             )
         
-        @app.get(squirrels_version_path, tags=["Project Metadata"], response_class=JSONResponse)
-        async def get_project_metadata(request: Request) -> arm.ProjectModel:
-            return process_based_on_response_version_header(request.headers, {
-                0: lambda: get_project_metadata0()
-            })
+        @app.get(projects_path, tags=["Project Metadata"], response_class=JSONResponse)
+        async def get_list_of_projects(
+            request: Request, name: list[str] = Query(default=[], description="List of project names to filter by. If empty, returns all projects.")
+        ) -> arm.ProjectsListModel:
+            project_metadata = get_project_metadata()
+            if len(name) == 0 or project_metadata.name in name:
+                return arm.ProjectsListModel(projects=[project_metadata])
+            return arm.ProjectsListModel(projects=[])
         
         # Login & Authorization
         token_path = base_path + '/token'
@@ -303,11 +318,12 @@ class ApiServer:
             response.headers["Applied-Username"] = username
             return user
 
-        # Datasets / Dashboards Catalog API
+        # Data Catalog API
         data_catalog_path = base_path + '/data-catalog'
+
         dataset_results_path = base_path + '/dataset/{dataset}'
         dataset_parameters_path = dataset_results_path + '/parameters'
-        dataset_metadata_path = dataset_results_path + '/metadata'
+
         dashboard_results_path = base_path + '/dashboard/{dashboard}'
         dashboard_parameters_path = dashboard_results_path + '/parameters'
         
@@ -316,8 +332,13 @@ class ApiServer:
             for name, config in self.manifest_cfg.datasets.items():
                 if self.authenticator.can_user_access_scope(user, config.scope):
                     name_normalized = u.normalize_name_for_api(name)
+                    metadata = self.project.dataset_metadata(name).to_json()
+                    parameters = self.param_cfg_set.apply_selections(config.parameters, {}, user)
+                    parameters_model = parameters.to_api_response_model0()
                     dataset_items.append(arm.DatasetItemModel(
-                        name=name, label=config.label, description=config.description,
+                        name=name_normalized, label=config.label, description=config.description,
+                        schema=metadata["schema"], # type: ignore
+                        parameters=parameters_model.parameters,
                         parameters_path=dataset_parameters_path.format(dataset=name_normalized),
                         result_path=dataset_results_path.format(dataset=name_normalized)
                     ))
@@ -333,8 +354,11 @@ class ApiServer:
                     except KeyError:
                         raise u.ConfigurationError(f"No dashboard file found for: {name}")
                     
+                    parameters = self.param_cfg_set.apply_selections(config.parameters, {}, user)
+                    parameters_model = parameters.to_api_response_model0()
                     dashboard_items.append(arm.DashboardItemModel(
                         name=name, label=config.label, description=config.description, result_format=dashboard_format,
+                        parameters=parameters_model.parameters,
                         parameters_path=dashboard_parameters_path.format(dashboard=name_normalized),
                         result_path=dashboard_results_path.format(dashboard=name_normalized)
                     ))
@@ -342,10 +366,8 @@ class ApiServer:
             return arm.CatalogModel(datasets=dataset_items, dashboards=dashboard_items)
         
         @app.get(data_catalog_path, tags=["Project Metadata"], summary="Get catalog of datasets and dashboards available for user")
-        def get_catalog_of_datasets_and_dashboards(request: Request, user: User | None = Depends(get_current_user)) -> arm.CatalogModel:
-            return process_based_on_response_version_header(request.headers, {
-                0: lambda: get_data_catalog0(user)
-            })
+        def get_data_catalog(request: Request, user: User | None = Depends(get_current_user)) -> arm.CatalogModel:
+            return get_data_catalog0(user)
         
         # Parameters API Helpers
         parameters_description = "Selections of one parameter may cascade the available options in another parameter. " \
@@ -355,10 +377,20 @@ class ApiServer:
         
         async def get_parameters_helper(
             parameters_tuple: tuple[str, ...], entity_type: str, entity_name: str, entity_scope: PermissionScope,
-            user: User | None, selections: frozenset[tuple[str, Any]], request_version: int | None
+            user: User | None, selections: tuple[tuple[str, Any], ...]
         ) -> ParameterSet:
-            if len(selections) > 1:
-                raise u.InvalidInputError(f"The /parameters endpoint takes at most 1 query parameter. Got {dict(selections)}")
+            selections_dict = dict(selections)
+            if "x_parent_param" not in selections_dict:
+                if len(selections_dict) > 1:
+                    raise u.InvalidInputError(f"The parameters endpoint takes at most 1 widget parameter selection (unless x_parent_param is provided). Got {selections_dict}")
+                elif len(selections_dict) == 1:
+                    parent_param = next(iter(selections_dict))
+                    selections_dict["x_parent_param"] = parent_param
+            
+            parent_param = selections_dict.get("x_parent_param")
+            if parent_param is not None and parent_param not in selections_dict:
+                # this condition is possible for multi-select parameters with empty selection
+                selections_dict[parent_param] = list()
             
             try:
                 if not self.authenticator.can_user_access_scope(user, entity_scope):
@@ -369,9 +401,7 @@ class ApiServer:
                     detail=str(e), headers={"WWW-Authenticate": "Bearer"}
                 )
             
-            param_set = self.param_cfg_set.apply_selections(
-                parameters_tuple, dict(selections), user, updates_only=True, request_version=request_version
-            )
+            param_set = self.param_cfg_set.apply_selections(parameters_tuple, selections_dict, user, parent_param=parent_param)
             return param_set
 
         settings = self.manifest_cfg.settings
@@ -381,58 +411,33 @@ class ApiServer:
 
         async def get_parameters_cachable(
             parameters_tuple: tuple[str, ...], entity_type: str, entity_name: str, entity_scope: PermissionScope,
-            user: User | None, selections: frozenset[tuple[str, Any]], request_version: int | None
+            user: User | None, selections: tuple[tuple[str, Any], ...]
         ) -> ParameterSet:
-            return await do_cachable_action(params_cache, get_parameters_helper, parameters_tuple, entity_type, entity_name, entity_scope, user, selections, request_version)
+            return await do_cachable_action(params_cache, get_parameters_helper, parameters_tuple, entity_type, entity_name, entity_scope, user, selections)
         
         async def get_parameters_definition(
             parameters_list: list[str], entity_type: str, entity_name: str, entity_scope: PermissionScope,
-            user: User | None, headers: Mapping, params: Mapping
+            user: User | None, all_request_params: dict, params: Mapping
         ) -> arm.ParametersModel:
-            get_parameters_function = get_parameters_helper if self.no_cache else get_parameters_cachable
-            selections, request_version = get_selections_and_request_version(params, headers)
-            result = await get_parameters_function(tuple(parameters_list), entity_type, entity_name, entity_scope, user, selections, request_version)
-            return process_based_on_response_version_header(headers, {
-                0: result.to_api_response_model0
-            })
+            self._validate_request_params(all_request_params, params)
 
-        param_fields = self.param_cfg_set.get_all_api_field_info()
+            get_parameters_function = get_parameters_helper if self.no_cache else get_parameters_cachable
+            selections = get_selections_as_immutable(params, uncached_keys={"x_verify_params"})
+            result = await get_parameters_function(tuple(parameters_list), entity_type, entity_name, entity_scope, user, selections)
+            return result.to_api_response_model0()
 
         def validate_parameters_list(parameters: list[str], entity_type: str) -> None:
             for param in parameters:
                 if param not in param_fields:
                     all_params = list(param_fields.keys())
-                    raise u.ConfigurationError(f"{entity_type} '{dataset_name}' use parameter '{param}' which doesn't exist. Available parameters are:"
-                                               f"\n  {all_params}")
-        
-        # Dataset Metadata API Helpers
-        async def get_dataset_metadata_helper(dataset: str, user: User | None) -> DatasetMetadata:
-            try:
-                return self.project.dataset_metadata(dataset, user=user)
-            except PermissionError as e:
-                raise HTTPException(
-                    status_code=status.HTTP_401_UNAUTHORIZED, 
-                    detail=str(e), headers={"WWW-Authenticate": "Bearer"}
-                )
-
-        settings = self.manifest_cfg.settings
-        metadata_cache_size = settings.get(c.PARAMETERS_CACHE_SIZE_SETTING, 1024)
-        metadata_cache_ttl = settings.get(c.PARAMETERS_CACHE_TTL_SETTING, 60)
-        metadata_cache = TTLCache(maxsize=metadata_cache_size, ttl=metadata_cache_ttl*60)
-        
-        async def get_dataset_metadata_cachable(dataset: str, user: User | None) -> DatasetMetadata:
-            return await do_cachable_action(metadata_cache, get_dataset_metadata_helper, dataset, user)
-        
-        async def get_dataset_metadata_definition(dataset_name: str, user: User | None, headers: Mapping) -> arm.DatasetMetadataModel:
-            get_metadata_function = get_dataset_metadata_helper if self.no_cache else get_dataset_metadata_cachable
-            result = await get_metadata_function(dataset_name, user)
-            return process_based_on_response_version_header(headers, {
-                0: lambda: arm.DatasetMetadataModel(**result.to_json())
-            })
+                    raise u.ConfigurationError(
+                        f"{entity_type} '{dataset_name}' use parameter '{param}' which doesn't exist. Available parameters are:"
+                        f"\n  {all_params}"
+                    )
         
         # Dataset Results API Helpers
         async def get_dataset_results_helper(
-            dataset: str, user: User | None, selections: frozenset[tuple[str, Any]], request_version: int | None
+            dataset: str, user: User | None, selections: tuple[tuple[str, Any], ...]
         ) -> DatasetResult:
             try:
                 return await self.project.dataset(dataset, selections=dict(selections), user=user)
@@ -448,23 +453,30 @@ class ApiServer:
         dataset_results_cache = TTLCache(maxsize=dataset_results_cache_size, ttl=dataset_results_cache_ttl*60)
 
         async def get_dataset_results_cachable(
-            dataset: str, user: User | None, selections: frozenset[tuple[str, Any]], request_version: int | None
+            dataset: str, user: User | None, selections: tuple[tuple[str, Any], ...]
         ) -> DatasetResult:
-            return await do_cachable_action(dataset_results_cache, get_dataset_results_helper, dataset, user, selections, request_version)
+            return await do_cachable_action(dataset_results_cache, get_dataset_results_helper, dataset, user, selections)
         
         async def get_dataset_results_definition(
-            dataset_name: str, user: User | None, headers: Mapping, params: Mapping
+            dataset_name: str, user: User | None, all_request_params: dict, params: Mapping
         ) -> arm.DatasetResultModel:
+            self._validate_request_params(all_request_params, params)
+
             get_dataset_function = get_dataset_results_helper if self.no_cache else get_dataset_results_cachable
-            selections, request_version = get_selections_and_request_version(params, headers)
-            result = await get_dataset_function(dataset_name, user, selections, request_version)
-            return process_based_on_response_version_header(headers, {
-                0: lambda: arm.DatasetResultModel(**result.to_json())
-            })
+            uncached_keys = {"x_verify_params", "x_orientation", "x_select", "x_limit", "x_offset"}
+            selections = get_selections_as_immutable(params, uncached_keys)
+            result = await get_dataset_function(dataset_name, user, selections)
+            
+            orientation = params.get("x_orientation", "records")
+            raw_select = params.get("x_select")
+            select = tuple(raw_select) if raw_select is not None else tuple()
+            limit = params.get("x_limit", 1000)
+            offset = params.get("x_offset", 0)
+            return arm.DatasetResultModel(**result.to_json(orientation, select, limit, offset))
         
         # Dashboard Results API Helpers
         async def get_dashboard_results_helper(
-            dashboard: str, user: User | None, selections: frozenset[tuple[str, Any]], request_version: int | None
+            dashboard: str, user: User | None, selections: tuple[tuple[str, Any], ...]
         ) -> Dashboard:
             try:
                 return await self.project.dashboard(dashboard, selections=dict(selections), user=user)
@@ -477,16 +489,18 @@ class ApiServer:
         dashboard_results_cache = TTLCache(maxsize=dashboard_results_cache_size, ttl=dashboard_results_cache_ttl*60)
 
         async def get_dashboard_results_cachable(
-            dashboard: str, user: User | None, selections: frozenset[tuple[str, Any]], request_version: int | None
+            dashboard: str, user: User | None, selections: tuple[tuple[str, Any], ...]
         ) -> Dashboard:
-            return await do_cachable_action(dashboard_results_cache, get_dashboard_results_helper, dashboard, user, selections, request_version)
+            return await do_cachable_action(dashboard_results_cache, get_dashboard_results_helper, dashboard, user, selections)
         
         async def get_dashboard_results_definition(
-            dashboard_name: str, user: User | None, headers: Mapping, params: Mapping
+            dashboard_name: str, user: User | None, all_request_params: dict, params: Mapping
         ) -> Response:
+            self._validate_request_params(all_request_params, params)
+            
             get_dashboard_function = get_dashboard_results_helper if self.no_cache else get_dashboard_results_cachable
-            selections, request_version = get_selections_and_request_version(params, headers)
-            dashboard_obj = await get_dashboard_function(dashboard_name, user, selections, request_version)
+            selections = get_selections_as_immutable(params, uncached_keys={"x_verify_params"})
+            dashboard_obj = await get_dashboard_function(dashboard_name, user, selections)
             if dashboard_obj._format == c.PNG:
                 assert isinstance(dashboard_obj._content, bytes)
                 result = Response(dashboard_obj._content, media_type="image/png")
@@ -500,68 +514,62 @@ class ApiServer:
         for dataset_name, dataset_config in self.manifest_cfg.datasets.items():
             dataset_normalized = u.normalize_name_for_api(dataset_name)
             curr_parameters_path = dataset_parameters_path.format(dataset=dataset_normalized)
-            curr_metadata_path = dataset_metadata_path.format(dataset=dataset_normalized)
             curr_results_path = dataset_results_path.format(dataset=dataset_normalized)
 
             validate_parameters_list(dataset_config.parameters, "Dataset")
 
-            QueryModelForGet, QueryModelForPost = get_query_models_from_widget_params(dataset_config.parameters)
+            QueryModelForGetParams, QueryModelForPostParams = get_query_models_for_parameters(dataset_config.parameters)
+            QueryModelForGetDataset, QueryModelForPostDataset = get_query_models_for_dataset(dataset_config.parameters)
 
             @app.get(curr_parameters_path, tags=[f"Dataset '{dataset_name}'"], description=parameters_description, response_class=JSONResponse)
             async def get_dataset_parameters(
-                request: Request, params: QueryModelForGet, user: User | None = Depends(get_current_user) # type: ignore
+                request: Request, params: QueryModelForGetParams, user: User | None = Depends(get_current_user) # type: ignore
             ) -> arm.ParametersModel:
                 start = time.time()
                 curr_dataset_name = get_dataset_name(request, -2)
                 parameters_list = self.manifest_cfg.datasets[curr_dataset_name].parameters
                 scope = self.manifest_cfg.datasets[curr_dataset_name].scope
                 result = await get_parameters_definition(
-                    parameters_list, "dataset", curr_dataset_name, scope, user, request.headers, asdict(params)
+                    parameters_list, "dataset", curr_dataset_name, scope, user, dict(request.query_params), asdict(params)
                 )
                 self.logger.log_activity_time("GET REQUEST for PARAMETERS", start, request_id=_get_request_id(request))
                 return result
 
             @app.post(curr_parameters_path, tags=[f"Dataset '{dataset_name}'"], description=parameters_description, response_class=JSONResponse)
             async def get_dataset_parameters_with_post(
-                request: Request, params: QueryModelForPost, user: User | None = Depends(get_current_user) # type: ignore
+                request: Request, params: QueryModelForPostParams, user: User | None = Depends(get_current_user) # type: ignore
             ) -> arm.ParametersModel:
                 start = time.time()
                 curr_dataset_name = get_dataset_name(request, -2)
                 parameters_list = self.manifest_cfg.datasets[curr_dataset_name].parameters
                 scope = self.manifest_cfg.datasets[curr_dataset_name].scope
                 params: BaseModel = params
+                payload: dict = await request.json()
                 result = await get_parameters_definition(
-                    parameters_list, "dataset", curr_dataset_name, scope, user, request.headers, params.model_dump()
+                    parameters_list, "dataset", curr_dataset_name, scope, user, payload, params.model_dump()
                 )
                 self.logger.log_activity_time("POST REQUEST for PARAMETERS", start, request_id=_get_request_id(request))
                 return result
             
-            @app.get(curr_metadata_path, tags=[f"Dataset '{dataset_name}'"], response_class=JSONResponse)
-            async def get_dataset_metadata(request: Request, user: User | None = Depends(get_current_user)) -> arm.DatasetMetadataModel:
-                start = time.time()
-                curr_dataset_name = get_dataset_name(request, -2)
-                result = await get_dataset_metadata_definition(curr_dataset_name, user, request.headers)
-                self.logger.log_activity_time("GET REQUEST for DATASET METADATA", start, request_id=_get_request_id(request))
-                return result
-            
             @app.get(curr_results_path, tags=[f"Dataset '{dataset_name}'"], description=dataset_config.description, response_class=JSONResponse)
             async def get_dataset_results(
-                request: Request, params: QueryModelForGet, user: User | None = Depends(get_current_user) # type: ignore
+                request: Request, params: QueryModelForGetDataset, user: User | None = Depends(get_current_user) # type: ignore
             ) -> arm.DatasetResultModel:
                 start = time.time()
                 curr_dataset_name = get_dataset_name(request, -1)
-                result = await get_dataset_results_definition(curr_dataset_name, user, request.headers, asdict(params))
+                result = await get_dataset_results_definition(curr_dataset_name, user, dict(request.query_params), asdict(params))
                 self.logger.log_activity_time("GET REQUEST for DATASET RESULTS", start, request_id=_get_request_id(request))
                 return result
             
             @app.post(curr_results_path, tags=[f"Dataset '{dataset_name}'"], description=dataset_config.description, response_class=JSONResponse)
             async def get_dataset_results_with_post(
-                request: Request, params: QueryModelForPost, user: User | None = Depends(get_current_user) # type: ignore
+                request: Request, params: QueryModelForPostDataset, user: User | None = Depends(get_current_user) # type: ignore
             ) -> arm.DatasetResultModel:
                 start = time.time()
                 curr_dataset_name = get_dataset_name(request, -1)
                 params: BaseModel = params
-                result = await get_dataset_results_definition(curr_dataset_name, user, request.headers, params.model_dump())
+                payload: dict = await request.json()
+                result = await get_dataset_results_definition(curr_dataset_name, user, payload, params.model_dump())
                 self.logger.log_activity_time("POST REQUEST for DATASET RESULTS", start, request_id=_get_request_id(request))
                 return result
         
@@ -573,55 +581,58 @@ class ApiServer:
 
             validate_parameters_list(dashboard.config.parameters, "Dashboard")
             
-            QueryModelForGet, QueryModelForPost = get_query_models_from_widget_params(dashboard.config.parameters)
+            QueryModelForGetParams, QueryModelForPostParams = get_query_models_for_parameters(dashboard.config.parameters)
+            QueryModelForGetDash, QueryModelForPostDash = get_query_models_for_parameters(dashboard.config.parameters)
 
             @app.get(curr_parameters_path, tags=[f"Dashboard '{dashboard_name}'"], description=parameters_description, response_class=JSONResponse)
             async def get_dashboard_parameters(
-                request: Request, params: QueryModelForGet, user: User | None = Depends(get_current_user) # type: ignore
+                request: Request, params: QueryModelForGetParams, user: User | None = Depends(get_current_user) # type: ignore
             ) -> arm.ParametersModel:
                 start = time.time()
                 curr_dashboard_name = get_dashboard_name(request, -2)
                 parameters_list = self.dashboards[curr_dashboard_name].config.parameters    
                 scope = self.dashboards[curr_dashboard_name].config.scope
                 result = await get_parameters_definition(
-                    parameters_list, "dashboard", curr_dashboard_name, scope, user, request.headers, asdict(params)
+                    parameters_list, "dashboard", curr_dashboard_name, scope, user, dict(request.query_params), asdict(params)
                 )
                 self.logger.log_activity_time("GET REQUEST for PARAMETERS", start, request_id=_get_request_id(request))
                 return result
 
             @app.post(curr_parameters_path, tags=[f"Dashboard '{dashboard_name}'"], description=parameters_description, response_class=JSONResponse)
             async def get_dashboard_parameters_with_post(
-                request: Request, params: QueryModelForPost, user: User | None = Depends(get_current_user) # type: ignore
+                request: Request, params: QueryModelForPostParams, user: User | None = Depends(get_current_user) # type: ignore
             ) -> arm.ParametersModel:
                 start = time.time()
                 curr_dashboard_name = get_dashboard_name(request, -2)
                 parameters_list = self.dashboards[curr_dashboard_name].config.parameters
                 scope = self.dashboards[curr_dashboard_name].config.scope
                 params: BaseModel = params
+                payload: dict = await request.json()
                 result = await get_parameters_definition(
-                    parameters_list, "dashboard", curr_dashboard_name, scope, user, request.headers, params.model_dump()
+                    parameters_list, "dashboard", curr_dashboard_name, scope, user, payload, params.model_dump()
                 )
                 self.logger.log_activity_time("POST REQUEST for PARAMETERS", start, request_id=_get_request_id(request))
                 return result
             
             @app.get(curr_results_path, tags=[f"Dashboard '{dashboard_name}'"], description=dashboard.config.description, response_class=Response)
             async def get_dashboard_results(
-                request: Request, params: QueryModelForGet, user: User | None = Depends(get_current_user) # type: ignore
+                request: Request, params: QueryModelForGetDash, user: User | None = Depends(get_current_user) # type: ignore
             ) -> Response:
                 start = time.time()
                 curr_dashboard_name = get_dashboard_name(request, -1)
-                result = await get_dashboard_results_definition(curr_dashboard_name, user, request.headers, asdict(params))
+                result = await get_dashboard_results_definition(curr_dashboard_name, user, dict(request.query_params), asdict(params))
                 self.logger.log_activity_time("GET REQUEST for DASHBOARD RESULTS", start, request_id=_get_request_id(request))
                 return result
 
             @app.post(curr_results_path, tags=[f"Dashboard '{dashboard_name}'"], description=dashboard.config.description, response_class=Response)
             async def get_dashboard_results_with_post(
-                request: Request, params: QueryModelForPost, user: User | None = Depends(get_current_user) # type: ignore
+                request: Request, params: QueryModelForPostDash, user: User | None = Depends(get_current_user) # type: ignore
             ) -> Response:
                 start = time.time()
                 curr_dashboard_name = get_dashboard_name(request, -1)
                 params: BaseModel = params
-                result = await get_dashboard_results_definition(curr_dashboard_name, user, request.headers, params.model_dump())
+                payload: dict = await request.json()
+                result = await get_dashboard_results_definition(curr_dashboard_name, user, payload, params.model_dump())
                 self.logger.log_activity_time("POST REQUEST for DASHBOARD RESULTS", start, request_id=_get_request_id(request))
                 return result
 
@@ -643,9 +654,15 @@ class ApiServer:
         @app.get('/', summary="Get the Squirrels Testing UI", response_class=HTMLResponse)
         async def get_testing_ui(request: Request):
             return templates.TemplateResponse('index.html', {
-                'request': request, 'project_metadata_path': squirrels_version_path, 'token_path': token_path
+                'request': request, 'projects_path': projects_path, 'token_path': token_path
             })
         
         import uvicorn
         self.logger.log_activity_time("creating app server", start)
+
+        print("\nWelcome to the Squirrels Server!\n")
+        print(f"- Testing UI: http://{uvicorn_args.host}:{uvicorn_args.port}")
+        print(f"- API Docs: http://{uvicorn_args.host}:{uvicorn_args.port}/docs")
+        print()
+        
         uvicorn.run(app, host=uvicorn_args.host, port=uvicorn_args.port)

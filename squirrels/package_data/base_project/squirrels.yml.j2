@@ -21,7 +21,7 @@ packages: []
 
 datasets:
   - name: dbview_dataset_example          ## model name uses same name unless "model" field is specified
-    label: Dataset from DBView Example
+    label: Example Dataset from DBView Model
     description: Aggregated expense transactions by month using dbview_example model
     model: dbview_example 
     scope: public                         ## optional - one of 'public' (default), 'protected', or 'private'
@@ -33,7 +33,7 @@ datasets:
     traits: {}                            ## optional - defaults to empty object
   
   - name: federate_dataset_example
-    label: Dataset from Federate Example
+    label: Example Dataset from Federate Model
     description: Aggregated expense transactions by custom dimension using federate_example model
     model: federate_example 
     scope: protected                      ## using an auth.py file is suggested for protected or private datasets
@@ -50,13 +50,13 @@ datasets:
 selection_test_sets:
   - name: no_auth_test1
     datasets:                             ## optional section - if not provided, then test set is applicable for any dataset
-      - dataset_example
+      - dbview_dataset_example
     parameters:                           ## optional section - if not provided, then assumes no parameters. For unspecified parameters, default value is used
       start_date: 2023-07-01              ## this parameter only exists for dataset 'dataset_example'
   
   - name: auth_test1
     datasets:
-      - protected_dataset_example
+      - federate_dataset_example
     user_attributes:                      ## optional section - required if using test set on non-public datasets
       role: customer
     parameters:

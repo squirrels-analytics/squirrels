@@ -1,4 +1,4 @@
-from typing import Type, Optional
+from typing import Optional
 from datetime import datetime, timedelta, timezone
 from jwt.exceptions import InvalidTokenError
 import secrets, jwt
@@ -20,7 +20,6 @@ class Authenticator:
         self.conn_set = conn_set
         self.token_expiry_minutes = token_expiry_minutes
         self.auth_helper = self._get_auth_helper(base_path, default_auth_helper=auth_helper)
-        self.user_cls: Type[User] = self.auth_helper.get_func_or_class("User", default_attr=User)
         self.secret_key = self._get_secret_key()
         self.algorithm = "HS256"
     
@@ -48,9 +47,10 @@ class Authenticator:
             if username in fake_users and secrets.compare_digest(fake_users[username].password, password):
                 fake_user = fake_users[username].model_dump()
                 fake_user.pop("username", "")
+                fake_user.pop("password", "")
                 is_internal = fake_user.pop("is_internal", False)
                 try:
-                    return self.user_cls.Create(username, is_internal=is_internal, **fake_user)
+                    return User.Create(username, is_internal=is_internal, **fake_user)
                 except Exception as e:
                     raise u.FileExecutionError(f'Failed to create user from User model in {c.AUTH_FILE}', e) from e
         
@@ -81,7 +81,7 @@ class Authenticator:
         try:
             payload: dict = jwt.decode(token, self.secret_key, algorithms=[self.algorithm])
             payload.pop("exp")
-            return self.user_cls._FromDict(payload)
+            return User._FromDict(payload)
         except InvalidTokenError:
             return None
 

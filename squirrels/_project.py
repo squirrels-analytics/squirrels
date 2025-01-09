@@ -2,6 +2,7 @@ from uuid import uuid4
 import asyncio, typing as t, functools as ft, shutil, json
 import logging as l, matplotlib.pyplot as plt, networkx as nx, polars as pl
 
+from ._user_base import User
 from ._model_builder import ModelBuilder
 from . import _utils as u, _constants as c, _environcfg as ec, _manifest as mf, _authenticator as auth
 from . import _seeds as s, _connection_set as cs, _models as m, _dashboards_io as d, _parameter_sets as ps
@@ -137,13 +138,6 @@ class SquirrelsProject:
     @ft.cached_property
     def _j2_env(self) -> u.EnvironmentWithMacros:
         return u.EnvironmentWithMacros(self._logger, loader=u.j2.FileSystemLoader(self._filepath))
-    
-    @ft.cached_property
-    def User(self) -> type[auth.User]:
-        """
-        A direct reference to the User class in the `auth.py` file (if applicable). If `auth.py` does not exist, then this returns the `squirrels.User` class.
-        """
-        return self._authenticator.user_cls
 
     @ft.cached_property
     def _duckdb_venv_path(self) -> str:
@@ -219,7 +213,10 @@ class SquirrelsProject:
         return m.DAG(dataset_config, target_model, models_dict, self._duckdb_venv_path, self._logger)
     
     def _draw_dag(self, dag: m.DAG, output_folder: u.Path) -> None:
-        color_map = {m.ModelType.SEED: "green", m.ModelType.DBVIEW: "red", m.ModelType.FEDERATE: "skyblue"}
+        color_map = {
+            m.ModelType.SEED: "green", m.ModelType.DBVIEW: "red", m.ModelType.FEDERATE: "skyblue",
+            m.ModelType.BUILD: "purple", m.ModelType.SOURCE: "orange"
+        }
 
         G = dag.to_networkx_graph()
         
@@ -258,7 +255,7 @@ class SquirrelsProject:
         selections = test_set_conf.parameters.copy()
         username, is_internal = user_attributes.pop("username", ""), user_attributes.pop("is_internal", False)
         if test_set_conf.is_authenticated:
-            user = self.User.Create(username, is_internal=is_internal, **user_attributes)
+            user = User.Create(username, is_internal=is_internal, **user_attributes)
         elif dataset_conf.scope == mf.PermissionScope.PUBLIC:
             user = None
         else:
@@ -374,25 +371,19 @@ class SquirrelsProject:
             available_seeds = list(seeds_dict.keys())
             raise KeyError(f"Seed '{name}' not found. Available seeds are: {available_seeds}")
     
-    def dataset_metadata(self, name: str, *, user: auth.User | None = None) -> dr.DatasetMetadata:
+    def dataset_metadata(self, name: str) -> dr.DatasetMetadata:
         """
         Method to retrieve the metadata of a dataset given a dataset name.
 
         Arguments:
             name: The name of the dataset to retrieve.
-            user: The user to use for authentication. If None, no user is used. Optional, default is None.
         
         Returns:
             A DatasetMetadata object containing the dataset description and column details.
         """
-        scope = self._manifest_cfg.datasets[name].scope
-        if not self._authenticator.can_user_access_scope(user, scope):
-            raise self._permission_error(user, "dataset", name, scope.name)
-        
         dag = self._generate_dag(name)
-        dag.target_model.process_pass_through_columns_recursively(dag.models_dict)
+        dag.target_model.process_pass_through_columns(dag.models_dict)
         return dr.DatasetMetadata(
-            description=dag.dataset.description, 
             target_model_config=dag.target_model.model_config
         )
     
@@ -418,9 +409,8 @@ class SquirrelsProject:
         await dag.execute(self._param_args, self._param_cfg_set, self._context_func, user, dict(selections))
         assert isinstance(dag.target_model.result, pl.LazyFrame)
         return dr.DatasetResult(
-            description=dag.dataset.description, 
             target_model_config=dag.target_model.model_config, 
-            df=dag.target_model.result.collect()
+            df=dag.target_model.result.collect().with_row_index("_row_num", offset=1)
         )
     
     async def dashboard(
