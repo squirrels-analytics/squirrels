@@ -14,6 +14,7 @@ from ._environcfg import EnvironConfig
 class ProjectVarsConfig(BaseModel, extra="allow"):
     name: str
     label: str = ""
+    description: str = ""
     major_version: int
 
     @model_validator(mode="after")

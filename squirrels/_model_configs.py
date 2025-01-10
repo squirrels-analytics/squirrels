@@ -1,6 +1,5 @@
 from enum import Enum
 from pydantic import BaseModel, Field
-import polars as pl
 
 from ._manifest import Settings
 

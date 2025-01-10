@@ -2,8 +2,7 @@ from collections import OrderedDict
 import pytest, polars as pl
 
 from squirrels import _parameter_sets as ps, parameters as p, _parameter_configs as _pc, parameter_options as _po, data_sources as d
-from squirrels import _utils as u
-from tests.parameter_configs_tests._user_class import User
+from squirrels import _utils as u, User
 
 
 @pytest.fixture(scope="module")
@@ -222,7 +221,7 @@ def test_apply_selections1(
     actual = param_configs_set1.apply_selections(None, selections, user)
     assert actual == parameter_set1
 
-    actual = param_configs_set1.apply_selections(None, selections, user, updates_only=True)
+    actual = param_configs_set1.apply_selections(None, selections, user, parent_param="single_select_with_ms_parent")
     assert actual == parameter_set0
 
 

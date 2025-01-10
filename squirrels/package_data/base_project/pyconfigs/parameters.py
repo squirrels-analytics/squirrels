@@ -17,15 +17,16 @@ def main(sqrl: ParametersArgs) -> None:
     """
 
     ## Example of creating SingleSelectParameter and specifying each option by code
+    user_attribute = "role"
     group_by_options = [
-        po.SelectParameterOption("g0", "Transaction", columns=["date", "category", "subcategory", "description"]),
-        po.SelectParameterOption("g1", "Day", columns=["date"], aliases=["day"]),
-        po.SelectParameterOption("g4", "Month", columns=["month"]),
-        po.SelectParameterOption("g2", "Category", columns=["category"]),
-        po.SelectParameterOption("g3", "Subcategory", columns=["category", "subcategory"]),
+        po.SelectParameterOption("g0", "Transaction", columns=["date", "category", "subcategory", "description"], user_groups=["manager"]),
+        po.SelectParameterOption("g1", "Day", columns=["date"], aliases=["day"], user_groups=["manager", "employee"]),
+        po.SelectParameterOption("g4", "Month", columns=["month"], user_groups=["manager", "employee"]),
+        po.SelectParameterOption("g2", "Category", columns=["category"], user_groups=["manager", "employee"]),
+        po.SelectParameterOption("g3", "Subcategory", columns=["category", "subcategory"], user_groups=["manager", "employee"]),
     ]
     p.SingleSelectParameter.CreateWithOptions(
-        "group_by", "Group By", group_by_options, description="Dimension(s) to aggregate by"
+        "group_by", "Group By", group_by_options, description="Dimension(s) to aggregate by", user_attribute=user_attribute
     )
 
     ## Example of creating NumberParameter with options

@@ -2,13 +2,12 @@ label: Dashboard Example
 
 description: This is an example dashboard
 
-scope: public
+scope: protected
 
 format: png
 
 parameters:
-  - start_date
-  - end_date
+  - date_range
   - category
 
 depends_on:

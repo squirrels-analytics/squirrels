@@ -132,19 +132,9 @@ class DataModel(metaclass=ABCMeta):
             local_conn.execute(f"CREATE OR REPLACE TABLE {self.name} AS SELECT * FROM df")
         finally:
             local_conn.close()
-    
-    def _process_pass_through_columns(self, models_dict: dict[str, DataModel]) -> None:
+        
+    def process_pass_through_columns(self, models_dict: dict[str, DataModel]) -> None:
         pass
-            
-    def process_pass_through_columns_recursively(self, models_dict: dict[str, DataModel]) -> None:
-        if getattr(self, "processed_pass_through_columns", False):
-            return
-        
-        for dep_model in self.upstreams.values():
-            dep_model.process_pass_through_columns_recursively(models_dict)
-        
-        self._process_pass_through_columns(models_dict)
-        self.processed_pass_through_columns = True
 
 
 @dataclass
@@ -329,13 +319,16 @@ class QueryModel(DataModel):
             raise u.FileExecutionError(f'Failed to compile sql model "{self.name}"', e) from e
         return query
     
-    def _process_pass_through_columns(self, models_dict: dict[str, DataModel]) -> None:
+    def process_pass_through_columns(self, models_dict: dict[str, DataModel]) -> None:
+        if getattr(self, "processed_pass_through_columns", False):
+            return
+        
         for col in self.model_config.columns:
             if col.pass_through:
                 # Validate pass-through column has exactly one dependency
                 if len(col.depends_on) != 1:
                     raise u.ConfigurationError(
-                        f'Column "{self.name}.{col.name}" has pass_through=true but does not have exactly one depends_on value'
+                        f'Column "{self.name}.{col.name}" has pass_through=true, which must have exactly one depends_on value'
                     )
                 
                 # Get the upstream column reference
@@ -348,6 +341,16 @@ class QueryModel(DataModel):
                     raise u.ConfigurationError(
                         f'Column "{self.name}.{col.name}" depends on unknown model "{table_name}"'
                     )
+        
+        # Do not rely on self.upstreams here, as it may not be fully populated for metadata passthrough purposes
+        for dep_model_name in self.model_config.depends_on:
+            dep_model = models_dict[dep_model_name]
+            dep_model.process_pass_through_columns(models_dict)
+        
+        for col in self.model_config.columns:
+            if col.pass_through:
+                upstream_col_ref = next(iter(col.depends_on))
+                table_name, col_name = upstream_col_ref.split('.')
                 upstream_model = models_dict[table_name]
                 
                 # Find the upstream column config
@@ -366,6 +369,8 @@ class QueryModel(DataModel):
                 col.description = upstream_col.description if col.description == "" else col.description
                 col.category = upstream_col.category if col.category == mc.ColumnCategory.MISC else col.category
 
+        self.processed_pass_through_columns = True
+        
     def retrieve_dependent_query_models(self, dependent_model_names: set[str]) -> None:
         if self.name not in dependent_model_names:
             dependent_model_names.add(self.name)
@@ -714,7 +719,10 @@ class BuildModel(StaticModel, QueryModel):
             if is_terminal_node:
                 def load_df(dep_model: DataModel):
                     local_conn = conn.cursor()
-                    dep_model.result = dep_model._load_duckdb_view_to_python_df(local_conn)
+                    try:
+                        dep_model.result = dep_model._load_duckdb_view_to_python_df(local_conn)
+                    finally:
+                        local_conn.close()
                     
                 coroutines = []
                 for dep_model in self.upstreams.values():
@@ -742,13 +750,11 @@ class DAG:
     placeholders: dict[str, Any] = field(init=False, default_factory=dict)
 
     def apply_selections(
-        self, param_cfg_set: ParameterConfigsSet, user: User | None, selections: dict[str, str], *, updates_only: bool = False, request_version: int | None = None
+        self, param_cfg_set: ParameterConfigsSet, user: User | None, selections: dict[str, str]
     ) -> None:
         start = time.time()
         dataset_params = self.dataset.parameters
-        parameter_set = param_cfg_set.apply_selections(
-            dataset_params, selections, user, updates_only=updates_only, request_version=request_version
-        )
+        parameter_set = param_cfg_set.apply_selections(dataset_params, selections, user)
         self.parameter_set = parameter_set
         self.logger.log_activity_time(f"applying selections for dataset '{self.dataset.name}'", start)
     
@@ -803,11 +809,11 @@ class DAG:
     
     async def execute(
         self, param_args: ParametersArgs, param_cfg_set: ParameterConfigsSet, context_func: ContextFunc, user: User | None, selections: dict[str, str], 
-        *, request_version: int | None = None, runquery: bool = True, recurse: bool = True
+        *, runquery: bool = True, recurse: bool = True
     ) -> dict[str, Any]:
         recurse = (recurse or runquery)
 
-        self.apply_selections(param_cfg_set, user, selections, request_version=request_version)
+        self.apply_selections(param_cfg_set, user, selections)
 
         context, ctx_args = self._compile_context(param_args, context_func, user)
 
@@ -818,7 +824,8 @@ class DAG:
         placeholders = ctx_args._placeholders.copy()
         if runquery:
             await self._run_models(terminal_nodes, placeholders)
-            self.target_model.process_pass_through_columns_recursively(self.models_dict)
+        
+        self.target_model.process_pass_through_columns(self.models_dict)
 
         return placeholders
     

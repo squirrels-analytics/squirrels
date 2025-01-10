@@ -1,5 +1,5 @@
 from __future__ import annotations
-from typing import Optional, Sequence
+from typing import Optional, Sequence, Any
 from dataclasses import dataclass, field
 from collections import OrderedDict
 import time, concurrent.futures, polars as pl
@@ -103,14 +103,13 @@ class ParameterConfigsSet:
         self.__validate_param_relationships()
     
     def apply_selections(
-        self, dataset_params: Optional[Sequence[str]], selections: dict[str, str], user: Optional[User], 
-        *, updates_only: bool = False, request_version: Optional[int] = None
+        self, dataset_params: Optional[Sequence[str]], selections: dict[str, Any], user: Optional[User], *, parent_param: str | None = None
     ) -> ParameterSet:
         if dataset_params is None:
             dataset_params = list(self._data.keys())
         
         parameters_by_name: dict[str, p.Parameter] = {}
-        params_to_process = selections.keys() if selections and updates_only else dataset_params
+        params_to_process = [parent_param] if parent_param else dataset_params
         params_to_process_set = set(params_to_process)
         for some_name in params_to_process:
             stack = [some_name] # Note: process parent selections first (if applicable) before children

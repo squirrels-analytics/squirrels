@@ -1,20 +1,12 @@
-from typing import Optional, Union
 import pytest
 
 from squirrels import AuthLoginArgs
-from squirrels._authenticator import Authenticator, User as UserBase, WrongPassword
+from squirrels._authenticator import Authenticator, User, WrongPassword
 from squirrels._manifest import PermissionScope
 
 
-class AuthHelper:    
-    class User(UserBase):
-        def set_attributes(self, **kwargs) -> None:
-            self.email = kwargs["email"]
-        
-        def __eq__(self, other) -> bool:
-            return type(other) is self.__class__ and self.__dict__ == other.__dict__
-    
-    def get_user_from_login(self, sqrl: AuthLoginArgs) -> Union[User, WrongPassword, None]:
+class AuthHelper:
+    def get_user_from_login(self, sqrl: AuthLoginArgs) -> User | WrongPassword | None:
         mock_db = {
             "johndoe": {
                 "username": "johndoe",
@@ -35,7 +27,7 @@ class AuthHelper:
             user_obj = mock_db[username]
             if str(hash(password)) == user_obj["hashed_password"]:
                 is_admin = user_obj["is_admin"]
-                return self.User.Create(username, is_internal=is_admin, email=user_obj["email"])
+                return User.Create(username, is_internal=is_admin, email=user_obj["email"])
             else:
                 return WrongPassword()
 
@@ -46,18 +38,18 @@ def auth(simple_env_config, simple_conn_args, simple_conn_set) -> Authenticator:
 
 
 @pytest.fixture(scope="module")
-def john_doe_user() -> AuthHelper.User:
-    return AuthHelper.User.Create("johndoe", is_internal=True, email="john.doe@email.com")
+def john_doe_user() -> User:
+    return User.Create("johndoe", is_internal=True, email="john.doe@email.com")
 
 
 @pytest.fixture(scope="module")
-def matt_doe_user() -> AuthHelper.User:
-    return AuthHelper.User.Create("mattdoe", is_internal=False, email="matt.doe@email.com")
+def matt_doe_user() -> User:
+    return User.Create("mattdoe", is_internal=False, email="matt.doe@email.com")
 
 
 @pytest.fixture(scope="module")
-def lisa_doe_user() -> AuthHelper.User:
-    return AuthHelper.User.Create("lisadoe", is_internal=True, email="lisadoe@org2.com")
+def lisa_doe_user() -> User:
+    return User.Create("lisadoe", is_internal=True, email="lisadoe@org2.com", organization="org2")
 
 
 @pytest.mark.parametrize('username,password,expected', [
@@ -67,7 +59,7 @@ def lisa_doe_user() -> AuthHelper.User:
     ("lisadoe", "abcd1234", "lisa_doe_user"),
     ("wrong", "secret", None),
 ])
-def test_authenticate_user(username: str, password: str, expected: Optional[str], auth: Authenticator, request: pytest.FixtureRequest):
+def test_authenticate_user(username: str, password: str, expected: str | None, auth: Authenticator, request: pytest.FixtureRequest):
     expected_user = None if expected is None else request.getfixturevalue(expected)
     retrieved_user = auth.authenticate_user(username, password)
     assert retrieved_user == expected_user

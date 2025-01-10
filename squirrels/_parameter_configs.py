@@ -1,5 +1,5 @@
 from __future__ import annotations
-from typing import Generic, TypeVar, Annotated, Type, Sequence, Iterator, Any
+from typing import Generic, TypeVar, Annotated, Type, Sequence, Iterator, Any, Literal
 from typing_extensions import Self
 from datetime import datetime
 from dataclasses import dataclass, field
@@ -27,16 +27,17 @@ class APIParamFieldInfo:
     pattern: str | None = None
     min_length: int | None = None
     max_length: int | None = None
+    default: Any = None
     
     def as_query_info(self):
         query_info = Query(
             title=self.title, description=self.description, examples=self.examples, pattern=self.pattern,
             min_length=self.min_length, max_length=self.max_length
         )
-        return (self.name, Annotated[self.type, query_info], None)
+        return (self.name, Annotated[self.type, query_info], self.default)
     
     def as_body_info(self):
-        field_info = Field(None,
+        field_info = Field(self.default,
             title=self.title, description=self.description, examples=self.examples, pattern=self.pattern,
             min_length=self.min_length, max_length=self.max_length
         )
@@ -122,8 +123,7 @@ class ParameterConfig(Generic[ParamOptionType], ParameterConfigBase):
     
     @abstractmethod
     def with_selection(
-        self, selection: str | None, user: User | None, parent_param: p._SelectionParameter | None, 
-        *, request_version: int | None = None
+        self, selection: str | None, user: User | None, parent_param: p._SelectionParameter | None
     ) -> p.Parameter:
         pass
     
@@ -200,8 +200,7 @@ class SingleSelectParameterConfig(SelectionParameterConfig):
         return d.SelectDataSource(*args, **kwargs)
     
     def with_selection(
-        self, selection: str | None, user: User | None, parent_param: p._SelectionParameter | None,
-        *, request_version: int | None = None
+        self, selection: str | None, user: User | None, parent_param: p._SelectionParameter | None
     ) -> p.SingleSelectParameter:
         options = self._get_options(user, parent_param)
         if selection is None:
@@ -249,8 +248,7 @@ class MultiSelectParameterConfig(SelectionParameterConfig):
         return d.SelectDataSource(*args, **kwargs)
     
     def with_selection(
-        self, selection: str | None, user: User | None, parent_param: p._SelectionParameter | None,
-        *, request_version: int | None = None
+        self, selection: str | None, user: User | None, parent_param: p._SelectionParameter | None
     ) -> p.MultiSelectParameter:
         options = self._get_options(user, parent_param)
         if selection is None:
@@ -306,8 +304,7 @@ class DateParameterConfig(_DateTypeParameterConfig[_po.DateParameterOption]):
         return d.DateDataSource(*args, **kwargs)
     
     def with_selection(
-        self, selection: str | None, user: User | None, parent_param: p._SelectionParameter | None,
-        *, request_version: int | None = None
+        self, selection: str | None, user: User | None, parent_param: p._SelectionParameter | None
     ) -> p.DateParameter:
         curr_option: _po.DateParameterOption | None = next(self._get_options_iterator(self.all_options, user, parent_param), None)
         selected_date = curr_option._default_date if selection is None and curr_option is not None else selection
@@ -346,8 +343,7 @@ class DateRangeParameterConfig(_DateTypeParameterConfig[_po.DateRangeParameterOp
         return d.DateRangeDataSource(*args, **kwargs)
     
     def with_selection(
-        self, selection: str | None, user: User | None, parent_param: p._SelectionParameter | None,
-        *, request_version: int | None = None
+        self, selection: str | None, user: User | None, parent_param: p._SelectionParameter | None
     ) -> p.DateRangeParameter:
         curr_option: _po.DateRangeParameterOption | None = next(self._get_options_iterator(self.all_options, user, parent_param), None)
         if selection is None:
@@ -410,8 +406,7 @@ class NumberParameterConfig(_NumericParameterConfig[_po.NumberParameterOption]):
         return d.NumberDataSource(*args, **kwargs)
     
     def with_selection(
-        self, selection: str | None, user: User | None, parent_param: p._SelectionParameter | None,
-        *, request_version: int | None = None
+        self, selection: str | None, user: User | None, parent_param: p._SelectionParameter | None
     ) -> p.NumberParameter:
         curr_option: _po.NumberParameterOption | None = next(self._get_options_iterator(self.all_options, user, parent_param), None)
         selected_value = curr_option._default_value if selection is None and curr_option is not None else selection
@@ -450,8 +445,7 @@ class NumberRangeParameterConfig(_NumericParameterConfig[_po.NumberRangeParamete
         return d.NumberRangeDataSource(*args, **kwargs)
     
     def with_selection(
-        self, selection: str | None, user: User | None, parent_param: p._SelectionParameter | None,
-        *, request_version: int | None = None
+        self, selection: str | None, user: User | None, parent_param: p._SelectionParameter | None
     ) -> p.NumberRangeParameter:
         curr_option: _po.NumberRangeParameterOption | None = next(self._get_options_iterator(self.all_options, user, parent_param), None)
         if selection is None:
@@ -541,8 +535,7 @@ class TextParameterConfig(ParameterConfig[_po.TextParameterOption]):
         return d.TextDataSource(*args, **kwargs)
     
     def with_selection(
-        self, selection: str | None, user: User | None, parent_param: p._SelectionParameter | None,
-        *, request_version: int | None = None
+        self, selection: str | None, user: User | None, parent_param: p._SelectionParameter | None
     ) -> p.TextParameter:
         curr_option: _po.TextParameterOption | None = next(self._get_options_iterator(self.all_options, user, parent_param), None)
         entered_text = curr_option._default_text if selection is None and curr_option is not None else selection

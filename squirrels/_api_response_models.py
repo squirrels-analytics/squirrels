@@ -10,34 +10,6 @@ class LoginReponse(BaseModel):
     expiry_time: Annotated[datetime, Field(examples=["2023-08-01T12:00:00.000000Z"], description="The expiry time of the access token in yyyy-MM-dd'T'hh:mm:ss.SSSSSS'Z' format")]
 
 
-## Datasets / Dashboards Catalog Response Models
-
-name_description = "The name of the dataset / dashboard (usually in snake case)"
-label_description = "The human-friendly display name for the dataset / dashboard"
-description_description = "The description of the dataset / dashboard"
-parameters_path_description = "The API path to the parameters for the dataset / dashboard"
-result_path_description = "The API path to the results for the dataset / dashboard"
-
-class DatasetItemModel(BaseModel):
-    name: Annotated[str, Field(examples=["mydataset"], description=name_description)]
-    label: Annotated[str, Field(examples=["My Dataset"], description=label_description)]
-    description: Annotated[str, Field(examples=[""], description=description_description)]
-    parameters_path: Annotated[str, Field(examples=["/squirrels-v0/myproject/v1/dataset/mydataset/parameters"], description=parameters_path_description)]
-    result_path: Annotated[str, Field(examples=["/squirrels-v0/myproject/v1/dataset/mydataset"], description=result_path_description)]
-
-class DashboardItemModel(BaseModel):
-    name: Annotated[str, Field(examples=["mydashboard"], description=name_description)]
-    label: Annotated[str, Field(examples=["My Dashboard"], description=label_description)]
-    description: Annotated[str, Field(examples=[""], description=description_description)]
-    parameters_path: Annotated[str, Field(examples=["/squirrels-v0/myproject/v1/dashboard/mydashboard/parameters"], description=parameters_path_description)]
-    result_path: Annotated[str, Field(examples=["/squirrels-v0/myproject/v1/dashboard/mydashboard"], description=result_path_description)]
-    result_format: Annotated[str, Field(examples=["png", "html"], description="The format of the dashboard's result API response (one of 'png' or 'html')")]
-
-class CatalogModel(BaseModel):
-    datasets: Annotated[list[DatasetItemModel], Field(description="The list of accessible datasets")]
-    dashboards: Annotated[list[DashboardItemModel], Field(description="The list of accessible dashboards")]
-
-
 ## Parameters Response Models
 
 class ParameterOptionModel(BaseModel):
@@ -109,25 +81,58 @@ class ParametersModel(BaseModel):
     ]
 
 
-## Dataset Results Response Models
+## Datasets / Dashboards Catalog Response Models
+
+name_description = "The name of the dataset / dashboard (usually in snake case)"
+label_description = "The human-friendly display name for the dataset / dashboard"
+description_description = "The description of the dataset / dashboard"
+parameters_path_description = "The API path to the parameters for the dataset / dashboard"
+metadata_path_description = "The API path to the metadata (i.e., description and schema) for the dataset"
+result_path_description = "The API path to the results for the dataset / dashboard"
 
 class ColumnModel(BaseModel):
     name: Annotated[str, Field(examples=["mycol"], description="Name of column")]
     type: Annotated[str, Field(examples=["string", "integer", "boolean", "datetime"], description='Column type (such as "string", "integer", "boolean", "datetime", etc.)')]
     description: Annotated[str, Field(examples=["My column description"], description="The description of the column")]
     category: Annotated[str, Field(examples=["dimension", "measure", "misc"], description="The category of the column (such as 'dimension', 'measure', or 'misc')")]
+
+class ColumnWithConditionModel(ColumnModel):
     condition: Annotated[str | None, Field(None, examples=["My condition"], description="The condition of when the column is included (such as based on a parameter selection)")]
 
 class SchemaModel(BaseModel):
     fields: Annotated[list[ColumnModel], Field(description="A list of JSON objects containing the 'name' and 'type' for each of the columns in the result")]
 
-class DatasetMetadataModel(BaseModel):
-    description: Annotated[str, Field(examples=["My dataset description"], description="Text for describing the dataset")]
-    data_schema: Annotated[SchemaModel, Field(alias="schema", description="JSON object describing the schema of the dataset")]
+class SchemaWithConditionModel(BaseModel):
+    fields: Annotated[list[ColumnWithConditionModel], Field(description="A list of JSON objects containing the 'name' and 'type' for each of the columns in the result")]
 
-class DatasetResultModel(DatasetMetadataModel):
-    data: Annotated[list[dict], Field(
-        examples=[[{"col_name": "col_value"}]],
+class DatasetItemModel(ParametersModel):
+    name: Annotated[str, Field(examples=["mydataset"], description=name_description)]
+    label: Annotated[str, Field(examples=["My Dataset"], description=label_description)]
+    description: Annotated[str, Field(examples=[""], description=description_description)]
+    data_schema: Annotated[SchemaWithConditionModel, Field(alias="schema", description="JSON object describing the schema of the dataset")]
+    parameters_path: Annotated[str, Field(examples=["/squirrels-v0/myproject/v1/dataset/mydataset/parameters"], description=parameters_path_description)]
+    result_path: Annotated[str, Field(examples=["/squirrels-v0/myproject/v1/dataset/mydataset"], description=result_path_description)]
+
+class DashboardItemModel(ParametersModel):
+    name: Annotated[str, Field(examples=["mydashboard"], description=name_description)]
+    label: Annotated[str, Field(examples=["My Dashboard"], description=label_description)]
+    description: Annotated[str, Field(examples=[""], description=description_description)]
+    parameters_path: Annotated[str, Field(examples=["/squirrels-v0/myproject/v1/dashboard/mydashboard/parameters"], description=parameters_path_description)]
+    result_path: Annotated[str, Field(examples=["/squirrels-v0/myproject/v1/dashboard/mydashboard"], description=result_path_description)]
+    result_format: Annotated[str, Field(examples=["png", "html"], description="The format of the dashboard's result API response (one of 'png' or 'html')")]
+
+class CatalogModel(BaseModel):
+    datasets: Annotated[list[DatasetItemModel], Field(description="The list of accessible datasets")]
+    dashboards: Annotated[list[DashboardItemModel], Field(description="The list of accessible dashboards")]
+
+
+## Dataset Results Response Models
+
+class DatasetResultModel(BaseModel):
+    data_schema: Annotated[SchemaModel, Field(alias="schema", description="JSON object describing the schema of the dataset")]
+    total_num_rows: Annotated[int, Field(description="The total number of rows for the dataset")]
+    data: Annotated[list[dict] | dict[str, list], Field(
+        examples=[[{"col_name": "col_value1"}, {"col_name": "col_value2"}], {"col_name": ["col_value1", "col_value2"]}],
         description="A list of JSON objects where each object is a row of the tabular results. The keys and values of the object are column names (described in fields) and values of the row."
     )]
 
@@ -135,12 +140,18 @@ class DatasetResultModel(DatasetMetadataModel):
 ## Project Metadata Response Models
 
 class ProjectVersionModel(BaseModel):
+    id: Annotated[str, Field(examples=["myproject/v1"])]
     major_version: int
-    minor_versions: list[int]
+    created_at: datetime
+    updated_at: datetime
     token_path: Annotated[str, Field(examples=["/squirrels-v0/myproject/v1/token"])]
     data_catalog_path: Annotated[str, Field(examples=["/squirrels-v0/myproject/v1/datasets"])]
 
 class ProjectModel(BaseModel):
     name: Annotated[str, Field(examples=["myproject"])]
     label: Annotated[str, Field(examples=["My Project"])]
+    description: Annotated[str, Field(examples=["My project description"])]
     versions: list[ProjectVersionModel]
+
+class ProjectsListModel(BaseModel):
+    projects: list[ProjectModel]
