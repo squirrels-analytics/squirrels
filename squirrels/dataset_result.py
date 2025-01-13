@@ -57,14 +57,14 @@ class DatasetResult(DatasetMetadata):
             else:
                 fields.append({"name": col, "type": "unknown", "description": "", "category": "misc"})
         
-        df = self.df
-        if select:
-            df = df.select(select)
+        df = self.df.lazy()
         if offset > 0:
             df = df.filter(pl.col("_row_num") > offset)
         if limit > 0:
             df = df.limit(limit)
-        data = df.to_dict(as_series=False) if orientation == "columns" else df.to_dicts()
+        if select:
+            df = df.select(select)
+        data = df.collect().to_dict(as_series=False) if orientation == "columns" else df.collect().to_dicts()
 
         return {
             "schema": {

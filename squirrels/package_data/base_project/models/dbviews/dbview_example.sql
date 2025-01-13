@@ -1,7 +1,7 @@
 {# SQLite dialect (based on connection used) #}
 
 SELECT STRFTIME('%Y-%m', date) AS month
-    , SUM(amount) as total_amount
+    , ROUND(SUM(amount), 2) as total_amount
 
 FROM {{ source("src_transactions") }}
 

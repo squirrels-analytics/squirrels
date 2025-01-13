@@ -6,7 +6,6 @@ from fastapi.templating import Jinja2Templates
 from fastapi.staticfiles import StaticFiles
 from fastapi.security import OAuth2PasswordBearer, OAuth2PasswordRequestForm
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.datastructures import QueryParams
 from pydantic import create_model, BaseModel
 from contextlib import asynccontextmanager
 from cachetools import TTLCache

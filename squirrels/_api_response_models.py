@@ -105,10 +105,14 @@ class SchemaModel(BaseModel):
 class SchemaWithConditionModel(BaseModel):
     fields: Annotated[list[ColumnWithConditionModel], Field(description="A list of JSON objects containing the 'name' and 'type' for each of the columns in the result")]
 
-class DatasetItemModel(ParametersModel):
+class DatasetItemModel(BaseModel):
     name: Annotated[str, Field(examples=["mydataset"], description=name_description)]
     label: Annotated[str, Field(examples=["My Dataset"], description=label_description)]
     description: Annotated[str, Field(examples=[""], description=description_description)]
+    parameters: list[
+        NoneParameterModel | SingleSelectParameterModel | MultiSelectParameterModel | DateParameterModel | DateRangeParameterModel | 
+        NumberParameterModel | NumberRangeParameterModel | TextParameterModel
+    ]
     data_schema: Annotated[SchemaWithConditionModel, Field(alias="schema", description="JSON object describing the schema of the dataset")]
     parameters_path: Annotated[str, Field(examples=["/squirrels-v0/myproject/v1/dataset/mydataset/parameters"], description=parameters_path_description)]
     result_path: Annotated[str, Field(examples=["/squirrels-v0/myproject/v1/dataset/mydataset"], description=result_path_description)]

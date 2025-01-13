@@ -53,7 +53,7 @@ def main(sqrl: ParametersArgs) -> None:
 
     ## Example of creating DateRangeParameter
     p.DateRangeParameter.CreateSimple(
-        "date_range", "Date Range", "2024-01-01", "2024-12-31", min_date="2024-01-01", max_date="2024-12-31",
+        "date_range", "Date Range", "2000-01-01", "2024-12-31", min_date="2000-01-01", max_date="2024-12-31",
         description="Date range to filter transactions by"
     )
 

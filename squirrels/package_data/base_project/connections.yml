@@ -8,7 +8,7 @@
 ##   adbc:       https://arrow.apache.org/adbc/ (see connectorx documentation for URI examples)
 connections:
   - name: default
-    type: sqlalchemy                 ## one of: sqlalchemy, connectorx, or adbc
-    uri: {{ env_vars.sqlite_uri }}   ## using Jinja to substitute environment variable from env.yml
+    type: sqlalchemy                      ## one of: sqlalchemy, connectorx, or adbc
+    uri: {{ env_vars.sqlite_uri }}        ## using Jinja to substitute environment variable from env.yml
 
 

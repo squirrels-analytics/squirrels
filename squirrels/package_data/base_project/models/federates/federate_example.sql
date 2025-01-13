@@ -1,7 +1,7 @@
 {# DuckDB dialect #}
 
 SELECT {{ ctx.select_dim_cols }}
-    , SUM(amount) as total_amount
+    , ROUND(SUM(amount), 2) as total_amount
 
 {# ref() can be used on a sources, seeds, builds, dbviews, or other federate models -#}
 FROM {{ ref("build_example") }} AS a

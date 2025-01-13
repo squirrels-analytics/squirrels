@@ -1,6 +1,7 @@
 project_variables:
   name: sample
-  label: Sample Project
+  label: Sample Project - Expenses
+  description: This is a sample squirrels project for analyzing expense transactions
   major_version: 1
 
 
@@ -58,13 +59,12 @@ selection_test_sets:
     datasets:
       - federate_dataset_example
     user_attributes:                      ## optional section - required if using test set on non-public datasets
-      role: customer
+      role: employee
     parameters:
       date_range: [2023-02-01,2023-12-01] ## this parameter only exists for dataset 'protected_dataset_example'
     
   - name: auth_test2
     user_attributes:
-      username: alice                     ## optional - defaults to empty string
       is_internal: True                   ## optional - defaults to False
       role: manager
     parameters:
