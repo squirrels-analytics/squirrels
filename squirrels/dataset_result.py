@@ -41,9 +41,19 @@ class DatasetResult(DatasetMetadata):
         self.to_json = lru_cache()(self._to_json)
     
     def _to_json(self, orientation: Literal["records", "columns"], select: tuple[str, ...], limit: int, offset: int) -> dict:
+        df = self.df.lazy()
+        if offset > 0:
+            df = df.filter(pl.col("_row_num") > offset)
+        if limit > 0:
+            df = df.limit(limit)
+        if select:
+            df = df.select(select)
+        df = df.collect()
+        data = df.to_dict(as_series=False) if orientation == "columns" else df.to_dicts()
+
         column_details_by_name = {col.name: col for col in self.target_model_config.columns}
         fields = []
-        for col in self.df.columns:
+        for col in df.columns:
             if col == "_row_num":
                 fields.append({"name": "_row_num", "type": "integer", "description": "The row number of the dataset (starts at 1)", "category": "misc"})
             elif col in column_details_by_name:
@@ -57,15 +67,6 @@ class DatasetResult(DatasetMetadata):
             else:
                 fields.append({"name": col, "type": "unknown", "description": "", "category": "misc"})
         
-        df = self.df.lazy()
-        if offset > 0:
-            df = df.filter(pl.col("_row_num") > offset)
-        if limit > 0:
-            df = df.limit(limit)
-        if select:
-            df = df.select(select)
-        data = df.collect().to_dict(as_series=False) if orientation == "columns" else df.collect().to_dicts()
-
         return {
             "schema": {
                 "fields": fields

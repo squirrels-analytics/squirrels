@@ -31,16 +31,15 @@ class ConnectionSet:
     
     def run_sql_query_from_conn_name(self, query: str, conn_name: str, placeholders: dict = {}) -> pl.DataFrame:
         conn = self.get_connection(conn_name)
-        is_conn_arrow_based = isinstance(conn, ConnectionProperties) and (conn.type == ConnectionType.CONNECTORX or conn.type == ConnectionType.ADBC)
-        if is_conn_arrow_based and len(placeholders) > 0:
-            raise u.ConfigurationError(f"Connection '{conn_name}' is a ConnectorX or ADBC connection, which does not support placeholders")
-        
         try:
-            if is_conn_arrow_based:
-                df = pl.read_database_uri(query, conn.uri, engine=conn.type.value) # type: ignore
+            if isinstance(conn, ConnectionProperties) and (conn.type == ConnectionType.CONNECTORX or conn.type == ConnectionType.ADBC):
+                if len(placeholders) > 0:
+                    raise u.ConfigurationError(f"Connection '{conn_name}' is a ConnectorX or ADBC connection, which does not support placeholders")
+                df = pl.read_database_uri(query, conn.uri, engine=conn.type.value)
+            elif isinstance(conn, ConnectionProperties) and conn.type == ConnectionType.SQLALCHEMY:
+                with conn.engine.connect() as connection:
+                    df = pl.read_database(query, connection, execute_options={"parameters": placeholders})
             else:
-                if isinstance(conn, ConnectionProperties) and conn.type == ConnectionType.SQLALCHEMY:
-                    conn = conn.engine
                 df = pl.read_database(query, conn, execute_options={"parameters": placeholders}) # type: ignore
             return df
         except Exception as e:

@@ -54,7 +54,7 @@ class ConnectionProperties(BaseModel):
         type: The type of connection, one of "sqlalchemy", "connectorx", or "adbc"
         uri: The URI for the connection
     """
-    type: ConnectionType
+    type: ConnectionType = Field(default=ConnectionType.SQLALCHEMY)
     uri: str
     sa_create_engine_args: dict[str, Any] = Field(default_factory=dict)
 
