@@ -114,7 +114,7 @@ class SquirrelsProject:
     
     @ft.cached_property
     def _conn_args(self) -> cs.ConnectionsArgs:
-        return cs.ConnectionSetIO.load_conn_py_args(self._logger, self._env_cfg, self._manifest_cfg)
+        return cs.ConnectionSetIO.load_conn_py_args(self._logger, self._filepath, self._env_cfg, self._manifest_cfg)
     
     @ft.cached_property
     def _conn_set(self) -> cs.ConnectionSet:
@@ -187,10 +187,7 @@ class SquirrelsProject:
             stage_file: Whether to stage the DuckDB file to overwrite the existing one later if the virtual data environment is in use. Default is False.
         """
         models_dict: dict[str, m.StaticModel] = self._get_static_models()
-        
-        proj_vars = self._conn_args.proj_vars
-        env_vars = self._conn_args.env_vars
-        builder = ModelBuilder(self._duckdb_venv_path, self._conn_set, models_dict, proj_vars, env_vars, self._logger)
+        builder = ModelBuilder(self._duckdb_venv_path, self._conn_set, models_dict, self._conn_args, self._logger)
         await builder.build(full_refresh, select, stage_file)
     
     
@@ -437,7 +434,7 @@ class SquirrelsProject:
             result = await self.dataset(dataset_name, selections=final_selections, user=user, require_auth=False)
             return result.df
         
-        args = d.DashboardArgs(self._param_args.proj_vars, self._param_args.env_vars, get_dataset_df)
+        args = d.DashboardArgs(self._param_args, get_dataset_df)
         try:
             return await self._dashboards[name].get_dashboard(args, dashboard_type=dashboard_type)
         except KeyError:

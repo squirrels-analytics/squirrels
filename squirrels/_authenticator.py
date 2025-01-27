@@ -34,7 +34,7 @@ class Authenticator:
     def authenticate_user(self, username: str, password: str) -> Optional[User]:
         get_user = self.auth_helper.get_func_or_class(c.GET_USER_FROM_LOGIN_FUNC, is_required=False)
         try:
-            sqrl = AuthLoginArgs(self.conn_args.proj_vars, self.conn_args.env_vars, self.conn_set.get_connections_as_dict(), username, password)
+            sqrl = AuthLoginArgs(self.conn_args, self.conn_set.get_connections_as_dict(), username, password)
             real_user = get_user(sqrl) if get_user is not None else None
         except Exception as e:
             raise u.FileExecutionError(f'Failed to run "{c.GET_USER_FROM_LOGIN_FUNC}" in {c.AUTH_FILE}', e) from e
@@ -69,7 +69,7 @@ class Authenticator:
         get_user = self.auth_helper.get_func_or_class(c.GET_USER_FROM_TOKEN_FUNC, is_required=False)
         if get_user is not None:
             try:
-                sqrl = AuthTokenArgs(self.conn_args.proj_vars, self.conn_args.env_vars, self.conn_set.get_connections_as_dict(), token)
+                sqrl = AuthTokenArgs(self.conn_args, self.conn_set.get_connections_as_dict(), token)
                 user = get_user(sqrl)
                 if isinstance(user, User):
                     return user

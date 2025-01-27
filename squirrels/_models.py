@@ -10,7 +10,7 @@ import polars as pl, pandas as pd, networkx as nx
 from . import _constants as c, _utils as u, _py_module as pm, _model_queries as mq, _model_configs as mc, _sources as src
 from .arguments.run_time_args import ContextArgs, ModelArgs, BuildModelArgs
 from ._authenticator import User
-from ._connection_set import ConnectionSet, ConnectionProperties
+from ._connection_set import ConnectionsArgs, ConnectionSet, ConnectionProperties
 from ._manifest import Settings, DatasetConfig
 from ._parameter_sets import ParameterConfigsSet, ParametersArgs, ParameterSet
 
@@ -160,7 +160,7 @@ class StaticModel(DataModel):
         await super().run_model(conn, placeholders)
 
     async def compile_for_build(
-        self, proj_vars: dict[str, Any], env_vars: dict[str, Any], models_dict: dict[str, StaticModel]
+        self, conn_args: ConnectionsArgs, models_dict: dict[str, StaticModel]
     ) -> None:
         pass
     
@@ -516,13 +516,12 @@ class FederateModel(QueryModel):
         dependencies = self.model_config.depends_on
         connections = self.conn_set.get_connections_as_dict()
         
-        def run_external_sql(connection_name: str, sql_query: str):
+        def run_external_sql(connection_name: str, sql_query: str) -> pl.DataFrame:
             return self._run_sql_query_on_connection(connection_name, sql_query, placeholders)
         
-        return ModelArgs(
-            ctx_args.proj_vars, ctx_args.env_vars, ctx_args.user, ctx_args.prms, ctx_args.traits, placeholders, 
-            connections, dependencies, self._ref_for_python, run_external_sql, ctx
-        )
+        conn_args = ConnectionsArgs(ctx_args.project_path, ctx_args.proj_vars, ctx_args.env_vars)
+        build_model_args = BuildModelArgs(conn_args, connections, dependencies, self._ref_for_python, run_external_sql)
+        return ModelArgs(ctx_args, build_model_args, ctx)
 
     def _compile_python_model(
         self, query_file: mq.PyQueryFile, ctx: dict[str, Any], ctx_args: ContextArgs, placeholders: dict[str, Any], models_dict: dict[str, DataModel]
@@ -625,38 +624,37 @@ class BuildModel(StaticModel, QueryModel):
         return ModelType.BUILD
     
     def _get_compile_sql_model_args_for_build(
-        self, proj_vars: dict[str, Any], env_vars: dict[str, Any], models_dict: dict[str, StaticModel]
+        self, conn_args: ConnectionsArgs, models_dict: dict[str, StaticModel]
     ) -> dict[str, Any]:
         kwargs: dict[str, Any] = {
-            "proj_vars": proj_vars, "env_vars": env_vars
+            "proj_vars": conn_args.proj_vars, "env_vars": conn_args.env_vars
         }
         kwargs["ref"] = lambda dependent_model_name: self._ref_for_sql(dependent_model_name, dict(models_dict))
         return kwargs
 
     def _compile_sql_model_for_build(
-        self, query_file: mq.SqlQueryFile, proj_vars: dict[str, Any], env_vars: dict[str, Any], models_dict: dict[str, StaticModel]
+        self, query_file: mq.SqlQueryFile, conn_args: ConnectionsArgs, models_dict: dict[str, StaticModel]
     ) -> mq.SqlModelQuery:
-        kwargs = self._get_compile_sql_model_args_for_build(proj_vars, env_vars, models_dict)
+        kwargs = self._get_compile_sql_model_args_for_build(conn_args, models_dict)
         compiled_query_str = self._get_compiled_sql_query_str(query_file.raw_query, kwargs)
         compiled_query = mq.SqlModelQuery(compiled_query_str)
         return compiled_query
     
     def _get_compile_python_model_args_for_build(
-        self, proj_vars: dict[str, Any], env_vars: dict[str, Any], models_dict: dict[str, StaticModel]
+        self, conn_args: ConnectionsArgs, models_dict: dict[str, StaticModel]
     ) -> BuildModelArgs:
         
         def run_external_sql(connection_name: str, sql_query: str):
             return self._run_sql_query_on_connection(connection_name, sql_query)
         
         return BuildModelArgs(
-            proj_vars, env_vars, self.conn_set.get_connections_as_dict(), self.model_config.depends_on, 
-            self._ref_for_python, run_external_sql
+            conn_args, self.conn_set.get_connections_as_dict(), self.model_config.depends_on, self._ref_for_python, run_external_sql
         )
 
     def _compile_python_model_for_build(
-        self, query_file: mq.PyQueryFile, proj_vars: dict[str, Any], env_vars: dict[str, Any], models_dict: dict[str, StaticModel]
+        self, query_file: mq.PyQueryFile, conn_args: ConnectionsArgs, models_dict: dict[str, StaticModel]
     ) -> mq.PyModelQuery:
-        sqrl_args = self._get_compile_python_model_args_for_build(proj_vars, env_vars, models_dict)
+        sqrl_args = self._get_compile_python_model_args_for_build(conn_args, models_dict)
             
         def compiled_query() -> pl.LazyFrame | pd.DataFrame:
             try:
@@ -666,15 +664,13 @@ class BuildModel(StaticModel, QueryModel):
         
         return mq.PyModelQuery(compiled_query)
 
-    async def compile_for_build(
-        self, proj_vars: dict[str, Any], env_vars: dict[str, Any], models_dict: dict[str, StaticModel]
-    ) -> None:
+    async def compile_for_build(self, conn_args: ConnectionsArgs, models_dict: dict[str, StaticModel]) -> None:
         start = time.time()
 
         if isinstance(self.query_file, mq.SqlQueryFile):
-            self.compiled_query = self._compile_sql_model_for_build(self.query_file, proj_vars, env_vars, models_dict)
+            self.compiled_query = self._compile_sql_model_for_build(self.query_file, conn_args, models_dict)
         elif isinstance(self.query_file, mq.PyQueryFile):
-            self.compiled_query = self._compile_python_model_for_build(self.query_file, proj_vars, env_vars, models_dict)
+            self.compiled_query = self._compile_python_model_for_build(self.query_file, conn_args, models_dict)
         else:
             raise NotImplementedError(f"Query type not supported: {self.query_file.__class__.__name__}")
         
@@ -763,7 +759,7 @@ class DAG:
         context = {}
         assert isinstance(self.parameter_set, ParameterSet)
         prms = self.parameter_set.get_parameters_as_dict()
-        args = ContextArgs(param_args.proj_vars, param_args.env_vars, user, prms, self.dataset.traits, self.placeholders)
+        args = ContextArgs(param_args, user, prms, self.dataset.traits, self.placeholders)
         try:
             context_func(context, args)
         except Exception as e:

@@ -1,7 +1,7 @@
 import pytest, asyncio, polars as pl, time
 
 from squirrels import _models as m, _utils as u, _model_queries as mq, _model_configs as mc
-from squirrels.arguments.run_time_args import ContextArgs
+from squirrels.arguments.run_time_args import ParametersArgs, ContextArgs
 from squirrels._manifest import DatasetConfig
 
 
@@ -11,7 +11,8 @@ def simple_model_config() -> mc.FederateModelConfig:
 
 @pytest.fixture(scope="module")
 def context_args() -> ContextArgs:
-    return ContextArgs({}, {}, None, {}, {}, {})
+    param_args = ParametersArgs("", {}, {})
+    return ContextArgs(param_args, None, {}, {}, {})
 
 
 @pytest.fixture(scope="module")

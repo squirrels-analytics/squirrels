@@ -144,7 +144,6 @@ class DatasetResultModel(BaseModel):
 ## Project Metadata Response Models
 
 class ProjectVersionModel(BaseModel):
-    id: Annotated[str, Field(examples=["myproject/v1"])]
     major_version: int
     created_at: datetime
     updated_at: datetime
@@ -156,6 +155,3 @@ class ProjectModel(BaseModel):
     label: Annotated[str, Field(examples=["My Project"])]
     description: Annotated[str, Field(examples=["My project description"])]
     versions: list[ProjectVersionModel]
-
-class ProjectsListModel(BaseModel):
-    projects: list[ProjectModel]

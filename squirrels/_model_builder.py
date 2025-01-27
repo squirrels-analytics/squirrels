@@ -1,5 +1,5 @@
 from dataclasses import dataclass, field
-import asyncio, typing as t, shutil, duckdb, time
+import asyncio, shutil, duckdb, time
 
 from . import _utils as u, _connection_set as cs, _models as m
 
@@ -9,8 +9,7 @@ class ModelBuilder:
     _duckdb_venv_path: str
     _conn_set: cs.ConnectionSet
     _static_models: dict[str, m.StaticModel]
-    _proj_vars: dict[str, t.Any] = field(default_factory=dict)
-    _env_vars: dict[str, t.Any] = field(default_factory=dict)
+    _conn_args: cs.ConnectionsArgs = field(default_factory=lambda: cs.ConnectionsArgs(".", {}, {}))
     _logger: u.Logger = field(default_factory=lambda: u.Logger(""))
     
     def _attach_connections(self, duckdb_conn: duckdb.DuckDBPyConnection) -> dict[str, str]:
@@ -33,7 +32,7 @@ class ModelBuilder:
         coroutines = []
         models_list = self._static_models.values() if select is None else [self._static_models[select]]
         for model in models_list:
-            coro = model.compile_for_build(self._proj_vars, self._env_vars, self._static_models)
+            coro = model.compile_for_build(self._conn_args, self._static_models)
             coroutines.append(coro)
         await asyncio.gather(*coroutines)
 

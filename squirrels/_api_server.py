@@ -1,7 +1,7 @@
 from typing import Coroutine, Mapping, Callable, TypeVar, Annotated, Any
 from dataclasses import make_dataclass, asdict, field
 from fastapi import Depends, FastAPI, Request, HTTPException, Response, status, Query
-from fastapi.responses import HTMLResponse, JSONResponse
+from fastapi.responses import HTMLResponse, JSONResponse, RedirectResponse
 from fastapi.templating import Jinja2Templates
 from fastapi.staticfiles import StaticFiles
 from fastapi.security import OAuth2PasswordBearer, OAuth2PasswordRequestForm
@@ -191,10 +191,8 @@ class ApiServer:
 
         squirrels_version_path = f'/api/squirrels-v{sq_major_version}'
         project_name = u.normalize_name_for_api(self.manifest_cfg.project_variables.name)
-        project_version_id = f"{project_name}/v{self.manifest_cfg.project_variables.major_version}"
-
-        projects_path = squirrels_version_path + '/projects'
-        base_path = squirrels_version_path + f"/project/{project_version_id}"
+        project_version = f"v{self.manifest_cfg.project_variables.major_version}"
+        project_metadata_path = squirrels_version_path + f"/project/{project_name}/{project_version}"
         
         param_fields = self.param_cfg_set.get_all_api_field_info()
 
@@ -271,37 +269,29 @@ class ApiServer:
             return u.normalize_name(dashboard_raw)
         
         current_time = datetime.now(timezone.utc).replace(microsecond=0)
-
-        # Project Metadata API
-        def get_project_metadata() -> arm.ProjectModel:
+        
+        @app.get(project_metadata_path, tags=["Project Metadata"], response_class=JSONResponse)
+        async def get_project_metadata(
+            request: Request, name: list[str] = Query(default=[], description="List of project names to filter by. If empty, returns all projects.")
+        ) -> arm.ProjectModel:
             return arm.ProjectModel(
                 name=project_name,
                 label=self.manifest_cfg.project_variables.label,
                 description=self.manifest_cfg.project_variables.description,
                 versions=[arm.ProjectVersionModel(
-                    id=project_version_id,
                     major_version=self.manifest_cfg.project_variables.major_version,
                     created_at=current_time, updated_at=current_time, # dummy values
-                    token_path=token_path,
+                    token_path=login_path,
                     data_catalog_path=data_catalog_path
                 )]
             )
         
-        @app.get(projects_path, tags=["Project Metadata"], response_class=JSONResponse)
-        async def get_list_of_projects(
-            request: Request, name: list[str] = Query(default=[], description="List of project names to filter by. If empty, returns all projects.")
-        ) -> arm.ProjectsListModel:
-            project_metadata = get_project_metadata()
-            if len(name) == 0 or project_metadata.name in name:
-                return arm.ProjectsListModel(projects=[project_metadata])
-            return arm.ProjectsListModel(projects=[])
-        
         # Login & Authorization
-        token_path = base_path + '/token'
+        login_path = project_metadata_path + '/login'
 
-        oauth2_scheme = OAuth2PasswordBearer(tokenUrl=token_path, auto_error=False)
+        oauth2_scheme = OAuth2PasswordBearer(tokenUrl=login_path, auto_error=False)
 
-        @app.post(token_path, tags=["Login"])
+        @app.post(login_path, tags=["Login"])
         async def login_for_access_token(form_data: OAuth2PasswordRequestForm = Depends()) -> arm.LoginReponse:
             user: User | None = self.authenticator.authenticate_user(form_data.username, form_data.password)
             if not user:
@@ -318,12 +308,12 @@ class ApiServer:
             return user
 
         # Data Catalog API
-        data_catalog_path = base_path + '/data-catalog'
+        data_catalog_path = project_metadata_path + '/data-catalog'
 
-        dataset_results_path = base_path + '/dataset/{dataset}'
+        dataset_results_path = project_metadata_path + '/dataset/{dataset}'
         dataset_parameters_path = dataset_results_path + '/parameters'
 
-        dashboard_results_path = base_path + '/dashboard/{dashboard}'
+        dashboard_results_path = project_metadata_path + '/dashboard/{dashboard}'
         dashboard_parameters_path = dashboard_results_path + '/parameters'
         
         def get_data_catalog0(user: User | None) -> arm.CatalogModel:
@@ -636,7 +626,7 @@ class ApiServer:
                 return result
 
         # Build Project API
-        @app.post(base_path + '/build', tags=["Update"], summary="Build or update the virtual data environment for the project")
+        @app.post(project_metadata_path + '/build', tags=["Update"], summary="Build or update the virtual data environment for the project")
         async def build(request: Request, user: User | None = Depends(get_current_user)): # type: ignore
             if not self.authenticator.can_user_access_scope(user, PermissionScope.PRIVATE):
                 raise PermissionError(f"User '{user}' does not have permission to build the virtual data environment")
@@ -650,11 +640,15 @@ class ApiServer:
         templates_dir = u.Path(os.path.dirname(__file__), c.PACKAGE_DATA_FOLDER, c.TEMPLATES_FOLDER)
         templates = Jinja2Templates(directory=templates_dir)
 
-        @app.get('/', summary="Get the Squirrels Testing UI", response_class=HTMLResponse)
+        @app.get('/index.html', summary="Get the Squirrels Testing UI", response_class=HTMLResponse)
         async def get_testing_ui(request: Request):
             return templates.TemplateResponse('index.html', {
-                'request': request, 'projects_path': projects_path, 'token_path': token_path
+                'request': request, 'project_name': project_name, 'project_version': project_version
             })
+
+        @app.get('/', response_class=RedirectResponse, status_code=301)
+        async def redirect_to_index():
+            return "/index.html"
         
         import uvicorn
         self.logger.log_activity_time("creating app server", start)

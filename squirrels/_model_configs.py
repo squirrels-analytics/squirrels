@@ -29,6 +29,14 @@ class SeedConfig(ModelConfig):
     cast_column_types: bool = Field(default=False, description="Whether the column types should be cast to the appropriate type")
 
 
+class ConnectionInterface(BaseModel):
+    connection: str | None = Field(default=None, description="The connection name of the database view")
+
+    def get_connection(self, settings_obj: Settings) -> str:
+        default_connection_name = settings_obj.get_default_connection_name()
+        return self.connection if self.connection is not None else default_connection_name
+
+
 class QueryModelConfig(ModelConfig):
     depends_on: set[str] = Field(default_factory=set, description="The dependencies of the model")
 
@@ -48,12 +56,8 @@ class BuildModelConfig(QueryModelConfig):
         return create_prefix + select_query
 
 
-class DbviewModelConfig(QueryModelConfig):
-    connection: str | None = Field(default=None, description="The connection name of the database view")
-
-    def get_connection(self, settings_obj: Settings) -> str:
-        default_connection_name = settings_obj.get_default_connection_name()
-        return self.connection if self.connection is not None else default_connection_name
+class DbviewModelConfig(ConnectionInterface, QueryModelConfig):
+    pass
 
 
 class FederateModelConfig(QueryModelConfig):

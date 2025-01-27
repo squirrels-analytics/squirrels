@@ -11,7 +11,7 @@ class UpdateHints(BaseModel):
     selective_overwrite_value: Any = Field(default=None)
 
 
-class Source(mc.DbviewModelConfig):
+class Source(mc.ConnectionInterface, mc.ModelConfig):
     name: str
     table: str | None = Field(default=None)
     primary_key: list[str] = Field(default_factory=list)

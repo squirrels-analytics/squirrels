@@ -5,26 +5,22 @@ import polars as pl
 from .. import _utils as u
 
 @dataclass
-class BaseArguments:
+class ConnectionsArgs:
+    project_path: str
     _proj_vars: dict[str, Any]
-    _env_vars: dict[str, Any]
+    _env_vars: dict[str, str]
 
     @property
     def proj_vars(self) -> dict[str, Any]:
         return self._proj_vars.copy()
     
     @property
-    def env_vars(self) -> dict[str, Any]:
+    def env_vars(self) -> dict[str, str]:
         return self._env_vars.copy()
 
 
 @dataclass
-class ConnectionsArgs(BaseArguments):
-    pass
-
-
-@dataclass
-class ParametersArgs(BaseArguments):
+class ParametersArgs(ConnectionsArgs):
     pass
 
 
@@ -42,11 +38,18 @@ class _WithConnectionDictArgs(ConnectionsArgs):
         return self._connections.copy()
 
 
-@dataclass
 class BuildModelArgs(_WithConnectionDictArgs):
-    _dependencies: Iterable[str]
-    _ref: Callable[[str], pl.LazyFrame]
-    _run_external_sql: Callable[[str, str], pl.DataFrame]
+
+    def __init__(
+        self, conn_args: ConnectionsArgs, _connections: dict[str, Any], 
+        dependencies: Iterable[str], 
+        ref: Callable[[str], pl.LazyFrame], 
+        run_external_sql: Callable[[str, str], pl.DataFrame]
+    ):
+        super().__init__(conn_args.project_path, conn_args.proj_vars, conn_args.env_vars, _connections)
+        self._dependencies = dependencies
+        self._ref = ref
+        self._run_external_sql = run_external_sql
 
     @property
     def dependencies(self) -> set[str]:

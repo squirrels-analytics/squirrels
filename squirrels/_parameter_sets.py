@@ -171,7 +171,7 @@ class ParameterConfigsSetIO:
     
     @classmethod
     def get_param_args(cls, conn_args: ConnectionsArgs) -> ParametersArgs:
-        return ParametersArgs(conn_args.proj_vars, conn_args.env_vars)
+        return ParametersArgs(conn_args.project_path, conn_args.proj_vars, conn_args.env_vars)
     
     @classmethod
     def load_from_file(
