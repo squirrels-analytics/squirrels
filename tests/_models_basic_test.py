@@ -2,8 +2,8 @@ import pytest, asyncio, polars as pl
 from pathlib import Path
 
 from squirrels import _models as m, _utils as u, _model_queries as mq
-from squirrels.arguments.run_time_args import ContextArgs
-from squirrels._manifest import DatasetConfig, ManifestConfig
+from squirrels.arguments.run_time_args import ParametersArgs, ContextArgs
+from squirrels._manifest import DatasetConfig
 from squirrels._model_configs import DbviewModelConfig, FederateModelConfig, SeedConfig
 
 
@@ -76,7 +76,8 @@ def simple_dag() -> m.DAG:
 
 def test_dag_compilation(simple_dag: m.DAG):
     ctx = {}
-    ctx_args = ContextArgs({}, {}, None, {}, {}, {})
+    param_args = ParametersArgs("", {}, {})
+    ctx_args = ContextArgs(param_args, None, {}, {}, {})
     asyncio.run(simple_dag._compile_models(ctx, ctx_args, True))
     
     model_a = simple_dag.models_dict["A"]
@@ -89,7 +90,8 @@ def test_dag_compilation(simple_dag: m.DAG):
 
 def test_dag_terminal_nodes(simple_dag: m.DAG):
     ctx = {}
-    ctx_args = ContextArgs({}, {}, None, {}, {}, {})
+    param_args = ParametersArgs("", {}, {})
+    ctx_args = ContextArgs(param_args, None, {}, {}, {})
     asyncio.run(simple_dag._compile_models(ctx, ctx_args, True))
     
     terminal_nodes = simple_dag._get_terminal_nodes()
@@ -111,7 +113,8 @@ def test_dag_cycle_detection():
     dag = m.DAG(DatasetConfig(name="test"), model_a, models)
     
     ctx = {}
-    ctx_args = ContextArgs({}, {}, None, {}, {}, {})
+    param_args = ParametersArgs("", {}, {})
+    ctx_args = ContextArgs(param_args, None, {}, {}, {})
     asyncio.run(dag._compile_models(ctx, ctx_args, True))
     
     with pytest.raises(u.ConfigurationError, match="Cycle found in model dependency graph"):

@@ -33,7 +33,7 @@ def simple_env_config():
 
 @pytest.fixture(scope="session")
 def simple_conn_args():
-    return ConnectionsArgs({}, {})
+    return ConnectionsArgs(".", {}, {})
 
 @pytest.fixture(scope="session")
 def simple_conn_set():

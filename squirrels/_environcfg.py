@@ -20,7 +20,6 @@ class _CredentialsConfig(BaseModel):
 
 
 class EnvironConfig(BaseModel):
-    env_var_substitutions: dict[str, str] = Field(default_factory=dict)
     users: dict[str, _UserConfig] = Field(default_factory=dict)
     env_vars: dict[str, str] = Field(default_factory=dict)
     credentials: dict[str, _CredentialsConfig] = Field(default_factory=dict)
@@ -33,15 +32,6 @@ class EnvironConfig(BaseModel):
         for username, user in users.items():
             processed_users[username] = {"username": username, **user}
         return processed_users
-    
-    @model_validator(mode="after")
-    def apply_env_var_substitutions(self):
-        env_vars = {}
-        for env_var_key, env_var_val in self.env_vars.items():
-            env_var_val = env_var_val.format(**self.env_var_substitutions)
-            env_vars[env_var_key] = env_var_val
-        self.env_vars = env_vars
-        return self
     
     def get_users(self) -> dict[str, _UserConfig]:
         return self.users.copy()
@@ -86,8 +76,7 @@ class EnvironConfigIO:
             master_env_config[key].update(proj_env_config[key])
         
         try:
-            env_var_substitutions = {"project_path": base_path}
-            env_cfg = EnvironConfig(env_var_substitutions=env_var_substitutions, **master_env_config)
+            env_cfg = EnvironConfig(**master_env_config)
         except ValidationError as e:
             raise u.ConfigurationError(f"Failed to process {c.ENV_CONFIG_FILE} file. " + str(e)) from e
         

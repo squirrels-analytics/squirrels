@@ -11,15 +11,15 @@ eager: false   # Optional, defaults to false. Only applies to SQL models.
 columns:
   - name: date
     type: string
-    condition: parameter "group_by" (Group By) is "g0" (Transaction)
-    description: The date of the transaction
+    condition: parameter 'group_by' (Group By) is 'g0' (Transaction)
+    description: The date of the transaction in 'YYYY-MM-DD' format, in descending order
     category: dimension
     depends_on:
       - build_example.date
   
   - name: description
     type: string
-    condition: parameter "group_by" (Group By) is "g0" (Transaction)
+    condition: parameter 'group_by' (Group By) is 'g0' (Transaction)
     description: The description of the transaction
     category: dimension
     depends_on:
@@ -27,23 +27,23 @@ columns:
   
   - name: day
     type: string
-    condition: parameter "group_by" (Group By) is "g1" (Day)
-    description: The day for which the amount is aggregated by
+    condition: parameter 'group_by' (Group By) is 'g1' (Day)
+    description: The day for which the amount is aggregated by, in descending order
     category: dimension
     depends_on:
       - build_example.date
   
   - name: month
     type: string
-    condition: parameter "group_by" (Group By) is "g4" (Month)
-    description: The month for which the amount is aggregated by
+    condition: parameter 'group_by' (Group By) is 'g4' (Month)
+    description: The month for which the amount is aggregated by, in descending order
     category: dimension
     depends_on:
       - build_example.month
 
   - name: category
     type: string
-    condition: parameter "group_by" (Group By) is "g2" (Category)
+    condition: parameter `group_by` (Group By) is `g0` (Transaction), `g2` (Category), or `g3` (Subcategory)
     description: The category for which the amount is aggregated by
     category: dimension
     depends_on:
@@ -51,7 +51,7 @@ columns:
   
   - name: subcategory
     type: string
-    condition: parameter "group_by" (Group By) is "g3" (Subcategory)
+    condition: parameter `group_by` (Group By) is `g0` (Transaction) or `g3` (Subcategory)
     description: The subcategory for which the amount is aggregated by
     category: dimension
     depends_on:

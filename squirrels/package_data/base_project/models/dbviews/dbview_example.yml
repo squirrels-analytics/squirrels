@@ -11,7 +11,7 @@ depends_on:
 columns:
   - name: month
     type: string
-    description: The months for which the amount is aggregated by
+    description: The months for which the amount is aggregated by, in descending order
     category: dimension
     depends_on:
       - src_transactions.date

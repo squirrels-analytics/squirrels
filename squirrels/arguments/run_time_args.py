@@ -1,29 +1,47 @@
-from typing import Iterable, Callable, Any, Coroutine
-from dataclasses import dataclass
+from typing import Callable, Any, Coroutine
 import polars as pl
 
-from .init_time_args import _WithConnectionDictArgs, ParametersArgs, BuildModelArgs
+from .init_time_args import _WithConnectionDictArgs, ParametersArgs, BuildModelArgs, ConnectionsArgs
 from .._user_base import User
 from ..parameters import Parameter, TextValue
-from .. import _utils as u
 
 
-@dataclass
 class AuthLoginArgs(_WithConnectionDictArgs):
-    username: str
-    password: str
 
-@dataclass
+    def __init__(
+        self, conn_args: ConnectionsArgs, _connections: dict[str, Any], 
+        username: str, 
+        password: str
+    ):
+        super().__init__(conn_args.project_path, conn_args.proj_vars, conn_args.env_vars, _connections)
+        self.username = username
+        self.password = password
+
+
 class AuthTokenArgs(_WithConnectionDictArgs):
-    token: str
+
+    def __init__(
+        self, conn_args: ConnectionsArgs, _connections: dict[str, Any], 
+        token: str
+    ):
+        super().__init__(conn_args.project_path, conn_args.proj_vars, conn_args.env_vars, _connections)
+        self.token = token
 
 
-@dataclass
 class ContextArgs(ParametersArgs):
-    user: User | None
-    _prms: dict[str, Parameter]
-    _traits: dict[str, Any]
-    _placeholders: dict[str, Any]
+
+    def __init__(
+        self, param_args: ParametersArgs, 
+        user: User | None, 
+        prms: dict[str, Parameter], 
+        traits: dict[str, Any], 
+        placeholders: dict[str, Any]
+    ):
+        super().__init__(param_args.project_path, param_args.proj_vars, param_args.env_vars)
+        self.user = user
+        self._prms = prms
+        self._traits = traits
+        self._placeholders = placeholders
 
     @property
     def prms(self) -> dict[str, Parameter]:
@@ -73,9 +91,25 @@ class ContextArgs(ParametersArgs):
         return (param_name in self.prms and self.prms[param_name].is_enabled())
 
 
-@dataclass
 class ModelArgs(BuildModelArgs, ContextArgs):
-    _ctx: dict[str, Any]
+
+    def __init__(
+        self, ctx_args: ContextArgs, build_model_args: BuildModelArgs, 
+        ctx: dict[str, Any]
+    ):
+        super(ContextArgs, self).__init__(ctx_args.project_path, ctx_args.proj_vars, ctx_args.env_vars)
+        self._project_path = ctx_args.project_path
+        self._proj_vars = ctx_args.proj_vars
+        self._env_vars = ctx_args.env_vars
+        self.user = ctx_args.user
+        self._prms = ctx_args.prms
+        self._traits = ctx_args.traits
+        self._placeholders = ctx_args.placeholders
+        self._connections = build_model_args.connections
+        self._dependencies = build_model_args.dependencies
+        self._ref = build_model_args.ref
+        self._run_external_sql = build_model_args.run_external_sql
+        self._ctx = ctx
 
     @property
     def ctx(self) -> dict[str, Any]:
@@ -111,9 +145,14 @@ class ModelArgs(BuildModelArgs, ContextArgs):
         return self._placeholders.get(placeholder)
 
 
-@dataclass
 class DashboardArgs(ParametersArgs):
-    _get_dataset: Callable[[str, dict[str, Any]], Coroutine[Any, Any, pl.DataFrame]]
+
+    def __init__(
+        self, param_args: ParametersArgs, 
+        get_dataset: Callable[[str, dict[str, Any]], Coroutine[Any, Any, pl.DataFrame]]
+    ):
+        super().__init__(param_args.project_path, param_args.proj_vars, param_args.env_vars)
+        self._get_dataset = get_dataset
 
     async def dataset(self, name: str, *, fixed_parameters: dict[str, Any] = {}) -> pl.DataFrame:
         """

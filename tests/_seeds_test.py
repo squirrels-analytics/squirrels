@@ -23,7 +23,7 @@ columns:
   - name: age
     type: int1
   - name: created_at
-    type: timestamp
+    type: date
 """
 
 @pytest.fixture
@@ -102,7 +102,7 @@ def test_seeds_io_load_files(setup_seed_files: Path):
     
     assert len(df) == 2
     assert df["age"].dtype == pl.Int8
-    assert df["created_at"].dtype == pl.Datetime
+    assert df["created_at"].dtype == pl.Date
 
 def test_seeds_io_load_files_without_config(temp_seed_dir: Path, sample_csv_content: str):
     # Test loading CSV without a config file

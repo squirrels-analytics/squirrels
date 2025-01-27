@@ -62,12 +62,12 @@ class ConnectionSet:
 class ConnectionSetIO:
 
     @classmethod
-    def load_conn_py_args(cls, logger: u.Logger, env_cfg: EnvironConfig, manifest_cfg: ManifestConfig) -> ConnectionsArgs:
+    def load_conn_py_args(cls, logger: u.Logger, base_path: str, env_cfg: EnvironConfig, manifest_cfg: ManifestConfig) -> ConnectionsArgs:
         start = time.time()
         
         proj_vars = manifest_cfg.project_variables.model_dump()
         env_vars = env_cfg.get_all_env_vars()
-        conn_args = ConnectionsArgs(proj_vars, env_vars)
+        conn_args = ConnectionsArgs(base_path, proj_vars, env_vars)
         
         logger.log_activity_time("setting up arguments for connections.py", start)
         return conn_args
