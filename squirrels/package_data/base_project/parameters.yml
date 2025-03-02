@@ -5,35 +5,39 @@ parameters:
       name: group_by
       label: Group By
       description: Dimension(s) to aggregate by           ## optional, default is empty string
+      user_attribute: role                                ## optional, default is null
       all_options:
         - id: g0
           label: Transaction
           columns: ["date", "category", "subcategory", "description"]   ## custom field
           is_default: false                               ## optional, default, exists for SingleSelect or MultiSelect options only
-          user_groups: []                                 ## optional, default, exists for all parameter options
+          user_groups: ["manager"]                        ## optional, default is empty list
           parent_option_ids: []                           ## optional, default, exists for all parameter options
         - id: g1
-          label: Date
+          label: Day
           columns: [date]
           aliases: [day]                                  ## custom field
+          user_groups: ["manager", "employee"]
         - id: g4
           label: Month
           columns: [month]
+          user_groups: ["manager", "employee"]
         - id: g2
           label: Category
           columns: [category]
+          user_groups: ["manager", "employee"]
         - id: g3
           label: Subcategory
           columns: [category, subcategory]
-      user_attribute: null                                ## optional, default, exists for all parameter types
+          user_groups: ["manager", "employee"]
       parent_name: null                                   ## optional, default, exists for all parameter types
   
   - type: NumberParameter
     factory: CreateWithOptions
     arguments:
       name: limit
-      label: Number of Rows
-      description: Number of rows to return
+      label: Max Number of Rows
+      description: Maximum number of rows to return
       parent_name: group_by
       all_options:
         - min_value: 0
@@ -62,7 +66,7 @@ parameters:
       description: End date to filter transactions by
       all_options:
         - default_date: 2024-12-31
-          min_date: 2000-01-01
+          min_date: 2024-01-01
           max_date: 2024-12-31
   
   - type: DateRangeParameter

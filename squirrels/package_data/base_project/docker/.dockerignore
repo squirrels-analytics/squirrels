@@ -5,7 +5,7 @@
 venv/
 
 # squirrels files to ignore
-env.yml
+.env.local
 duckdb_init.sql
 logs/
 target/

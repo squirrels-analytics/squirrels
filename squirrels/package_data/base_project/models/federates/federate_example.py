@@ -8,7 +8,6 @@ def joined_str_to_list(value: str) -> list[str]:
     return [dequote(category) for category in str(value).split(",")]
 
 
-
 def main(sqrl: ModelArgs) -> pl.LazyFrame | pl.DataFrame | pd.DataFrame:
     """
     Create federated models by joining/processing dependent models (sources, seeds, builds, dbviews, other federates, etc.) to
@@ -32,7 +31,9 @@ def main(sqrl: ModelArgs) -> pl.LazyFrame | pl.DataFrame | pd.DataFrame:
         df = df.filter(pl.col("subcategory_id").is_in(subcategories_list))
 
     dimension_cols = sqrl.ctx["group_by_cols_list"]
-    df = df.group_by(dimension_cols).agg(pl.sum("amount").alias("total_amount"))
+    df = df.group_by(dimension_cols).agg(
+        pl.sum("amount").cast(pl.Decimal(precision=15, scale=2)).alias("total_amount")
+    )
     df = df.sort(dimension_cols, descending=True)
 
     if sqrl.param_exists("limit"):

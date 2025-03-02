@@ -34,8 +34,31 @@ sqrl_dtypes_to_polars_dtypes: dict[str, type[pl.DataType]] = {sqrl_type: k for k
 class InvalidInputError(Exception):
     """
     Use this exception when the error is due to providing invalid inputs to the REST API
+
+    Error code definitions:
+    0 - Incorrect username or password
+    1 - Invalid authorization token
+    2 - Username not found for password change
+    3 - Incorrect password for password change
+    20 - Authorized user is forbidden to add or update users
+    21 - Authorized user is forbidden to delete users
+    22 - Cannot delete your own user
+    23 - Cannot delete the admin user
+    24 - Cannot change the admin user
+    25 - User does not have permission to access the dataset / dashboard
+    26 - User does not have permission to build the virtual data environment
+    40 - No token found for token_id
+    41 - No user found for username
+    100 - Missing required field 'username' or 'password' when adding a new user
+    101 - Username already exists when adding a new user
+    102 - Invalid user data when adding a new user
+    200 - Invalid value for dataset parameter
+    201 - Invalid query parameter provided
+    202 - Could not determine parent parameter for parameter refresh
     """
-    pass
+    def __init__(self, error_code: int, message: str, *args) -> None:
+        self.error_code = error_code
+        super().__init__(message, *args)
 
 class ConfigurationError(Exception):
     """
@@ -134,7 +157,6 @@ def read_file(filepath: FilePath) -> str:
 
     Arguments:
         filepath (str | pathlib.Path): The path to the file to read
-        is_required: If true, throw error if file doesn't exist
 
     Returns:
         Content of the file, or None if doesn't exist and not required

@@ -1,6 +1,10 @@
 import pytest
 
 from squirrels import _parameter_configs as _pc, parameters as p, parameter_options as _po
+from squirrels import _auth as a
+
+class User(a.BaseUser):
+    organization: str = ""
 
 
 @pytest.fixture(scope="module")
@@ -28,8 +32,9 @@ def ss_config_with_ms_parent() -> _pc.SingleSelectParameterConfig:
         _po.SelectParameterOption('ss2', 'Single Option 3', is_default=True, parent_option_ids=['ms2', 'ms3']),
         _po.SelectParameterOption('ss3', 'Single Option 4', is_default=True, parent_option_ids=['ms3', 'ms0'])
     )
-    return _pc.SingleSelectParameterConfig("single_select_with_ms_parent", "Single With Parent 1", param_options, 
-                                          parent_name="multi_select_basic")
+    return _pc.SingleSelectParameterConfig(
+        "single_select_with_ms_parent", "Single With Parent 1", param_options, parent_name="multi_select_basic"
+    )
 
 
 @pytest.fixture(scope="module")

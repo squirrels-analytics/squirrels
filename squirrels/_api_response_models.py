@@ -1,4 +1,4 @@
-from typing import Annotated
+from typing import Annotated, Literal
 from pydantic import BaseModel, Field
 from datetime import datetime, date
 
@@ -7,6 +7,7 @@ class LoginReponse(BaseModel):
     access_token: Annotated[str, Field(examples=["encoded_jwt_token"], description="An encoded JSON web token to use subsequent API requests")]
     token_type: Annotated[str, Field(examples=["bearer"], description='Always "bearer" for Bearer token')]
     username: Annotated[str, Field(examples=["johndoe"], description='The username authenticated with from the form data')]
+    is_admin: Annotated[bool, Field(examples=[False], description="A boolean for whether the user is an admin")]
     expiry_time: Annotated[datetime, Field(examples=["2023-08-01T12:00:00.000000Z"], description="The expiry time of the access token in yyyy-MM-dd'T'hh:mm:ss.SSSSSS'Z' format")]
 
 
@@ -132,11 +133,16 @@ class CatalogModel(BaseModel):
 
 ## Dataset Results Response Models
 
+class DataDetailsModel(BaseModel):
+    num_rows: Annotated[int, Field(examples=[2], description="The number of rows in the data field")]
+    orientation: Annotated[Literal["records", "rows", "columns"], Field(examples=["records", "rows", "columns"], description="The orientation of the data field")]
+
 class DatasetResultModel(BaseModel):
     data_schema: Annotated[SchemaModel, Field(alias="schema", description="JSON object describing the schema of the dataset")]
-    total_num_rows: Annotated[int, Field(description="The total number of rows for the dataset")]
-    data: Annotated[list[dict] | dict[str, list], Field(
-        examples=[[{"col_name": "col_value1"}, {"col_name": "col_value2"}], {"col_name": ["col_value1", "col_value2"]}],
+    total_num_rows: Annotated[int, Field(examples=[2], description="The total number of rows for the dataset")]
+    data_details: Annotated[DataDetailsModel, Field(description="A JSON object containing the details of the data field")]
+    data: Annotated[list[dict] | list[list] | dict[str, list], Field(
+        examples=[[{"mycol": "col_value1"}, {"mycol": "col_value2"}], [["col_value1"], ["col_value2"]], {"mycol": ["col_value1", "col_value2"]}],
         description="A list of JSON objects where each object is a row of the tabular results. The keys and values of the object are column names (described in fields) and values of the row."
     )]
 
@@ -144,11 +150,8 @@ class DatasetResultModel(BaseModel):
 ## Project Metadata Response Models
 
 class ProjectVersionModel(BaseModel):
-    major_version: int
-    created_at: datetime
-    updated_at: datetime
-    token_path: Annotated[str, Field(examples=["/squirrels-v0/myproject/v1/token"])]
-    data_catalog_path: Annotated[str, Field(examples=["/squirrels-v0/myproject/v1/datasets"])]
+    major_version: Annotated[int, Field(examples=[1])]
+    data_catalog_path: Annotated[str, Field(examples=["/squirrels-v0/project/myproject/v1/data-catalog"])]
 
 class ProjectModel(BaseModel):
     name: Annotated[str, Field(examples=["myproject"])]

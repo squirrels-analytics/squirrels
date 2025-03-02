@@ -1,24 +1,23 @@
 from typing import Coroutine, Mapping, Callable, TypeVar, Annotated, Any
-from dataclasses import make_dataclass, asdict, field
+from dataclasses import make_dataclass, asdict
 from fastapi import Depends, FastAPI, Request, HTTPException, Response, status, Query
-from fastapi.responses import HTMLResponse, JSONResponse, RedirectResponse
+from fastapi.responses import HTMLResponse, JSONResponse
 from fastapi.templating import Jinja2Templates
 from fastapi.staticfiles import StaticFiles
 from fastapi.security import OAuth2PasswordBearer, OAuth2PasswordRequestForm
 from fastapi.middleware.cors import CORSMiddleware
-from pydantic import create_model, BaseModel
+from pydantic import create_model, BaseModel, Field
 from contextlib import asynccontextmanager
 from cachetools import TTLCache
 from argparse import Namespace
 from pathlib import Path
-from datetime import datetime, timezone
 import os, io, time, mimetypes, traceback, uuid
 import asyncio
 
 from . import _constants as c, _utils as u, _api_response_models as arm
 from ._version import sq_major_version
 from ._manifest import PermissionScope
-from ._authenticator import User
+from ._auth import BaseUser, AccessToken, UserField
 from ._parameter_sets import ParameterSet
 from .dashboards import Dashboard
 from ._project import SquirrelsProject
@@ -39,14 +38,13 @@ class ApiServer:
         self.no_cache = no_cache
         self.project = project
         self.logger = project._logger
-
+        self.env_vars = project._env_vars
         self.j2_env = project._j2_env
-        self.env_cfg = project._env_cfg
         self.manifest_cfg = project._manifest_cfg
         self.seeds = project._seeds
         self.conn_args = project._conn_args
         self.conn_set = project._conn_set
-        self.authenticator = project._authenticator
+        self.authenticator = project._auth
         self.param_args = project._param_args
         self.param_cfg_set = project._param_cfg_set
         self.context_func = project._context_func
@@ -85,7 +83,7 @@ class ApiServer:
     def _validate_request_params(self, all_request_params: Mapping, params: Mapping) -> None:
         invalid_params = [param for param in all_request_params if param not in params]
         if params.get("x_verify_params", False) and invalid_params:
-            raise u.InvalidInputError(f"Invalid query parameters: {', '.join(invalid_params)}")
+            raise u.InvalidInputError(201, f"Invalid query parameters: {', '.join(invalid_params)}")
         
     
     def run(self, uvicorn_args: Namespace) -> None:
@@ -97,17 +95,28 @@ class ApiServer:
         """
         start = time.time()
         
+        squirrels_version_path = f'/api/squirrels-v{sq_major_version}'
+        project_name = u.normalize_name_for_api(self.manifest_cfg.project_variables.name)
+        project_version = f"v{self.manifest_cfg.project_variables.major_version}"
+        project_metadata_path = squirrels_version_path + f"/project/{project_name}/{project_version}"
+        
+        param_fields = self.param_cfg_set.get_all_api_field_info()
+
         tags_metadata = [
+            {
+                "name": "Authentication",
+                "description": "Submit authentication credentials, and get token for authentication",
+            },
+            {
+                "name": "User Management",
+                "description": "Manage users and their attributes",
+            },
             {
                 "name": "Project Metadata",
                 "description": "Get information on project such as name, version, and other API endpoints",
             },
             {
-                "name": "Login",
-                "description": "Submit username and password, and get token for authentication",
-            },
-            {
-                "name": "Update",
+                "name": "Data Management",
                 "description": "Actions to update the data components of the project",
             }
         ]
@@ -127,7 +136,10 @@ class ApiServer:
         app = FastAPI(
             title=f"Squirrels APIs for '{self.manifest_cfg.project_variables.label}'", openapi_tags=tags_metadata,
             description="For specifying parameter selections to dataset APIs, you can choose between using query parameters with the GET method or using request body with the POST method",
-            lifespan=self._run_background_tasks
+            lifespan=self._run_background_tasks,
+            openapi_url=project_metadata_path+"/openapi.json",
+            docs_url=project_metadata_path+"/docs",
+            redoc_url=project_metadata_path+"/redoc"
         )
 
         async def _log_request_run(request: Request) -> None:
@@ -159,8 +171,16 @@ class ApiServer:
                 return await call_next(request)
             except u.InvalidInputError as exc:
                 traceback.print_exc(file=buffer)
+                if exc.error_code < 20:
+                    status_code = status.HTTP_401_UNAUTHORIZED
+                elif exc.error_code < 40:
+                    status_code = status.HTTP_403_FORBIDDEN
+                elif exc.error_code < 100:
+                    status_code = status.HTTP_404_NOT_FOUND
+                else:
+                    status_code = status.HTTP_400_BAD_REQUEST
                 response = JSONResponse(
-                    status_code=status.HTTP_400_BAD_REQUEST, content={"message": str(exc), "blame": "API client"}
+                    status_code=status_code, content={"message": str(exc), "blame": "API client", "error_code": exc.error_code}
                 )
             except u.FileExecutionError as exc:
                 traceback.print_exception(exc.error, file=buffer)
@@ -188,13 +208,6 @@ class ApiServer:
             CORSMiddleware, allow_origins=["*"], allow_credentials=True, allow_methods=["*"], allow_headers=["*"], 
             expose_headers=["Applied-Username"]
         )
-
-        squirrels_version_path = f'/api/squirrels-v{sq_major_version}'
-        project_name = u.normalize_name_for_api(self.manifest_cfg.project_variables.name)
-        project_version = f"v{self.manifest_cfg.project_variables.major_version}"
-        project_metadata_path = squirrels_version_path + f"/project/{project_name}/{project_version}"
-        
-        param_fields = self.param_cfg_set.get_all_api_field_info()
 
         # Helpers
         T = TypeVar('T')
@@ -243,7 +256,7 @@ class ApiServer:
         def get_query_models_for_dataset(widget_parameters: list):
             predefined_params = [
                 APIParamFieldInfo("x_verify_params", bool, default=False, description="If true, the query parameters are verified to be valid for the dataset"),
-                APIParamFieldInfo("x_orientation", str, default="records", description="The orientation of the data to return, one of 'records' or 'columns'"),
+                APIParamFieldInfo("x_orientation", str, default="records", description="The orientation of the data to return, one of: 'records', 'rows', or 'columns'"),
                 APIParamFieldInfo("x_select", list[str], examples=[[]], description="The columns to select from the dataset. All are returned if not specified"), 
                 APIParamFieldInfo("x_offset", int, default=0, description="The number of rows to skip before returning data (applied after data caching)"),
                 APIParamFieldInfo("x_limit", int, default=1000, description="The maximum number of rows to return (applied after data caching and offset)"),
@@ -268,45 +281,161 @@ class ApiServer:
             dashboard_raw = _get_section_from_request_path(request, section)
             return u.normalize_name(dashboard_raw)
         
-        current_time = datetime.now(timezone.utc).replace(microsecond=0)
+        expiry_mins = self.env_vars.get(c.SQRL_AUTH_TOKEN_EXPIRE_MINUTES, 30)
+        try:
+            expiry_mins = int(expiry_mins)
+        except ValueError:
+            raise u.ConfigurationError(f"Value for environment variable {c.SQRL_AUTH_TOKEN_EXPIRE_MINUTES} is not an integer, got: {expiry_mins}")
+        
+        # Project Metadata API
         
         @app.get(project_metadata_path, tags=["Project Metadata"], response_class=JSONResponse)
-        async def get_project_metadata(
-            request: Request, name: list[str] = Query(default=[], description="List of project names to filter by. If empty, returns all projects.")
-        ) -> arm.ProjectModel:
+        async def get_project_metadata(request: Request) -> arm.ProjectModel:
             return arm.ProjectModel(
                 name=project_name,
                 label=self.manifest_cfg.project_variables.label,
                 description=self.manifest_cfg.project_variables.description,
                 versions=[arm.ProjectVersionModel(
                     major_version=self.manifest_cfg.project_variables.major_version,
-                    created_at=current_time, updated_at=current_time, # dummy values
-                    token_path=login_path,
                     data_catalog_path=data_catalog_path
                 )]
             )
         
-        # Login & Authorization
+        # Authentication
         login_path = project_metadata_path + '/login'
 
         oauth2_scheme = OAuth2PasswordBearer(tokenUrl=login_path, auto_error=False)
 
-        @app.post(login_path, tags=["Login"])
-        async def login_for_access_token(form_data: OAuth2PasswordRequestForm = Depends()) -> arm.LoginReponse:
-            user: User | None = self.authenticator.authenticate_user(form_data.username, form_data.password)
-            if not user:
-                raise HTTPException(
-                    status_code=status.HTTP_401_UNAUTHORIZED, detail="Incorrect username or password", headers={"WWW-Authenticate": "Bearer"}
-                )
-            access_token, expiry = self.authenticator.create_access_token(user)
-            return arm.LoginReponse(access_token=access_token, token_type="bearer", username=user.username, expiry_time=expiry)
-        
-        async def get_current_user(response: Response, token: str = Depends(oauth2_scheme)) -> User | None:
+        async def get_current_user(response: Response, token: str = Depends(oauth2_scheme)) -> BaseUser | None:
             user = self.authenticator.get_user_from_token(token)
             username = "" if user is None else user.username
             response.headers["Applied-Username"] = username
             return user
 
+        ## Login API
+        @app.post(login_path, tags=["Authentication"])
+        async def login_for_access_token(form_data: OAuth2PasswordRequestForm = Depends()) -> arm.LoginReponse:
+            user = self.authenticator.get_user(form_data.username, form_data.password)
+            access_token, expiry = self.authenticator.create_access_token(user, expiry_minutes=expiry_mins)
+            return arm.LoginReponse(access_token=access_token, token_type="bearer", username=user.username, is_admin=user.is_admin, expiry_time=expiry)
+        
+        ## Change Password API
+        change_password_path = project_metadata_path + '/change-password'
+
+        class ChangePasswordRequest(BaseModel):
+            old_password: str
+            new_password: str
+
+        @app.put(change_password_path, description="Change the password for the current user", tags=["Authentication"])
+        async def change_password(request: ChangePasswordRequest, user: BaseUser | None = Depends(get_current_user)) -> None:
+            if user is None:
+                raise u.InvalidInputError(1, "Invalid authorization token")
+            self.authenticator.change_password(user.username, request.old_password, request.new_password)
+
+        ## Token API
+        tokens_path = project_metadata_path + '/tokens'
+
+        class TokenRequestBody(BaseModel):
+            title: str | None = Field(default=None, description=f"The title of the token. If not provided, a temporary token is created (expiring in {expiry_mins} minutes) and cannot be revoked")
+            expiry_minutes: int | None = Field(
+                default=None, 
+                description=f"The number of minutes the token is valid for (or indefinitely if not provided). Ignored and set to {expiry_mins} minutes if title is not provided."
+            )
+
+        @app.post(tokens_path, description="Create a new token for the user", tags=["Authentication"])
+        async def create_token(body: TokenRequestBody, user: BaseUser | None = Depends(get_current_user)) -> arm.LoginReponse:
+            if user is None:
+                raise u.InvalidInputError(1, "Invalid authorization token")
+            
+            if body.title is None:
+                expiry_minutes = expiry_mins
+            else:
+                expiry_minutes = body.expiry_minutes
+            
+            access_token, expiry = self.authenticator.create_access_token(user, expiry_minutes=expiry_minutes, title=body.title)
+            return arm.LoginReponse(access_token=access_token, token_type="bearer", username=user.username, is_admin=user.is_admin, expiry_time=expiry)
+        
+        ## Get All Tokens API
+        @app.get(tokens_path, description="Get all tokens with title for the current user", tags=["Authentication"])
+        async def get_all_tokens(user: BaseUser | None = Depends(get_current_user)) -> list[AccessToken]:
+            if user is None:
+                raise u.InvalidInputError(1, "Invalid authorization token")
+            return self.authenticator.get_all_tokens(user.username)
+        
+        ## Revoke Token API
+        revoke_token_path = project_metadata_path + '/tokens/{token_id}'
+
+        @app.delete(revoke_token_path, description="Revoke a token", tags=["Authentication"])
+        async def revoke_token(token_id: str, user: BaseUser | None = Depends(get_current_user)) -> None:
+            if user is None:
+                raise u.InvalidInputError(1, "Invalid authorization token")
+            self.authenticator.revoke_token(user.username, token_id)
+        
+        # User Management
+
+        ## User Fields API
+        user_fields_path = project_metadata_path + '/user-fields'
+
+        @app.get(user_fields_path, description="Get details of the user fields", tags=["User Management"])
+        async def get_user_fields() -> list[UserField]:
+            return self.authenticator.user_fields
+        
+        ## Add User API
+        add_user_path = project_metadata_path + '/users'
+
+        fields_without_username = {
+            k: (v.annotation, v.default) 
+            for k, v in self.authenticator.User.model_fields.items() 
+            if k != "username"
+        }
+        UserModel = create_model("UserModel", __base__=BaseModel, **fields_without_username) # type: ignore
+
+        class UserWithoutUsername(UserModel):
+            pass
+
+        class UserWithUsername(UserModel):
+            username: str
+
+        class AddUserRequestBody(UserWithUsername):
+            password: str
+        
+        @app.post(add_user_path, description="Add a new user by providing details for username, password, and user fields", tags=["User Management"])
+        async def add_user(
+            new_user: AddUserRequestBody, user: BaseUser | None = Depends(get_current_user)
+        ) -> None:
+            if user is None or not user.is_admin:
+                raise u.InvalidInputError(20, "Authorized user is forbidden to add new users")
+            self.authenticator.add_user(new_user.username, new_user.model_dump(mode='json', exclude={"username"}))
+
+        ## Update User API
+        update_user_path = project_metadata_path + '/users/{username}'
+
+        @app.put(update_user_path, description="Update the user of the given username given the new user details", tags=["User Management"])
+        async def update_user(
+            username: str, updated_user: UserWithoutUsername, user: BaseUser | None = Depends(get_current_user)
+        ) -> None:
+            if user is None or not user.is_admin:
+                raise u.InvalidInputError(20, "Authorized user is forbidden to update users")
+            self.authenticator.add_user(username, updated_user.model_dump(mode='json'), update_user=True)
+
+        ## List Users API
+        list_users_path = project_metadata_path + '/users'
+
+        @app.get(list_users_path, tags=["User Management"])
+        async def list_all_users() -> list[UserWithUsername]:
+            return self.authenticator.get_all_users()
+        
+        ## Delete User API
+        delete_user_path = project_metadata_path + '/users/{username}'
+
+        @app.delete(delete_user_path, tags=["User Management"])
+        async def delete_user(username: str, user: BaseUser | None = Depends(get_current_user)) -> None:
+            if user is None or not user.is_admin:
+                raise u.InvalidInputError(21, "Authorized user is forbidden to delete users")
+            if username == user.username:
+                raise u.InvalidInputError(22, "Cannot delete your own user")
+            self.authenticator.delete_user(username)
+        
         # Data Catalog API
         data_catalog_path = project_metadata_path + '/data-catalog'
 
@@ -316,7 +445,7 @@ class ApiServer:
         dashboard_results_path = project_metadata_path + '/dashboard/{dashboard}'
         dashboard_parameters_path = dashboard_results_path + '/parameters'
         
-        def get_data_catalog0(user: User | None) -> arm.CatalogModel:
+        def get_data_catalog0(user: BaseUser | None) -> arm.CatalogModel:
             dataset_items: list[arm.DatasetItemModel] = []
             for name, config in self.manifest_cfg.datasets.items():
                 if self.authenticator.can_user_access_scope(user, config.scope):
@@ -355,7 +484,7 @@ class ApiServer:
             return arm.CatalogModel(datasets=dataset_items, dashboards=dashboard_items)
         
         @app.get(data_catalog_path, tags=["Project Metadata"], summary="Get catalog of datasets and dashboards available for user")
-        def get_data_catalog(request: Request, user: User | None = Depends(get_current_user)) -> arm.CatalogModel:
+        def get_data_catalog(request: Request, user: BaseUser | None = Depends(get_current_user)) -> arm.CatalogModel:
             return get_data_catalog0(user)
         
         # Parameters API Helpers
@@ -366,12 +495,12 @@ class ApiServer:
         
         async def get_parameters_helper(
             parameters_tuple: tuple[str, ...], entity_type: str, entity_name: str, entity_scope: PermissionScope,
-            user: User | None, selections: tuple[tuple[str, Any], ...]
+            user: BaseUser | None, selections: tuple[tuple[str, Any], ...]
         ) -> ParameterSet:
             selections_dict = dict(selections)
             if "x_parent_param" not in selections_dict:
                 if len(selections_dict) > 1:
-                    raise u.InvalidInputError(f"The parameters endpoint takes at most 1 widget parameter selection (unless x_parent_param is provided). Got {selections_dict}")
+                    raise u.InvalidInputError(202, f"The parameters endpoint takes at most 1 widget parameter selection (unless x_parent_param is provided). Got {selections_dict}")
                 elif len(selections_dict) == 1:
                     parent_param = next(iter(selections_dict))
                     selections_dict["x_parent_param"] = parent_param
@@ -381,32 +510,25 @@ class ApiServer:
                 # this condition is possible for multi-select parameters with empty selection
                 selections_dict[parent_param] = list()
             
-            try:
-                if not self.authenticator.can_user_access_scope(user, entity_scope):
-                    raise self.project._permission_error(user, entity_type, entity_name, entity_scope.name)
-            except PermissionError as e:
-                raise HTTPException(
-                    status_code=status.HTTP_401_UNAUTHORIZED,
-                    detail=str(e), headers={"WWW-Authenticate": "Bearer"}
-                )
+            if not self.authenticator.can_user_access_scope(user, entity_scope):
+                raise self.project._permission_error(user, entity_type, entity_name, entity_scope.name)
             
             param_set = self.param_cfg_set.apply_selections(parameters_tuple, selections_dict, user, parent_param=parent_param)
             return param_set
 
-        settings = self.manifest_cfg.settings
-        parameters_cache_size = settings.get(c.PARAMETERS_CACHE_SIZE_SETTING, 1024)
-        parameters_cache_ttl = settings.get(c.PARAMETERS_CACHE_TTL_SETTING, 60)
+        parameters_cache_size = int(self.env_vars.get(c.SQRL_PARAMETERS_CACHE_SIZE, 1024))
+        parameters_cache_ttl = int(self.env_vars.get(c.SQRL_PARAMETERS_CACHE_TTL_MINUTES, 60))
         params_cache = TTLCache(maxsize=parameters_cache_size, ttl=parameters_cache_ttl*60)
 
         async def get_parameters_cachable(
             parameters_tuple: tuple[str, ...], entity_type: str, entity_name: str, entity_scope: PermissionScope,
-            user: User | None, selections: tuple[tuple[str, Any], ...]
+            user: BaseUser | None, selections: tuple[tuple[str, Any], ...]
         ) -> ParameterSet:
             return await do_cachable_action(params_cache, get_parameters_helper, parameters_tuple, entity_type, entity_name, entity_scope, user, selections)
         
         async def get_parameters_definition(
             parameters_list: list[str], entity_type: str, entity_name: str, entity_scope: PermissionScope,
-            user: User | None, all_request_params: dict, params: Mapping
+            user: BaseUser | None, all_request_params: dict, params: Mapping
         ) -> arm.ParametersModel:
             self._validate_request_params(all_request_params, params)
 
@@ -426,28 +548,21 @@ class ApiServer:
         
         # Dataset Results API Helpers
         async def get_dataset_results_helper(
-            dataset: str, user: User | None, selections: tuple[tuple[str, Any], ...]
+            dataset: str, user: BaseUser | None, selections: tuple[tuple[str, Any], ...]
         ) -> DatasetResult:
-            try:
-                return await self.project.dataset(dataset, selections=dict(selections), user=user)
-            except PermissionError as e:
-                raise HTTPException(
-                    status_code=status.HTTP_401_UNAUTHORIZED, 
-                    detail=str(e), headers={"WWW-Authenticate": "Bearer"}
-                )
+            return await self.project.dataset(dataset, selections=dict(selections), user=user)
 
-        settings = self.manifest_cfg.settings
-        dataset_results_cache_size = settings.get(c.DATASETS_CACHE_SIZE_SETTING, 128)
-        dataset_results_cache_ttl = settings.get(c.DATASETS_CACHE_TTL_SETTING, 60)
+        dataset_results_cache_size = int(self.env_vars.get(c.SQRL_DATASETS_CACHE_SIZE, 128))
+        dataset_results_cache_ttl = int(self.env_vars.get(c.SQRL_DATASETS_CACHE_TTL_MINUTES, 60))
         dataset_results_cache = TTLCache(maxsize=dataset_results_cache_size, ttl=dataset_results_cache_ttl*60)
 
         async def get_dataset_results_cachable(
-            dataset: str, user: User | None, selections: tuple[tuple[str, Any], ...]
+            dataset: str, user: BaseUser | None, selections: tuple[tuple[str, Any], ...]
         ) -> DatasetResult:
             return await do_cachable_action(dataset_results_cache, get_dataset_results_helper, dataset, user, selections)
         
         async def get_dataset_results_definition(
-            dataset_name: str, user: User | None, all_request_params: dict, params: Mapping
+            dataset_name: str, user: BaseUser | None, all_request_params: dict, params: Mapping
         ) -> arm.DatasetResultModel:
             self._validate_request_params(all_request_params, params)
 
@@ -465,25 +580,21 @@ class ApiServer:
         
         # Dashboard Results API Helpers
         async def get_dashboard_results_helper(
-            dashboard: str, user: User | None, selections: tuple[tuple[str, Any], ...]
+            dashboard: str, user: BaseUser | None, selections: tuple[tuple[str, Any], ...]
         ) -> Dashboard:
-            try:
-                return await self.project.dashboard(dashboard, selections=dict(selections), user=user)
-            except PermissionError as e:
-                raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail=str(e), headers={"WWW-Authenticate": "Bearer"}) from e
-
-        settings = self.manifest_cfg.settings
-        dashboard_results_cache_size = settings.get(c.DASHBOARDS_CACHE_SIZE_SETTING, 128)
-        dashboard_results_cache_ttl = settings.get(c.DASHBOARDS_CACHE_TTL_SETTING, 60)
+            return await self.project.dashboard(dashboard, selections=dict(selections), user=user)
+        
+        dashboard_results_cache_size = int(self.env_vars.get(c.SQRL_DASHBOARDS_CACHE_SIZE, 128))
+        dashboard_results_cache_ttl = int(self.env_vars.get(c.SQRL_DASHBOARDS_CACHE_TTL_MINUTES, 60))
         dashboard_results_cache = TTLCache(maxsize=dashboard_results_cache_size, ttl=dashboard_results_cache_ttl*60)
 
         async def get_dashboard_results_cachable(
-            dashboard: str, user: User | None, selections: tuple[tuple[str, Any], ...]
+            dashboard: str, user: BaseUser | None, selections: tuple[tuple[str, Any], ...]
         ) -> Dashboard:
             return await do_cachable_action(dashboard_results_cache, get_dashboard_results_helper, dashboard, user, selections)
         
         async def get_dashboard_results_definition(
-            dashboard_name: str, user: User | None, all_request_params: dict, params: Mapping
+            dashboard_name: str, user: BaseUser | None, all_request_params: dict, params: Mapping
         ) -> Response:
             self._validate_request_params(all_request_params, params)
             
@@ -512,7 +623,7 @@ class ApiServer:
 
             @app.get(curr_parameters_path, tags=[f"Dataset '{dataset_name}'"], description=parameters_description, response_class=JSONResponse)
             async def get_dataset_parameters(
-                request: Request, params: QueryModelForGetParams, user: User | None = Depends(get_current_user) # type: ignore
+                request: Request, params: QueryModelForGetParams, user: BaseUser | None = Depends(get_current_user) # type: ignore
             ) -> arm.ParametersModel:
                 start = time.time()
                 curr_dataset_name = get_dataset_name(request, -2)
@@ -526,7 +637,7 @@ class ApiServer:
 
             @app.post(curr_parameters_path, tags=[f"Dataset '{dataset_name}'"], description=parameters_description, response_class=JSONResponse)
             async def get_dataset_parameters_with_post(
-                request: Request, params: QueryModelForPostParams, user: User | None = Depends(get_current_user) # type: ignore
+                request: Request, params: QueryModelForPostParams, user: BaseUser | None = Depends(get_current_user) # type: ignore
             ) -> arm.ParametersModel:
                 start = time.time()
                 curr_dataset_name = get_dataset_name(request, -2)
@@ -542,7 +653,7 @@ class ApiServer:
             
             @app.get(curr_results_path, tags=[f"Dataset '{dataset_name}'"], description=dataset_config.description, response_class=JSONResponse)
             async def get_dataset_results(
-                request: Request, params: QueryModelForGetDataset, user: User | None = Depends(get_current_user) # type: ignore
+                request: Request, params: QueryModelForGetDataset, user: BaseUser | None = Depends(get_current_user) # type: ignore
             ) -> arm.DatasetResultModel:
                 start = time.time()
                 curr_dataset_name = get_dataset_name(request, -1)
@@ -552,7 +663,7 @@ class ApiServer:
             
             @app.post(curr_results_path, tags=[f"Dataset '{dataset_name}'"], description=dataset_config.description, response_class=JSONResponse)
             async def get_dataset_results_with_post(
-                request: Request, params: QueryModelForPostDataset, user: User | None = Depends(get_current_user) # type: ignore
+                request: Request, params: QueryModelForPostDataset, user: BaseUser | None = Depends(get_current_user) # type: ignore
             ) -> arm.DatasetResultModel:
                 start = time.time()
                 curr_dataset_name = get_dataset_name(request, -1)
@@ -575,7 +686,7 @@ class ApiServer:
 
             @app.get(curr_parameters_path, tags=[f"Dashboard '{dashboard_name}'"], description=parameters_description, response_class=JSONResponse)
             async def get_dashboard_parameters(
-                request: Request, params: QueryModelForGetParams, user: User | None = Depends(get_current_user) # type: ignore
+                request: Request, params: QueryModelForGetParams, user: BaseUser | None = Depends(get_current_user) # type: ignore
             ) -> arm.ParametersModel:
                 start = time.time()
                 curr_dashboard_name = get_dashboard_name(request, -2)
@@ -589,7 +700,7 @@ class ApiServer:
 
             @app.post(curr_parameters_path, tags=[f"Dashboard '{dashboard_name}'"], description=parameters_description, response_class=JSONResponse)
             async def get_dashboard_parameters_with_post(
-                request: Request, params: QueryModelForPostParams, user: User | None = Depends(get_current_user) # type: ignore
+                request: Request, params: QueryModelForPostParams, user: BaseUser | None = Depends(get_current_user) # type: ignore
             ) -> arm.ParametersModel:
                 start = time.time()
                 curr_dashboard_name = get_dashboard_name(request, -2)
@@ -605,7 +716,7 @@ class ApiServer:
             
             @app.get(curr_results_path, tags=[f"Dashboard '{dashboard_name}'"], description=dashboard.config.description, response_class=Response)
             async def get_dashboard_results(
-                request: Request, params: QueryModelForGetDash, user: User | None = Depends(get_current_user) # type: ignore
+                request: Request, params: QueryModelForGetDash, user: BaseUser | None = Depends(get_current_user) # type: ignore
             ) -> Response:
                 start = time.time()
                 curr_dashboard_name = get_dashboard_name(request, -1)
@@ -615,7 +726,7 @@ class ApiServer:
 
             @app.post(curr_results_path, tags=[f"Dashboard '{dashboard_name}'"], description=dashboard.config.description, response_class=Response)
             async def get_dashboard_results_with_post(
-                request: Request, params: QueryModelForPostDash, user: User | None = Depends(get_current_user) # type: ignore
+                request: Request, params: QueryModelForPostDash, user: BaseUser | None = Depends(get_current_user) # type: ignore
             ) -> Response:
                 start = time.time()
                 curr_dashboard_name = get_dashboard_name(request, -1)
@@ -626,10 +737,10 @@ class ApiServer:
                 return result
 
         # Build Project API
-        @app.post(project_metadata_path + '/build', tags=["Update"], summary="Build or update the virtual data environment for the project")
-        async def build(request: Request, user: User | None = Depends(get_current_user)): # type: ignore
+        @app.post(project_metadata_path + '/build', tags=["Data Management"], summary="Build or update the virtual data environment for the project")
+        async def build(request: Request, user: BaseUser | None = Depends(get_current_user)): # type: ignore
             if not self.authenticator.can_user_access_scope(user, PermissionScope.PRIVATE):
-                raise PermissionError(f"User '{user}' does not have permission to build the virtual data environment")
+                raise u.InvalidInputError(26, f"User '{user}' does not have permission to build the virtual data environment")
             await self.project.build(stage_file=True)
             return Response(status_code=status.HTTP_200_OK)
         
@@ -640,22 +751,19 @@ class ApiServer:
         templates_dir = u.Path(os.path.dirname(__file__), c.PACKAGE_DATA_FOLDER, c.TEMPLATES_FOLDER)
         templates = Jinja2Templates(directory=templates_dir)
 
-        @app.get('/index.html', summary="Get the Squirrels Testing UI", response_class=HTMLResponse)
-        async def get_testing_ui(request: Request):
+        @app.get('/', summary="Access the Squirrels UI Application", response_class=HTMLResponse)
+        async def get_squirrels_app_ui(request: Request):
             return templates.TemplateResponse('index.html', {
                 'request': request, 'project_name': project_name, 'project_version': project_version
             })
-
-        @app.get('/', response_class=RedirectResponse, status_code=301)
-        async def redirect_to_index():
-            return "/index.html"
         
         import uvicorn
         self.logger.log_activity_time("creating app server", start)
 
-        print("\nWelcome to the Squirrels Server!\n")
-        print(f"- Testing UI: http://{uvicorn_args.host}:{uvicorn_args.port}")
-        print(f"- API Docs: http://{uvicorn_args.host}:{uvicorn_args.port}/docs")
+        print("\nWelcome to the Squirrels Data Application!\n")
+        print(f"- Application UI: http://{uvicorn_args.host}:{uvicorn_args.port}")
+        print(f"- API Docs (with ReDoc): http://{uvicorn_args.host}:{uvicorn_args.port}{project_metadata_path}/redoc")
+        print(f"- API Docs (with Swagger UI): http://{uvicorn_args.host}:{uvicorn_args.port}{project_metadata_path}/docs")
         print()
         
         uvicorn.run(app, host=uvicorn_args.host, port=uvicorn_args.port)

@@ -15,6 +15,8 @@ class ModelBuilder:
     def _attach_connections(self, duckdb_conn: duckdb.DuckDBPyConnection) -> dict[str, str]:
         dialect_by_conn_name: dict[str, str] = {}
         for conn_name, conn_props in self._conn_set.get_connections_as_dict().items():
+            if not isinstance(conn_props, m.ConnectionProperties):
+                continue
             dialect = conn_props.dialect
             attach_uri = conn_props.attach_uri_for_duckdb
             if attach_uri is None:

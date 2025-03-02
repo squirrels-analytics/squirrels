@@ -1,10 +1,12 @@
 from typing import Optional
 from datetime import datetime
-import inquirer, os, shutil
+import inquirer, os, shutil, secrets
 
 from . import _constants as c, _utils as u
 
 base_proj_dir = u.Path(os.path.dirname(__file__), c.PACKAGE_DATA_FOLDER, c.BASE_PROJECT_FOLDER)
+
+TMP_FOLDER = "tmp"
 
 
 class Initializer:
@@ -78,14 +80,12 @@ class Initializer:
         self._copy_file(u.Path(c.DASHBOARDS_FOLDER, filepath))
 
     def _create_manifest_file(self, has_connections: bool, has_parameters: bool):
-        TMP_FOLDER = "tmp"
-
         def get_content(file_name: Optional[str]) -> str:
             if file_name is None:
                 return ""
             
             yaml_path = u.Path(base_proj_dir, file_name)
-            return u.read_file(yaml_path)
+            return yaml_path.read_text()
         
         file_name_dict = {
             "parameters": c.PARAMETERS_YML_FILE if has_parameters else None, 
@@ -96,14 +96,31 @@ class Initializer:
         manifest_template = get_content(c.MANIFEST_JINJA_FILE)
         manifest_content = u.render_string(manifest_template, **substitutions)
         output_path = u.Path(base_proj_dir, TMP_FOLDER, c.MANIFEST_FILE)
-        with open(u.Path(output_path), "w") as f:
-            f.write(manifest_content)
+        output_path.write_text(manifest_content)
         
         self._copy_file(u.Path(c.MANIFEST_FILE), src_folder=TMP_FOLDER)
+    
+    def _copy_dotenv_files(self):
+        self._copy_file(u.Path(c.DOTENV_FILE))
+        self._copy_file(u.Path(c.DOTENV_FILE + ".local.example"))
+
+        dotenv_local_filename = c.DOTENV_FILE + ".local"
+        substitutions = {
+            "random_secret_key": secrets.token_hex(32),
+            "random_admin_password": secrets.token_urlsafe(8),
+        }
+
+        dotenv_local_path = u.Path(base_proj_dir, dotenv_local_filename)
+        contents = u.render_string(dotenv_local_path.read_text(), **substitutions)
+
+        output_path = u.Path(base_proj_dir, TMP_FOLDER, dotenv_local_filename)
+        output_path.write_text(contents)
+
+        self._copy_file(u.Path(dotenv_local_filename), src_folder=TMP_FOLDER)
 
     def init_project(self, args):
-        options = ["core", "connections", "parameters", "build", "federate", "dashboard", "auth"]
-        _, CONNECTIONS, PARAMETERS, BUILD, FEDERATE, DASHBOARD, AUTH = options
+        options = ["core", "connections", "parameters", "build", "federate", "dashboard"]
+        _, CONNECTIONS, PARAMETERS, BUILD, FEDERATE, DASHBOARD = options
 
         # Add project name prompt if not provided
         if self.project_name is None:
@@ -131,9 +148,6 @@ class Initializer:
                 ),
                 inquirer.Confirm(
                     DASHBOARD, message=f"Do you want to include a dashboard example?", default=False
-                ),
-                inquirer.Confirm(
-                    AUTH, message=f"Do you want to add the '{c.AUTH_FILE}' file to enable custom API authentication?", default=False
                 ),
             ]
             answers = inquirer.prompt(questions)
@@ -183,10 +197,10 @@ class Initializer:
 
         dashboards_enabled = get_answer(DASHBOARD, False)
 
+        self._copy_dotenv_files()
         self._create_manifest_file(connections_use_yaml, parameters_use_yaml)
         
         self._copy_file(u.Path(".gitignore"))
-        self._copy_file(u.Path(c.ENV_CONFIG_FILE))
         
         if connections_use_py:
             self._copy_pyconfig_file(c.CONNECTIONS_FILE)
@@ -202,6 +216,8 @@ class Initializer:
         else:
             raise NotImplementedError(f"Format '{parameters_format}' not supported for configuring widget parameters")
         
+        self._copy_pyconfig_file(c.USER_FILE)
+
         self._copy_pyconfig_file(c.CONTEXT_FILE)
         self._copy_seed_file(c.SEED_CATEGORY_FILE_STEM + ".csv")
         self._copy_seed_file(c.SEED_CATEGORY_FILE_STEM + ".yml")
@@ -222,20 +238,16 @@ class Initializer:
             self._copy_dashboard_file(c.DASHBOARD_FILE_STEM + ".py")
             self._copy_dashboard_file(c.DASHBOARD_FILE_STEM + ".yml")
         
-        if get_answer(AUTH, False):
-            self._copy_pyconfig_file(c.AUTH_FILE)
-
         self._copy_database_file(c.EXPENSES_DB)
         
         print(f"\nSuccessfully created new Squirrels project in current directory!\n")
     
     def get_file(self, args):
-        if args.file_name == c.ENV_CONFIG_FILE:
-            self._copy_file(u.Path(c.ENV_CONFIG_FILE))
-            print("PLEASE ENSURE THE FILE IS INCLUDED IN .gitignore")
+        if args.file_name == c.DOTENV_FILE:
+            self._copy_dotenv_files()
         elif args.file_name == c.MANIFEST_FILE:
             self._create_manifest_file(not args.no_connections, args.parameters)
-        elif args.file_name in (c.AUTH_FILE, c.CONNECTIONS_FILE, c.PARAMETERS_FILE, c.CONTEXT_FILE):
+        elif args.file_name in (c.USER_FILE, c.CONNECTIONS_FILE, c.PARAMETERS_FILE, c.CONTEXT_FILE):
             self._copy_pyconfig_file(args.file_name)
         elif args.file_name == c.MACROS_FILE:
             self._copy_macros_file(args.file_name)

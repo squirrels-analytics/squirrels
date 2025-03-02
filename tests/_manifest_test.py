@@ -147,16 +147,10 @@ class TestTestSetsConfig:
         data = {"name": "test_set3", "user_attributes": {}}
         return m.TestSetsConfig(**data)
 
-    @pytest.fixture(scope="class")
-    def test_sets_config4(self) -> m.TestSetsConfig:
-        data = {"name": "test_set4", "is_authenticated": True}
-        return m.TestSetsConfig(**data)
-
     @pytest.mark.parametrize("fixture,expected", [
         ("test_sets_config1", False),
         ("test_sets_config2", True),
         ("test_sets_config3", False),
-        ("test_sets_config4", True)
     ])
     def test_is_authenticated(self, fixture: str, expected: bool, request: pytest.FixtureRequest):
         test_sets: m.TestSetsConfig = request.getfixturevalue(fixture)
@@ -165,14 +159,13 @@ class TestTestSetsConfig:
 
 class TestManifestConfig:
     @pytest.fixture(scope="class")
-    def manifest_config1(self, simple_env_config) -> m.ManifestConfig:
+    def manifest_config1(self) -> m.ManifestConfig:
         selection_test_sets = {
             "test_set1": m.TestSetsConfig(name="test_set1"),
             "test_set2": m.TestSetsConfig(name="test_set2", datasets=["modelA"]),
             "test_set3": m.TestSetsConfig(name="test_set3", datasets=["modelB"]),
         }
         manifest_cfg = m.ManifestConfig(
-            env_cfg=simple_env_config,
             project_variables=m.ProjectVarsConfig(name="", major_version=0),
             selection_test_sets=selection_test_sets
         )

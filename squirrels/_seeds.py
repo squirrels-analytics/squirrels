@@ -1,6 +1,5 @@
 from dataclasses import dataclass
-from typing import Any
-import os, time, glob, polars as pl
+import os, time, glob, polars as pl, json
 
 from . import _utils as u, _constants as c, _model_configs as mc
 
@@ -38,10 +37,10 @@ class Seeds:
 class SeedsIO:
 
     @classmethod
-    def load_files(cls, logger: u.Logger, base_path: str, *, settings: dict[str, Any] = {}) -> Seeds:
+    def load_files(cls, logger: u.Logger, base_path: str, env_vars: dict[str, str]) -> Seeds:
         start = time.time()
-        infer_schema_setting: bool = settings.get(c.SEEDS_INFER_SCHEMA_SETTING, True)
-        na_values_setting: list[str] = settings.get(c.SEEDS_NA_VALUES_SETTING, [])
+        infer_schema_setting: bool = (env_vars.get(c.SEEDS_INFER_SCHEMA_SETTING, "true").lower() == "true")
+        na_values_setting: list[str] = json.loads(env_vars.get(c.SEEDS_NA_VALUES_SETTING, "[]"))
         
         seeds_dict = {}
         csv_files = glob.glob(os.path.join(base_path, c.SEEDS_FOLDER, '**/*.csv'), recursive=True)

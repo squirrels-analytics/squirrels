@@ -94,7 +94,7 @@ def test_seeds_get_dataframes():
 
 def test_seeds_io_load_files(setup_seed_files: Path):
     logger = Logger("test")
-    seeds = SeedsIO.load_files(logger, str(setup_seed_files), settings={})
+    seeds = SeedsIO.load_files(logger, str(setup_seed_files), env_vars={})
     
     assert "test_seed" in seeds._data
     seed = seeds._data["test_seed"]
@@ -110,7 +110,7 @@ def test_seeds_io_load_files_without_config(temp_seed_dir: Path, sample_csv_cont
     csv_path.write_text(sample_csv_content)
     
     logger = Logger("test")
-    seeds = SeedsIO.load_files(logger, str(temp_seed_dir.parent), settings={})
+    seeds = SeedsIO.load_files(logger, str(temp_seed_dir.parent), env_vars={})
     
     assert "test_seed" in seeds._data
     seed = seeds._data["test_seed"]

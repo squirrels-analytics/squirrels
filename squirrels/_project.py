@@ -1,10 +1,11 @@
+from dotenv import dotenv_values
 from uuid import uuid4
-import asyncio, typing as t, functools as ft, shutil, json
+import asyncio, typing as t, functools as ft, shutil, json, os
 import logging as l, matplotlib.pyplot as plt, networkx as nx, polars as pl
 
-from ._user_base import User
+from ._auth import Authenticator, BaseUser
 from ._model_builder import ModelBuilder
-from . import _utils as u, _constants as c, _environcfg as ec, _manifest as mf, _authenticator as auth
+from . import _utils as u, _constants as c, _manifest as mf
 from . import _seeds as s, _connection_set as cs, _models as m, _dashboards_io as d, _parameter_sets as ps
 from . import _model_queries as mq, dashboards as dash, _sources as so, dataset_result as dr
 
@@ -49,7 +50,7 @@ class SquirrelsProject:
         """
         self._filepath = filepath
         self._logger = self._get_logger(self._filepath, log_file, log_level, log_format)
-    
+
     def _get_logger(self, base_path: str, log_file: str | None, log_level: str, log_format: str) -> u.Logger:
         logger = u.Logger(name=uuid4().hex)
         logger.setLevel(log_level.upper())
@@ -77,16 +78,20 @@ class SquirrelsProject:
         return logger
     
     @ft.cached_property
-    def _env_cfg(self) -> ec.EnvironConfig:
-        return ec.EnvironConfigIO.load_from_file(self._logger, self._filepath)
+    def _env_vars(self) -> dict[str, str]:
+        dotenv_files = [c.DOTENV_FILE, f"{c.DOTENV_FILE}.local"]
+        dotenv_vars = {}
+        for file in dotenv_files:
+            dotenv_vars.update({k: v for k, v in dotenv_values(f"{self._filepath}/{file}").items() if v is not None})
+        return {**os.environ, **dotenv_vars}
 
     @ft.cached_property
     def _manifest_cfg(self) -> mf.ManifestConfig:
-        return mf.ManifestIO.load_from_file(self._logger, self._filepath, self._env_cfg)
+        return mf.ManifestIO.load_from_file(self._logger, self._filepath, self._env_vars)
     
     @ft.cached_property
     def _seeds(self) -> s.Seeds:
-        return s.SeedsIO.load_files(self._logger, self._filepath, settings=self._manifest_cfg.settings)
+        return s.SeedsIO.load_files(self._logger, self._filepath, self._env_vars)
     
     @ft.cached_property
     def _sources(self) -> so.Sources:
@@ -114,16 +119,15 @@ class SquirrelsProject:
     
     @ft.cached_property
     def _conn_args(self) -> cs.ConnectionsArgs:
-        return cs.ConnectionSetIO.load_conn_py_args(self._logger, self._filepath, self._env_cfg, self._manifest_cfg)
+        return cs.ConnectionSetIO.load_conn_py_args(self._logger, self._filepath, self._env_vars, self._manifest_cfg)
     
     @ft.cached_property
     def _conn_set(self) -> cs.ConnectionSet:
         return cs.ConnectionSetIO.load_from_file(self._logger, self._filepath, self._manifest_cfg, self._conn_args)
     
     @ft.cached_property
-    def _authenticator(self) -> auth.Authenticator:
-        token_expiry_minutes = self._manifest_cfg.settings.get(c.AUTH_TOKEN_EXPIRE_SETTING, 30)
-        return auth.Authenticator(self._filepath, self._env_cfg, self._conn_args, self._conn_set, token_expiry_minutes)
+    def _auth(self) -> Authenticator:
+        return Authenticator(self._logger, self._filepath, self._env_vars)
     
     @ft.cached_property
     def _param_args(self) -> ps.ParametersArgs:
@@ -141,7 +145,7 @@ class SquirrelsProject:
 
     @ft.cached_property
     def _duckdb_venv_path(self) -> str:
-        duckdb_filepath_setting_val = self._manifest_cfg.settings.get(c.DUCKDB_VENV_FILE_PATH_SETTING, c.DEFAULT_DUCKDB_VENV_FILE_PATH)
+        duckdb_filepath_setting_val = self._env_vars.get(c.SQRL_DUCKDB_VENV_DB_FILE_PATH, f"{c.TARGET_FOLDER}/{c.DUCKDB_VENV_FILE}")
         return str(u.Path(self._filepath, duckdb_filepath_setting_val))
     
     def close(self) -> None:
@@ -149,6 +153,7 @@ class SquirrelsProject:
         Deliberately close any open resources within the Squirrels project, such as database connections (instead of relying on the garbage collector).
         """
         self._conn_set.dispose()
+        self._auth.close()
 
     def __exit__(self, exc_type, exc_val, traceback):
         self.close()
@@ -161,18 +166,17 @@ class SquirrelsProject:
     
 
     def _get_static_models(self) -> dict[str, m.StaticModel]:
-        settings = self._manifest_cfg.settings_obj
         models_dict: dict[str, m.StaticModel] = {}
 
         seeds_dict = self._seeds.get_dataframes()
         for key, seed in seeds_dict.items():
-            self._add_model(models_dict, m.Seed(key, seed.config, seed.df, logger=self._logger, settings=settings, conn_set=self._conn_set))
+            self._add_model(models_dict, m.Seed(key, seed.config, seed.df, logger=self._logger, env_vars=self._env_vars, conn_set=self._conn_set))
 
         for source_config in self._sources.sources:
-            self._add_model(models_dict, m.SourceModel(source_config.name, source_config, logger=self._logger, settings=settings, conn_set=self._conn_set))
+            self._add_model(models_dict, m.SourceModel(source_config.name, source_config, logger=self._logger, env_vars=self._env_vars, conn_set=self._conn_set))
 
         for name, val in self._build_model_files.items():
-            model = m.BuildModel(name, val.config, val.query_file, logger=self._logger, settings=settings, conn_set=self._conn_set, j2_env=self._j2_env) 
+            model = m.BuildModel(name, val.config, val.query_file, logger=self._logger, env_vars=self._env_vars, conn_set=self._conn_set, j2_env=self._j2_env) 
             self._add_model(models_dict, model)
 
         return models_dict
@@ -195,11 +199,11 @@ class SquirrelsProject:
         models_dict: dict[str, m.DataModel] = {k:v for k, v in self._get_static_models().items()}
         
         for name, val in self._dbview_model_files.items():
-            self._add_model(models_dict, m.DbviewModel(name, val.config, val.query_file, logger=self._logger, settings=self._manifest_cfg.settings_obj, conn_set=self._conn_set, j2_env=self._j2_env))
+            self._add_model(models_dict, m.DbviewModel(name, val.config, val.query_file, logger=self._logger, env_vars=self._env_vars, conn_set=self._conn_set, j2_env=self._j2_env))
             models_dict[name].needs_python_df = always_python_df
         
         for name, val in self._federate_model_files.items():
-            self._add_model(models_dict, m.FederateModel(name, val.config, val.query_file, logger=self._logger, settings=self._manifest_cfg.settings_obj, conn_set=self._conn_set, j2_env=self._j2_env))
+            self._add_model(models_dict, m.FederateModel(name, val.config, val.query_file, logger=self._logger, env_vars=self._env_vars, conn_set=self._conn_set, j2_env=self._j2_env))
             models_dict[name].needs_python_df = always_python_df
         
         dataset_config = self._manifest_cfg.datasets[dataset]
@@ -250,16 +254,16 @@ class SquirrelsProject:
         
         user_attributes = test_set_conf.user_attributes.copy()
         selections = test_set_conf.parameters.copy()
-        username, is_internal = user_attributes.pop("username", ""), user_attributes.pop("is_internal", False)
+        username, is_admin = user_attributes.pop("username", ""), user_attributes.pop("is_admin", False)
         if test_set_conf.is_authenticated:
-            user = User.Create(username, is_internal=is_internal, **user_attributes)
+            user = self._auth.User(username=username, is_admin=is_admin, **user_attributes)
         elif dataset_conf.scope == mf.PermissionScope.PUBLIC:
             user = None
         else:
             raise u.ConfigurationError(f"{error_msg_intro}\n Non-public datasets require a test set with 'user_attributes' section defined")
         
-        if dataset_conf.scope == mf.PermissionScope.PRIVATE and not is_internal:
-            raise u.ConfigurationError(f"{error_msg_intro}\n Private datasets require a test set with user_attribute 'is_internal' set to true")
+        if dataset_conf.scope == mf.PermissionScope.PRIVATE and not is_admin:
+            raise u.ConfigurationError(f"{error_msg_intro}\n Private datasets require a test set with user_attribute 'is_admin' set to true")
 
         # always_python_df is set to True for creating CSV files from results (when runquery is True)
         dag = self._generate_dag(dataset, target_model_name=select, always_python_df=runquery)
@@ -347,9 +351,9 @@ class SquirrelsProject:
             print(queries[0])
             print()
 
-    def _permission_error(self, user: auth.User | None, data_type: str, data_name: str, scope: str) -> PermissionError:
+    def _permission_error(self, user: BaseUser | None, data_type: str, data_name: str, scope: str) -> u.InvalidInputError:
         username = "" if user is None else f" '{user.username}'"
-        return PermissionError(f"User{username} does not have permission to access {scope} {data_type}: {data_name}")
+        return u.InvalidInputError(25, f"User{username} does not have permission to access {scope} {data_type}: {data_name}")
     
     def seed(self, name: str) -> pl.LazyFrame:
         """
@@ -385,7 +389,7 @@ class SquirrelsProject:
         )
     
     async def dataset(
-        self, name: str, *, selections: dict[str, t.Any] = {}, user: auth.User | None = None, require_auth: bool = True
+        self, name: str, *, selections: dict[str, t.Any] = {}, user: BaseUser | None = None, require_auth: bool = True
     ) -> dr.DatasetResult:
         """
         Async method to retrieve a dataset as a DatasetResult object (with metadata) given parameter selections.
@@ -399,7 +403,7 @@ class SquirrelsProject:
             A DatasetResult object containing the dataset result (as a polars DataFrame), its description, and the column details.
         """
         scope = self._manifest_cfg.datasets[name].scope
-        if require_auth and not self._authenticator.can_user_access_scope(user, scope):
+        if require_auth and not self._auth.can_user_access_scope(user, scope):
             raise self._permission_error(user, "dataset", name, scope.name)
         
         dag = self._generate_dag(name)
@@ -411,7 +415,7 @@ class SquirrelsProject:
         )
     
     async def dashboard(
-        self, name: str, *, selections: dict[str, t.Any] = {}, user: auth.User | None = None, dashboard_type: t.Type[T] = dash.Dashboard
+        self, name: str, *, selections: dict[str, t.Any] = {}, user: BaseUser | None = None, dashboard_type: t.Type[T] = dash.Dashboard
     ) -> T:
         """
         Async method to retrieve a dashboard given parameter selections.
@@ -426,7 +430,7 @@ class SquirrelsProject:
             The dashboard type specified by the "dashboard_type" argument.
         """
         scope = self._dashboards[name].config.scope
-        if not self._authenticator.can_user_access_scope(user, scope):
+        if not self._auth.can_user_access_scope(user, scope):
             raise self._permission_error(user, "dashboard", name, scope.name)
         
         async def get_dataset_df(dataset_name: str, fixed_params: dict[str, t.Any]) -> pl.DataFrame:

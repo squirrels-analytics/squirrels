@@ -1,7 +1,7 @@
 from enum import Enum
 from pydantic import BaseModel, Field
 
-from ._manifest import Settings
+from . import _constants as c
 
 
 class ColumnCategory(Enum):
@@ -32,8 +32,8 @@ class SeedConfig(ModelConfig):
 class ConnectionInterface(BaseModel):
     connection: str | None = Field(default=None, description="The connection name of the database view")
 
-    def get_connection(self, settings_obj: Settings) -> str:
-        default_connection_name = settings_obj.get_default_connection_name()
+    def get_connection(self, env_vars: dict[str, str]) -> str:
+        default_connection_name = env_vars.get(c.SQRL_CONNECTIONS_DEFAULT_NAME_USED, "default")
         return self.connection if self.connection is not None else default_connection_name
 
 
