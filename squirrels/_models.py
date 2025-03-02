@@ -9,7 +9,7 @@ import polars as pl, pandas as pd, networkx as nx
 
 from . import _constants as c, _utils as u, _py_module as pm, _model_queries as mq, _model_configs as mc, _sources as src
 from .arguments.run_time_args import ContextArgs, ModelArgs, BuildModelArgs
-from ._authenticator import User
+from ._auth import BaseUser
 from ._connection_set import ConnectionsArgs, ConnectionSet, ConnectionProperties
 from ._manifest import Settings, DatasetConfig
 from ._parameter_sets import ParameterConfigsSet, ParametersArgs, ParameterSet
@@ -41,7 +41,7 @@ class DataModel(metaclass=ABCMeta):
 
     _: KW_ONLY
     logger: u.Logger = field(default_factory=lambda: u.Logger(""))
-    settings: Settings = field(default_factory=lambda: Settings(data={}))
+    env_vars: dict[str, str] = field(default_factory=dict)
     conn_set: ConnectionSet = field(default_factory=ConnectionSet)
 
     @property
@@ -212,7 +212,7 @@ class SourceModel(StaticModel):
         local_conn = conn.cursor()
         try:
             source = self.model_config
-            conn_name = source.get_connection(self.settings)
+            conn_name = source.get_connection(self.env_vars)
             
             connection_props = self.conn_set.get_connection(conn_name)
             if isinstance(connection_props, ConnectionProperties):
@@ -397,7 +397,7 @@ class DbviewModel(QueryModel):
         def source(source_name: str) -> str:
             if source_name not in models_dict or not isinstance(source_model := models_dict[source_name], SourceModel):
                 raise u.ConfigurationError(f'Dbview "{self.name}" references unknown source "{source_name}"')
-            if source_model.model_config.get_connection(self.settings) != self.model_config.get_connection(self.settings):
+            if source_model.model_config.get_connection(self.env_vars) != self.model_config.get_connection(self.env_vars):
                 raise u.ConfigurationError(f'Dbview "{self.name}" references source "{source_name}" with different connection')
             self.model_config.depends_on.add(source_name)
             self.sources[source_name] = source_model.model_config
@@ -442,7 +442,7 @@ class DbviewModel(QueryModel):
         }
         compiled_query = self._get_compiled_sql_query_str(query, kwargs)
 
-        connection_name = self.model_config.get_connection(self.settings)
+        connection_name = self.model_config.get_connection(self.env_vars)
         connection_props = self.conn_set.get_connection(connection_name)
         if isinstance(connection_props, ConnectionProperties):
             kwargs2 = {
@@ -746,7 +746,7 @@ class DAG:
     placeholders: dict[str, Any] = field(init=False, default_factory=dict)
 
     def apply_selections(
-        self, param_cfg_set: ParameterConfigsSet, user: User | None, selections: dict[str, str]
+        self, param_cfg_set: ParameterConfigsSet, user: BaseUser | None, selections: dict[str, str]
     ) -> None:
         start = time.time()
         dataset_params = self.dataset.parameters
@@ -754,7 +754,7 @@ class DAG:
         self.parameter_set = parameter_set
         self.logger.log_activity_time(f"applying selections for dataset '{self.dataset.name}'", start)
     
-    def _compile_context(self, param_args: ParametersArgs, context_func: ContextFunc, user: User | None) -> tuple[dict[str, Any], ContextArgs]:
+    def _compile_context(self, param_args: ParametersArgs, context_func: ContextFunc, user: BaseUser | None) -> tuple[dict[str, Any], ContextArgs]:
         start = time.time()
         context = {}
         assert isinstance(self.parameter_set, ParameterSet)
@@ -804,7 +804,7 @@ class DAG:
             conn.close()
     
     async def execute(
-        self, param_args: ParametersArgs, param_cfg_set: ParameterConfigsSet, context_func: ContextFunc, user: User | None, selections: dict[str, str], 
+        self, param_args: ParametersArgs, param_cfg_set: ParameterConfigsSet, context_func: ContextFunc, user: BaseUser | None, selections: dict[str, str], 
         *, runquery: bool = True, recurse: bool = True
     ) -> dict[str, Any]:
         recurse = (recurse or runquery)

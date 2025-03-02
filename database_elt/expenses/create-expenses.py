@@ -4,7 +4,7 @@ import sqlite3, polars as pl, tqdm, numpy as np
 fake = Faker()
 
 # Define the number of transactions to generate
-num_transactions = 10_000
+num_transactions = 1_000
 batches = 100
 batch_size = num_transactions // batches
 
@@ -19,7 +19,7 @@ for _ in tqdm.tqdm(range(batches)):
     df_current = descriptions_df.sample(batch_size, with_replacement=True, shuffle=True)
     df_current = df_current.with_columns(
         pl.lit(rng.integers(
-            np.datetime64('2000-01-01').astype(int), 
+            np.datetime64('2024-01-01').astype(int), 
             np.datetime64('2025-01-01').astype(int), 
             size=batch_size
         ).astype('datetime64[D]')).alias('date'),

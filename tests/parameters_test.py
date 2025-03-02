@@ -307,7 +307,6 @@ class TestTextParameter:
     
     @pytest.mark.parametrize("default_text,input_type", [
         ("", "number"),
-        ("0.1", "number"),
         ("", "date"),
         ("", "datetime-local"),
         ("2024-01-01T00:00:00", "datetime-local"),

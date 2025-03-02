@@ -9,6 +9,6 @@
 connections:
   - name: default
     type: sqlalchemy                      ## one of: sqlalchemy, connectorx, or adbc
-    uri: {{ env_vars.sqlite_uri }}        ## using Jinja to substitute environment variable from env.yml
+    uri: {{ env_vars.SQLITE_URI }}        ## using Jinja to substitute environment variables
 
 

@@ -8,7 +8,6 @@ from pydantic import BaseModel, Field, field_validator, model_validator, Validat
 import yaml, time
 
 from . import _constants as c, _utils as u
-from ._environcfg import EnvironConfig
 
 
 class ProjectVarsConfig(BaseModel, extra="allow"):
@@ -174,15 +173,12 @@ class DatasetConfig(AnalyticsOutputConfig):
 
 class TestSetsConfig(_ConfigWithNameBaseModel):
     datasets: list[str] | None = None
-    is_authenticated: bool = False
     user_attributes: dict[str, Any] = Field(default_factory=dict)
     parameters: dict[str, Any] = Field(default_factory=dict)
 
-    @model_validator(mode="after")
-    def finalize_is_authenticated(self) -> Self:
-        if len(self.user_attributes) > 0:
-            self.is_authenticated = True
-        return self
+    @property
+    def is_authenticated(self) -> bool:
+        return len(self.user_attributes) > 0
 
 
 class Settings(BaseModel):
@@ -193,7 +189,6 @@ class Settings(BaseModel):
 
 
 class ManifestConfig(BaseModel):
-    env_cfg: EnvironConfig
     project_variables: ProjectVarsConfig
     packages: list[PackageConfig] = Field(default_factory=list)
     connections: dict[str, DbConnConfig] = Field(default_factory=dict)
@@ -202,8 +197,8 @@ class ManifestConfig(BaseModel):
     dbviews: dict[str, DbviewConfig] = Field(default_factory=dict)
     federates: dict[str, FederateConfig] = Field(default_factory=dict)
     datasets: dict[str, DatasetConfig] = Field(default_factory=dict)
-    settings: dict[str, Any] = Field(default_factory=dict)
     base_path: str = "."
+    env_vars: dict[str, str] = Field(default_factory=dict)
 
     @field_validator("packages")
     @classmethod
@@ -237,14 +232,14 @@ class ManifestConfig(BaseModel):
     
     @property
     def settings_obj(self) -> Settings:
-        return Settings(data=self.settings)
+        return Settings(data=self.env_vars)
 
     def get_default_test_set(self, dataset_name: str) -> TestSetsConfig:
         """
         Raises KeyError if dataset name doesn't exist
         """
         default_name_1 = self.datasets[dataset_name].default_test_set
-        default_name_2 = self.settings.get(c.TEST_SET_DEFAULT_USED_SETTING, c.DEFAULT_TEST_SET_NAME)
+        default_name_2 = self.env_vars.get(c.SQRL_TEST_SETS_DEFAULT_NAME_USED, "default")
         default_name = default_name_1 if default_name_1 else default_name_2
         default_test_set = self.selection_test_sets.get(default_name, TestSetsConfig(name=default_name))
         return default_test_set
@@ -260,15 +255,14 @@ class ManifestConfig(BaseModel):
 class ManifestIO:
 
     @classmethod
-    def load_from_file(cls, logger: u.Logger, base_path: str, env_cfg: EnvironConfig) -> ManifestConfig:
+    def load_from_file(cls, logger: u.Logger, base_path: str, env_vars: dict[str, str]) -> ManifestConfig:
         start = time.time()
 
         raw_content = u.read_file(u.Path(base_path, c.MANIFEST_FILE))
-        env_vars = env_cfg.get_all_env_vars()
         content = u.render_string(raw_content, base_path=base_path, env_vars=env_vars)
         manifest_content = yaml.safe_load(content)
         try:
-            manifest_cfg = ManifestConfig(base_path=base_path, env_cfg=env_cfg, **manifest_content)
+            manifest_cfg = ManifestConfig(base_path=base_path, **manifest_content)
         except ValidationError as e:
             raise u.ConfigurationError(f"Failed to process {c.MANIFEST_FILE} file. " + str(e)) from e
         

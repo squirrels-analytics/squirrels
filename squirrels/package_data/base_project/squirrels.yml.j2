@@ -53,7 +53,7 @@ selection_test_sets:
     datasets:                             ## optional section - if not provided, then test set is applicable for any dataset
       - dbview_dataset_example
     parameters:                           ## optional section - if not provided, then assumes no parameters. For unspecified parameters, default value is used
-      start_date: 2023-07-01              ## this parameter only exists for dataset 'dataset_example'
+      start_date: 2024-07-01              ## this parameter only exists for dataset 'dataset_example'
   
   - name: auth_test1
     datasets:
@@ -61,7 +61,7 @@ selection_test_sets:
     user_attributes:                      ## optional section - required if using test set on non-public datasets
       role: employee
     parameters:
-      date_range: [2023-02-01,2023-12-01] ## this parameter only exists for dataset 'protected_dataset_example'
+      date_range: [2024-02-01,2024-12-01] ## this parameter only exists for dataset 'protected_dataset_example'
     
   - name: auth_test2
     user_attributes:
@@ -69,21 +69,3 @@ selection_test_sets:
       role: manager
     parameters:
       group_by: g3                        ## this parameter exists for all datasets. "g3" is the id for option "subcategory"
-
-
-settings: {}
-
-## Default values for settings:
-#   auth.token.expire_minutes: 30
-#   parameters.cache.size: 1024
-#   parameters.cache.ttl_minutes: 60
-#   datasets.cache.size: 128
-#   datasets.cache.ttl_minutes: 60
-#   dashboards.cache.size: 128
-#   dashboards.cache.ttl_minutes: 60
-#   selection_test_sets.default_name_used: default
-#   connections.default_name_used: default
-#   defaults.federates.materialized: view
-#   seeds.infer_schema: True
-#   seeds.na_values: [NA]
-#   duckdb_venv.file_path: target/.venv.duckdb

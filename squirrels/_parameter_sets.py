@@ -9,7 +9,7 @@ from .arguments.init_time_args import ParametersArgs
 from ._manifest import ParametersConfig, ManifestConfig
 from ._connection_set import ConnectionSet, ConnectionsArgs
 from ._seeds import Seeds
-from ._user_base import User
+from ._auth import BaseUser
 
 
 @dataclass
@@ -103,7 +103,7 @@ class ParameterConfigsSet:
         self.__validate_param_relationships()
     
     def apply_selections(
-        self, dataset_params: Optional[Sequence[str]], selections: dict[str, Any], user: Optional[User], *, parent_param: str | None = None
+        self, dataset_params: Optional[Sequence[str]], selections: dict[str, Any], user: BaseUser | None, *, parent_param: str | None = None
     ) -> ParameterSet:
         if dataset_params is None:
             dataset_params = list(self._data.keys())
@@ -185,7 +185,7 @@ class ParameterConfigsSetIO:
         
         pm.run_pyconfig_main(base_path, c.PARAMETERS_FILE, {"sqrl": param_args})
         
-        default_conn_name = manifest_cfg.settings_obj.get_default_connection_name()
+        default_conn_name = manifest_cfg.env_vars.get(c.SQRL_CONNECTIONS_DEFAULT_NAME_USED, "default")
         df_dict = cls._get_df_dict_from_data_sources(default_conn_name, seeds, conn_set)
         cls.obj._post_process_params(df_dict)
         

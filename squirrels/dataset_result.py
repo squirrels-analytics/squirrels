@@ -40,7 +40,7 @@ class DatasetResult(DatasetMetadata):
     def __post_init__(self):
         self.to_json = lru_cache()(self._to_json)
     
-    def _to_json(self, orientation: Literal["records", "columns"], select: tuple[str, ...], limit: int, offset: int) -> dict:
+    def _to_json(self, orientation: Literal["records", "rows", "columns"], select: tuple[str, ...], limit: int, offset: int) -> dict:
         df = self.df.lazy()
         if offset > 0:
             df = df.filter(pl.col("_row_num") > offset)
@@ -49,7 +49,13 @@ class DatasetResult(DatasetMetadata):
         if select:
             df = df.select(select)
         df = df.collect()
-        data = df.to_dict(as_series=False) if orientation == "columns" else df.to_dicts()
+        
+        if orientation == "columns":
+            data = df.to_dict(as_series=False)
+        else:
+            data = df.to_dicts()
+            if orientation == "rows":
+                data = [[row[col] for col in df.columns] for row in data]
 
         column_details_by_name = {col.name: col for col in self.target_model_config.columns}
         fields = []
@@ -72,5 +78,9 @@ class DatasetResult(DatasetMetadata):
                 "fields": fields
             },
             "total_num_rows": self.df.select(pl.len()).item(),
+            "data_details": {
+                "num_rows": df.select(pl.len()).item(),
+                "orientation": orientation
+            },
             "data": data
         }

@@ -2,7 +2,7 @@ from typing import Callable, Any, Coroutine
 import polars as pl
 
 from .init_time_args import _WithConnectionDictArgs, ParametersArgs, BuildModelArgs, ConnectionsArgs
-from .._user_base import User
+from .._auth import BaseUser
 from ..parameters import Parameter, TextValue
 
 
@@ -32,7 +32,7 @@ class ContextArgs(ParametersArgs):
 
     def __init__(
         self, param_args: ParametersArgs, 
-        user: User | None, 
+        user: BaseUser | None, 
         prms: dict[str, Parameter], 
         traits: dict[str, Any], 
         placeholders: dict[str, Any]

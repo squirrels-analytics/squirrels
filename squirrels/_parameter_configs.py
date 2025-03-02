@@ -10,7 +10,7 @@ from pydantic.fields import Field
 import polars as pl, re
 
 from . import parameter_options as _po, parameters as p, data_sources as d, _utils as u, _constants as c
-from ._user_base import User
+from ._auth import BaseUser
 from ._connection_set import ConnectionSet
 from ._seeds import Seeds
 
@@ -67,7 +67,7 @@ class ParameterConfigBase(metaclass=ABCMeta):
         self.user_attribute = user_attribute
         self.parent_name = parent_name
 
-    def _get_user_group(self, user: User | None) -> Any:
+    def _get_user_group(self, user: BaseUser | None) -> Any:
         if self.user_attribute is not None:
             if user is None:
                 raise u.ConfigurationError(f"Non-authenticated users (only allowed for public datasets) cannot use parameter " +
@@ -119,16 +119,16 @@ class ParameterConfig(Generic[ParamOptionType], ParameterConfigBase):
         pass
     
     def _invalid_input_error(self, selection: str, more_details: str = '') -> u.InvalidInputError:
-        return u.InvalidInputError(f'Selected value "{selection}" is not valid for parameter "{self.name}". ' + more_details)
+        return u.InvalidInputError(200, f'Selected value "{selection}" is not valid for parameter "{self.name}". ' + more_details)
     
     @abstractmethod
     def with_selection(
-        self, selection: str | None, user: User | None, parent_param: p._SelectionParameter | None
+        self, selection: str | None, user: BaseUser | None, parent_param: p._SelectionParameter | None
     ) -> p.Parameter:
         pass
     
     def _get_options_iterator(
-        self, all_options: Sequence[ParamOptionType], user: User | None, parent_param: p._SelectionParameter | None
+        self, all_options: Sequence[ParamOptionType], user: BaseUser | None, parent_param: p._SelectionParameter | None
     ) -> Iterator[ParamOptionType]:
         user_group = self._get_user_group(user)
         selected_parent_option_ids = frozenset(parent_param._get_selected_ids_as_list()) if parent_param else None
@@ -164,7 +164,7 @@ class SelectionParameterConfig(ParameterConfig[_po.SelectParameterOption]):
         self.children[child.name] = child
         self.trigger_refresh = True
     
-    def _get_options(self, user: User | None, parent_param: p._SelectionParameter | None) -> Sequence[_po.SelectParameterOption]:
+    def _get_options(self, user: BaseUser | None, parent_param: p._SelectionParameter | None) -> Sequence[_po.SelectParameterOption]:
         return tuple(self._get_options_iterator(self.all_options, user, parent_param))
     
     def _get_default_ids_iterator(self, options: Sequence[_po.SelectParameterOption]) -> Iterator[str]:
@@ -200,7 +200,7 @@ class SingleSelectParameterConfig(SelectionParameterConfig):
         return d.SelectDataSource(*args, **kwargs)
     
     def with_selection(
-        self, selection: str | None, user: User | None, parent_param: p._SelectionParameter | None
+        self, selection: str | None, user: BaseUser | None, parent_param: p._SelectionParameter | None
     ) -> p.SingleSelectParameter:
         options = self._get_options(user, parent_param)
         if selection is None:
@@ -248,7 +248,7 @@ class MultiSelectParameterConfig(SelectionParameterConfig):
         return d.SelectDataSource(*args, **kwargs)
     
     def with_selection(
-        self, selection: str | None, user: User | None, parent_param: p._SelectionParameter | None
+        self, selection: str | None, user: BaseUser | None, parent_param: p._SelectionParameter | None
     ) -> p.MultiSelectParameter:
         options = self._get_options(user, parent_param)
         if selection is None:
@@ -304,7 +304,7 @@ class DateParameterConfig(_DateTypeParameterConfig[_po.DateParameterOption]):
         return d.DateDataSource(*args, **kwargs)
     
     def with_selection(
-        self, selection: str | None, user: User | None, parent_param: p._SelectionParameter | None
+        self, selection: str | None, user: BaseUser | None, parent_param: p._SelectionParameter | None
     ) -> p.DateParameter:
         curr_option: _po.DateParameterOption | None = next(self._get_options_iterator(self.all_options, user, parent_param), None)
         selected_date = curr_option._default_date if selection is None and curr_option is not None else selection
@@ -343,7 +343,7 @@ class DateRangeParameterConfig(_DateTypeParameterConfig[_po.DateRangeParameterOp
         return d.DateRangeDataSource(*args, **kwargs)
     
     def with_selection(
-        self, selection: str | None, user: User | None, parent_param: p._SelectionParameter | None
+        self, selection: str | None, user: BaseUser | None, parent_param: p._SelectionParameter | None
     ) -> p.DateRangeParameter:
         curr_option: _po.DateRangeParameterOption | None = next(self._get_options_iterator(self.all_options, user, parent_param), None)
         if selection is None:
@@ -406,7 +406,7 @@ class NumberParameterConfig(_NumericParameterConfig[_po.NumberParameterOption]):
         return d.NumberDataSource(*args, **kwargs)
     
     def with_selection(
-        self, selection: str | None, user: User | None, parent_param: p._SelectionParameter | None
+        self, selection: str | None, user: BaseUser | None, parent_param: p._SelectionParameter | None
     ) -> p.NumberParameter:
         curr_option: _po.NumberParameterOption | None = next(self._get_options_iterator(self.all_options, user, parent_param), None)
         selected_value = curr_option._default_value if selection is None and curr_option is not None else selection
@@ -445,7 +445,7 @@ class NumberRangeParameterConfig(_NumericParameterConfig[_po.NumberRangeParamete
         return d.NumberRangeDataSource(*args, **kwargs)
     
     def with_selection(
-        self, selection: str | None, user: User | None, parent_param: p._SelectionParameter | None
+        self, selection: str | None, user: BaseUser | None, parent_param: p._SelectionParameter | None
     ) -> p.NumberRangeParameter:
         curr_option: _po.NumberRangeParameterOption | None = next(self._get_options_iterator(self.all_options, user, parent_param), None)
         if selection is None:
@@ -493,9 +493,9 @@ class TextParameterConfig(ParameterConfig[_po.TextParameterOption]):
     def validate_entered_text(self, entered_text: str) -> str:
         if self.input_type == "number":
             try:
-                int(entered_text)
+                float(entered_text)
             except ValueError:
-                raise self._invalid_input_error(entered_text, "Must be an integer (without decimals)")
+                raise self._invalid_input_error(entered_text, "Must be a number")
         elif self.input_type == "date":
             try:
                 datetime.strptime(entered_text, "%Y-%m-%d")
@@ -535,7 +535,7 @@ class TextParameterConfig(ParameterConfig[_po.TextParameterOption]):
         return d.TextDataSource(*args, **kwargs)
     
     def with_selection(
-        self, selection: str | None, user: User | None, parent_param: p._SelectionParameter | None
+        self, selection: str | None, user: BaseUser | None, parent_param: p._SelectionParameter | None
     ) -> p.TextParameter:
         curr_option: _po.TextParameterOption | None = next(self._get_options_iterator(self.all_options, user, parent_param), None)
         entered_text = curr_option._default_text if selection is None and curr_option is not None else selection

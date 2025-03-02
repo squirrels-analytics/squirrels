@@ -14,7 +14,7 @@ from .data_sources import NumberDataSource, NumberRangeDataSource, TextDataSourc
 
 from .dashboards import PngDashboard, HtmlDashboard
 
-from ._user_base import User, WrongPassword
+from ._auth import BaseUser
 
 from ._manifest import ConnectionProperties, ConnectionType
 
