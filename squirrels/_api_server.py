@@ -744,26 +744,16 @@ class ApiServer:
             await self.project.build(stage_file=True)
             return Response(status_code=status.HTTP_200_OK)
         
-        # Squirrels Testing UI
-        static_dir = u.Path(os.path.dirname(__file__), c.PACKAGE_DATA_FOLDER, c.ASSETS_FOLDER)
-        app.mount('/'+c.ASSETS_FOLDER, StaticFiles(directory=static_dir), name=c.ASSETS_FOLDER)
-
-        templates_dir = u.Path(os.path.dirname(__file__), c.PACKAGE_DATA_FOLDER, c.TEMPLATES_FOLDER)
-        templates = Jinja2Templates(directory=templates_dir)
-
-        @app.get('/', summary="Access the Squirrels UI Application", response_class=HTMLResponse)
-        async def get_squirrels_app_ui(request: Request):
-            return templates.TemplateResponse('index.html', {
-                'request': request, 'project_name': project_name, 'project_version': project_version
-            })
-        
-        import uvicorn
+        import uvicorn, urllib.parse
         self.logger.log_activity_time("creating app server", start)
+        full_hostname = f"http://{uvicorn_args.host}:{uvicorn_args.port}"
+        encoded_hostname = urllib.parse.quote(full_hostname, safe="")
+        squirrels_studio_url = f"https://squirrels-analytics.github.io/squirrels-studio/#/login?host={encoded_hostname}&projectName={project_name}&projectVersion={project_version}"
 
         print("\nWelcome to the Squirrels Data Application!\n")
-        print(f"- Application UI: http://{uvicorn_args.host}:{uvicorn_args.port}")
-        print(f"- API Docs (with ReDoc): http://{uvicorn_args.host}:{uvicorn_args.port}{project_metadata_path}/redoc")
-        print(f"- API Docs (with Swagger UI): http://{uvicorn_args.host}:{uvicorn_args.port}{project_metadata_path}/docs")
+        print(f"- Application UI: {squirrels_studio_url}")
+        print(f"- API Docs (with ReDoc): {full_hostname}{project_metadata_path}/redoc")
+        print(f"- API Docs (with Swagger UI): {full_hostname}{project_metadata_path}/docs")
         print()
         
         uvicorn.run(app, host=uvicorn_args.host, port=uvicorn_args.port)

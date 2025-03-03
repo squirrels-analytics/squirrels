@@ -35,8 +35,6 @@ SQRL_DUCKDB_VENV_DB_FILE_PATH = 'SQRL.DUCKDB_VENV.DB_FILE_PATH'
 # Folder/File names
 PACKAGE_DATA_FOLDER = 'package_data'
 BASE_PROJECT_FOLDER = 'base_project'
-ASSETS_FOLDER = 'assets'
-TEMPLATES_FOLDER = 'templates'
 
 GLOBAL_ENV_FOLDER = '.squirrels'
 MANIFEST_JINJA_FILE = 'squirrels.yml.j2'
@@ -46,6 +44,7 @@ DASHBOARDS_YML_FILE = 'dashboards.yml'
 MANIFEST_FILE = 'squirrels.yml'
 DUCKDB_INIT_FILE = 'duckdb_init.sql'
 DOTENV_FILE = '.env'
+DOTENV_LOCAL_FILE = '.env.local'
 
 LOGS_FOLDER = 'logs'
 LOGS_FILE = 'squirrels.log'

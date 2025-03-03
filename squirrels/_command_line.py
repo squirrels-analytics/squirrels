@@ -48,7 +48,8 @@ def main():
     get_file_help_text = "Get a sample file for the squirrels project. If the file name already exists, it will be prefixed with a timestamp."
     get_file_parser = add_subparser(subparsers, c.GET_FILE_CMD, get_file_help_text)
     get_file_subparsers = get_file_parser.add_subparsers(title='file_name', dest='file_name')
-    add_subparser(get_file_subparsers, c.DOTENV_FILE, f'Get sample {c.DOTENV_FILE} files')
+    add_subparser(get_file_subparsers, c.DOTENV_FILE, f'Get sample {c.DOTENV_FILE} file')
+    add_subparser(get_file_subparsers, c.DOTENV_LOCAL_FILE, f'Get sample {c.DOTENV_LOCAL_FILE} and {c.DOTENV_LOCAL_FILE}.example files')
     manifest_parser = add_subparser(get_file_subparsers, c.MANIFEST_FILE, f'Get a sample {c.MANIFEST_FILE} file')
     manifest_parser.add_argument("--no-connections", action='store_true', help=f'Exclude the connections section')
     manifest_parser.add_argument("--parameters", action='store_true', help=f'Include the parameters section')

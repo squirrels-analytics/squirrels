@@ -5,8 +5,9 @@ from jwt.exceptions import InvalidTokenError
 from passlib.context import CryptContext
 from pydantic import BaseModel, ConfigDict, ValidationError
 from pydantic_core import PydanticUndefined
-from sqlalchemy import create_engine, Engine, func, inspect, text, Column, String, Integer, Float, Boolean, ForeignKey, DateTime
-from sqlalchemy.orm import declarative_base, sessionmaker
+from sqlalchemy import create_engine, Engine, func, inspect, text, ForeignKey
+from sqlalchemy import Column, String, Integer, Float, Boolean
+from sqlalchemy.orm import declarative_base, sessionmaker, Mapped, mapped_column
 import jwt, types, typing as _t, uuid
 
 from ._manifest import PermissionScope
@@ -53,10 +54,7 @@ class Authenticator(_t.Generic[User]):
     def __init__(self, logger: u.Logger, base_path: str, env_vars: dict[str, str], *, sa_engine: Engine | None = None, cls: type[User] | None = None):
         self.logger = logger
         self.env_vars = env_vars
-        try:
-            self.secret_key = self.env_vars[c.SQRL_SECRET_KEY]
-        except KeyError:
-            raise u.ConfigurationError(f"Missing required environment variable '{c.SQRL_SECRET_KEY}' in the {c.DOTENV_FILE}.local file")
+        self.secret_key = self.env_vars.get(c.SQRL_SECRET_KEY)
 
         # Create a new declarative base for this instance
         self.Base = declarative_base()
@@ -65,20 +63,20 @@ class Authenticator(_t.Generic[User]):
         class DbBaseUser(self.Base):
             __tablename__ = 'users'
             __table_args__ = {'extend_existing': True}
-            username = Column(String, primary_key=True)
-            is_admin = Column(Boolean, nullable=False, default=False)
-            password_hash = Column(String, nullable=False)
-            created_at = Column(DateTime, nullable=False, server_default=func.now())
+            username: Mapped[str] = mapped_column(primary_key=True)
+            is_admin: Mapped[bool] = mapped_column(nullable=False, default=False)
+            password_hash: Mapped[str] = mapped_column(nullable=False)
+            created_at: Mapped[datetime] = mapped_column(nullable=False, server_default=func.now())
         
         # Define DbAccessToken class for this instance
         class DbAccessToken(self.Base):
             __tablename__ = 'access_tokens'
             
-            token_id = Column(String, primary_key=True, default=lambda: str(uuid.uuid4()))
-            title = Column(String, nullable=False)
-            username = Column(String, ForeignKey('users.username', ondelete='CASCADE'), nullable=False)
-            created_at = Column(DateTime, nullable=False)
-            expires_at = Column(DateTime, nullable=False)
+            token_id: Mapped[str] = mapped_column(primary_key=True, default=lambda: str(uuid.uuid4()))
+            title: Mapped[str] = mapped_column(nullable=False)
+            username: Mapped[str] = mapped_column(ForeignKey('users.username', ondelete='CASCADE'), nullable=False)
+            created_at: Mapped[datetime] = mapped_column(nullable=False)
+            expires_at: Mapped[datetime] = mapped_column(nullable=False)
 
             def __repr__(self):
                 return f"<AccessToken(token_id='{self.token_id}', username='{self.username}')>"
@@ -122,7 +120,7 @@ class Authenticator(_t.Generic[User]):
         attrs = {}
 
         # Iterate over all fields in the User model
-        for field_name, field in self.User.model_fields.items(): # type: ignore
+        for field_name, field in self.User.model_fields.items():
             if field_name in reserved_fields:
                 continue
             if field_name in disallowed_fields:
@@ -218,20 +216,19 @@ class Authenticator(_t.Generic[User]):
                 self.logger.warn(f"The following database columns are not in the User model: {extra_db_columns}\n"
                     "If you want to drop these columns, please use the `dropped_columns` class method of the User model.")
 
-            # Get admin password and hash it
-            try:
-                admin_password = self.env_vars[c.SQRL_SECRET_ADMIN_PASSWORD]
-                password_hash = pwd_context.hash(admin_password)
-            except KeyError:
-                raise u.ConfigurationError(f"Missing required environment variable '{c.SQRL_SECRET_ADMIN_PASSWORD}' in the {c.DOTENV_FILE}.local file")
+            # Get admin password from environment variable if exists
+            admin_password = self.env_vars.get(c.SQRL_SECRET_ADMIN_PASSWORD)
             
-            # Find username "admin". If it does not exist, add it
-            admin_user = session.get(self.DbUser, c.ADMIN_USERNAME)
-            if admin_user is None:
-                admin_user = self.DbUser(username=c.ADMIN_USERNAME, password_hash=password_hash, is_admin=True)
-                session.add(admin_user)
-            else:
-                admin_user.password_hash = password_hash  # type: ignore
+            # If admin password variable exists, find username "admin". If it does not exist, add it
+            if admin_password is not None:
+                password_hash = pwd_context.hash(admin_password)
+                admin_user = session.get(self.DbUser, c.ADMIN_USERNAME)
+                if admin_user is None:
+                    admin_user = self.DbUser(username=c.ADMIN_USERNAME, password_hash=password_hash, is_admin=True)
+                    session.add(admin_user)
+                else:
+                    admin_user.password_hash = password_hash
+            
             session.commit()
 
         finally:
@@ -311,7 +308,7 @@ class Authenticator(_t.Generic[User]):
         session = self.Session()
         try:
             # Query for user by username
-            db_user = session.query(self.DbUser).get(username)
+            db_user = session.get(self.DbUser, username)
             
             if db_user and pwd_context.verify(password, db_user.password_hash):
                 user = self.User.model_validate(db_user)
@@ -325,7 +322,7 @@ class Authenticator(_t.Generic[User]):
     def change_password(self, username: str, old_password: str, new_password: str) -> None:
         session = self.Session()
         try:
-            db_user = session.query(self.DbUser).get(username)
+            db_user = session.get(self.DbUser, username)
             if db_user is None:
                 raise u.InvalidInputError(2, f"User not found")
             
@@ -358,7 +355,7 @@ class Authenticator(_t.Generic[User]):
             return [self.User.model_validate(user) for user in db_users] # type: ignore
         finally:
             session.close()
-
+    
     def create_access_token(self, user: User, expiry_minutes: int | None, *, title: str | None = None) -> tuple[str, datetime]:
         created_at = datetime.now(timezone.utc)
         expire_at = created_at + timedelta(minutes=expiry_minutes) if expiry_minutes is not None else datetime.max
@@ -373,6 +370,8 @@ class Authenticator(_t.Generic[User]):
             finally:
                 session.close()
         
+        if self.secret_key is None:
+            raise u.ConfigurationError(f"Environment variable '{c.SQRL_SECRET_KEY}' is required to create an access token")
         to_encode = {"username": user.username, "token_id": token_id, "exp": expire_at}
         encoded_jwt = jwt.encode(to_encode, self.secret_key, algorithm="HS256")
         return encoded_jwt, expire_at
@@ -381,6 +380,9 @@ class Authenticator(_t.Generic[User]):
         if token is None or token == "":
             return None
         
+        if self.secret_key is None:
+            raise u.ConfigurationError(f"Environment variable '{c.SQRL_SECRET_KEY}' is required to get user from an access token")
+
         try:
             payload: dict = jwt.decode(token, self.secret_key, algorithms=["HS256"])
         except InvalidTokenError:

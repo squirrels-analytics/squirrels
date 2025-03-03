@@ -100,23 +100,20 @@ class Initializer:
         
         self._copy_file(u.Path(c.MANIFEST_FILE), src_folder=TMP_FOLDER)
     
-    def _copy_dotenv_files(self):
-        self._copy_file(u.Path(c.DOTENV_FILE))
-        self._copy_file(u.Path(c.DOTENV_FILE + ".local.example"))
-
-        dotenv_local_filename = c.DOTENV_FILE + ".local"
+    def _copy_dotenv_local_files(self):
         substitutions = {
             "random_secret_key": secrets.token_hex(32),
             "random_admin_password": secrets.token_urlsafe(8),
         }
 
-        dotenv_local_path = u.Path(base_proj_dir, dotenv_local_filename)
+        dotenv_local_path = u.Path(base_proj_dir, c.DOTENV_LOCAL_FILE)
         contents = u.render_string(dotenv_local_path.read_text(), **substitutions)
 
-        output_path = u.Path(base_proj_dir, TMP_FOLDER, dotenv_local_filename)
+        output_path = u.Path(base_proj_dir, TMP_FOLDER, c.DOTENV_LOCAL_FILE)
         output_path.write_text(contents)
 
-        self._copy_file(u.Path(dotenv_local_filename), src_folder=TMP_FOLDER)
+        self._copy_file(u.Path(c.DOTENV_LOCAL_FILE), src_folder=TMP_FOLDER)
+        self._copy_file(u.Path(c.DOTENV_LOCAL_FILE + ".example"))
 
     def init_project(self, args):
         options = ["core", "connections", "parameters", "build", "federate", "dashboard"]
@@ -197,7 +194,8 @@ class Initializer:
 
         dashboards_enabled = get_answer(DASHBOARD, False)
 
-        self._copy_dotenv_files()
+        self._copy_file(u.Path(c.DOTENV_FILE))
+        self._copy_dotenv_local_files()
         self._create_manifest_file(connections_use_yaml, parameters_use_yaml)
         
         self._copy_file(u.Path(".gitignore"))
@@ -244,7 +242,9 @@ class Initializer:
     
     def get_file(self, args):
         if args.file_name == c.DOTENV_FILE:
-            self._copy_dotenv_files()
+            self._copy_file(u.Path(c.DOTENV_FILE))
+        elif args.file_name == c.DOTENV_LOCAL_FILE:
+            self._copy_dotenv_local_files()
         elif args.file_name == c.MANIFEST_FILE:
             self._create_manifest_file(not args.no_connections, args.parameters)
         elif args.file_name in (c.USER_FILE, c.CONNECTIONS_FILE, c.PARAMETERS_FILE, c.CONTEXT_FILE):

@@ -79,7 +79,7 @@ class SquirrelsProject:
     
     @ft.cached_property
     def _env_vars(self) -> dict[str, str]:
-        dotenv_files = [c.DOTENV_FILE, f"{c.DOTENV_FILE}.local"]
+        dotenv_files = [c.DOTENV_FILE, c.DOTENV_LOCAL_FILE]
         dotenv_vars = {}
         for file in dotenv_files:
             dotenv_vars.update({k: v for k, v in dotenv_values(f"{self._filepath}/{file}").items() if v is not None})
