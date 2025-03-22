@@ -1,4 +1,5 @@
 from typing import Sequence, Optional, Union, TypeVar, Callable, Any
+from datetime import datetime
 from pathlib import Path
 import os, time, logging, json, duckdb, polars as pl, yaml
 import jinja2 as j2, jinja2.nodes as j2_nodes
@@ -290,3 +291,7 @@ def run_duckdb_stmt(
     except duckdb.ParserException as e:
         logger.error(f"Failed to run statement: {redacted_stmt}", exc_info=e)
         raise e
+
+
+def get_current_time() -> str:
+    return datetime.now().strftime('%H:%M:%S.%f')[:-3]

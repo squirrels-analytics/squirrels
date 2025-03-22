@@ -11,6 +11,22 @@ from ._project import SquirrelsProject
 from . import _constants as c, _utils as u
 
 
+def _run_duckdb_cli(project: SquirrelsProject):
+    _, target_init_path = u._read_duckdb_init_sql()
+    init_args = f"-init {target_init_path}" if target_init_path else ""
+    command = ['duckdb']
+    if init_args:
+        command.extend(init_args.split())
+    command.extend(['-readonly', project._duckdb_venv_path])
+    print(f'Running command: {" ".join(command)}')
+    try:
+        subprocess.run(command, check=True)
+    except FileNotFoundError:
+        print("DuckDB CLI not found. Please install it from: https://duckdb.org/docs/installation/")
+    except subprocess.CalledProcessError:
+        pass # ignore errors that occured on duckdb shell commands
+
+
 def main():
     """
     Main entry point for the squirrels command line utilities.
@@ -111,14 +127,9 @@ def main():
             elif args.command == c.BUILD_CMD:
                 task = project.build(full_refresh=args.full_refresh, select=args.select, stage_file=args.stage)
                 asyncio.run(task)
+                print()
             elif args.command == c.DUCKDB_CMD:
-                _, target_init_path = u._read_duckdb_init_sql()
-                init_args = f"-init {target_init_path}" if target_init_path else ""
-                command = f'duckdb {init_args} -readonly {project._duckdb_venv_path}'
-                print(f'Running command: {command}')
-                status = os.system(command)
-                if status != 0:
-                    print("Failed to run DuckDB CLI. If the CLI is not installed, please install it from: https://duckdb.org/docs/installation/")
+                _run_duckdb_cli(project)
             elif args.command == c.RUN_CMD:
                 if args.build:
                     task = project.build()

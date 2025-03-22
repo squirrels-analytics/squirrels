@@ -195,7 +195,11 @@ class Seed(StaticModel):
     
     async def build_model(self, conn: duckdb.DuckDBPyConnection, full_refresh: bool, *, is_terminal_node: bool = True) -> None:
         start = time.time()
+
+        print(f"[{u.get_current_time()}] 🔨 BUILDING: seed model '{self.name}'")
         await asyncio.to_thread(self._create_table_from_df, conn, self.result)
+
+        print(f"[{u.get_current_time()}] ✅ FINISHED: seed model '{self.name}'")
         self.logger.log_activity_time(f"building seed model '{self.name}' to venv", start)
 
         await super().build_model(conn, full_refresh)
@@ -268,7 +272,11 @@ class SourceModel(StaticModel):
     async def build_model(self, conn: duckdb.DuckDBPyConnection, full_refresh: bool, *, is_terminal_node: bool = True) -> None:
         if self.model_config.load_to_duckdb:
             start = time.time()
+            print(f"[{u.get_current_time()}] 🔨 BUILDING: source model '{self.name}'")
+
             await asyncio.to_thread(self._build_source_model, conn, full_refresh)
+            
+            print(f"[{u.get_current_time()}] ✅ FINISHED: source model '{self.name}'")
             self.logger.log_activity_time(f"building source model '{self.name}' to venv", start)
 
             await super().build_model(conn, full_refresh)
@@ -739,6 +747,7 @@ class BuildModel(StaticModel, QueryModel):
     
     async def build_model(self, conn: duckdb.DuckDBPyConnection, full_refresh: bool, *, is_terminal_node: bool = False) -> None:
         start = time.time()
+        print(f"[{u.get_current_time()}] 🔨 BUILDING: build model '{self.name}'")
         
         if isinstance(self.compiled_query, mq.SqlModelQuery):
             await self._build_sql_model(self.compiled_query, conn)
@@ -761,6 +770,7 @@ class BuildModel(StaticModel, QueryModel):
         else:
             raise NotImplementedError(f"Query type not supported: {self.query_file.__class__.__name__}")
         
+        print(f"[{u.get_current_time()}] ✅ FINISHED: build model '{self.name}'")
         self.logger.log_activity_time(f"building static build model '{self.name}'", start)
         
         await super().build_model(conn, full_refresh)
@@ -810,12 +820,14 @@ class DAG:
         return terminal_nodes
 
     async def _run_models(self, terminal_nodes: set[str], placeholders: dict = {}) -> None:
+        # create an empty duckdb venv file if it does not exist
         try:
-            # create an empty duckdb venv file if it does not exist
             conn = duckdb.connect(self.duckdb_filepath)
             conn.close()
         except duckdb.IOException as e:
-            pass # unable to create duckdb venv file means it's in use so already exists
+            # unable to create duckdb venv file means it's in use and already exists
+            # do not throw error here since attaching in read-only mode later may still work
+            pass
         
         conn = u.create_duckdb_connection()
         try:
@@ -824,6 +836,7 @@ class DAG:
                 conn.execute(f"ATTACH '{self.duckdb_filepath}' AS venv {read_only}")
             except duckdb.IOException as e:
                 self.logger.warn(f"Unable to attach to duckdb venv file: {self.duckdb_filepath}")
+                raise e
             
             coroutines = []
             for model_name in terminal_nodes:
