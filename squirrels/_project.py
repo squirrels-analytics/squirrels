@@ -5,6 +5,7 @@ import logging as l, matplotlib.pyplot as plt, networkx as nx, polars as pl
 
 from ._auth import Authenticator, BaseUser
 from ._model_builder import ModelBuilder
+from ._exceptions import InvalidInputError, ConfigurationError
 from . import _utils as u, _constants as c, _manifest as mf
 from . import _seeds as s, _connection_set as cs, _models as m, _dashboards_io as d, _parameter_sets as ps
 from . import _model_queries as mq, dashboards as dash, _sources as so, dataset_result as dr
@@ -161,7 +162,7 @@ class SquirrelsProject:
     
     def _add_model(self, models_dict: dict[str, M], model: M) -> None:
         if model.name in models_dict:
-            raise u.ConfigurationError(f"Names across all models (including seeds and sources) must be unique. Model '{model.name}' is duplicated")
+            raise ConfigurationError(f"Names across all models (including seeds and sources) must be unique. Model '{model.name}' is duplicated")
         models_dict[model.name] = model
     
 
@@ -246,13 +247,13 @@ class SquirrelsProject:
         elif test_set is None or test_set == default_test_set_conf.name:
             test_set, test_set_conf = default_test_set_conf.name, default_test_set_conf
         else:
-            raise u.ConfigurationError(f"No test set named '{test_set}' was found when compiling dataset '{dataset}'. The test set must be defined if not default for dataset.")
+            raise ConfigurationError(f"No test set named '{test_set}' was found when compiling dataset '{dataset}'. The test set must be defined if not default for dataset.")
         
         error_msg_intro = f"Cannot compile dataset '{dataset}' with test set '{test_set}'."
         if test_set_conf.datasets is not None and dataset not in test_set_conf.datasets:
-            raise u.ConfigurationError(f"{error_msg_intro}\n Applicable datasets for test set '{test_set}' does not include dataset '{dataset}'.")
+            raise ConfigurationError(f"{error_msg_intro}\n Applicable datasets for test set '{test_set}' does not include dataset '{dataset}'.")
         
-        user_attributes = test_set_conf.user_attributes.copy()
+        user_attributes = test_set_conf.user_attributes.copy() if test_set_conf.user_attributes is not None else {}
         selections = test_set_conf.parameters.copy()
         username, is_admin = user_attributes.pop("username", ""), user_attributes.pop("is_admin", False)
         if test_set_conf.is_authenticated:
@@ -260,10 +261,10 @@ class SquirrelsProject:
         elif dataset_conf.scope == mf.PermissionScope.PUBLIC:
             user = None
         else:
-            raise u.ConfigurationError(f"{error_msg_intro}\n Non-public datasets require a test set with 'user_attributes' section defined")
+            raise ConfigurationError(f"{error_msg_intro}\n Non-public datasets require a test set with 'user_attributes' section defined")
         
         if dataset_conf.scope == mf.PermissionScope.PRIVATE and not is_admin:
-            raise u.ConfigurationError(f"{error_msg_intro}\n Private datasets require a test set with user_attribute 'is_admin' set to true")
+            raise ConfigurationError(f"{error_msg_intro}\n Private datasets require a test set with user_attribute 'is_admin' set to true")
 
         # always_python_df is set to True for creating CSV files from results (when runquery is True)
         dag = self._generate_dag(dataset, target_model_name=select, always_python_df=runquery)
@@ -351,9 +352,9 @@ class SquirrelsProject:
             print(queries[0])
             print()
 
-    def _permission_error(self, user: BaseUser | None, data_type: str, data_name: str, scope: str) -> u.InvalidInputError:
+    def _permission_error(self, user: BaseUser | None, data_type: str, data_name: str, scope: str) -> InvalidInputError:
         username = "" if user is None else f" '{user.username}'"
-        return u.InvalidInputError(25, f"User{username} does not have permission to access {scope} {data_type}: {data_name}")
+        return InvalidInputError(25, f"User{username} does not have permission to access {scope} {data_type}: {data_name}")
     
     def seed(self, name: str) -> pl.LazyFrame:
         """

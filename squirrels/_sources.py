@@ -14,6 +14,7 @@ class UpdateHints(BaseModel):
 class Source(mc.ConnectionInterface, mc.ModelConfig):
     name: str
     table: str | None = Field(default=None)
+    load_to_duckdb: bool = Field(default=True, description="Whether to load the data to DuckDB")
     primary_key: list[str] = Field(default_factory=list)
     update_hints: UpdateHints = Field(default_factory=UpdateHints)
 

@@ -2,6 +2,7 @@ from typing import Type, Optional, Any
 import importlib.util
 
 from . import _constants as c, _utils as u
+from ._exceptions import ConfigurationError, FileExecutionError
 
 
 class PyModule:
@@ -21,7 +22,7 @@ class PyModule:
             spec.loader.exec_module(self.module)
         except FileNotFoundError as e:
             if is_required:
-                raise u.ConfigurationError(f"Required file not found: '{self.filepath}'") from e
+                raise ConfigurationError(f"Required file not found: '{self.filepath}'") from e
             self.module = default_class
     
     def get_func_or_class(self, attr_name: str, *, default_attr: Any = None, is_required: bool = True) -> Any:
@@ -38,7 +39,7 @@ class PyModule:
         """
         func_or_class = getattr(self.module, attr_name, default_attr)
         if func_or_class is None and is_required:
-            raise u.ConfigurationError(f"Module '{self.filepath}' missing required attribute '{attr_name}'")
+            raise ConfigurationError(f"Module '{self.filepath}' missing required attribute '{attr_name}'")
         return func_or_class
 
 
@@ -57,4 +58,4 @@ def run_pyconfig_main(base_path: str, filename: str, kwargs: dict[str, Any] = {}
         try:
             main_function(**kwargs)
         except Exception as e:
-            raise u.FileExecutionError(f'Failed to run python file "{filepath}"', e) from e
+            raise FileExecutionError(f'Failed to run python file "{filepath}"', e) from e

@@ -5,6 +5,8 @@ description: |
 
 connection: default
 
+translate_to_duckdb: true  # optional - default is false - if true, then the model will be translated to duckdb for supported dialects
+
 depends_on:
   - src_transactions
 
@@ -18,7 +20,7 @@ columns:
   
   - name: total_amount
     type: float
-    description: The total amount spent by the group by dimension
+    description: The total amount spent by the group-by dimension
     category: measure
     depends_on:
       - src_transactions.amount

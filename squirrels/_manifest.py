@@ -173,19 +173,12 @@ class DatasetConfig(AnalyticsOutputConfig):
 
 class TestSetsConfig(_ConfigWithNameBaseModel):
     datasets: list[str] | None = None
-    user_attributes: dict[str, Any] = Field(default_factory=dict)
+    user_attributes: dict[str, Any] | None = None
     parameters: dict[str, Any] = Field(default_factory=dict)
 
     @property
     def is_authenticated(self) -> bool:
-        return len(self.user_attributes) > 0
-
-
-class Settings(BaseModel):
-    data: dict[str, Any]
-    
-    def get_default_connection_name(self) -> str:
-        return self.data.get(c.DB_CONN_DEFAULT_USED_SETTING, c.DEFAULT_DB_CONN)
+        return self.user_attributes is not None
 
 
 class ManifestConfig(BaseModel):
@@ -230,10 +223,6 @@ class ManifestConfig(BaseModel):
             conn.finalize_uri(self.base_path)
         return self
     
-    @property
-    def settings_obj(self) -> Settings:
-        return Settings(data=self.env_vars)
-
     def get_default_test_set(self, dataset_name: str) -> TestSetsConfig:
         """
         Raises KeyError if dataset name doesn't exist

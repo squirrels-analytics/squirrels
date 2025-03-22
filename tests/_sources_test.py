@@ -1,6 +1,5 @@
 import pytest
 
-from squirrels._manifest import Settings
 from squirrels._sources import Source, Sources, UpdateHints
 from squirrels._model_configs import ColumnConfig
 from squirrels._utils import ConfigurationError

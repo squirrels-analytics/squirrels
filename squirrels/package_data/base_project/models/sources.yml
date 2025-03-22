@@ -2,6 +2,7 @@ sources:
   - name: src_transactions
     connection: default           # optional - if not provided, will use the connection named "default" or the default connection specified in settings
     table: expenses               # optional - if not provided, will use the "name" field of the source
+    load_to_duckdb: true          # optional - default is true - if false, then other models cannot reference this source (except for dbview models with translate_to_duckdb as false)
 
     # For performance reasons, avoid specifying primary_key for large tables if upserts are not required
     primary_key: [id]             # optional - if not provided, then this is an insert-only table for incremental loads - otherwise, this is an upsert table

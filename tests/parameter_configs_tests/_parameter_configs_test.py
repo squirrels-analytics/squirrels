@@ -4,7 +4,8 @@ from decimal import Decimal
 import pytest, polars as pl
 
 from squirrels import _parameter_configs as _pc, parameters as p, parameter_options as _po, data_sources as ds
-from squirrels import _model_configs as mc, _seeds as s, _utils as u, _auth as a
+from squirrels import _model_configs as mc, _seeds as s, _auth as a
+from squirrels._exceptions import InvalidInputError, ConfigurationError
 
 from tests.parameter_configs_tests.conftest import User
 
@@ -44,7 +45,7 @@ class TestMultiSelectParameterConfig:
         assert param == expected
 
     def test_invalid_with_selection(self, user: a.BaseUser, ms_config_basic: _pc.MultiSelectParameterConfig):
-        with pytest.raises(u.InvalidInputError):
+        with pytest.raises(InvalidInputError):
             ms_config_basic.with_selection('["ms0","ms2"]', user=user, parent_param=None)
 
 
@@ -75,7 +76,7 @@ class TestSingleSelectParameterConfig:
     def test_invalid_with_selection(
         self, user: a.BaseUser, ms_param_basic: p.MultiSelectParameter, ss_config_with_ms_parent: _pc.SingleSelectParameterConfig
     ):
-        with pytest.raises(u.InvalidInputError):
+        with pytest.raises(InvalidInputError):
             ss_config_with_ms_parent.with_selection('ss1', user, ms_param_basic)
 
 
@@ -104,9 +105,9 @@ class TestDateParameterConfig:
         assert param == expected
     
     def test_invalid_with_selection(self, user: a.BaseUser, date_config_with_parent: _pc.DateParameterConfig):
-        with pytest.raises(u.InvalidInputError):
+        with pytest.raises(InvalidInputError):
             date_config_with_parent.with_selection("01-01-2023", user, None)
-        with pytest.raises(u.ConfigurationError):
+        with pytest.raises(ConfigurationError):
             date_config_with_parent.with_selection("2023-01-01", None, None)
 
 
@@ -124,9 +125,9 @@ class TestDateRangeParameterConfig:
         assert param == expected
 
     def test_invalid_with_selection(self, date_range_config: _pc.DateRangeParameterConfig):
-        with pytest.raises(u.InvalidInputError):
+        with pytest.raises(InvalidInputError):
             date_range_config.with_selection("2023-02-01,2023-10-31,2023-11-30", None, None)
-        with pytest.raises(u.InvalidInputError):
+        with pytest.raises(InvalidInputError):
             date_range_config.with_selection("2023-02-01", None, None)
 
 
@@ -138,11 +139,11 @@ class TestNumberParameterConfig:
         assert expected == param
     
     def test_invalid_with_selection(self, ss_param_with_ms_parent: p.SingleSelectParameter, num_config_with_parent: _pc.NumberParameterConfig):
-        with pytest.raises(u.InvalidInputError):
+        with pytest.raises(InvalidInputError):
             num_config_with_parent.with_selection("2.0.0", None, ss_param_with_ms_parent) # not a number
-        with pytest.raises(u.InvalidInputError):
+        with pytest.raises(InvalidInputError):
             num_config_with_parent.with_selection("8", None, ss_param_with_ms_parent) # out of range
-        with pytest.raises(u.InvalidInputError):
+        with pytest.raises(InvalidInputError):
             num_config_with_parent.with_selection("2.3", None, ss_param_with_ms_parent) # not in increment
 
 
@@ -154,11 +155,11 @@ class TestNumberRangeParameterConfig:
         assert param == expected
 
     def test_invalid_with_selection(self, user: a.BaseUser, num_range_config: _pc.NumberRangeParameterConfig):
-        with pytest.raises(u.InvalidInputError):
+        with pytest.raises(InvalidInputError):
             num_range_config.with_selection("10.9", user, None) # only one number
-        with pytest.raises(u.InvalidInputError):
+        with pytest.raises(InvalidInputError):
             num_range_config.with_selection("10.9,12.1,12.5", user, None) # three numbers
-        with pytest.raises(u.InvalidInputError):
+        with pytest.raises(InvalidInputError):
             num_range_config.with_selection("10.9.0,12.1", user, None) # wrong number format
 
 

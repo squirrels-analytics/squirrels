@@ -11,6 +11,22 @@ from ._project import SquirrelsProject
 from . import _constants as c, _utils as u
 
 
+def _run_duckdb_cli(project: SquirrelsProject):
+    _, target_init_path = u._read_duckdb_init_sql()
+    init_args = f"-init {target_init_path}" if target_init_path else ""
+    command = ['duckdb']
+    if init_args:
+        command.extend(init_args.split())
+    command.extend(['-readonly', project._duckdb_venv_path])
+    print(f'Running command: {" ".join(command)}')
+    try:
+        subprocess.run(command, check=True)
+    except FileNotFoundError:
+        print("DuckDB CLI not found. Please install it from: https://duckdb.org/docs/installation/")
+    except subprocess.CalledProcessError:
+        pass # ignore errors that occured on duckdb shell commands
+
+
 def main():
     """
     Main entry point for the squirrels command line utilities.
@@ -48,8 +64,7 @@ def main():
     get_file_help_text = "Get a sample file for the squirrels project. If the file name already exists, it will be prefixed with a timestamp."
     get_file_parser = add_subparser(subparsers, c.GET_FILE_CMD, get_file_help_text)
     get_file_subparsers = get_file_parser.add_subparsers(title='file_name', dest='file_name')
-    add_subparser(get_file_subparsers, c.DOTENV_FILE, f'Get sample {c.DOTENV_FILE} file')
-    add_subparser(get_file_subparsers, c.DOTENV_LOCAL_FILE, f'Get sample {c.DOTENV_LOCAL_FILE} and {c.DOTENV_LOCAL_FILE}.example files')
+    add_subparser(get_file_subparsers, c.DOTENV_FILE, f'Get sample {c.DOTENV_FILE} file and {c.DOTENV_FILE}.example files')
     manifest_parser = add_subparser(get_file_subparsers, c.MANIFEST_FILE, f'Get a sample {c.MANIFEST_FILE} file')
     manifest_parser.add_argument("--no-connections", action='store_true', help=f'Exclude the connections section')
     manifest_parser.add_argument("--parameters", action='store_true', help=f'Include the parameters section')
@@ -89,6 +104,7 @@ def main():
     duckdb_parser = add_subparser(subparsers, c.DUCKDB_CMD, 'Run the duckdb command line tool')
 
     run_parser = add_subparser(subparsers, c.RUN_CMD, 'Run the API server')
+    run_parser.add_argument('--build', action='store_true', help='Build the virtual data environment (with duckdb) first before running the API server')
     run_parser.add_argument('--no-cache', action='store_true', help='Do not cache any api results')
     run_parser.add_argument('--host', type=str, default='127.0.0.1', help="The host to run on")
     run_parser.add_argument('--port', type=int, default=4465, help="The port to run on")
@@ -111,15 +127,13 @@ def main():
             elif args.command == c.BUILD_CMD:
                 task = project.build(full_refresh=args.full_refresh, select=args.select, stage_file=args.stage)
                 asyncio.run(task)
+                print()
             elif args.command == c.DUCKDB_CMD:
-                _, target_init_path = u._read_duckdb_init_sql()
-                init_args = f"-init {target_init_path}" if target_init_path else ""
-                command = f'duckdb {init_args} -readonly {project._duckdb_venv_path}'
-                print(f'Running command: {command}')
-                status = os.system(command)
-                if status != 0:
-                    print("Failed to run DuckDB CLI. If the CLI is not installed, please install it from: https://duckdb.org/docs/installation/")
+                _run_duckdb_cli(project)
             elif args.command == c.RUN_CMD:
+                if args.build:
+                    task = project.build()
+                    asyncio.run(task)
                 server = ApiServer(args.no_cache, project)
                 server.run(args)
             elif args.command == c.COMPILE_CMD:

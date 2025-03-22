@@ -4,4 +4,4 @@ services:
     ports:
       - "4465:4465"
     volumes:
-      - ./env.local:/app/env.local
+      - ./.env:/app/.env

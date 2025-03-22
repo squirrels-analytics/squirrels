@@ -30,7 +30,7 @@ class SeedConfig(ModelConfig):
 
 
 class ConnectionInterface(BaseModel):
-    connection: str | None = Field(default=None, description="The connection name of the database view")
+    connection: str | None = Field(default=None, description="The connection name of the source model / database view")
 
     def get_connection(self, env_vars: dict[str, str]) -> str:
         default_connection_name = env_vars.get(c.SQRL_CONNECTIONS_DEFAULT_NAME_USED, "default")
@@ -57,7 +57,7 @@ class BuildModelConfig(QueryModelConfig):
 
 
 class DbviewModelConfig(ConnectionInterface, QueryModelConfig):
-    pass
+    translate_to_duckdb: bool = Field(default=False, description="Whether to translate the query to DuckDB and use DuckDB tables at runtime")
 
 
 class FederateModelConfig(QueryModelConfig):

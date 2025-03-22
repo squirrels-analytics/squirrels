@@ -1,5 +1,2 @@
 database_elt/
-tests/
-squirrels/package_data/assets/
-squirrels/package_data/templates/
 poetry.lock

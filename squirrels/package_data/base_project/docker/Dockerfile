@@ -10,7 +10,7 @@ RUN apt-get update && apt-get install -y git
 
 RUN pip install --no-cache-dir -r requirements.txt
 
-RUN squirrels deps
+RUN sqrl deps
 
 EXPOSE 4465
-CMD ["squirrels", "run", "--host", "0.0.0.0", "--port", "4465"]
+CMD ["sqrl", "run", "--build", "--host", "0.0.0.0", "--port", "4465"]

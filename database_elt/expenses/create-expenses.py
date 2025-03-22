@@ -1,7 +1,37 @@
-from faker import Faker
-import sqlite3, polars as pl, tqdm, numpy as np
+import sqlite3, random, polars as pl, tqdm, numpy as np
 
-fake = Faker()
+def generate_expense_description(vendors=None, items=None, adjectives=None):
+    """
+    Generates a random expense description.
+
+    Args:
+        categories: A list of expense categories (e.g., ["Groceries", "Dining", "Travel", "Utilities"]).
+        vendors: A list of vendor names (e.g., ["Walmart", "Starbucks", "Amazon", "Gas Station"]).
+        items: A list of items purchased (e.g., ["Milk", "Coffee", "Laptop", "Gas"]).
+        adjectives: A list of adjectives to add variety(e.g., ["Monthly", "Quick", "Online", "Unexpected"]).
+
+    Returns:
+        A randomly generated expense description string.
+    """
+
+    if vendors is None:
+        vendors = ["Vendor A", "Vendor B", "Vendor C", "Vendor D", "Vendor E", "Online Store", "Local Shop", "Restaurant"]
+    if items is None:
+        items = ["Item 1", "Item 2", "Item 3", "Item 4", "Item 5", "Service", "Subscription", "Purchase", "Merchandise", "Goods"]
+    if adjectives is None:
+        adjectives = ["Daily", "Monthly", "Quick", "Online", "Unexpected", "Recurring", "Personal", "Business"]
+
+    description_parts = []
+
+    # Choose a category, vendor, and item
+    adjective = random.choice(adjectives)
+    vendor = random.choice(vendors)
+    item = random.choice(items)
+
+    # Build the description
+    description_parts.append(f"{adjective} {item} - {vendor}")
+
+    return " ".join(description_parts).strip()
 
 # Define the number of transactions to generate
 num_transactions = 1_000
@@ -10,7 +40,7 @@ batch_size = num_transactions // batches
 
 # Generate the data
 descriptions_df = pl.DataFrame({
-    'description': [fake.sentence() for _ in range(10**4)]
+    'description': [generate_expense_description() for _ in range(10**4)]
 })
 
 df_list: list[pl.DataFrame] = []

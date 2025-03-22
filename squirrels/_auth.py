@@ -12,6 +12,7 @@ import jwt, types, typing as _t, uuid
 
 from ._manifest import PermissionScope
 from ._py_module import PyModule
+from ._exceptions import InvalidInputError, ConfigurationError
 from . import _utils as u, _constants as c
 
 pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
@@ -112,7 +113,7 @@ class Authenticator(_t.Generic[User]):
         user_module = PyModule(user_module_path)
         User = user_module.get_func_or_class("User", default_attr=BaseUser)
         if not issubclass(User, BaseUser):
-            raise u.ConfigurationError(f"User class in '{c.USER_FILE}' must inherit from BaseUser")
+            raise ConfigurationError(f"User class in '{c.USER_FILE}' must inherit from BaseUser")
         return User
 
     def _initialize_db_user_model(self, *args) -> type:
@@ -124,7 +125,7 @@ class Authenticator(_t.Generic[User]):
             if field_name in reserved_fields:
                 continue
             if field_name in disallowed_fields:
-                raise u.ConfigurationError(f"Field name '{field_name}' is disallowed in the User model and cannot be used")
+                raise ConfigurationError(f"Field name '{field_name}' is disallowed in the User model and cannot be used")
             
             field_type = field.annotation
             if _t.get_origin(field_type) in (_t.Union, types.UnionType):
@@ -139,11 +140,11 @@ class Authenticator(_t.Generic[User]):
             # Map Python types and default values to SQLAlchemy columns
             default_value = field.default
             if default_value is PydanticUndefined:
-                raise u.ConfigurationError(f"No default value found for field '{field_name}' in User model")
+                raise ConfigurationError(f"No default value found for field '{field_name}' in User model")
             elif not nullable and default_value is None:
-                raise u.ConfigurationError(f"Default value for non-nullable field '{field_name}' was set as None in User model")
+                raise ConfigurationError(f"Default value for non-nullable field '{field_name}' was set as None in User model")
             elif default_value is not None and type(default_value) is not field_type:
-                raise u.ConfigurationError(f"Default value for field '{field_name}' does not match field type in User model")
+                raise ConfigurationError(f"Default value for field '{field_name}' does not match field type in User model")
             
             if field_type == str:
                 col_type = String
@@ -264,15 +265,14 @@ class Authenticator(_t.Generic[User]):
 
         return fields
     
-    def add_user(self, username: str, user_data: dict, *, update_user: bool = False) -> None:
+    def add_user(self, username: str, user_fields: dict, *, update_user: bool = False) -> None:
         session = self.Session()
 
         # Validate the user data
         try:
-            password = user_data.get('password')
-            user_data = self.User(**user_data, username=username).model_dump(mode='json')
+            user_data = self.User(**user_fields, username=username).model_dump(mode='json')
         except ValidationError as e:
-            raise u.InvalidInputError(102, f"Invalid user data for attribute '{e.errors()[0]['loc'][0]}': {e.errors()[0]['msg']}")
+            raise InvalidInputError(102, f"Invalid user field '{e.errors()[0]['loc'][0]}': {e.errors()[0]['msg']}")
 
         # Add a new user
         try:
@@ -280,18 +280,19 @@ class Authenticator(_t.Generic[User]):
             existing_user = session.get(self.DbUser, username)
             if existing_user is not None:
                 if not update_user:
-                    raise u.InvalidInputError(101, f"User '{username}' already exists")
+                    raise InvalidInputError(101, f"User '{username}' already exists")
                 
                 if username == c.ADMIN_USERNAME:
-                    raise u.InvalidInputError(24, "Changing the admin user is not permitted")
+                    raise InvalidInputError(24, "Changing the admin user is not permitted")
                 new_user = self.DbUser(password_hash=existing_user.password_hash, **user_data)
                 session.delete(existing_user)
             else:
                 if update_user:
-                    raise u.InvalidInputError(41, f"No user found for username: {username}")
+                    raise InvalidInputError(41, f"No user found for username: {username}")
                 
+                password = user_fields.get('password')
                 if password is None:
-                    raise u.InvalidInputError(100, f"Missing required field 'password' when adding a new user")
+                    raise InvalidInputError(100, f"Missing required field 'password' when adding a new user")
                 password_hash = pwd_context.hash(password)
                 new_user = self.DbUser(password_hash=password_hash, **user_data)
             
@@ -314,7 +315,7 @@ class Authenticator(_t.Generic[User]):
                 user = self.User.model_validate(db_user)
                 return user # type: ignore
             else:
-                raise u.InvalidInputError(0, f"Username or password not found")
+                raise InvalidInputError(0, f"Username or password not found")
 
         finally:
             session.close()
@@ -324,25 +325,25 @@ class Authenticator(_t.Generic[User]):
         try:
             db_user = session.get(self.DbUser, username)
             if db_user is None:
-                raise u.InvalidInputError(2, f"User not found")
+                raise InvalidInputError(2, f"User not found")
             
             if pwd_context.verify(old_password, db_user.password_hash):
                 db_user.password_hash = pwd_context.hash(new_password)
                 session.commit()
             else:
-                raise u.InvalidInputError(3, f"Incorrect password")
+                raise InvalidInputError(3, f"Incorrect password")
         finally:
             session.close()
 
     def delete_user(self, username: str) -> None:
         if username == c.ADMIN_USERNAME:
-            raise u.InvalidInputError(23, "Cannot delete the admin user")
+            raise InvalidInputError(23, "Cannot delete the admin user")
         
         session = self.Session()
         try:
             db_user = session.get(self.DbUser, username)
             if db_user is None:
-                raise u.InvalidInputError(41, f"No user found for username: {username}")
+                raise InvalidInputError(41, f"No user found for username: {username}")
             session.delete(db_user)
             session.commit()
         finally:
@@ -371,7 +372,7 @@ class Authenticator(_t.Generic[User]):
                 session.close()
         
         if self.secret_key is None:
-            raise u.ConfigurationError(f"Environment variable '{c.SQRL_SECRET_KEY}' is required to create an access token")
+            raise ConfigurationError(f"Environment variable '{c.SQRL_SECRET_KEY}' is required to create an access token")
         to_encode = {"username": user.username, "token_id": token_id, "exp": expire_at}
         encoded_jwt = jwt.encode(to_encode, self.secret_key, algorithm="HS256")
         return encoded_jwt, expire_at
@@ -381,12 +382,12 @@ class Authenticator(_t.Generic[User]):
             return None
         
         if self.secret_key is None:
-            raise u.ConfigurationError(f"Environment variable '{c.SQRL_SECRET_KEY}' is required to get user from an access token")
+            raise ConfigurationError(f"Environment variable '{c.SQRL_SECRET_KEY}' is required to get user from an access token")
 
         try:
             payload: dict = jwt.decode(token, self.secret_key, algorithms=["HS256"])
         except InvalidTokenError:
-            raise u.InvalidInputError(1, "Invalid authorization token")
+            raise InvalidInputError(1, "Invalid authorization token")
         
         session = self.Session()
         try:
@@ -397,11 +398,11 @@ class Authenticator(_t.Generic[User]):
                     self.DbAccessToken.expires_at >= func.now()
                 ).first()
                 if access_token is None:
-                    raise u.InvalidInputError(1, "Invalid authorization token")
+                    raise InvalidInputError(1, "Invalid authorization token")
             
             db_user = session.get(self.DbUser, payload["username"])
             if db_user is None:
-                raise u.InvalidInputError(1, "Invalid authorization token")
+                raise InvalidInputError(1, "Invalid authorization token")
         finally:
             session.close()
         
@@ -429,7 +430,7 @@ class Authenticator(_t.Generic[User]):
             ).first()
             
             if access_token is None:
-                raise u.InvalidInputError(40, f"No access token found for token_id: {token_id}")
+                raise InvalidInputError(40, f"No access token found for token_id: {token_id}")
             
             session.delete(access_token)
             session.commit()
