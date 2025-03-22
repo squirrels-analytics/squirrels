@@ -2,6 +2,7 @@ from dataclasses import dataclass, field
 import asyncio, shutil, duckdb, time
 
 from . import _utils as u, _connection_set as cs, _models as m
+from ._exceptions import InvalidInputError
 
 
 @dataclass
@@ -66,7 +67,12 @@ class ModelBuilder:
         # Delete any existing DuckDB file if full refresh is requested
         duckdb_dev_path = u.Path(self._duckdb_venv_path + ".dev")
         duckdb_stg_path = u.Path(self._duckdb_venv_path + ".stg")
+
+        # If a development copy already exists, a concurrent build is not allowed
+        if duckdb_dev_path.exists():
+            raise InvalidInputError(60, "An existing build process is already running and a concurrent build is not allowed")
         
+        # If not full refresh, create a development copy of the existing virtual data environment
         if not full_refresh:
             if duckdb_stg_path.exists():
                 duckdb_stg_path.replace(duckdb_dev_path)

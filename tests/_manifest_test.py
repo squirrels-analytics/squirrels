@@ -150,7 +150,7 @@ class TestTestSetsConfig:
     @pytest.mark.parametrize("fixture,expected", [
         ("test_sets_config1", False),
         ("test_sets_config2", True),
-        ("test_sets_config3", False),
+        ("test_sets_config3", True),
     ])
     def test_is_authenticated(self, fixture: str, expected: bool, request: pytest.FixtureRequest):
         test_sets: m.TestSetsConfig = request.getfixturevalue(fixture)

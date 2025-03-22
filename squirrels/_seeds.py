@@ -10,16 +10,14 @@ class Seed:
     df: pl.LazyFrame
 
     def __post_init__(self):
-        if not self.config.cast_column_types:
-            return
-        
-        exprs = []
-        for col_config in self.config.columns:
-            sqrl_dtype = "double" if col_config.type.lower().startswith("decimal") else col_config.type
-            polars_dtype = u.sqrl_dtypes_to_polars_dtypes.get(sqrl_dtype, pl.String)
-            exprs.append(pl.col(col_config.name).cast(polars_dtype))
+        if self.config.cast_column_types:
+            exprs = []
+            for col_config in self.config.columns:
+                sqrl_dtype = "double" if col_config.type.lower().startswith("decimal") else col_config.type
+                polars_dtype = u.sqrl_dtypes_to_polars_dtypes.get(sqrl_dtype, pl.String)
+                exprs.append(pl.col(col_config.name).cast(polars_dtype))
 
-        self.df = self.df.with_columns(*exprs)
+            self.df = self.df.with_columns(*exprs)
 
 
 @dataclass
@@ -39,8 +37,8 @@ class SeedsIO:
     @classmethod
     def load_files(cls, logger: u.Logger, base_path: str, env_vars: dict[str, str]) -> Seeds:
         start = time.time()
-        infer_schema_setting: bool = (env_vars.get(c.SEEDS_INFER_SCHEMA_SETTING, "true").lower() == "true")
-        na_values_setting: list[str] = json.loads(env_vars.get(c.SEEDS_NA_VALUES_SETTING, "[]"))
+        infer_schema_setting: bool = (env_vars.get(c.SQRL_SEEDS_INFER_SCHEMA, "true").lower() == "true")
+        na_values_setting: list[str] = json.loads(env_vars.get(c.SQRL_SEEDS_NA_VALUES, "[]"))
         
         seeds_dict = {}
         csv_files = glob.glob(os.path.join(base_path, c.SEEDS_FOLDER, '**/*.csv'), recursive=True)

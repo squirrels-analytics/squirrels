@@ -4,7 +4,8 @@ from enum import Enum
 
 from squirrels._auth import Authenticator, BaseUser
 from squirrels._manifest import PermissionScope
-from squirrels import _utils as u
+from squirrels._exceptions import InvalidInputError
+from squirrels import _utils as u, _constants as c
 
 # Test User model with custom fields
 class RoleEnum(str, Enum):
@@ -20,8 +21,8 @@ class User(BaseUser):
 @pytest.fixture(scope="module")
 def env_vars():
     return {
-        "SQRL.SECRET.KEY": "test_secret_key",
-        "SQRL.SECRET.ADMIN_PASSWORD": "admin_password"
+        c.SQRL_SECRET_KEY: "test_secret_key",
+        c.SQRL_SECRET_ADMIN_PASSWORD: "admin_password"
     }
 
 @pytest.fixture(scope="function")
@@ -59,7 +60,7 @@ def test_add_and_get_user(auth: Authenticator[User]):
     assert user.is_admin == False
 
     # Try getting user with wrong password
-    with pytest.raises(u.InvalidInputError):
+    with pytest.raises(InvalidInputError):
         auth.get_user("testuser", "wrongpassword")
 
 def test_change_password(auth: Authenticator[User]):
@@ -73,7 +74,7 @@ def test_change_password(auth: Authenticator[User]):
     auth.change_password("pwduser", "oldpassword", "newpassword")
 
     # Old password should fail
-    with pytest.raises(u.InvalidInputError):
+    with pytest.raises(InvalidInputError):
         auth.get_user("pwduser", "oldpassword")
 
     # New password should work
@@ -160,6 +161,6 @@ def test_expired_token(auth: Authenticator[User]):
     token, _ = auth.create_access_token(user, -1)
 
     # Verify token is invalid
-    with pytest.raises(u.InvalidInputError):
+    with pytest.raises(InvalidInputError):
         auth.get_user_from_token(token)
     

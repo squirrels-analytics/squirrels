@@ -1,5 +1,5 @@
 from __future__ import annotations
-from typing import Generic, TypeVar, Annotated, Type, Sequence, Iterator, Any, Literal
+from typing import Generic, TypeVar, Annotated, Type, Sequence, Iterator, Any
 from typing_extensions import Self
 from datetime import datetime
 from dataclasses import dataclass, field
@@ -10,6 +10,7 @@ from pydantic.fields import Field
 import polars as pl, re
 
 from . import parameter_options as _po, parameters as p, data_sources as d, _utils as u, _constants as c
+from ._exceptions import InvalidInputError
 from ._auth import BaseUser
 from ._connection_set import ConnectionSet
 from ._seeds import Seeds
@@ -118,8 +119,8 @@ class ParameterConfig(Generic[ParamOptionType], ParameterConfigBase):
     def DataSource(*args, **kwargs) -> d.DataSource:
         pass
     
-    def _invalid_input_error(self, selection: str, more_details: str = '') -> u.InvalidInputError:
-        return u.InvalidInputError(200, f'Selected value "{selection}" is not valid for parameter "{self.name}". ' + more_details)
+    def _invalid_input_error(self, selection: str, more_details: str = '') -> InvalidInputError:
+        return InvalidInputError(200, f'Selected value "{selection}" is not valid for parameter "{self.name}". ' + more_details)
     
     @abstractmethod
     def with_selection(
@@ -313,7 +314,7 @@ class DateParameterConfig(_DateTypeParameterConfig[_po.DateParameterOption]):
     def get_api_field_info(self) -> APIParamFieldInfo:
         examples = [str(x._default_date) for x in self.all_options]
         return APIParamFieldInfo(
-            self.name, str, title=self.label, description=self.description, examples=examples, pattern=c.date_regex
+            self.name, str, title=self.label, description=self.description, examples=examples, pattern=c.DATE_REGEX
         )
 
 
@@ -517,7 +518,7 @@ class TextParameterConfig(ParameterConfig[_po.TextParameterOption]):
             except ValueError:
                 raise self._invalid_input_error(entered_text, "Must be a time in hh:mm format.")
         elif self.input_type == "color":
-            if not re.match(c.color_regex, entered_text):
+            if not re.match(c.COLOR_REGEX, entered_text):
                 raise self._invalid_input_error(entered_text, "Must be a valid color hex code (e.g. #000000).")
         
         return entered_text

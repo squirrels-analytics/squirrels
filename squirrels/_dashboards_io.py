@@ -7,6 +7,7 @@ import os, time
 from .arguments.run_time_args import DashboardArgs
 from ._py_module import PyModule
 from ._manifest import AnalyticsOutputConfig
+from ._exceptions import InvalidInputError, ConfigurationError, FileExecutionError
 from . import _constants as c, _utils as u, dashboards as d
 
 T = TypeVar('T', bound=d.Dashboard)
@@ -46,10 +47,10 @@ class DashboardDefinition:
         try:
             dashboard = await self.dashboard_func(args)
             assert isinstance(dashboard, dashboard_type), f"Function does not return expected Dashboard type: {dashboard_type}"
-        except (u.InvalidInputError, u.ConfigurationError, u.FileExecutionError) as e:
+        except (InvalidInputError, ConfigurationError, FileExecutionError) as e:
             raise e
         except Exception as e:
-            raise u.FileExecutionError(f'Failed to run "{c.MAIN_FUNC}" function for dashboard "{self.dashboard_name}"', e) from e
+            raise FileExecutionError(f'Failed to run "{c.MAIN_FUNC}" function for dashboard "{self.dashboard_name}"', e) from e
 
         return dashboard
 

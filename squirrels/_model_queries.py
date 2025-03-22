@@ -45,6 +45,7 @@ class WorkInProgress(Query):
 @dataclass
 class SqlModelQuery(Query):
     query: str
+    is_duckdb: bool
 
 @dataclass
 class PyModelQuery(Query):

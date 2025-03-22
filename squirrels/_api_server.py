@@ -1,9 +1,7 @@
 from typing import Coroutine, Mapping, Callable, TypeVar, Annotated, Any
 from dataclasses import make_dataclass, asdict
-from fastapi import Depends, FastAPI, Request, HTTPException, Response, status, Query
-from fastapi.responses import HTMLResponse, JSONResponse
-from fastapi.templating import Jinja2Templates
-from fastapi.staticfiles import StaticFiles
+from fastapi import Depends, FastAPI, Request, Response, status
+from fastapi.responses import HTMLResponse, JSONResponse, RedirectResponse
 from fastapi.security import OAuth2PasswordBearer, OAuth2PasswordRequestForm
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import create_model, BaseModel, Field
@@ -11,10 +9,10 @@ from contextlib import asynccontextmanager
 from cachetools import TTLCache
 from argparse import Namespace
 from pathlib import Path
-import os, io, time, mimetypes, traceback, uuid
-import asyncio
+import io, time, mimetypes, traceback, uuid, asyncio, urllib.parse
 
 from . import _constants as c, _utils as u, _api_response_models as arm
+from ._exceptions import InvalidInputError, ConfigurationError, FileExecutionError
 from ._version import sq_major_version
 from ._manifest import PermissionScope
 from ._auth import BaseUser, AccessToken, UserField
@@ -83,7 +81,7 @@ class ApiServer:
     def _validate_request_params(self, all_request_params: Mapping, params: Mapping) -> None:
         invalid_params = [param for param in all_request_params if param not in params]
         if params.get("x_verify_params", False) and invalid_params:
-            raise u.InvalidInputError(201, f"Invalid query parameters: {', '.join(invalid_params)}")
+            raise InvalidInputError(201, f"Invalid query parameters: {', '.join(invalid_params)}")
         
     
     def run(self, uvicorn_args: Namespace) -> None:
@@ -169,26 +167,31 @@ class ApiServer:
             try:
                 await _log_request_run(request)
                 return await call_next(request)
-            except u.InvalidInputError as exc:
+            except InvalidInputError as exc:
                 traceback.print_exc(file=buffer)
+                message = str(exc)
                 if exc.error_code < 20:
                     status_code = status.HTTP_401_UNAUTHORIZED
                 elif exc.error_code < 40:
                     status_code = status.HTTP_403_FORBIDDEN
-                elif exc.error_code < 100:
+                elif exc.error_code < 60:
                     status_code = status.HTTP_404_NOT_FOUND
+                elif exc.error_code < 70:
+                    if exc.error_code == 61:
+                        message = "The dataset depends on static data models that cannot be found. You may need to build the virtual data environment first."
+                    status_code = status.HTTP_409_CONFLICT
                 else:
                     status_code = status.HTTP_400_BAD_REQUEST
                 response = JSONResponse(
-                    status_code=status_code, content={"message": str(exc), "blame": "API client", "error_code": exc.error_code}
+                    status_code=status_code, content={"message": message, "blame": "API client", "error_code": exc.error_code}
                 )
-            except u.FileExecutionError as exc:
+            except FileExecutionError as exc:
                 traceback.print_exception(exc.error, file=buffer)
                 buffer.write(str(exc))
                 response = JSONResponse(
                     status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, content={"message": f"An unexpected error occurred", "blame": "Squirrels project"}
                 )
-            except u.ConfigurationError as exc:
+            except ConfigurationError as exc:
                 traceback.print_exc(file=buffer)
                 response = JSONResponse(
                     status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, content={"message": f"An unexpected error occurred", "blame": "Squirrels project"}
@@ -285,7 +288,7 @@ class ApiServer:
         try:
             expiry_mins = int(expiry_mins)
         except ValueError:
-            raise u.ConfigurationError(f"Value for environment variable {c.SQRL_AUTH_TOKEN_EXPIRE_MINUTES} is not an integer, got: {expiry_mins}")
+            raise ConfigurationError(f"Value for environment variable {c.SQRL_AUTH_TOKEN_EXPIRE_MINUTES} is not an integer, got: {expiry_mins}")
         
         # Project Metadata API
         
@@ -329,7 +332,7 @@ class ApiServer:
         @app.put(change_password_path, description="Change the password for the current user", tags=["Authentication"])
         async def change_password(request: ChangePasswordRequest, user: BaseUser | None = Depends(get_current_user)) -> None:
             if user is None:
-                raise u.InvalidInputError(1, "Invalid authorization token")
+                raise InvalidInputError(1, "Invalid authorization token")
             self.authenticator.change_password(user.username, request.old_password, request.new_password)
 
         ## Token API
@@ -345,7 +348,7 @@ class ApiServer:
         @app.post(tokens_path, description="Create a new token for the user", tags=["Authentication"])
         async def create_token(body: TokenRequestBody, user: BaseUser | None = Depends(get_current_user)) -> arm.LoginReponse:
             if user is None:
-                raise u.InvalidInputError(1, "Invalid authorization token")
+                raise InvalidInputError(1, "Invalid authorization token")
             
             if body.title is None:
                 expiry_minutes = expiry_mins
@@ -359,7 +362,7 @@ class ApiServer:
         @app.get(tokens_path, description="Get all tokens with title for the current user", tags=["Authentication"])
         async def get_all_tokens(user: BaseUser | None = Depends(get_current_user)) -> list[AccessToken]:
             if user is None:
-                raise u.InvalidInputError(1, "Invalid authorization token")
+                raise InvalidInputError(1, "Invalid authorization token")
             return self.authenticator.get_all_tokens(user.username)
         
         ## Revoke Token API
@@ -368,7 +371,7 @@ class ApiServer:
         @app.delete(revoke_token_path, description="Revoke a token", tags=["Authentication"])
         async def revoke_token(token_id: str, user: BaseUser | None = Depends(get_current_user)) -> None:
             if user is None:
-                raise u.InvalidInputError(1, "Invalid authorization token")
+                raise InvalidInputError(1, "Invalid authorization token")
             self.authenticator.revoke_token(user.username, token_id)
         
         # User Management
@@ -404,7 +407,7 @@ class ApiServer:
             new_user: AddUserRequestBody, user: BaseUser | None = Depends(get_current_user)
         ) -> None:
             if user is None or not user.is_admin:
-                raise u.InvalidInputError(20, "Authorized user is forbidden to add new users")
+                raise InvalidInputError(20, "Authorized user is forbidden to add new users")
             self.authenticator.add_user(new_user.username, new_user.model_dump(mode='json', exclude={"username"}))
 
         ## Update User API
@@ -415,7 +418,7 @@ class ApiServer:
             username: str, updated_user: UserWithoutUsername, user: BaseUser | None = Depends(get_current_user)
         ) -> None:
             if user is None or not user.is_admin:
-                raise u.InvalidInputError(20, "Authorized user is forbidden to update users")
+                raise InvalidInputError(20, "Authorized user is forbidden to update users")
             self.authenticator.add_user(username, updated_user.model_dump(mode='json'), update_user=True)
 
         ## List Users API
@@ -431,9 +434,9 @@ class ApiServer:
         @app.delete(delete_user_path, tags=["User Management"])
         async def delete_user(username: str, user: BaseUser | None = Depends(get_current_user)) -> None:
             if user is None or not user.is_admin:
-                raise u.InvalidInputError(21, "Authorized user is forbidden to delete users")
+                raise InvalidInputError(21, "Authorized user is forbidden to delete users")
             if username == user.username:
-                raise u.InvalidInputError(22, "Cannot delete your own user")
+                raise InvalidInputError(22, "Cannot delete your own user")
             self.authenticator.delete_user(username)
         
         # Data Catalog API
@@ -470,7 +473,7 @@ class ApiServer:
                     try:
                         dashboard_format = self.dashboards[name].get_dashboard_format()
                     except KeyError:
-                        raise u.ConfigurationError(f"No dashboard file found for: {name}")
+                        raise ConfigurationError(f"No dashboard file found for: {name}")
                     
                     parameters = self.param_cfg_set.apply_selections(config.parameters, {}, user)
                     parameters_model = parameters.to_api_response_model0()
@@ -500,7 +503,7 @@ class ApiServer:
             selections_dict = dict(selections)
             if "x_parent_param" not in selections_dict:
                 if len(selections_dict) > 1:
-                    raise u.InvalidInputError(202, f"The parameters endpoint takes at most 1 widget parameter selection (unless x_parent_param is provided). Got {selections_dict}")
+                    raise InvalidInputError(202, f"The parameters endpoint takes at most 1 widget parameter selection (unless x_parent_param is provided). Got {selections_dict}")
                 elif len(selections_dict) == 1:
                     parent_param = next(iter(selections_dict))
                     selections_dict["x_parent_param"] = parent_param
@@ -541,7 +544,7 @@ class ApiServer:
             for param in parameters:
                 if param not in param_fields:
                     all_params = list(param_fields.keys())
-                    raise u.ConfigurationError(
+                    raise ConfigurationError(
                         f"{entity_type} '{dataset_name}' use parameter '{param}' which doesn't exist. Available parameters are:"
                         f"\n  {all_params}"
                     )
@@ -740,20 +743,27 @@ class ApiServer:
         @app.post(project_metadata_path + '/build', tags=["Data Management"], summary="Build or update the virtual data environment for the project")
         async def build(request: Request, user: BaseUser | None = Depends(get_current_user)): # type: ignore
             if not self.authenticator.can_user_access_scope(user, PermissionScope.PRIVATE):
-                raise u.InvalidInputError(26, f"User '{user}' does not have permission to build the virtual data environment")
+                raise InvalidInputError(26, f"User '{user}' does not have permission to build the virtual data environment")
             await self.project.build(stage_file=True)
             return Response(status_code=status.HTTP_200_OK)
         
-        import uvicorn, urllib.parse
-        self.logger.log_activity_time("creating app server", start)
+        # Add Root Path Redirection to Squirrels Studio
         full_hostname = f"http://{uvicorn_args.host}:{uvicorn_args.port}"
         encoded_hostname = urllib.parse.quote(full_hostname, safe="")
         squirrels_studio_url = f"https://squirrels-analytics.github.io/squirrels-studio/#/login?host={encoded_hostname}&projectName={project_name}&projectVersion={project_version}"
 
+        @app.get("/", include_in_schema=False)
+        async def redirect_to_studio():
+            return RedirectResponse(url=squirrels_studio_url)
+        
+        # Run the API Server
+        import uvicorn
+        
         print("\nWelcome to the Squirrels Data Application!\n")
         print(f"- Application UI: {squirrels_studio_url}")
         print(f"- API Docs (with ReDoc): {full_hostname}{project_metadata_path}/redoc")
         print(f"- API Docs (with Swagger UI): {full_hostname}{project_metadata_path}/docs")
         print()
         
+        self.logger.log_activity_time("creating app server", start)
         uvicorn.run(app, host=uvicorn_args.host, port=uvicorn_args.port)

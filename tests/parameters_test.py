@@ -4,6 +4,7 @@ from decimal import Decimal
 import pytest
 
 from squirrels import parameters as p, parameter_options as _po, _parameter_configs as _pc, _utils as u
+from squirrels._exceptions import InvalidInputError, ConfigurationError
 
 
 class TestSingleSelectParameter:
@@ -23,7 +24,7 @@ class TestSingleSelectParameter:
     def test_invalid_init(self, config1: _pc.SingleSelectParameterConfig):
         with pytest.raises(AssertionError):
             p.SingleSelectParameter(config1, config1.all_options, None)
-        with pytest.raises(u.InvalidInputError):
+        with pytest.raises(InvalidInputError):
             p.SingleSelectParameter(config1, config1.all_options, 'wrong_id')
 
     def test_get_selected(self, param1: p.SingleSelectParameter):
@@ -86,7 +87,7 @@ class TestMultiSelectParameter:
         return p.MultiSelectParameter(config, config.all_options, [])
     
     def test_invalid_init(self, config1: _pc.MultiSelectParameterConfig):
-        with pytest.raises(u.InvalidInputError):
+        with pytest.raises(InvalidInputError):
             p.MultiSelectParameter(config1, config1.all_options, "wrong_id")
     
     def test_get_selected1(self, param1: p.MultiSelectParameter):
@@ -113,7 +114,7 @@ class TestMultiSelectParameter:
         assert param1.get_selected_list("field1") == ("y", "n")
         assert param1.get_selected_list("field2", default_field="field0", default="h") == ("z", "m")
         assert param1.get_selected_list("field2", default="h") == ("z", "h")
-        with pytest.raises(u.ConfigurationError):
+        with pytest.raises(ConfigurationError):
             param1.get_selected_list("field2")
 
     def test_to_json_dict(self, param1: p.MultiSelectParameter):
@@ -146,7 +147,7 @@ class TestDateParameter:
         return p.DateParameter(config1, config1.all_options[0], date(2021,1,1))
     
     def test_invalid_init(self, config1: _pc.DateParameterConfig):
-        with pytest.raises(u.InvalidInputError):
+        with pytest.raises(InvalidInputError):
             p.DateParameter(config1, config1.all_options[0], date(2019,1,1))
     
     def test_get_selected1(self, param1: p.DateParameter):
@@ -204,7 +205,7 @@ class TestNumberParameter:
         return p.NumberParameter(config1, config1.all_options[0], Decimal("4.5"))
     
     def test_invalid_init(self, config1: _pc.NumberParameterConfig):
-        with pytest.raises(u.InvalidInputError):
+        with pytest.raises(InvalidInputError):
             p.NumberParameter(config1, config1.all_options[0], Decimal("4.6"))
     
     def test_get_selected(self, param1: p.NumberParameter):
@@ -235,7 +236,7 @@ class TestNumberRangeParameter:
         return p.NumberRangeParameter(config1, config1.all_options[0], "2.5", "6.5")
 
     def test_invalid_init(self, config1: _pc.NumberRangeParameterConfig):
-        with pytest.raises(u.InvalidInputError):
+        with pytest.raises(InvalidInputError):
             p.NumberRangeParameter(config1, config1.all_options[0], "2.5", "6.7")
     
     def test_get_selected(self, param1: p.NumberRangeParameter):
@@ -270,7 +271,7 @@ class TestTextValue:
         assert text_value1.apply(lambda x: x + "1") == p.TextValue("test1")
     
     def test_invalid_apply(self, text_value1: p.TextValue):
-        with pytest.raises(u.ConfigurationError):
+        with pytest.raises(ConfigurationError):
             text_value1.apply(lambda x: len(x)) # type: ignore
     
     def test_apply_percent_wrap(self, text_value1: p.TextValue):
@@ -281,21 +282,21 @@ class TestTextValue:
         assert text_value1.apply_as_bool(lambda x: len(x) > 4) == False
     
     def test_invalid_apply_as_bool(self, text_value1: p.TextValue):
-        with pytest.raises(u.ConfigurationError):
+        with pytest.raises(ConfigurationError):
             text_value1.apply_as_bool(lambda x: x) # type: ignore
     
     def test_apply_as_int(self, text_value1: p.TextValue):
         assert text_value1.apply_as_number(lambda x: len(x)) == 4
     
     def test_invalid_apply_as_int(self, text_value1: p.TextValue):
-        with pytest.raises(u.ConfigurationError):
+        with pytest.raises(ConfigurationError):
             text_value1.apply_as_number(lambda x: x) # type: ignore
     
     def test_apply_as_datetime(self, text_value2: p.TextValue):
         assert text_value2.apply_as_datetime(lambda x: datetime.strptime(x, "%Y-%m-%d")) == datetime(2024, 1, 1)
     
     def test_invalid_apply_as_datetime(self, text_value2: p.TextValue):
-        with pytest.raises(u.ConfigurationError):
+        with pytest.raises(ConfigurationError):
             text_value2.apply_as_datetime(lambda x: x) # type: ignore
 
 
@@ -318,7 +319,7 @@ class TestTextParameter:
         ("#00000G", "color")
     ])
     def test_invalid_init(self, default_text: str, input_type: str):
-        with pytest.raises(u.InvalidInputError):
+        with pytest.raises(InvalidInputError):
             self.create_param(default_text, input_type)
     
     @pytest.mark.parametrize("default_text,input_type", [
@@ -358,7 +359,7 @@ class TestTextParameter:
     ])
     def test_invalid_get_entered_int(self, default_text: str, input_type: str):
         param = self.create_param(default_text, input_type)
-        with pytest.raises(u.ConfigurationError):
+        with pytest.raises(ConfigurationError):
             param.get_entered_int()
 
     @pytest.mark.parametrize("default_text,input_type,expected", [
@@ -380,6 +381,6 @@ class TestTextParameter:
     ])
     def test_invalid_get_entered_datetime(self, default_text: str, input_type: str):
         param = self.create_param(default_text, input_type)
-        with pytest.raises(u.ConfigurationError):
+        with pytest.raises(ConfigurationError):
             param.get_entered_datetime()
     
