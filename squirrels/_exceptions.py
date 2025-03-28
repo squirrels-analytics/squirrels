@@ -23,6 +23,7 @@ class InvalidInputError(Exception):
     24 - Cannot change the admin user
     25 - User does not have permission to access the dataset / dashboard
     26 - User does not have permission to build the virtual data environment
+    27 - User does not have permission to query data models
     40 - No token found for token_id
     41 - No user found for username
     60 - An existing build process is already running and a concurrent build is not allowed
@@ -33,6 +34,8 @@ class InvalidInputError(Exception):
     200 - Invalid value for dataset parameter
     201 - Invalid query parameter provided
     202 - Could not determine parent parameter for parameter refresh
+    203 - SQL query must be provided
+    204 - Provided SQL query failed to run
     """
     def __init__(self, error_code: int, message: str, *args) -> None:
         self.error_code = error_code

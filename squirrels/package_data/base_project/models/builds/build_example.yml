@@ -1,7 +1,7 @@
 description: |
   This is an example of a build model. It adds a new column called "month" to the source table "src_transactions".
 
-depends_on:
+depends_on:                # optional for SQL models - the "ref" macro also adds to this set
   - src_transactions
   - seed_categories
   - seed_subcategories

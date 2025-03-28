@@ -111,10 +111,10 @@ class TestDatasetConfig:
         assert dataset.scope == expected
 
     @pytest.mark.parametrize("fixture,expected", [
-        ("dataset_config1", []),
+        ("dataset_config1", None),
         ("dataset_config2", [])
     ])
-    def test_dataset_parameters(self, fixture: str, expected: list, request: pytest.FixtureRequest):
+    def test_dataset_parameters(self, fixture: str, expected: list[str] | None, request: pytest.FixtureRequest):
         dataset: m.DatasetConfig = request.getfixturevalue(fixture)
         assert dataset.parameters == expected
 
@@ -127,7 +127,7 @@ class TestDatasetConfig:
         assert dataset.traits == expected
     
     def test_invalid_dataset(self):
-        with pytest.raises(ValidationError):
+        with pytest.raises(ValueError):
             m.DatasetConfig(name="my_dataset", scope="not_valid") # type: ignore
 
 
@@ -156,6 +156,51 @@ class TestTestSetsConfig:
         test_sets: m.TestSetsConfig = request.getfixturevalue(fixture)
         assert test_sets.is_authenticated == expected
 
+
+class TestManifestDatasetTraits:
+    def test_valid_dataset_traits(self):
+        # Create a manifest with traits and datasets using those traits
+        manifest = m.ManifestConfig(
+            project_variables=m.ProjectVarsConfig(name="test", major_version=1),
+            dataset_traits={
+                "trait1": m.DatasetTraitConfig(name="trait1", default="default1"),
+                "trait2": m.DatasetTraitConfig(name="trait2", default=42),
+            },
+            datasets={
+                "dataset1": m.DatasetConfig(
+                    name="dataset1", 
+                    traits={"trait1": "custom1", "trait2": 100}
+                ),
+                "dataset2": m.DatasetConfig(
+                    name="dataset2",
+                    traits={"trait1": "value1"}
+                ),
+            }
+        )
+        
+        # Verify traits were properly processed
+        assert manifest.datasets["dataset1"].traits["trait1"] == "custom1"
+        assert manifest.datasets["dataset1"].traits["trait2"] == 100
+        assert manifest.datasets["dataset2"].traits["trait1"] == "value1"
+        # Verify default value was applied to trait2 in dataset2
+        assert manifest.datasets["dataset2"].traits["trait2"] == 42
+
+    def test_undefined_trait(self):
+        # Test that using an undefined trait raises a ValidationError
+        with pytest.raises(ValueError) as excinfo:
+            m.ManifestConfig(
+                project_variables=m.ProjectVarsConfig(name="test", major_version=1),
+                dataset_traits={
+                    "trait1": m.DatasetTraitConfig(name="trait1", default="default1"),
+                },
+                datasets={
+                    "dataset1": m.DatasetConfig(
+                        name="dataset1", 
+                        traits={"trait1": "custom1", "unknown_trait": "error"}
+                    ),
+                }
+            )
+        
 
 class TestManifestConfig:
     @pytest.fixture(scope="class")

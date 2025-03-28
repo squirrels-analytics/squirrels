@@ -2,13 +2,14 @@ from dotenv import dotenv_values
 from uuid import uuid4
 import asyncio, typing as t, functools as ft, shutil, json, os
 import logging as l, matplotlib.pyplot as plt, networkx as nx, polars as pl
+import sqlglot, sqlglot.expressions
 
 from ._auth import Authenticator, BaseUser
 from ._model_builder import ModelBuilder
 from ._exceptions import InvalidInputError, ConfigurationError
-from . import _utils as u, _constants as c, _manifest as mf
-from . import _seeds as s, _connection_set as cs, _models as m, _dashboards_io as d, _parameter_sets as ps
-from . import _model_queries as mq, dashboards as dash, _sources as so, dataset_result as dr
+from . import _utils as u, _constants as c, _manifest as mf, _connection_set as cs, _api_response_models as arm
+from . import _seeds as s, _models as m, _model_configs as mc, _model_queries as mq, _sources as so
+from . import _parameter_sets as ps, _dashboards_io as d, dashboards as dash, dataset_result as dr
 
 T = t.TypeVar("T", bound=dash.Dashboard)
 M = t.TypeVar("M", bound=m.DataModel)
@@ -162,7 +163,7 @@ class SquirrelsProject:
     
     def _add_model(self, models_dict: dict[str, M], model: M) -> None:
         if model.name in models_dict:
-            raise ConfigurationError(f"Names across all models (including seeds and sources) must be unique. Model '{model.name}' is duplicated")
+            raise ConfigurationError(f"Names across all models must be unique. Model '{model.name}' is duplicated")
         models_dict[model.name] = model
     
 
@@ -173,8 +174,8 @@ class SquirrelsProject:
         for key, seed in seeds_dict.items():
             self._add_model(models_dict, m.Seed(key, seed.config, seed.df, logger=self._logger, env_vars=self._env_vars, conn_set=self._conn_set))
 
-        for source_config in self._sources.sources:
-            self._add_model(models_dict, m.SourceModel(source_config.name, source_config, logger=self._logger, env_vars=self._env_vars, conn_set=self._conn_set))
+        for source_name, source_config in self._sources.sources.items():
+            self._add_model(models_dict, m.SourceModel(source_name, source_config, logger=self._logger, env_vars=self._env_vars, conn_set=self._conn_set))
 
         for name, val in self._build_model_files.items():
             model = m.BuildModel(name, val.config, val.query_file, logger=self._logger, env_vars=self._env_vars, conn_set=self._conn_set, j2_env=self._j2_env) 
@@ -194,25 +195,65 @@ class SquirrelsProject:
         models_dict: dict[str, m.StaticModel] = self._get_static_models()
         builder = ModelBuilder(self._duckdb_venv_path, self._conn_set, models_dict, self._conn_args, self._logger)
         await builder.build(full_refresh, select, stage_file)
-    
-    
-    def _generate_dag(self, dataset: str, *, target_model_name: str | None = None, always_python_df: bool = False) -> m.DAG:
-        models_dict: dict[str, m.DataModel] = {k:v for k, v in self._get_static_models().items()}
+
+    def _get_models_dict(self, always_python_df: bool) -> dict[str, m.DataModel]:
+        models_dict: dict[str, m.DataModel] = dict(self._get_static_models())
         
         for name, val in self._dbview_model_files.items():
-            self._add_model(models_dict, m.DbviewModel(name, val.config, val.query_file, logger=self._logger, env_vars=self._env_vars, conn_set=self._conn_set, j2_env=self._j2_env))
+            self._add_model(models_dict, m.DbviewModel(
+                name, val.config, val.query_file, logger=self._logger, env_vars=self._env_vars, conn_set=self._conn_set, j2_env=self._j2_env
+            ))
             models_dict[name].needs_python_df = always_python_df
         
         for name, val in self._federate_model_files.items():
-            self._add_model(models_dict, m.FederateModel(name, val.config, val.query_file, logger=self._logger, env_vars=self._env_vars, conn_set=self._conn_set, j2_env=self._j2_env))
+            self._add_model(models_dict, m.FederateModel(
+                name, val.config, val.query_file, logger=self._logger, env_vars=self._env_vars, conn_set=self._conn_set, j2_env=self._j2_env
+            ))
             models_dict[name].needs_python_df = always_python_df
+        
+        return models_dict
+    
+    def _generate_dag(self, dataset: str, *, target_model_name: str | None = None, always_python_df: bool = False) -> m.DAG:
+        models_dict = self._get_models_dict(always_python_df)
         
         dataset_config = self._manifest_cfg.datasets[dataset]
         target_model_name = dataset_config.model if target_model_name is None else target_model_name
         target_model = models_dict[target_model_name]
         target_model.is_target = True
+        dag = m.DAG(dataset_config, target_model, models_dict, self._duckdb_venv_path, self._logger)
         
-        return m.DAG(dataset_config, target_model, models_dict, self._duckdb_venv_path, self._logger)
+        return dag
+    
+    def _generate_dag_with_fake_target(self, sql_query: str | None) -> m.DAG:
+        models_dict = self._get_models_dict(always_python_df=False)
+
+        if sql_query is None:
+            dependencies = set(models_dict.keys())
+        else:
+            dependencies, parsed = u.parse_dependent_tables(sql_query, models_dict.keys())
+
+            substitutions = {}
+            for model_name in dependencies:
+                model = models_dict[model_name]
+                if isinstance(model, m.SourceModel) and not model.model_config.load_to_duckdb:
+                    raise InvalidInputError(203, f"Source model '{model_name}' cannot be queried with DuckDB")
+                if isinstance(model, m.StaticModel):
+                    substitutions[model_name] = f"venv.{model_name}"
+            
+            sql_query = parsed.transform(
+                lambda node: sqlglot.expressions.Table(this=substitutions[node.name])
+                if isinstance(node, sqlglot.expressions.Table) and node.name in substitutions
+                else node
+            ).sql()
+        
+        model_config = mc.FederateModelConfig(depends_on=dependencies)
+        query_file = mq.SqlQueryFile("", sql_query or "")
+        fake_target_model = m.FederateModel(
+            "__fake_target", model_config, query_file, logger=self._logger, env_vars=self._env_vars, conn_set=self._conn_set, j2_env=self._j2_env
+        )
+        fake_target_model.is_target = True
+        dag = m.DAG(None, fake_target_model, models_dict, self._duckdb_venv_path, self._logger)
+        return dag
     
     def _draw_dag(self, dag: m.DAG, output_folder: u.Path) -> None:
         color_map = {
@@ -236,6 +277,54 @@ class SquirrelsProject:
         plt.margins(x=0.1, y=0.1)
         fig.savefig(u.Path(output_folder, "dag.png"))
         plt.close(fig)
+    
+    async def _get_compiled_dag(self, *, sql_query: str | None = None, selections: dict[str, t.Any] = {}, user: BaseUser | None = None) -> m.DAG:
+        dag = self._generate_dag_with_fake_target(sql_query)
+        default_traits = self._manifest_cfg.get_default_traits()
+        await dag.execute(self._param_args, self._param_cfg_set, self._context_func, user, selections, runquery=False, default_traits=default_traits)
+        return dag
+    
+    def _get_all_data_models(self, compiled_dag: m.DAG) -> list[arm.DataModelItem]:
+        return compiled_dag.get_all_data_models()
+    
+    async def get_all_data_models(self) -> list[arm.DataModelItem]:
+        """
+        Get all data models in the project
+
+        Returns:
+            A list of DataModelItem objects
+        """
+        compiled_dag = await self._get_compiled_dag()
+        return self._get_all_data_models(compiled_dag)
+
+    def _get_all_data_lineage(self, compiled_dag: m.DAG) -> list[arm.LineageRelation]:
+        all_lineage = compiled_dag.get_all_model_lineage()
+
+        # Add dataset nodes to the lineage
+        for dataset in self._manifest_cfg.datasets.values():
+            target_dataset = arm.LineageNode(name=dataset.name, type="dataset")
+            source_model = arm.LineageNode(name=dataset.model, type="model")
+            all_lineage.append(arm.LineageRelation(source=source_model, target=target_dataset))
+
+        # Add dashboard nodes to the lineage
+        for dashboard in self._dashboards.values():
+            target_dashboard = arm.LineageNode(name=dashboard.dashboard_name, type="dashboard")
+            datasets = set(x.dataset for x in dashboard.config.depends_on)
+            for dataset in datasets:
+                source_dataset = arm.LineageNode(name=dataset, type="dataset")
+                all_lineage.append(arm.LineageRelation(source=source_dataset, target=target_dashboard))
+
+        return all_lineage
+
+    async def get_all_data_lineage(self) -> list[arm.LineageRelation]:
+        """
+        Get all data lineage in the project
+
+        Returns:
+            A list of LineageRelation objects
+        """
+        compiled_dag = await self._get_compiled_dag()
+        return self._get_all_data_lineage(compiled_dag)
 
     async def _write_dataset_outputs_given_test_set(
         self, dataset: str, select: str, test_set: str | None, runquery: bool, recurse: bool
@@ -268,7 +357,10 @@ class SquirrelsProject:
 
         # always_python_df is set to True for creating CSV files from results (when runquery is True)
         dag = self._generate_dag(dataset, target_model_name=select, always_python_df=runquery)
-        placeholders = await dag.execute(self._param_args, self._param_cfg_set, self._context_func, user, selections, runquery=runquery, recurse=recurse)
+        await dag.execute(
+            self._param_args, self._param_cfg_set, self._context_func, user, selections, 
+            runquery=runquery, recurse=recurse, default_traits=self._manifest_cfg.get_default_traits()
+        )
         
         output_folder = u.Path(self._filepath, c.TARGET_FOLDER, c.COMPILE_FOLDER, dataset, test_set)
         if output_folder.exists():
@@ -278,7 +370,7 @@ class SquirrelsProject:
         def write_placeholders() -> None:
             output_filepath = u.Path(output_folder, "placeholders.json")
             with open(output_filepath, 'w') as f:
-                json.dump(placeholders, f, indent=4)
+                json.dump(dag.placeholders, f, indent=4)
         
         def write_model_outputs(model: m.DataModel) -> None:
             assert isinstance(model, m.QueryModel)
@@ -408,7 +500,10 @@ class SquirrelsProject:
             raise self._permission_error(user, "dataset", name, scope.name)
         
         dag = self._generate_dag(name)
-        await dag.execute(self._param_args, self._param_cfg_set, self._context_func, user, dict(selections))
+        await dag.execute(
+            self._param_args, self._param_cfg_set, self._context_func, user, dict(selections), 
+            default_traits=self._manifest_cfg.get_default_traits()
+        )
         assert isinstance(dag.target_model.result, pl.LazyFrame)
         return dr.DatasetResult(
             target_model_config=dag.target_model.model_config, 
@@ -444,3 +539,14 @@ class SquirrelsProject:
             return await self._dashboards[name].get_dashboard(args, dashboard_type=dashboard_type)
         except KeyError:
             raise KeyError(f"No dashboard file found for: {name}")
+    
+    async def query_models(
+        self, sql_query: str, *, selections: dict[str, t.Any] = {}, user: BaseUser | None = None
+    ) -> dr.DatasetResult:
+        dag = await self._get_compiled_dag(sql_query=sql_query, selections=selections, user=user)
+        await dag._run_models()
+        assert isinstance(dag.target_model.result, pl.LazyFrame)
+        return dr.DatasetResult(
+            target_model_config=dag.target_model.model_config, 
+            df=dag.target_model.result.collect().with_row_index("_row_num", offset=1)
+        )

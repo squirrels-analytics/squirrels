@@ -2,6 +2,8 @@ from typing import Annotated, Literal
 from pydantic import BaseModel, Field
 from datetime import datetime, date
 
+from . import _model_configs as mc, _sources as s
+
 
 class LoginReponse(BaseModel):
     access_token: Annotated[str, Field(examples=["encoded_jwt_token"], description="An encoded JSON web token to use subsequent API requests")]
@@ -18,7 +20,7 @@ class ParameterOptionModel(BaseModel):
     label: Annotated[str, Field(examples=["My Option"], description="The human-friendly display name for the option")]
 
 class ParameterModelBase(BaseModel):
-    widget_type: Annotated[str, Field(examples=["none"], description="The parameter type (set to 'none' for this model)")]
+    widget_type: Annotated[str, Field(examples=["disabled"], description="The parameter type")]
     name: Annotated[str, Field(examples=["my_unique_param_name"], description="The name of the parameter. Use this as the key when providing the API request parameters")]
     label: Annotated[str, Field(examples=["My Parameter"], description="The human-friendly display name for the parameter")]
     description: Annotated[str, Field(examples=[""], description="The description of the parameter")]
@@ -75,11 +77,13 @@ class TextParameterModel(ParameterModelBase):
         description='A string for the input type (one of "text", "textarea", "number", "date", "datetime-local", "month", "time", "color", or "password")'
     )]
 
+ParametersListType = list[
+    NoneParameterModel | SingleSelectParameterModel | MultiSelectParameterModel | DateParameterModel | DateRangeParameterModel | 
+    NumberParameterModel | NumberRangeParameterModel | TextParameterModel
+]
+
 class ParametersModel(BaseModel):
-    parameters: list[
-        NoneParameterModel | SingleSelectParameterModel | MultiSelectParameterModel | DateParameterModel | DateRangeParameterModel | 
-        NumberParameterModel | NumberRangeParameterModel | TextParameterModel
-    ]
+    parameters: Annotated[ParametersListType, Field(description="The list of parameters for the dataset / dashboard")]
 
 
 ## Datasets / Dashboards Catalog Response Models
@@ -110,10 +114,7 @@ class DatasetItemModel(BaseModel):
     name: Annotated[str, Field(examples=["mydataset"], description=name_description)]
     label: Annotated[str, Field(examples=["My Dataset"], description=label_description)]
     description: Annotated[str, Field(examples=[""], description=description_description)]
-    parameters: list[
-        NoneParameterModel | SingleSelectParameterModel | MultiSelectParameterModel | DateParameterModel | DateRangeParameterModel | 
-        NumberParameterModel | NumberRangeParameterModel | TextParameterModel
-    ]
+    parameters: Annotated[list[str], Field(examples=["myparam1", "myparam2"], description="The list of parameter names used by the dataset")]
     data_schema: Annotated[SchemaWithConditionModel, Field(alias="schema", description="JSON object describing the schema of the dataset")]
     parameters_path: Annotated[str, Field(examples=["/squirrels-v0/myproject/v1/dataset/mydataset/parameters"], description=parameters_path_description)]
     result_path: Annotated[str, Field(examples=["/squirrels-v0/myproject/v1/dataset/mydataset"], description=result_path_description)]
@@ -122,13 +123,34 @@ class DashboardItemModel(ParametersModel):
     name: Annotated[str, Field(examples=["mydashboard"], description=name_description)]
     label: Annotated[str, Field(examples=["My Dashboard"], description=label_description)]
     description: Annotated[str, Field(examples=[""], description=description_description)]
+    parameters: Annotated[list[str], Field(examples=["myparam1", "myparam2"], description="The list of parameter names used by the dashboard")]
     parameters_path: Annotated[str, Field(examples=["/squirrels-v0/myproject/v1/dashboard/mydashboard/parameters"], description=parameters_path_description)]
     result_path: Annotated[str, Field(examples=["/squirrels-v0/myproject/v1/dashboard/mydashboard"], description=result_path_description)]
     result_format: Annotated[str, Field(examples=["png", "html"], description="The format of the dashboard's result API response (one of 'png' or 'html')")]
 
+ModelConfigType = mc.ModelConfig | s.Source | mc.SeedConfig | mc.BuildModelConfig | mc.DbviewModelConfig | mc.FederateModelConfig
+
+class DataModelItem(BaseModel):
+    name: Annotated[str, Field(examples=["model_name"], description="The name of the model")]
+    model_type: Annotated[Literal["source", "dbview", "federate", "seed", "build"], Field(
+        examples=["source", "dbview", "federate", "seed", "build"], description="The type of the model"
+    )]
+    config: Annotated[ModelConfigType, Field(description="The configuration of the model")]
+
+class LineageNode(BaseModel):
+    name: str
+    type: Literal["model", "dataset", "dashboard"]
+
+class LineageRelation(BaseModel):
+    source: LineageNode
+    target: LineageNode
+
 class CatalogModel(BaseModel):
+    parameters: Annotated[ParametersListType, Field(description="The list of all parameters in the project")]
     datasets: Annotated[list[DatasetItemModel], Field(description="The list of accessible datasets")]
     dashboards: Annotated[list[DashboardItemModel], Field(description="The list of accessible dashboards")]
+    models: Annotated[list[DataModelItem], Field(description="The list of data models in the project (only provided for admin users)")]
+    lineage: Annotated[list[LineageRelation], Field(description="The lineage information between data assets (only provided for admin users)")]
 
 
 ## Dataset Results Response Models

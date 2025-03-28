@@ -3,10 +3,10 @@ description: |
 
   Parameters are available to specify the group by dimension and filter by date, amount of the transaction, category, and subcategory.
 
-depends_on:
+depends_on:                # optional for SQL models - the "ref" macro also adds to this set
   - build_example
 
-eager: false   # Optional, defaults to false. Only applies to SQL models.
+eager: false               # optional - defaults to false. Only applies to SQL models.
 
 columns:
   - name: date

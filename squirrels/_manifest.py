@@ -119,14 +119,6 @@ class ParametersConfig(BaseModel):
     arguments: dict[str, Any]
 
 
-class DbviewConfig(_ConfigWithNameBaseModel):
-    connection_name: str | None = None
-
-
-class FederateConfig(_ConfigWithNameBaseModel):
-    materialized: str | None = None
-
-
 class PermissionScope(Enum):
     PUBLIC = 0
     PROTECTED = 1
@@ -137,7 +129,7 @@ class AnalyticsOutputConfig(_ConfigWithNameBaseModel):
     label: str = ""
     description: str = ""
     scope: PermissionScope = PermissionScope.PUBLIC
-    parameters: list[str] = Field(default_factory=list)
+    parameters: list[str] | None = Field(default=None, description="The list of parameter names used by the dataset/dashboard")
 
     @model_validator(mode="after")
     def finalize_label(self) -> Self:
@@ -154,6 +146,10 @@ class AnalyticsOutputConfig(_ConfigWithNameBaseModel):
             name = info.data.get("name")
             scope_list = [scope.name.lower() for scope in PermissionScope]
             raise ValueError(f'Scope "{value}" is invalid for dataset/dashboard "{name}". Scope must be one of {scope_list}') from e
+
+
+class DatasetTraitConfig(_ConfigWithNameBaseModel):
+    default: Any 
 
 
 class DatasetConfig(AnalyticsOutputConfig):
@@ -187,8 +183,7 @@ class ManifestConfig(BaseModel):
     connections: dict[str, DbConnConfig] = Field(default_factory=dict)
     parameters: list[ParametersConfig] = Field(default_factory=list)
     selection_test_sets: dict[str, TestSetsConfig] = Field(default_factory=dict)
-    dbviews: dict[str, DbviewConfig] = Field(default_factory=dict)
-    federates: dict[str, FederateConfig] = Field(default_factory=dict)
+    dataset_traits: dict[str, DatasetTraitConfig] = Field(default_factory=dict)
     datasets: dict[str, DatasetConfig] = Field(default_factory=dict)
     base_path: str = "."
     env_vars: dict[str, str] = Field(default_factory=dict)
@@ -203,7 +198,7 @@ class ManifestConfig(BaseModel):
             set_of_directories.add(package.directory)
         return packages
     
-    @field_validator("connections", "selection_test_sets", "dbviews", "federates", "datasets", mode="before")
+    @field_validator("connections", "selection_test_sets", "dataset_traits", "datasets", mode="before")
     @classmethod
     def names_are_unique(cls, values: list[dict] | dict[str, dict], info: ValidationInfo) -> dict[str, dict]:
         if isinstance(values, list):
@@ -223,6 +218,24 @@ class ManifestConfig(BaseModel):
             conn.finalize_uri(self.base_path)
         return self
     
+    @model_validator(mode="after")
+    def validate_dataset_traits(self) -> Self:
+        for dataset_name, dataset in self.datasets.items():
+            # Validate that all trait keys in dataset.traits exist in dataset_traits
+            for trait_key in dataset.traits.keys():
+                if trait_key not in self.dataset_traits:
+                    raise ValueError(
+                        f'Dataset "{dataset_name}" references undefined trait "{trait_key}". '
+                        f'Traits must be defined with a default value in the dataset_traits section.'
+                    )
+            
+            # Set default values for any traits that are missing
+            for trait_name, trait_config in self.dataset_traits.items():
+                if trait_name not in dataset.traits:
+                    dataset.traits[trait_name] = trait_config.default
+                    
+        return self
+    
     def get_default_test_set(self, dataset_name: str) -> TestSetsConfig:
         """
         Raises KeyError if dataset name doesn't exist
@@ -239,6 +252,12 @@ class ManifestConfig(BaseModel):
             if test_set_config.datasets is None or dataset in test_set_config.datasets:
                 applicable_test_sets.append(test_set_name)
         return applicable_test_sets
+    
+    def get_default_traits(self) -> dict[str, Any]:
+        default_traits = {}
+        for trait_name, trait_config in self.dataset_traits.items():
+            default_traits[trait_name] = trait_config.default
+        return default_traits
 
 
 class ManifestIO:

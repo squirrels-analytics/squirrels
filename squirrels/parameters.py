@@ -127,7 +127,7 @@ class Parameter(metaclass=ABCMeta):
         Helper method to convert the derived Parameter class into a JSON dictionary
         """
         output = {
-            "widget_type": self._config.widget_type, "name": self._config.name, 
+            "widget_type": self._config.widget_type(), "name": self._config.name, 
             "label": self._config.label, "description": self._config.description
         }
         if not self.is_enabled():
