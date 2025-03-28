@@ -3,11 +3,11 @@ description: |
 
   Parameters are available to filter the date and amount of the transactions.
 
-connection: default
+connection: default        # optional - if not provided, will use default connection specified in the SQRL_CONNECTIONS__DEFAULT_NAME_USED setting
 
 translate_to_duckdb: true  # optional - default is false - if true, then the model will be translated to duckdb for supported dialects
 
-depends_on:
+depends_on:                # optional - the "source" macro also adds to this set
   - src_transactions
 
 columns:

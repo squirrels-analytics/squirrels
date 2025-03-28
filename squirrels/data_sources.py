@@ -78,10 +78,10 @@ class DataSource(metaclass=_abc.ABCMeta):
         
         return df_agg
         
-    def _get_key_from_record(self, key: str | None, record: dict[str, _t.Any], default: _t.Any) -> _t.Any:
+    def _get_key_from_record(self, key: str | None, record: dict[_t.Hashable, _t.Any], default: _t.Any) -> _t.Any:
         return record[key] if key is not None else default
     
-    def _get_key_from_record_as_list(self, key: str | None, record: dict[str, _t.Any]) -> _t.Iterable[str]:
+    def _get_key_from_record_as_list(self, key: str | None, record: dict[_t.Hashable, _t.Any]) -> _t.Iterable[str]:
         value = self._get_key_from_record(key, record, list())
         return [str(x) for x in value]
 
@@ -121,10 +121,10 @@ class _SelectionDataSource(DataSource):
         else:
             df_agg = df_agg.sort(by=self._order_by_col)
 
-        def get_is_default(record: dict[str, _t.Any]) -> bool:
+        def get_is_default(record: dict[_t.Hashable, _t.Any]) -> bool:
             return int(record[self._is_default_col]) == 1 if self._is_default_col is not None else False
 
-        def get_custom_fields(record: dict[str, _t.Any]) -> dict[str, _t.Any]:
+        def get_custom_fields(record: dict[_t.Hashable, _t.Any]) -> dict[str, _t.Any]:
             result = {}
             for key, val in self._custom_cols.items():
                 result[key] = record[val]

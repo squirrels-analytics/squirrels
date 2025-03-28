@@ -1,9 +1,11 @@
-from typing import Sequence, Optional, Union, TypeVar, Callable, Any
+from typing import Sequence, Optional, Union, TypeVar, Callable, Any, Iterable
 from datetime import datetime
 from pathlib import Path
+from functools import lru_cache
+from pydantic import BaseModel
 import os, time, logging, json, duckdb, polars as pl, yaml
 import jinja2 as j2, jinja2.nodes as j2_nodes
-from functools import lru_cache
+import sqlglot, sqlglot.expressions
 
 from . import _constants as c
 from ._exceptions import ConfigurationError
@@ -271,6 +273,15 @@ def run_sql_on_dataframes(sql_query: str, dataframes: dict[str, pl.LazyFrame]) -
 
 
 def load_yaml_config(filepath: FilePath) -> dict:
+    """
+    Loads a YAML config file
+
+    Arguments:
+        filepath: The path to the YAML file
+    
+    Returns:
+        A dictionary representation of the YAML file
+    """
     try:
         with open(filepath, 'r') as f:
             return yaml.safe_load(f)
@@ -281,6 +292,16 @@ def load_yaml_config(filepath: FilePath) -> dict:
 def run_duckdb_stmt(
     logger: Logger, duckdb_conn: duckdb.DuckDBPyConnection, stmt: str, *, params: dict[str, Any] | None = None, redacted_values: list[str] = []
 ) -> duckdb.DuckDBPyConnection:
+    """
+    Runs a statement on a DuckDB connection
+
+    Arguments:
+        logger: The logger to use
+        duckdb_conn: The DuckDB connection
+        stmt: The statement to run
+        params: The parameters to use
+        redacted_values: The values to redact
+    """
     redacted_stmt = stmt
     for value in redacted_values:
         redacted_stmt = redacted_stmt.replace(value, "[REDACTED]")
@@ -294,4 +315,30 @@ def run_duckdb_stmt(
 
 
 def get_current_time() -> str:
+    """
+    Returns the current time in the format HH:MM:SS.ms
+    """
     return datetime.now().strftime('%H:%M:%S.%f')[:-3]
+
+
+def parse_dependent_tables(sql_query: str, all_table_names: Iterable[str]) -> tuple[set[str], sqlglot.Expression]:
+    """
+    Parses the dependent tables from a SQL query
+
+    Arguments:
+        sql_query: The SQL query to parse
+        all_table_names: The list of all table names
+    
+    Returns:
+        The set of dependent tables
+    """
+    # Parse the SQL query and extract all table references
+    parsed = sqlglot.parse_one(sql_query)
+    dependencies = set()
+    
+    # Collect all table references from the parsed SQL
+    for table in parsed.find_all(sqlglot.expressions.Table):
+        if table.name in set(all_table_names):
+            dependencies.add(table.name)
+    
+    return dependencies, parsed

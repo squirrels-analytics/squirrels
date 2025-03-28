@@ -1,5 +1,5 @@
 from typing import Any
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, model_validator
 import time, sqlglot
 
 from . import _utils as u, _constants as c, _model_configs as mc
@@ -12,21 +12,14 @@ class UpdateHints(BaseModel):
 
 
 class Source(mc.ConnectionInterface, mc.ModelConfig):
-    name: str
     table: str | None = Field(default=None)
     load_to_duckdb: bool = Field(default=True, description="Whether to load the data to DuckDB")
     primary_key: list[str] = Field(default_factory=list)
     update_hints: UpdateHints = Field(default_factory=UpdateHints)
 
-    def model_post_init(self, __context: Any) -> None:
-        # Ensure all columns have a type specified
-        for col in self.columns:
-            if not col.type:
-                raise u.ConfigurationError(f"Column '{col.name}' in source '{self.name}' must have a type specified")
-
-    def get_table(self) -> str:
+    def get_table(self, source_name: str) -> str:
         if self.table is None:
-            return self.name
+            return source_name
         return self.table
     
     def get_cols_for_create_table_stmt(self) -> str:
@@ -37,8 +30,8 @@ class Source(mc.ConnectionInterface, mc.ModelConfig):
     def get_cols_for_insert_stmt(self) -> str:
         return ", ".join([col.name for col in self.columns])
     
-    def get_max_incr_col_query(self) -> str:
-        return f"SELECT max({self.update_hints.increasing_column}) FROM {self.name}"
+    def get_max_incr_col_query(self, source_name: str) -> str:
+        return f"SELECT max({self.update_hints.increasing_column}) FROM {source_name}"
     
     def get_query_for_insert(self, dialect: str, conn_name: str, table_name: str, max_value_of_increasing_col: Any | None, *, full_refresh: bool = True) -> str:
         select_cols = self.get_cols_for_insert_stmt()
@@ -61,13 +54,32 @@ class Source(mc.ConnectionInterface, mc.ModelConfig):
 
 
 class Sources(BaseModel):
-    sources: list[Source] = Field(default_factory=list)
-
-    def model_post_init(self, __context: Any) -> None:
-        source_names = {source.name for source in self.sources}
-        if len(self.sources) != len(source_names):
-            duplicate_names = [name for name in source_names if sum(1 for s in self.sources if s.name == name) > 1]
-            raise u.ConfigurationError(f"Duplicate source names found: {duplicate_names}")
+    sources: dict[str, Source] = Field(default_factory=dict)
+    
+    @model_validator(mode="before")
+    @classmethod
+    def convert_sources_list_to_dict(cls, data: dict[str, Any]) -> dict[str, Any]:
+        if "sources" in data and isinstance(data["sources"], list):
+            # Convert list of sources to dictionary
+            sources_dict = {}
+            for source in data["sources"]:
+                if isinstance(source, dict) and "name" in source:
+                    name = source.pop("name")  # Remove name from source config
+                    if name in sources_dict:
+                        raise u.ConfigurationError(f"Duplicate source name found: {name}")
+                    sources_dict[name] = source
+                else:
+                    raise u.ConfigurationError(f"All sources must have a name field in sources file")
+            data["sources"] = sources_dict
+        return data
+    
+    @model_validator(mode="after")
+    def validate_column_types(self):
+        for source_name, source in self.sources.items():
+            for col in source.columns:
+                if not col.type:
+                    raise u.ConfigurationError(f"Column '{col.name}' in source '{source_name}' must have a type specified")
+        return self
 
 
 class SourcesIO:
@@ -77,6 +89,7 @@ class SourcesIO:
         
         sources_path = u.Path(base_path, c.MODELS_FOLDER, c.SOURCES_FILE)
         sources_data = u.load_yaml_config(sources_path) if sources_path.exists() else {}
+        
         sources = Sources(**sources_data)
         
         logger.log_activity_time("loading sources", start)

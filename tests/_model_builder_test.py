@@ -88,8 +88,8 @@ def expected_df3():
 def test_build_sources_with_increasing_column(request: pytest.FixtureRequest, primary_key: list[str], strictly_increasing: bool, expected_df_name: str):
     connection_set = request.getfixturevalue("connection_set")
     
+    source_name = 'test_table'
     source = Source(
-        name='test_table',
         connection='test_conn',
         primary_key=primary_key,
         update_hints=UpdateHints(increasing_column='value', strictly_increasing=strictly_increasing),
@@ -99,7 +99,7 @@ def test_build_sources_with_increasing_column(request: pytest.FixtureRequest, pr
             ColumnConfig(name="value", type="BIGINT")
         ]
     )
-    source_model = SourceModel(source.name, source, conn_set=connection_set)
+    source_model = SourceModel(source_name, source, conn_set=connection_set)
     model_builder = ModelBuilder(
         _duckdb_venv_path='dummy_path',
         _conn_set=connection_set,
@@ -128,8 +128,8 @@ def test_build_sources_with_increasing_column(request: pytest.FixtureRequest, pr
 
 
 def test_build_sources(connection_set, expected_df3: pl.DataFrame):
+    source_name = 'test_table'
     source = Source(
-        name='test_table',
         connection='test_conn',
         columns=[
             ColumnConfig(name="id", type="BIGINT"), 
@@ -137,7 +137,7 @@ def test_build_sources(connection_set, expected_df3: pl.DataFrame):
             ColumnConfig(name="value", type="BIGINT")
         ]
     )
-    source_model = SourceModel(source.name, source, conn_set=connection_set)
+    source_model = SourceModel(source_name, source, conn_set=connection_set)
     model_builder = ModelBuilder(
         _duckdb_venv_path='dummy_path',
         _conn_set=connection_set,

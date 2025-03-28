@@ -34,14 +34,13 @@ class ContextArgs(ParametersArgs):
         self, param_args: ParametersArgs, 
         user: BaseUser | None, 
         prms: dict[str, Parameter], 
-        traits: dict[str, Any], 
-        placeholders: dict[str, Any]
+        traits: dict[str, Any]
     ):
         super().__init__(param_args.project_path, param_args.proj_vars, param_args.env_vars)
         self.user = user
         self._prms = prms
         self._traits = traits
-        self._placeholders = placeholders
+        self._placeholders = {}
 
     @property
     def prms(self) -> dict[str, Parameter]:

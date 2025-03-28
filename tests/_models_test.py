@@ -12,7 +12,7 @@ def simple_model_config() -> mc.FederateModelConfig:
 @pytest.fixture(scope="module")
 def context_args() -> ContextArgs:
     param_args = ParametersArgs("", {}, {})
-    return ContextArgs(param_args, None, {}, {}, {})
+    return ContextArgs(param_args, None, {}, {})
 
 
 @pytest.fixture(scope="module")
@@ -155,11 +155,10 @@ def test_get_all_model_names(compiled_dag: m.DAG):
 
 
 def test_run_models(compiled_dag: m.DAG):
-    terminal_nodes = compiled_dag._get_terminal_nodes()
     modelA = compiled_dag.models_dict["modelA"]
     
     start = time.time()
-    asyncio.run(compiled_dag._run_models(terminal_nodes))
+    asyncio.run(compiled_dag._run_models())
     end = time.time()
     
     assert isinstance(modelA, m.FederateModel)

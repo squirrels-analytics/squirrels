@@ -48,42 +48,44 @@ class TestSelectDataSource:
         ds_param = _pc.DataSourceParameterConfig(
             _pc.MultiSelectParameterConfig, 'test_param', 'Test Parameter', data_source, extra_args={"show_select_all": False}
         )
-        param: _pc.MultiSelectParameterConfig = ds_param.convert(df)
+        param1: _pc.MultiSelectParameterConfig = ds_param.convert(df)
         param_options = (
             _po.SelectParameterOption('0', 'zero', test_field='zerox'),
             _po.SelectParameterOption('1', 'one', test_field='wonder', is_default=True),
             _po.SelectParameterOption('2', 'two', test_field='tutor', is_default=True)
         )
         expected = _pc.MultiSelectParameterConfig('test_param', 'Test Parameter', param_options, show_select_all=False)
-        assert param == expected
+        assert param1 == expected
 
         data['test_parent_id'] = ['gp1', 'gp1', 'gp2']
         df = pl.DataFrame(data).sort(by='test_id')
 
-        ds_param = _pc.DataSourceParameterConfig(_pc.SingleSelectParameterConfig, 'test_param', 'Test Parameter', data_source_with_parent,
-                                                parent_name='multi_select_grandparent')
-        param: _pc.SingleSelectParameterConfig = ds_param.convert(df)
+        ds_param = _pc.DataSourceParameterConfig(
+            _pc.SingleSelectParameterConfig, 'test_param', 'Test Parameter', data_source_with_parent, parent_name='multi_select_grandparent'
+        )
+        param2: _pc.SingleSelectParameterConfig = ds_param.convert(df)
         param_options = (
             _po.SelectParameterOption('0', 'zero', test_field='zerox', parent_option_ids=['gp1']),
             _po.SelectParameterOption('1', 'one', test_field='wonder', is_default=True, parent_option_ids=['gp1']),
             _po.SelectParameterOption('2', 'two', test_field='tutor', is_default=True, parent_option_ids=['gp2'])
         )
         expected = _pc.SingleSelectParameterConfig('test_param', 'Test Parameter', param_options, parent_name='multi_select_grandparent')
-        assert param == expected
+        assert param2 == expected
 
         data['test_user_group'] = ['org1', 'org2', 'org2']
         df = pl.DataFrame(data).sort(by='test_id')
 
-        ds_param = _pc.DataSourceParameterConfig(_pc.SingleSelectParameterConfig, 'test_param', 'Test Parameter', data_source_with_user,
-                                                user_attribute='organization')
-        param: _pc.SingleSelectParameterConfig = ds_param.convert(df)
+        ds_param = _pc.DataSourceParameterConfig(
+            _pc.SingleSelectParameterConfig, 'test_param', 'Test Parameter', data_source_with_user, user_attribute='organization'
+        )
+        param3: _pc.SingleSelectParameterConfig = ds_param.convert(df)
         param_options = (
             _po.SelectParameterOption('0', 'zero', test_field='zerox', user_groups=['org1']),
             _po.SelectParameterOption('1', 'one', test_field='wonder', is_default=True, user_groups=['org2']),
             _po.SelectParameterOption('2', 'two', test_field='tutor', is_default=True, user_groups=['org2'])
         )
         expected = _pc.SingleSelectParameterConfig('test_param', 'Test Parameter', param_options, user_attribute='organization')
-        assert param == expected
+        assert param3 == expected
     
     def test_invalid_column_names(self, data_source: d.SelectDataSource):
         ds_param = _pc.DataSourceParameterConfig(_pc.SingleSelectParameterConfig, 'test_param', 'Test Parameter', data_source)

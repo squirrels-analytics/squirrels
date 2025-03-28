@@ -1,5 +1,5 @@
 from __future__ import annotations
-from typing import Generic, TypeVar, Annotated, Type, Sequence, Iterator, Any
+from typing import Generic, TypeVar, Annotated, Sequence, Iterator, Any
 from typing_extensions import Self
 from datetime import datetime
 from dataclasses import dataclass, field
@@ -52,26 +52,14 @@ class ParameterConfigBase(metaclass=ABCMeta):
     """
     name: str
     label: str
-    description: str # = field(default="", kw_only=True)
-    user_attribute: str | None # = field(default=None, kw_only=True)
-    parent_name: str | None # = field(default=None, kw_only=True)
-
-    @abstractmethod
-    def __init__(
-        self, widget_type: str, name: str, label: str, *, description: str = "", user_attribute: str | None = None, 
-        parent_name: str | None = None
-    ) -> None:
-        self.widget_type = widget_type
-        self.name = name
-        self.label = label
-        self.description = description
-        self.user_attribute = user_attribute
-        self.parent_name = parent_name
+    description: str = field(default="", kw_only=True)
+    user_attribute: str | None = field(default=None, kw_only=True)
+    parent_name: str | None = field(default=None, kw_only=True)
 
     def _get_user_group(self, user: BaseUser | None) -> Any:
         if self.user_attribute is not None:
             if user is None:
-                raise u.ConfigurationError(f"Non-authenticated users (only allowed for public datasets) cannot use parameter " +
+                raise u.ConfigurationError(f"Public datasets (accessible without authentication) cannot use parameter " +
                                            f"'{self.name}' because 'user_attribute' is defined on this parameter.")
             return getattr(user, self.user_attribute)
         
@@ -94,7 +82,7 @@ class ParameterConfig(Generic[ParamOptionType], ParameterConfigBase):
         self, name: str, label: str, all_options: Sequence[ParamOptionType | dict], *, description: str = "", 
         user_attribute: str | None = None, parent_name: str | None = None
     ) -> None:
-        super().__init__(self.widget_type(), name, label, description=description, user_attribute=user_attribute, parent_name=parent_name)
+        super().__init__(name, label, description=description, user_attribute=user_attribute, parent_name=parent_name)
         self._all_options = tuple(self._to_param_option(x) for x in all_options)
 
     def _to_param_option(self, option: ParamOptionType | dict) -> ParamOptionType:
@@ -224,9 +212,9 @@ class MultiSelectParameterConfig(SelectionParameterConfig):
     """
     Class to define configurations for multi-select parameter widgets.
     """
-    show_select_all: bool # = field(default=True, kw_only=True)
-    order_matters: bool # = field(default=False, kw_only=True)
-    none_is_all: bool # = field(default=True, kw_only=True)
+    show_select_all: bool = field(default=True, kw_only=True)
+    order_matters: bool = field(default=False, kw_only=True)
+    none_is_all: bool = field(default=True, kw_only=True)
 
     def __init__(
         self, name: str, label: str, all_options: Sequence[_po.SelectParameterOption | dict], *, description: str = "", 
@@ -549,26 +537,24 @@ class TextParameterConfig(ParameterConfig[_po.TextParameterOption]):
         )
 
 
-@dataclass
-class DataSourceParameterConfig(ParameterConfigBase):
+ParamConfigType = TypeVar("ParamConfigType", bound=ParameterConfig)
+
+class DataSourceParameterConfig(Generic[ParamConfigType], ParameterConfigBase):
     """
     Class to define configurations for parameter widgets whose options come from lookup tables
     """
-    parameter_type: Type[ParameterConfig]
-    data_source: d.DataSource
-
     def __init__(
-        self, parameter_type: Type[ParameterConfig], name: str, label: str, data_source: d.DataSource | dict, *, 
+        self, parameter_type: type[ParamConfigType], name: str, label: str, data_source: d.DataSource | dict, *, 
         extra_args: dict = {}, description: str = "", user_attribute: str | None = None, parent_name: str | None = None
     ) -> None:
-        super().__init__("data_source", name, label, description=description, user_attribute=user_attribute, parent_name=parent_name)
+        super().__init__(name, label, description=description, user_attribute=user_attribute, parent_name=parent_name)
         self.parameter_type = parameter_type
         if isinstance(data_source, dict):
             data_source = parameter_type.DataSource(**data_source)
         self.data_source = data_source
         self.extra_args = extra_args
 
-    def convert(self, df: pl.DataFrame) -> ParameterConfig:
+    def convert(self, df: pl.DataFrame) -> ParamConfigType:
         return self.data_source._convert(self, df)
     
     def get_dataframe(self, default_conn_name: str, conn_set: ConnectionSet, seeds: Seeds) -> pl.DataFrame:

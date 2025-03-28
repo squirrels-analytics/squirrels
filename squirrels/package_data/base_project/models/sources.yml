@@ -1,5 +1,6 @@
 sources:
   - name: src_transactions
+    description: "The source table for transactions"  # optional
     connection: default           # optional - if not provided, will use the connection named "default" or the default connection specified in settings
     table: expenses               # optional - if not provided, will use the "name" field of the source
     load_to_duckdb: true          # optional - default is true - if false, then other models cannot reference this source (except for dbview models with translate_to_duckdb as false)
@@ -11,7 +12,7 @@ sources:
       increasing_column: date     # optional - if not provided, will always do full refresh, otherwise uses this column for incremental loads
       strictly_increasing: false  # optional - default is true - if false, then maximum value of column is removed before incremental loads
 
-    columns:
+    columns:                      # optional - if load_to_duckdb is true, then only the columns listed here are loaded to duckdb
       - name: id
         type: string
         description: The unique identifier for the transaction
