@@ -78,7 +78,7 @@ def test_dag_compilation(simple_dag: m.DAG):
     ctx = {}
     param_args = ParametersArgs("", {}, {})
     ctx_args = ContextArgs(param_args, None, {}, {})
-    asyncio.run(simple_dag._compile_models(ctx, ctx_args, True))
+    simple_dag._compile_models(ctx, ctx_args, True)
     
     model_a = simple_dag.models_dict["A"]
     model_b = simple_dag.models_dict["B"]
@@ -92,7 +92,7 @@ def test_dag_terminal_nodes(simple_dag: m.DAG):
     ctx = {}
     param_args = ParametersArgs("", {}, {})
     ctx_args = ContextArgs(param_args, None, {}, {})
-    asyncio.run(simple_dag._compile_models(ctx, ctx_args, True))
+    simple_dag._compile_models(ctx, ctx_args, True)
     
     terminal_nodes = simple_dag._get_terminal_nodes()
     assert terminal_nodes == {"C"}
@@ -115,7 +115,7 @@ def test_dag_cycle_detection():
     ctx = {}
     param_args = ParametersArgs("", {}, {})
     ctx_args = ContextArgs(param_args, None, {}, {})
-    asyncio.run(dag._compile_models(ctx, ctx_args, True))
+    dag._compile_models(ctx, ctx_args, True)
     
     with pytest.raises(u.ConfigurationError, match="Cycle found in model dependency graph"):
         dag._get_terminal_nodes()
@@ -143,7 +143,7 @@ def test_load_files(tmp_path: Path):
     
     logger = u.Logger("")
     build_model_files = m.ModelsIO.load_build_files(logger, str(tmp_path))
-    dbview_model_files = m.ModelsIO.load_dbview_files(logger, str(tmp_path))
+    dbview_model_files = m.ModelsIO.load_dbview_files(logger, str(tmp_path), env_vars={})
     federate_model_files = m.ModelsIO.load_federate_files(logger, str(tmp_path))
     
     assert set(build_model_files.keys()) == {"model0"}

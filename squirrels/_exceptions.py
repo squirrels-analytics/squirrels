@@ -35,7 +35,7 @@ class InvalidInputError(Exception):
     201 - Invalid query parameter provided
     202 - Could not determine parent parameter for parameter refresh
     203 - SQL query must be provided
-    204 - Provided SQL query failed to run
+    204 - Failed to run provided SQL query
     """
     def __init__(self, error_code: int, message: str, *args) -> None:
         self.error_code = error_code

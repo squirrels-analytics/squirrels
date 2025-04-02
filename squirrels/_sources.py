@@ -13,13 +13,17 @@ class UpdateHints(BaseModel):
 
 class Source(mc.ConnectionInterface, mc.ModelConfig):
     table: str | None = Field(default=None)
-    load_to_duckdb: bool = Field(default=True, description="Whether to load the data to DuckDB")
+    load_to_duckdb: bool = Field(default=False, description="Whether to load the data to DuckDB")
     primary_key: list[str] = Field(default_factory=list)
     update_hints: UpdateHints = Field(default_factory=UpdateHints)
 
-    def get_table(self, source_name: str) -> str:
+    def finalize_table(self, source_name: str):
         if self.table is None:
-            return source_name
+            self.table = source_name
+        return self
+    
+    def get_table(self) -> str:
+        assert self.table is not None, "Table must be set"
         return self.table
     
     def get_cols_for_create_table_stmt(self) -> str:
@@ -80,17 +84,23 @@ class Sources(BaseModel):
                 if not col.type:
                     raise u.ConfigurationError(f"Column '{col.name}' in source '{source_name}' must have a type specified")
         return self
+    
+    def finalize_null_fields(self, env_vars: dict[str, str]):
+        for source_name, source in self.sources.items():
+            source.finalize_connection(env_vars)
+            source.finalize_table(source_name)
+        return self
 
 
 class SourcesIO:
     @classmethod
-    def load_file(cls, logger: u.Logger, base_path: str) -> Sources:
+    def load_file(cls, logger: u.Logger, base_path: str, env_vars: dict[str, str]) -> Sources:
         start = time.time()
         
         sources_path = u.Path(base_path, c.MODELS_FOLDER, c.SOURCES_FILE)
         sources_data = u.load_yaml_config(sources_path) if sources_path.exists() else {}
         
-        sources = Sources(**sources_data)
+        sources = Sources(**sources_data).finalize_null_fields(env_vars)
         
         logger.log_activity_time("loading sources", start)
         return sources

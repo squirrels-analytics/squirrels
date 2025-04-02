@@ -50,7 +50,11 @@ class DataModel(metaclass=ABCMeta):
     def model_type(self) -> ModelType:
         pass
 
-    async def compile(
+    @property
+    def is_queryable(self) -> bool:
+        return True
+
+    def compile(
         self, ctx: dict[str, Any], ctx_args: ContextArgs, models_dict: dict[str, DataModel], recurse: bool
     ) -> None:
         pass
@@ -73,7 +77,7 @@ class DataModel(metaclass=ABCMeta):
         
         self.confirmed_no_cycles = True
         return terminal_nodes
-            
+    
     def _load_duckdb_view_to_python_df(self, conn: duckdb.DuckDBPyConnection, *, use_venv: bool = False) -> pl.LazyFrame:
         table_name = ("venv." if use_venv else "") + self.name
         try:
@@ -94,7 +98,7 @@ class DataModel(metaclass=ABCMeta):
         coroutines = []
         for model in self.downstreams.values():
             coroutines.append(model._trigger(conn, placeholders))
-        await asyncio.gather(*coroutines)
+        await u.asyncio_gather(coroutines)
     
     def retrieve_dependent_query_models(self, dependent_model_names: set[str]) -> None:
         pass
@@ -123,7 +127,7 @@ class DataModel(metaclass=ABCMeta):
                 self.max_path_len_to_target = 0 if self.is_target else None
         return self.max_path_len_to_target
 
-    def _trigger_build(self, conn: duckdb.DuckDBPyConnection, full_refresh: bool) -> None:
+    async def _trigger_build(self, conn: duckdb.DuckDBPyConnection, full_refresh: bool) -> None:
         pass
     
     def _create_table_from_df(self, conn: duckdb.DuckDBPyConnection, query_result: pl.LazyFrame | pd.DataFrame):
@@ -140,6 +144,29 @@ class DataModel(metaclass=ABCMeta):
 
 @dataclass
 class StaticModel(DataModel):
+    needs_python_df_for_build: bool = field(default=False, init=False)
+    wait_count_for_build: int = field(default=0, init=False, repr=False)
+    upstreams_for_build: dict[str, StaticModel] = field(default_factory=dict, init=False, repr=False)
+    downstreams_for_build: dict[str, StaticModel] = field(default_factory=dict, init=False, repr=False)
+    
+    def get_terminal_nodes_for_build(self, depencency_path: set[str]) -> set[str]:
+        if self.confirmed_no_cycles:
+            return set()
+        
+        if self.name in depencency_path:
+            raise u.ConfigurationError(f'Cycle found in model dependency graph')
+
+        terminal_nodes = set()
+        if len(self.upstreams_for_build) == 0:
+            terminal_nodes.add(self.name)
+        else:
+            new_path = set(depencency_path)
+            new_path.add(self.name)
+            for dep_model in self.upstreams_for_build.values():
+                terminal_nodes.update(dep_model.get_terminal_nodes_for_build(new_path))
+        
+        self.confirmed_no_cycles = True
+        return terminal_nodes
     
     def _get_result(self, conn: duckdb.DuckDBPyConnection) -> pl.LazyFrame:
         local_conn = conn.cursor()
@@ -160,14 +187,14 @@ class StaticModel(DataModel):
 
         await super().run_model(conn, placeholders)
 
-    async def compile_for_build(
+    def compile_for_build(
         self, conn_args: ConnectionsArgs, models_dict: dict[str, StaticModel]
     ) -> None:
         pass
     
     async def _trigger_build(self, conn: duckdb.DuckDBPyConnection, full_refresh: bool) -> None:
-        self.wait_count -= 1
-        if (self.wait_count == 0):
+        self.wait_count_for_build -= 1
+        if (self.wait_count_for_build == 0):
             await self.build_model(conn, full_refresh)
     
     async def build_model(self, conn: duckdb.DuckDBPyConnection, full_refresh: bool, *, is_terminal_node: bool = False) -> None:
@@ -179,9 +206,9 @@ class StaticModel(DataModel):
                 local_conn.close()
         
         coroutines = []
-        for model in self.downstreams.values():
+        for model in self.downstreams_for_build.values():
             coroutines.append(model._trigger_build(conn, full_refresh))
-        await asyncio.gather(*coroutines)
+        await u.asyncio_gather(coroutines)
 
 
 @dataclass
@@ -213,11 +240,15 @@ class SourceModel(StaticModel):
     def model_type(self) -> ModelType:
         return ModelType.SOURCE
     
+    @property
+    def is_queryable(self) -> bool:
+        return self.model_config.load_to_duckdb
+    
     def _build_source_model(self, conn: duckdb.DuckDBPyConnection, full_refresh: bool) -> None:
         local_conn = conn.cursor()
         try:
             source = self.model_config
-            conn_name = source.get_connection(self.env_vars)
+            conn_name = source.get_connection()
             
             connection_props = self.conn_set.get_connection(conn_name)
             if isinstance(connection_props, ConnectionProperties):
@@ -229,7 +260,7 @@ class SourceModel(StaticModel):
             if result is None:
                 return # skip this source if connection is not attached
             
-            table_name = source.get_table(self.name)
+            table_name = source.get_table()
             new_table_name = self.name
 
             if len(source.columns) == 0:
@@ -280,7 +311,7 @@ class SourceModel(StaticModel):
             self.logger.log_activity_time(f"building source model '{self.name}' to venv", start)
 
             await super().build_model(conn, full_refresh)
-
+        
 
 @dataclass
 class QueryModel(DataModel):
@@ -297,7 +328,7 @@ class QueryModel(DataModel):
         if isinstance(self.query_file, mq.PyQueryFile):
             other.needs_python_df = True
 
-    def _ref_for_sql(self, dependent_model_name: str, models_dict: dict[str, DataModel]):
+    def _ref_for_sql(self, dependent_model_name: str, models_dict: dict[str, DataModel]) -> str:
         if dependent_model_name not in models_dict:
             raise u.ConfigurationError(f'Model "{self.name}" references unknown model "{dependent_model_name}"')
         
@@ -414,7 +445,7 @@ class DbviewModel(QueryModel):
         def source(source_name: str) -> str:
             if source_name not in models_dict or not isinstance(source_model := models_dict[source_name], SourceModel):
                 raise u.ConfigurationError(f'Dbview "{self.name}" references unknown source "{source_name}"')
-            if source_model.model_config.get_connection(self.env_vars) != self.model_config.get_connection(self.env_vars):
+            if source_model.model_config.get_connection() != self.model_config.get_connection():
                 raise u.ConfigurationError(f'Dbview "{self.name}" references source "{source_name}" with different connection')
             
             # Check if the source model has load_to_duckdb=False but this dbview has translate_to_duckdb=True
@@ -441,7 +472,7 @@ class DbviewModel(QueryModel):
     def _compile_sql_model(self, kwargs: dict[str, Any]) -> mq.SqlModelQuery:
         compiled_query_str = self._get_compiled_sql_query_str(self.query_file.raw_query, kwargs)
 
-        connection_name = self.model_config.get_connection(self.env_vars)
+        connection_name = self.model_config.get_connection()
         connection_props = self.conn_set.get_connection(connection_name)
         
         if self.model_config.translate_to_duckdb and isinstance(connection_props, ConnectionProperties):
@@ -453,7 +484,7 @@ class DbviewModel(QueryModel):
             is_duckdb = True
         else:
             macros = {
-                "source": lambda source_name: self.sources[source_name].get_table(source_name)
+                "source": lambda source_name: self.sources[source_name].get_table()
             }
             compiled_query_str = self._get_compiled_sql_query_str(compiled_query_str, macros)
             is_duckdb = False
@@ -461,7 +492,7 @@ class DbviewModel(QueryModel):
         compiled_query = mq.SqlModelQuery(compiled_query_str, is_duckdb)
         return compiled_query
     
-    async def compile(
+    def compile(
         self, ctx: dict[str, Any], ctx_args: ContextArgs, models_dict: dict[str, DataModel], recurse: bool
     ) -> None:
         if self.compiled_query is not None:
@@ -480,7 +511,7 @@ class DbviewModel(QueryModel):
         assert self.compiled_query is not None
         is_duckdb = self.compiled_query.is_duckdb
         query = self.compiled_query.query
-        connection_name = self.model_config.get_connection(self.env_vars)
+        connection_name = self.model_config.get_connection()
         
         def run_sql_query_on_connection(is_duckdb: bool, query: str, placeholders: dict) -> pl.DataFrame:
             try:
@@ -568,7 +599,7 @@ class FederateModel(QueryModel):
         
         return mq.PyModelQuery(compiled_query)
     
-    async def compile(
+    def compile(
         self, ctx: dict[str, Any], ctx_args: ContextArgs, models_dict: dict[str, DataModel], recurse: bool
     ) -> None:
         if self.compiled_query is not None:
@@ -593,13 +624,10 @@ class FederateModel(QueryModel):
         dependencies = self.model_config.depends_on
         self.wait_count = len(dependencies)
 
-        coroutines = []
         for name in dependencies:
             dep_model = models_dict[name]
             self._add_upstream(dep_model)
-            coro = dep_model.compile(ctx, ctx_args, models_dict, recurse)
-            coroutines.append(coro)
-        await asyncio.gather(*coroutines)
+            dep_model.compile(ctx, ctx_args, models_dict, recurse)
 
     async def _run_sql_model(self, compiled_query: mq.SqlModelQuery, conn: duckdb.DuckDBPyConnection, placeholders: dict = {}) -> None:
         local_conn = conn.cursor()
@@ -618,7 +646,7 @@ class FederateModel(QueryModel):
                     raise InvalidInputError(61, f'Model "{self.name}" depends on static data models that cannot be found.')
                 except Exception as e:
                     if self.name == "__fake_target":
-                        raise InvalidInputError(204, f"Failed to provided SQL query")
+                        raise InvalidInputError(204, f"Failed to run provided SQL query")
                     else:
                         raise FileExecutionError(f'Failed to run federate sql model "{self.name}"', e) from e
             
@@ -660,7 +688,14 @@ class BuildModel(StaticModel, QueryModel):
     def model_type(self) -> ModelType:
         return ModelType.BUILD
     
-    def _get_compile_sql_model_args_for_build(
+    def _add_upstream_for_build(self, other: StaticModel) -> None:
+        self.upstreams_for_build[other.name] = other
+        other.downstreams_for_build[self.name] = self
+        
+        if isinstance(self.query_file, mq.PyQueryFile):
+            other.needs_python_df_for_build = True
+    
+    def _get_compile_sql_model_args(
         self, conn_args: ConnectionsArgs, models_dict: dict[str, StaticModel]
     ) -> dict[str, Any]:
         kwargs: dict[str, Any] = {
@@ -674,15 +709,15 @@ class BuildModel(StaticModel, QueryModel):
         kwargs["ref"] = ref_for_build
         return kwargs
 
-    def _compile_sql_model_for_build(
+    def _compile_sql_model(
         self, query_file: mq.SqlQueryFile, conn_args: ConnectionsArgs, models_dict: dict[str, StaticModel]
     ) -> mq.SqlModelQuery:
-        kwargs = self._get_compile_sql_model_args_for_build(conn_args, models_dict)
+        kwargs = self._get_compile_sql_model_args(conn_args, models_dict)
         compiled_query_str = self._get_compiled_sql_query_str(query_file.raw_query, kwargs)
         compiled_query = mq.SqlModelQuery(compiled_query_str, is_duckdb=True)
         return compiled_query
     
-    def _get_compile_python_model_args_for_build(self, conn_args: ConnectionsArgs) -> BuildModelArgs:
+    def _get_compile_python_model_args(self, conn_args: ConnectionsArgs) -> BuildModelArgs:
         
         def run_external_sql(connection_name: str, sql_query: str):
             return self._run_sql_query_on_connection(connection_name, sql_query)
@@ -691,10 +726,10 @@ class BuildModel(StaticModel, QueryModel):
             conn_args, self.conn_set.get_connections_as_dict(), self.model_config.depends_on, self._ref_for_python, run_external_sql
         )
 
-    def _compile_python_model_for_build(
+    def _compile_python_model(
         self, query_file: mq.PyQueryFile, conn_args: ConnectionsArgs
     ) -> mq.PyModelQuery:
-        sqrl_args = self._get_compile_python_model_args_for_build(conn_args)
+        sqrl_args = self._get_compile_python_model_args(conn_args)
             
         def compiled_query() -> pl.LazyFrame | pd.DataFrame:
             try:
@@ -703,25 +738,25 @@ class BuildModel(StaticModel, QueryModel):
                 raise FileExecutionError(f'Failed to run "{c.MAIN_FUNC}" function for build model "{self.name}"', e)
         
         return mq.PyModelQuery(compiled_query)
-
-    async def compile_for_build(self, conn_args: ConnectionsArgs, models_dict: dict[str, StaticModel]) -> None:
+    
+    def compile_for_build(self, conn_args: ConnectionsArgs, models_dict: dict[str, StaticModel]) -> None:
         start = time.time()
 
         if isinstance(self.query_file, mq.SqlQueryFile):
-            self.compiled_query = self._compile_sql_model_for_build(self.query_file, conn_args, models_dict)
+            self.compiled_query = self._compile_sql_model(self.query_file, conn_args, models_dict)
         elif isinstance(self.query_file, mq.PyQueryFile):
-            self.compiled_query = self._compile_python_model_for_build(self.query_file, conn_args)
+            self.compiled_query = self._compile_python_model(self.query_file, conn_args)
         else:
             raise NotImplementedError(f"Query type not supported: {self.query_file.__class__.__name__}")
         
         self.logger.log_activity_time(f"compiling build model '{self.name}'", start)
         
         dependencies = self.model_config.depends_on
-        self.wait_count = len(dependencies)
+        self.wait_count_for_build = len(dependencies)
 
         for name in dependencies:
             dep_model = models_dict[name]
-            self._add_upstream(dep_model)
+            self._add_upstream_for_build(dep_model)
 
     async def _build_sql_model(self, compiled_query: mq.SqlModelQuery, conn: duckdb.DuckDBPyConnection) -> None:
         query = compiled_query.query
@@ -742,10 +777,10 @@ class BuildModel(StaticModel, QueryModel):
         query_result = await asyncio.to_thread(compiled_query.query)
         if isinstance(query_result, pd.DataFrame):
             query_result = pl.from_pandas(query_result).lazy()
-        if self.needs_python_df:
+        if self.needs_python_df_for_build:
             self.result = query_result.lazy()
         await asyncio.to_thread(self._create_table_from_df, conn, query_result)
-    
+
     async def build_model(self, conn: duckdb.DuckDBPyConnection, full_refresh: bool, *, is_terminal_node: bool = False) -> None:
         start = time.time()
         print(f"[{u.get_current_time()}] 🔨 BUILDING: build model '{self.name}'")
@@ -754,18 +789,20 @@ class BuildModel(StaticModel, QueryModel):
             await self._build_sql_model(self.compiled_query, conn)
         elif isinstance(self.compiled_query, mq.PyModelQuery):
             if is_terminal_node:
-                def load_df(dep_model: DataModel):
-                    local_conn = conn.cursor()
-                    try:
-                        dep_model.result = dep_model._load_duckdb_view_to_python_df(local_conn)
-                    finally:
-                        local_conn.close()
+                # First ensure all upstream models have an associated Python dataframe
+                def load_df(conn: duckdb.DuckDBPyConnection, dep_model: DataModel):
+                    if dep_model.result is None:
+                        local_conn = conn.cursor()
+                        try:
+                            dep_model.result = dep_model._load_duckdb_view_to_python_df(local_conn)
+                        finally:
+                            local_conn.close()
                     
                 coroutines = []
-                for dep_model in self.upstreams.values():
-                    coro = asyncio.to_thread(load_df, dep_model)
+                for dep_model in self.upstreams_for_build.values():
+                    coro = asyncio.to_thread(load_df, conn, dep_model)
                     coroutines.append(coro)
-                await asyncio.gather(*coroutines)
+                await u.asyncio_gather(coroutines)
             
             await self._build_python_model(self.compiled_query, conn)
         else:
@@ -789,6 +826,12 @@ class DAG:
 
     def _get_msg_extension(self) -> str:
         return f" for dataset '{self.dataset.name}'" if self.dataset else ""
+    
+    def compile_build_models(self, conn_args: ConnectionsArgs) -> None:
+        static_models: dict[str, StaticModel] = {k: v for k, v in self.models_dict.items() if isinstance(v, StaticModel)}
+        for model in static_models.values():
+            if isinstance(model, BuildModel):
+                model.compile_for_build(conn_args, static_models)
 
     def apply_selections(
         self, param_cfg_set: ParameterConfigsSet, user: BaseUser | None, selections: dict[str, str]
@@ -817,8 +860,8 @@ class DAG:
         self.logger.log_activity_time("running context.py" + msg_extension, start)
         return context, args
     
-    async def _compile_models(self, context: dict[str, Any], ctx_args: ContextArgs, recurse: bool) -> None:
-        await self.target_model.compile(context, ctx_args, self.models_dict, recurse)
+    def _compile_models(self, context: dict[str, Any], ctx_args: ContextArgs, recurse: bool) -> None:
+        self.target_model.compile(context, ctx_args, self.models_dict, recurse)
     
     def _get_terminal_nodes(self) -> set[str]:
         start = time.time()
@@ -853,7 +896,7 @@ class DAG:
             for model_name in terminal_nodes:
                 model = self.models_dict[model_name] if model_name != "__fake_target" else self.target_model
                 coroutines.append(model.run_model(conn, self.placeholders))
-            await asyncio.gather(*coroutines)
+            await u.asyncio_gather(coroutines)
             
         finally:
             conn.close()
@@ -868,7 +911,7 @@ class DAG:
 
         context, ctx_args = self._compile_context(param_args, context_func, user, default_traits)
 
-        await self._compile_models(context, ctx_args, recurse)
+        self._compile_models(context, ctx_args, recurse)
         
         self.placeholders = ctx_args.placeholders
         if runquery:
@@ -899,30 +942,34 @@ class DAG:
     def get_all_data_models(self) -> list[arm.DataModelItem]:
         data_models = []
         for model_name, model in self.models_dict.items():
-            data_model = arm.DataModelItem(name=model_name, model_type=model.model_type.value, config=model.model_config)
+            is_queryable = model.is_queryable
+            data_model = arm.DataModelItem(name=model_name, model_type=model.model_type.value, config=model.model_config, is_queryable=is_queryable)
             data_models.append(data_model)
         return data_models
     
     def get_all_model_lineage(self) -> list[arm.LineageRelation]:
         model_lineage = []
         for model_name, model in self.models_dict.items():
-            for dep_model_name in model.downstreams:
-                if dep_model_name != "__fake_target":
-                    source_model = arm.LineageNode(name=model_name, type="model")
-                    target_model = arm.LineageNode(name=dep_model_name, type="model")
-                    model_lineage.append(arm.LineageRelation(source=source_model, target=target_model))
+            if not isinstance(model, QueryModel):
+                continue
+            for dep_model_name in model.model_config.depends_on:
+                edge_type = "buildtime" if isinstance(model, BuildModel) else "runtime"
+                source_model = arm.LineageNode(name=dep_model_name, type="model")
+                target_model = arm.LineageNode(name=model_name, type="model")
+                model_lineage.append(arm.LineageRelation(type=edge_type, source=source_model, target=target_model))
         return model_lineage
 
 
 class ModelsIO:
 
     @classmethod
-    def _load_model_config(cls, filepath: Path, model_type: ModelType) -> mc.ModelConfig:
+    def _load_model_config(cls, filepath: Path, model_type: ModelType, env_vars: dict[str, str]) -> mc.ModelConfig:
         yaml_path = filepath.with_suffix('.yml')
         config_dict = u.load_yaml_config(yaml_path) if yaml_path.exists() else {}
         
         if model_type == ModelType.DBVIEW:
-            return mc.DbviewModelConfig(**config_dict)
+            config = mc.DbviewModelConfig(**config_dict).finalize_connection(env_vars)
+            return config
         elif model_type == ModelType.FEDERATE:
             return mc.FederateModelConfig(**config_dict)
         elif model_type == ModelType.BUILD:
@@ -931,7 +978,9 @@ class ModelsIO:
             return mc.ModelConfig(**config_dict)
 
     @classmethod
-    def _populate_from_file(cls, raw_queries_by_model: dict[str, mq.QueryFileWithConfig], dp: str, file: str, model_type: ModelType) -> None:
+    def _populate_from_file(
+        cls, raw_queries_by_model: dict[str, mq.QueryFileWithConfig], dp: str, file: str, model_type: ModelType, env_vars: dict[str, str]
+    ) -> None:
         filepath = Path(dp, file)
         file_stem, extension = os.path.splitext(file)
         
@@ -949,15 +998,17 @@ class ModelsIO:
             conflicts = [prior_query_file.filepath, query_file.filepath]
             raise u.ConfigurationError(f"Multiple models found for '{file_stem}': {conflicts}")
         
-        model_config = cls._load_model_config(filepath, model_type)
+        model_config = cls._load_model_config(filepath, model_type, env_vars)
         raw_queries_by_model[file_stem] = mq.QueryFileWithConfig(query_file, model_config)
 
     @classmethod
-    def _populate_raw_queries_for_type(cls, folder_path: Path, model_type: ModelType) -> dict[str, mq.QueryFileWithConfig]:
+    def _populate_raw_queries_for_type(
+        cls, folder_path: Path, model_type: ModelType, *, env_vars: dict[str, str] = {}
+    ) -> dict[str, mq.QueryFileWithConfig]:
         raw_queries_by_model: dict[str, mq.QueryFileWithConfig] = {}
         for dp, _, filenames in os.walk(folder_path):
             for file in filenames:
-                cls._populate_from_file(raw_queries_by_model, dp, file, model_type)
+                cls._populate_from_file(raw_queries_by_model, dp, file, model_type, env_vars)
         return raw_queries_by_model
 
     @classmethod
@@ -969,10 +1020,10 @@ class ModelsIO:
         return raw_queries_by_model
 
     @classmethod
-    def load_dbview_files(cls, logger: u.Logger, base_path: str) -> dict[str, mq.QueryFileWithConfig]:
+    def load_dbview_files(cls, logger: u.Logger, base_path: str, env_vars: dict[str, str]) -> dict[str, mq.QueryFileWithConfig]:
         start = time.time()
         dbviews_path = u.Path(base_path, c.MODELS_FOLDER, c.DBVIEWS_FOLDER)
-        raw_queries_by_model = cls._populate_raw_queries_for_type(dbviews_path, ModelType.DBVIEW)
+        raw_queries_by_model = cls._populate_raw_queries_for_type(dbviews_path, ModelType.DBVIEW, env_vars=env_vars)
         logger.log_activity_time("loading dbview files", start)
         return raw_queries_by_model
 

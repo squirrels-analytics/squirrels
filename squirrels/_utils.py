@@ -5,7 +5,7 @@ from functools import lru_cache
 from pydantic import BaseModel
 import os, time, logging, json, duckdb, polars as pl, yaml
 import jinja2 as j2, jinja2.nodes as j2_nodes
-import sqlglot, sqlglot.expressions
+import sqlglot, sqlglot.expressions, asyncio
 
 from . import _constants as c
 from ._exceptions import ConfigurationError
@@ -233,7 +233,7 @@ def create_duckdb_connection(filepath: str | Path = ":memory:", *, read_only: bo
         read_only: Whether to open the database in read-only mode. Defaults to False.
     
     Returns:
-        A DuckDB connection
+        A DuckDB connection (which must be closed after use)
     """
     conn = duckdb.connect(filepath, read_only=read_only)
     
@@ -342,3 +342,18 @@ def parse_dependent_tables(sql_query: str, all_table_names: Iterable[str]) -> tu
             dependencies.add(table.name)
     
     return dependencies, parsed
+
+
+async def asyncio_gather(coroutines: list):
+    tasks = [asyncio.create_task(coro) for coro in coroutines]
+    
+    try:
+        return await asyncio.gather(*tasks)
+    except BaseException:
+        # Cancel all tasks
+        for task in tasks:
+            if not task.done():
+                task.cancel()
+        # Wait for tasks to be cancelled
+        await asyncio.gather(*tasks, return_exceptions=True)
+        raise

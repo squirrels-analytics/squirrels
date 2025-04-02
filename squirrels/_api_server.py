@@ -13,7 +13,7 @@ import io, time, mimetypes, traceback, uuid, asyncio, urllib.parse
 
 from . import _constants as c, _utils as u, _api_response_models as arm
 from ._exceptions import InvalidInputError, ConfigurationError, FileExecutionError
-from ._version import sq_major_version
+from ._version import __version__, sq_major_version
 from ._manifest import PermissionScope
 from ._auth import BaseUser, AccessToken, UserField
 from ._parameter_sets import ParameterSet
@@ -309,12 +309,10 @@ class ApiServer:
         async def get_project_metadata(request: Request) -> arm.ProjectModel:
             return arm.ProjectModel(
                 name=project_name,
+                version=project_version,
                 label=self.manifest_cfg.project_variables.label,
                 description=self.manifest_cfg.project_variables.description,
-                versions=[arm.ProjectVersionModel(
-                    major_version=self.manifest_cfg.project_variables.major_version,
-                    data_catalog_path=data_catalog_path
-                )]
+                squirrels_version=__version__
             )
         
         # Authentication
@@ -513,9 +511,11 @@ class ApiServer:
             
             if user and user.is_admin:
                 compiled_dag = await self.project._get_compiled_dag(user=user)
+                connections_items = self.project._get_all_connections()
                 data_models = self.project._get_all_data_models(compiled_dag)
                 lineage_items = self.project._get_all_data_lineage(compiled_dag)
             else:
+                connections_items = []
                 data_models = []
                 lineage_items = []
 
@@ -523,8 +523,9 @@ class ApiServer:
                 parameters=parameters_model.parameters, 
                 datasets=dataset_items, 
                 dashboards=dashboard_items,
+                connections=connections_items,
                 models=data_models,
-                lineage=lineage_items
+                lineage=lineage_items,
             )
         
         @app.get(data_catalog_path, tags=["Project Metadata"], summary="Get catalog of datasets and dashboards available for user")

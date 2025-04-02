@@ -97,7 +97,7 @@ class SquirrelsProject:
     
     @ft.cached_property
     def _sources(self) -> so.Sources:
-        return so.SourcesIO.load_file(self._logger, self._filepath)
+        return so.SourcesIO.load_file(self._logger, self._filepath, self._env_vars)
     
     @ft.cached_property
     def _build_model_files(self) -> dict[str, mq.QueryFileWithConfig]:
@@ -105,7 +105,7 @@ class SquirrelsProject:
     
     @ft.cached_property
     def _dbview_model_files(self) -> dict[str, mq.QueryFileWithConfig]:
-        return m.ModelsIO.load_dbview_files(self._logger, self._filepath)
+        return m.ModelsIO.load_dbview_files(self._logger, self._filepath, self._env_vars)
     
     @ft.cached_property
     def _federate_model_files(self) -> dict[str, mq.QueryFileWithConfig]:
@@ -237,7 +237,7 @@ class SquirrelsProject:
                 model = models_dict[model_name]
                 if isinstance(model, m.SourceModel) and not model.model_config.load_to_duckdb:
                     raise InvalidInputError(203, f"Source model '{model_name}' cannot be queried with DuckDB")
-                if isinstance(model, m.StaticModel):
+                if isinstance(model, (m.SourceModel, m.BuildModel)):
                     substitutions[model_name] = f"venv.{model_name}"
             
             sql_query = parsed.transform(
@@ -280,9 +280,18 @@ class SquirrelsProject:
     
     async def _get_compiled_dag(self, *, sql_query: str | None = None, selections: dict[str, t.Any] = {}, user: BaseUser | None = None) -> m.DAG:
         dag = self._generate_dag_with_fake_target(sql_query)
+        
         default_traits = self._manifest_cfg.get_default_traits()
         await dag.execute(self._param_args, self._param_cfg_set, self._context_func, user, selections, runquery=False, default_traits=default_traits)
         return dag
+    
+    def _get_all_connections(self) -> list[arm.ConnectionItemModel]:
+        connections = []
+        for conn_name, conn_props in self._conn_set.get_connections_as_dict().items():
+            if isinstance(conn_props, mf.ConnectionProperties):
+                label = conn_props.label if conn_props.label is not None else conn_name
+                connections.append(arm.ConnectionItemModel(name=conn_name, label=label))
+        return connections
     
     def _get_all_data_models(self, compiled_dag: m.DAG) -> list[arm.DataModelItem]:
         return compiled_dag.get_all_data_models()
@@ -304,7 +313,7 @@ class SquirrelsProject:
         for dataset in self._manifest_cfg.datasets.values():
             target_dataset = arm.LineageNode(name=dataset.name, type="dataset")
             source_model = arm.LineageNode(name=dataset.model, type="model")
-            all_lineage.append(arm.LineageRelation(source=source_model, target=target_dataset))
+            all_lineage.append(arm.LineageRelation(type="runtime", source=source_model, target=target_dataset))
 
         # Add dashboard nodes to the lineage
         for dashboard in self._dashboards.values():
@@ -312,7 +321,7 @@ class SquirrelsProject:
             datasets = set(x.dataset for x in dashboard.config.depends_on)
             for dataset in datasets:
                 source_dataset = arm.LineageNode(name=dataset, type="dataset")
-                all_lineage.append(arm.LineageRelation(source=source_dataset, target=target_dashboard))
+                all_lineage.append(arm.LineageRelation(type="runtime", source=source_dataset, target=target_dashboard))
 
         return all_lineage
 
@@ -389,7 +398,7 @@ class SquirrelsProject:
         write_placeholders()
         all_model_names = dag.get_all_query_models()
         coroutines = [asyncio.to_thread(write_model_outputs, dag.models_dict[name]) for name in all_model_names]
-        await asyncio.gather(*coroutines)
+        await u.asyncio_gather(coroutines)
 
         if recurse:
             self._draw_dag(dag, output_folder)
@@ -436,7 +445,7 @@ class SquirrelsProject:
             coroutine = self._write_dataset_outputs_given_test_set(dataset, selected_model, test_set, runquery, recurse)
             coroutines.append(coroutine)
         
-        queries = await asyncio.gather(*coroutines)
+        queries = await u.asyncio_gather(coroutines)
         
         print(f"Compiled successfully! See the '{c.TARGET_FOLDER}/' folder for results.")
         print()

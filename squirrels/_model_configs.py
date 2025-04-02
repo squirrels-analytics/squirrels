@@ -32,10 +32,15 @@ class SeedConfig(ModelConfig):
 class ConnectionInterface(BaseModel):
     connection: str | None = Field(default=None, description="The connection name of the source model / database view")
 
-    def get_connection(self, env_vars: dict[str, str]) -> str:
-        default_connection_name = env_vars.get(c.SQRL_CONNECTIONS_DEFAULT_NAME_USED, "default")
-        return self.connection if self.connection is not None else default_connection_name
+    def finalize_connection(self, env_vars: dict[str, str]):
+        if self.connection is None:
+            self.connection = env_vars.get(c.SQRL_CONNECTIONS_DEFAULT_NAME_USED, "default")
+        return self
 
+    def get_connection(self) -> str:
+        assert self.connection is not None, "Connection must be set"
+        return self.connection
+    
 
 class QueryModelConfig(ModelConfig):
     depends_on: set[str] = Field(default_factory=set, description="The dependencies of the model")

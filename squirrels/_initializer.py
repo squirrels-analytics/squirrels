@@ -197,7 +197,7 @@ class Initializer:
         self._copy_dotenv_files()
         self._create_manifest_file(connections_use_yaml, parameters_use_yaml)
         
-        self._copy_file(u.Path(".gitignore"))
+        self._copy_file(u.Path(c.GITIGNORE_FILE))
         
         if connections_use_py:
             self._copy_pyconfig_file(c.CONNECTIONS_FILE)
@@ -242,6 +242,10 @@ class Initializer:
     def get_file(self, args):
         if args.file_name == c.DOTENV_FILE:
             self._copy_dotenv_files()
+            print(f"IMPORTANT: Please ensure the {c.DOTENV_FILE} file is added to your {c.GITIGNORE_FILE} file.")
+            print(f"You may also run `sqrl get-file {c.GITIGNORE_FILE}` to add a sample {c.GITIGNORE_FILE} file to your project.")
+        elif args.file_name == c.GITIGNORE_FILE:
+            self._copy_file(u.Path(c.GITIGNORE_FILE))
         elif args.file_name == c.MANIFEST_FILE:
             self._create_manifest_file(not args.no_connections, args.parameters)
         elif args.file_name in (c.USER_FILE, c.CONNECTIONS_FILE, c.PARAMETERS_FILE, c.CONTEXT_FILE):

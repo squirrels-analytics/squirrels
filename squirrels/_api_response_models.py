@@ -130,18 +130,24 @@ class DashboardItemModel(ParametersModel):
 
 ModelConfigType = mc.ModelConfig | s.Source | mc.SeedConfig | mc.BuildModelConfig | mc.DbviewModelConfig | mc.FederateModelConfig
 
+class ConnectionItemModel(BaseModel):
+    name: Annotated[str, Field(examples=["myconnection"], description="The name of the connection")]
+    label: Annotated[str, Field(examples=["My Connection"], description="The human-friendly display name for the connection")]
+
 class DataModelItem(BaseModel):
     name: Annotated[str, Field(examples=["model_name"], description="The name of the model")]
     model_type: Annotated[Literal["source", "dbview", "federate", "seed", "build"], Field(
         examples=["source", "dbview", "federate", "seed", "build"], description="The type of the model"
     )]
     config: Annotated[ModelConfigType, Field(description="The configuration of the model")]
+    is_queryable: Annotated[bool, Field(examples=[True], description="Whether the model is queryable")]
 
 class LineageNode(BaseModel):
     name: str
     type: Literal["model", "dataset", "dashboard"]
 
 class LineageRelation(BaseModel):
+    type: Literal["buildtime", "runtime"]
     source: LineageNode
     target: LineageNode
 
@@ -149,6 +155,7 @@ class CatalogModel(BaseModel):
     parameters: Annotated[ParametersListType, Field(description="The list of all parameters in the project")]
     datasets: Annotated[list[DatasetItemModel], Field(description="The list of accessible datasets")]
     dashboards: Annotated[list[DashboardItemModel], Field(description="The list of accessible dashboards")]
+    connections: Annotated[list[ConnectionItemModel], Field(description="The list of connections in the project (only provided for admin users)")]
     models: Annotated[list[DataModelItem], Field(description="The list of data models in the project (only provided for admin users)")]
     lineage: Annotated[list[LineageRelation], Field(description="The lineage information between data assets (only provided for admin users)")]
 
@@ -177,6 +184,7 @@ class ProjectVersionModel(BaseModel):
 
 class ProjectModel(BaseModel):
     name: Annotated[str, Field(examples=["myproject"])]
+    version: Annotated[str, Field(examples=["v1"])]
     label: Annotated[str, Field(examples=["My Project"])]
     description: Annotated[str, Field(examples=["My project description"])]
-    versions: list[ProjectVersionModel]
+    squirrels_version: Annotated[str, Field(examples=["0.1.0"])]

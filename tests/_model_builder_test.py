@@ -91,6 +91,7 @@ def test_build_sources_with_increasing_column(request: pytest.FixtureRequest, pr
     source_name = 'test_table'
     source = Source(
         connection='test_conn',
+        load_to_duckdb=True,
         primary_key=primary_key,
         update_hints=UpdateHints(increasing_column='value', strictly_increasing=strictly_increasing),
         columns=[
@@ -98,7 +99,8 @@ def test_build_sources_with_increasing_column(request: pytest.FixtureRequest, pr
             ColumnConfig(name="name", type="VARCHAR"), 
             ColumnConfig(name="value", type="BIGINT")
         ]
-    )
+    ).finalize_table(source_name)
+    
     source_model = SourceModel(source_name, source, conn_set=connection_set)
     model_builder = ModelBuilder(
         _duckdb_venv_path='dummy_path',
@@ -135,8 +137,10 @@ def test_build_sources(connection_set, expected_df3: pl.DataFrame):
             ColumnConfig(name="id", type="BIGINT"), 
             ColumnConfig(name="name", type="VARCHAR"), 
             ColumnConfig(name="value", type="BIGINT")
-        ]
-    )
+        ],
+        load_to_duckdb=True
+    ).finalize_table(source_name)
+
     source_model = SourceModel(source_name, source, conn_set=connection_set)
     model_builder = ModelBuilder(
         _duckdb_venv_path='dummy_path',
