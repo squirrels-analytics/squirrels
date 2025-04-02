@@ -109,7 +109,7 @@ def compiled_dag(modelA, modelB1, modelB2, modelC1a, modelC2, modelSeed, context
     models: list[m.DataModel] = [modelA, modelB1, modelB2, modelC1a, modelC2, modelSeed]
     models_dict = {mod.name: mod for mod in models}
     dag = m.DAG(DatasetConfig(name="test"), modelA, models_dict)
-    asyncio.run(dag._compile_models({}, context_args, True))
+    dag._compile_models({}, context_args, True)
     return dag
 
 
@@ -118,7 +118,7 @@ def compiled_dag_with_cycle(modelA, modelB1, modelB2, modelC1b, modelC2, modelSe
     models: list[m.DataModel] = [modelA, modelB1, modelB2, modelC1b, modelC2, modelSeed]
     models_dict = {mod.name: mod for mod in models}
     dag = m.DAG(DatasetConfig(name="test"), modelA, models_dict)
-    asyncio.run(dag._compile_models({}, context_args, True))
+    dag._compile_models({}, context_args, True)
     return dag
 
 

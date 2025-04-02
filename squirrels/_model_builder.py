@@ -32,12 +32,9 @@ class ModelBuilder:
         Compile and construct the build models as DuckDB tables.
         """
         # Compile the build models
-        coroutines = []
         models_list = self._static_models.values() if select is None else [self._static_models[select]]
         for model in models_list:
-            coro = model.compile_for_build(self._conn_args, self._static_models)
-            coroutines.append(coro)
-        await u.asyncio_gather(coroutines)
+            model.compile_for_build(self._conn_args, self._static_models)
 
         # Find all terminal nodes
         terminal_nodes = set()

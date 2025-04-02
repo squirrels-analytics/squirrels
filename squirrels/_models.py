@@ -54,7 +54,7 @@ class DataModel(metaclass=ABCMeta):
     def is_queryable(self) -> bool:
         return True
 
-    async def compile(
+    def compile(
         self, ctx: dict[str, Any], ctx_args: ContextArgs, models_dict: dict[str, DataModel], recurse: bool
     ) -> None:
         pass
@@ -77,7 +77,7 @@ class DataModel(metaclass=ABCMeta):
         
         self.confirmed_no_cycles = True
         return terminal_nodes
-            
+    
     def _load_duckdb_view_to_python_df(self, conn: duckdb.DuckDBPyConnection, *, use_venv: bool = False) -> pl.LazyFrame:
         table_name = ("venv." if use_venv else "") + self.name
         try:
@@ -144,6 +144,29 @@ class DataModel(metaclass=ABCMeta):
 
 @dataclass
 class StaticModel(DataModel):
+    needs_python_df_for_build: bool = field(default=False, init=False)
+    wait_count_for_build: int = field(default=0, init=False, repr=False)
+    upstreams_for_build: dict[str, StaticModel] = field(default_factory=dict, init=False, repr=False)
+    downstreams_for_build: dict[str, StaticModel] = field(default_factory=dict, init=False, repr=False)
+    
+    def get_terminal_nodes_for_build(self, depencency_path: set[str]) -> set[str]:
+        if self.confirmed_no_cycles:
+            return set()
+        
+        if self.name in depencency_path:
+            raise u.ConfigurationError(f'Cycle found in model dependency graph')
+
+        terminal_nodes = set()
+        if len(self.upstreams_for_build) == 0:
+            terminal_nodes.add(self.name)
+        else:
+            new_path = set(depencency_path)
+            new_path.add(self.name)
+            for dep_model in self.upstreams_for_build.values():
+                terminal_nodes.update(dep_model.get_terminal_nodes_for_build(new_path))
+        
+        self.confirmed_no_cycles = True
+        return terminal_nodes
     
     def _get_result(self, conn: duckdb.DuckDBPyConnection) -> pl.LazyFrame:
         local_conn = conn.cursor()
@@ -164,14 +187,14 @@ class StaticModel(DataModel):
 
         await super().run_model(conn, placeholders)
 
-    async def compile_for_build(
+    def compile_for_build(
         self, conn_args: ConnectionsArgs, models_dict: dict[str, StaticModel]
     ) -> None:
         pass
     
     async def _trigger_build(self, conn: duckdb.DuckDBPyConnection, full_refresh: bool) -> None:
-        self.wait_count -= 1
-        if (self.wait_count == 0):
+        self.wait_count_for_build -= 1
+        if (self.wait_count_for_build == 0):
             await self.build_model(conn, full_refresh)
     
     async def build_model(self, conn: duckdb.DuckDBPyConnection, full_refresh: bool, *, is_terminal_node: bool = False) -> None:
@@ -183,7 +206,7 @@ class StaticModel(DataModel):
                 local_conn.close()
         
         coroutines = []
-        for model in self.downstreams.values():
+        for model in self.downstreams_for_build.values():
             coroutines.append(model._trigger_build(conn, full_refresh))
         await u.asyncio_gather(coroutines)
 
@@ -469,7 +492,7 @@ class DbviewModel(QueryModel):
         compiled_query = mq.SqlModelQuery(compiled_query_str, is_duckdb)
         return compiled_query
     
-    async def compile(
+    def compile(
         self, ctx: dict[str, Any], ctx_args: ContextArgs, models_dict: dict[str, DataModel], recurse: bool
     ) -> None:
         if self.compiled_query is not None:
@@ -576,7 +599,7 @@ class FederateModel(QueryModel):
         
         return mq.PyModelQuery(compiled_query)
     
-    async def compile(
+    def compile(
         self, ctx: dict[str, Any], ctx_args: ContextArgs, models_dict: dict[str, DataModel], recurse: bool
     ) -> None:
         if self.compiled_query is not None:
@@ -601,13 +624,10 @@ class FederateModel(QueryModel):
         dependencies = self.model_config.depends_on
         self.wait_count = len(dependencies)
 
-        coroutines = []
         for name in dependencies:
             dep_model = models_dict[name]
             self._add_upstream(dep_model)
-            coro = dep_model.compile(ctx, ctx_args, models_dict, recurse)
-            coroutines.append(coro)
-        await u.asyncio_gather(coroutines)
+            dep_model.compile(ctx, ctx_args, models_dict, recurse)
 
     async def _run_sql_model(self, compiled_query: mq.SqlModelQuery, conn: duckdb.DuckDBPyConnection, placeholders: dict = {}) -> None:
         local_conn = conn.cursor()
@@ -668,6 +688,13 @@ class BuildModel(StaticModel, QueryModel):
     def model_type(self) -> ModelType:
         return ModelType.BUILD
     
+    def _add_upstream_for_build(self, other: StaticModel) -> None:
+        self.upstreams_for_build[other.name] = other
+        other.downstreams_for_build[self.name] = self
+        
+        if isinstance(self.query_file, mq.PyQueryFile):
+            other.needs_python_df_for_build = True
+    
     def _get_compile_sql_model_args(
         self, conn_args: ConnectionsArgs, models_dict: dict[str, StaticModel]
     ) -> dict[str, Any]:
@@ -712,30 +739,24 @@ class BuildModel(StaticModel, QueryModel):
         
         return mq.PyModelQuery(compiled_query)
     
-    async def compile(
-        self, ctx: dict[str, Any], ctx_args: ConnectionsArgs, models_dict: dict[str, StaticModel], recurse: bool
-    ) -> None:
+    def compile_for_build(self, conn_args: ConnectionsArgs, models_dict: dict[str, StaticModel]) -> None:
         start = time.time()
 
         if isinstance(self.query_file, mq.SqlQueryFile):
-            self.compiled_query = self._compile_sql_model(self.query_file, ctx_args, models_dict)
+            self.compiled_query = self._compile_sql_model(self.query_file, conn_args, models_dict)
         elif isinstance(self.query_file, mq.PyQueryFile):
-            self.compiled_query = self._compile_python_model(self.query_file, ctx_args)
+            self.compiled_query = self._compile_python_model(self.query_file, conn_args)
         else:
             raise NotImplementedError(f"Query type not supported: {self.query_file.__class__.__name__}")
         
         self.logger.log_activity_time(f"compiling build model '{self.name}'", start)
-
-    async def compile_for_build(self, conn_args: ConnectionsArgs, models_dict: dict[str, StaticModel]) -> None:
-        ctx = {}
-        await self.compile(ctx, conn_args, models_dict, recurse=True)
         
         dependencies = self.model_config.depends_on
-        self.wait_count = len(dependencies)
+        self.wait_count_for_build = len(dependencies)
 
         for name in dependencies:
             dep_model = models_dict[name]
-            self._add_upstream(dep_model)
+            self._add_upstream_for_build(dep_model)
 
     async def _build_sql_model(self, compiled_query: mq.SqlModelQuery, conn: duckdb.DuckDBPyConnection) -> None:
         query = compiled_query.query
@@ -756,7 +777,7 @@ class BuildModel(StaticModel, QueryModel):
         query_result = await asyncio.to_thread(compiled_query.query)
         if isinstance(query_result, pd.DataFrame):
             query_result = pl.from_pandas(query_result).lazy()
-        if self.needs_python_df:
+        if self.needs_python_df_for_build:
             self.result = query_result.lazy()
         await asyncio.to_thread(self._create_table_from_df, conn, query_result)
 
@@ -778,7 +799,7 @@ class BuildModel(StaticModel, QueryModel):
                             local_conn.close()
                     
                 coroutines = []
-                for dep_model in self.upstreams.values():
+                for dep_model in self.upstreams_for_build.values():
                     coro = asyncio.to_thread(load_df, conn, dep_model)
                     coroutines.append(coro)
                 await u.asyncio_gather(coroutines)
@@ -805,6 +826,12 @@ class DAG:
 
     def _get_msg_extension(self) -> str:
         return f" for dataset '{self.dataset.name}'" if self.dataset else ""
+    
+    def compile_build_models(self, conn_args: ConnectionsArgs) -> None:
+        static_models: dict[str, StaticModel] = {k: v for k, v in self.models_dict.items() if isinstance(v, StaticModel)}
+        for model in static_models.values():
+            if isinstance(model, BuildModel):
+                model.compile_for_build(conn_args, static_models)
 
     def apply_selections(
         self, param_cfg_set: ParameterConfigsSet, user: BaseUser | None, selections: dict[str, str]
@@ -833,8 +860,8 @@ class DAG:
         self.logger.log_activity_time("running context.py" + msg_extension, start)
         return context, args
     
-    async def _compile_models(self, context: dict[str, Any], ctx_args: ContextArgs, recurse: bool) -> None:
-        await self.target_model.compile(context, ctx_args, self.models_dict, recurse)
+    def _compile_models(self, context: dict[str, Any], ctx_args: ContextArgs, recurse: bool) -> None:
+        self.target_model.compile(context, ctx_args, self.models_dict, recurse)
     
     def _get_terminal_nodes(self) -> set[str]:
         start = time.time()
@@ -884,7 +911,7 @@ class DAG:
 
         context, ctx_args = self._compile_context(param_args, context_func, user, default_traits)
 
-        await self._compile_models(context, ctx_args, recurse)
+        self._compile_models(context, ctx_args, recurse)
         
         self.placeholders = ctx_args.placeholders
         if runquery:
