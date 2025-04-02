@@ -45,6 +45,7 @@ MANIFEST_FILE = 'squirrels.yml'
 DUCKDB_INIT_FILE = 'duckdb_init.sql'
 DOTENV_FILE = '.env'
 DOTENV_LOCAL_FILE = '.env.local'
+GITIGNORE_FILE = '.gitignore'
 
 LOGS_FOLDER = 'logs'
 LOGS_FILE = 'squirrels.log'

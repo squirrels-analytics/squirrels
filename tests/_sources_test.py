@@ -7,25 +7,25 @@ from squirrels import _constants as c
 
 def test_source_get_connection():
     # Test with no connection specified
-    source = Source()
-    assert source.get_connection({}) == "default"
+    source = Source().finalize_connection({})
+    assert source.get_connection() == "default"
 
     # Test with explicit connection
-    source = Source(connection="test_connection")
-    assert source.get_connection({}) == "test_connection"
+    source = Source(connection="test_connection").finalize_connection({})
+    assert source.get_connection() == "test_connection"
     
     # Test with default connection from settings
-    source = Source()
-    assert source.get_connection({c.SQRL_CONNECTIONS_DEFAULT_NAME_USED: "default_connection"}) == "default_connection"
+    source = Source().finalize_connection({c.SQRL_CONNECTIONS_DEFAULT_NAME_USED: "default_connection"})
+    assert source.get_connection() == "default_connection"
 
 def test_source_get_table():
     # Test with explicit table
-    source = Source(table="custom_table")
-    assert source.get_table("test") == "custom_table"
+    source = Source(table="custom_table").finalize_table("test")
+    assert source.get_table() == "custom_table"
     
     # Test with default table (empty string, will be replaced with source name)
-    source = Source()
-    assert source.get_table("test") == "test"
+    source = Source().finalize_table("test")
+    assert source.get_table() == "test"
 
 def test_source_get_cols_for_create_table_stmt():
     source = Source(

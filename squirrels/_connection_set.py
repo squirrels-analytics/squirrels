@@ -83,15 +83,11 @@ class ConnectionSetIO:
         connections: dict[str, ConnectionProperties | Any] = {}
         
         for config in manifest_cfg.connections.values():
-            connections[config.name] = ConnectionProperties(type=config.type, uri=config.uri)
+            connections[config.name] = ConnectionProperties(label=config.label, type=config.type, uri=config.uri)
 
         pm.run_pyconfig_main(base_path, c.CONNECTIONS_FILE, {"connections": connections, "sqrl": conn_args})
 
-        finalized_connections = {}
-        for conn_name, conn_props in connections.items():
-            finalized_connections[conn_name] = conn_props
-
-        conn_set = ConnectionSet(finalized_connections)
+        conn_set = ConnectionSet(connections)
 
         logger.log_activity_time("creating sqlalchemy engines", start)
         return conn_set

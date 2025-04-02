@@ -143,7 +143,7 @@ def test_load_files(tmp_path: Path):
     
     logger = u.Logger("")
     build_model_files = m.ModelsIO.load_build_files(logger, str(tmp_path))
-    dbview_model_files = m.ModelsIO.load_dbview_files(logger, str(tmp_path))
+    dbview_model_files = m.ModelsIO.load_dbview_files(logger, str(tmp_path), env_vars={})
     federate_model_files = m.ModelsIO.load_federate_files(logger, str(tmp_path))
     
     assert set(build_model_files.keys()) == {"model0"}

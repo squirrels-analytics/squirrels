@@ -37,7 +37,7 @@ class ModelBuilder:
         for model in models_list:
             coro = model.compile_for_build(self._conn_args, self._static_models)
             coroutines.append(coro)
-        await asyncio.gather(*coroutines)
+        await u.asyncio_gather(coroutines)
 
         # Find all terminal nodes
         terminal_nodes = set()
@@ -55,7 +55,7 @@ class ModelBuilder:
             model = self._static_models[model_name]
             coro = model.build_model(duckdb_conn, full_refresh, is_terminal_node=True)
             coroutines.append(coro)
-        await asyncio.gather(*coroutines)
+        await u.asyncio_gather(coroutines)
 
     async def build(self, full_refresh: bool, select: str | None, stage_file: bool) -> None:
         start = time.time()
@@ -68,41 +68,47 @@ class ModelBuilder:
         duckdb_dev_path = u.Path(self._duckdb_venv_path + ".dev")
         duckdb_stg_path = u.Path(self._duckdb_venv_path + ".stg")
 
-        # If a development copy already exists, a concurrent build is not allowed
-        if duckdb_dev_path.exists():
+        # If the development copy is already in use, a concurrent build is not allowed
+        duckdb_dev_lock_path = u.Path(self._duckdb_venv_path + ".dev.lock")
+        if duckdb_dev_lock_path.exists():
             raise InvalidInputError(60, "An existing build process is already running and a concurrent build is not allowed")
+        duckdb_dev_lock_path.touch(exist_ok=False)
         
-        # If not full refresh, create a development copy of the existing virtual data environment
-        if not full_refresh:
-            if duckdb_stg_path.exists():
-                duckdb_stg_path.replace(duckdb_dev_path)
-            elif duckdb_path.exists():
-                shutil.copy(duckdb_path, duckdb_dev_path)
-        
-        self._logger.log_activity_time("creating development copy of virtual data environment", start)
-        
+        # Ensure the lock file is deleted even if an exception is raised
         try:
+            # If not full refresh, create a development copy of the existing virtual data environment
+            if not full_refresh:
+                if duckdb_stg_path.exists():
+                    duckdb_stg_path.replace(duckdb_dev_path)
+                elif duckdb_path.exists():
+                    shutil.copy(duckdb_path, duckdb_dev_path)
+                
+            self._logger.log_activity_time("creating development copy of virtual data environment", start)
+        
             # Connect to DuckDB file
             duckdb_conn = u.create_duckdb_connection(duckdb_dev_path)
-            try:
-                # Attach connections
-                self._attach_connections(duckdb_conn)
-
-                # Construct build models
-                await self._build_models(duckdb_conn, select, full_refresh)
             
-            finally:
-                duckdb_conn.close() 
+        except Exception:
+            duckdb_dev_lock_path.unlink()
+            raise
         
-            # Rename duckdb_dev_path to duckdb_path (or duckdb_stg_path if stage_file is True)
-            if stage_file:
-                duckdb_dev_path.replace(duckdb_stg_path)
-            else:
-                duckdb_dev_path.replace(duckdb_path)
-    
+        # Sometimes code after conn.close() doesn't run (as if the python process is killed but no error is raised)
+        # Using a new try block to ensure the lock file is removed before closing the connection
+        try:
+            # Attach connections
+            self._attach_connections(duckdb_conn)
+
+            # Construct build models
+            await self._build_models(duckdb_conn, select, full_refresh)
+        
         finally:
-            # Remove the dev file if there was an error
-            if duckdb_dev_path.exists():
-                duckdb_dev_path.unlink()
-        
+            duckdb_dev_lock_path.unlink()
+            duckdb_conn.close()
+
+        # Rename duckdb_dev_path to duckdb_path (or duckdb_stg_path if stage_file is True)
+        if stage_file:
+            duckdb_dev_path.replace(duckdb_stg_path)
+        else:
+            duckdb_dev_path.replace(duckdb_path)
+
         self._logger.log_activity_time("TOTAL TIME to build virtual data environment", start)
