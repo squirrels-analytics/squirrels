@@ -5,7 +5,7 @@ SELECT STRFTIME('%Y-%m', date) AS month
 
 FROM {{ source("src_transactions") }}
 
-WHERE {{ date_and_amount_filters(ctx) }}
+WHERE {{ date_and_amount_filters(use_from_range=false) }}
 
 GROUP BY 1
 

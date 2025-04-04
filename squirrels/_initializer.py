@@ -100,10 +100,10 @@ class Initializer:
         
         self._copy_file(u.Path(c.MANIFEST_FILE), src_folder=TMP_FOLDER)
     
-    def _copy_dotenv_files(self):
+    def _copy_dotenv_files(self, admin_password: str | None = None):
         substitutions = {
             "random_secret_key": secrets.token_hex(32),
-            "random_admin_password": secrets.token_urlsafe(8),
+            "random_admin_password": admin_password if admin_password else secrets.token_urlsafe(8),
         }
 
         dotenv_path = u.Path(base_proj_dir, c.DOTENV_FILE)
@@ -146,6 +146,9 @@ class Initializer:
                 inquirer.Confirm(
                     DASHBOARD, message=f"Do you want to include a dashboard example?", default=False
                 ),
+                inquirer.Password(
+                    "admin_password", message="What's the admin password? (leave blank to generate a random one)"
+                ),
             ]
             answers = inquirer.prompt(questions)
             assert isinstance(answers, dict)
@@ -162,6 +165,8 @@ class Initializer:
             """
             answer = answers.get(key)
             return answer if answer is not None else default
+        
+        admin_password = get_answer("admin_password", None)
         
         connections_format = get_answer(CONNECTIONS, c.YML_FORMAT)
         connections_use_yaml = (connections_format == c.YML_FORMAT)
@@ -194,7 +199,7 @@ class Initializer:
 
         dashboards_enabled = get_answer(DASHBOARD, False)
 
-        self._copy_dotenv_files()
+        self._copy_dotenv_files(admin_password)
         self._create_manifest_file(connections_use_yaml, parameters_use_yaml)
         
         self._copy_file(u.Path(c.GITIGNORE_FILE))
@@ -242,8 +247,11 @@ class Initializer:
     def get_file(self, args):
         if args.file_name == c.DOTENV_FILE:
             self._copy_dotenv_files()
+            print(f"A random admin password was generated for your project. You can change it in the new {c.DOTENV_FILE} file.")
+            print()
             print(f"IMPORTANT: Please ensure the {c.DOTENV_FILE} file is added to your {c.GITIGNORE_FILE} file.")
             print(f"You may also run `sqrl get-file {c.GITIGNORE_FILE}` to add a sample {c.GITIGNORE_FILE} file to your project.")
+            print()
         elif args.file_name == c.GITIGNORE_FILE:
             self._copy_file(u.Path(c.GITIGNORE_FILE))
         elif args.file_name == c.MANIFEST_FILE:

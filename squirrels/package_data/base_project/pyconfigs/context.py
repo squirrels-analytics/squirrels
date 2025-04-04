@@ -48,8 +48,8 @@ def main(ctx: dict[str, Any], sqrl: ContextArgs) -> None:
         date_range_param = sqrl.prms["date_range"]
         assert isinstance(date_range_param, p.DateRangeParameter)
 
-        ctx["start_date"] = date_range_param.get_selected_start_date_quoted()
-        ctx["end_date"] = date_range_param.get_selected_end_date_quoted()
+        ctx["start_date_from_range"] = date_range_param.get_selected_start_date_quoted()
+        ctx["end_date_from_range"] = date_range_param.get_selected_end_date_quoted()
     
     if sqrl.param_exists("category"):
         category_param = sqrl.prms["category"]
@@ -81,6 +81,6 @@ def main(ctx: dict[str, Any], sqrl: ContextArgs) -> None:
         between_filter = sqrl.prms["between_filter"]
         assert isinstance(between_filter, p.NumberRangeParameter)
 
-        ctx["min_amount"] = between_filter.get_selected_lower_value()
-        ctx["max_amount"] = between_filter.get_selected_upper_value()
+        ctx["min_amount_from_range"] = between_filter.get_selected_lower_value()
+        ctx["max_amount_from_range"] = between_filter.get_selected_upper_value()
     

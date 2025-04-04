@@ -40,7 +40,7 @@ class ModelBuilder:
         terminal_nodes = set()
         if select is None:
             for model in models_list:
-                terminal_nodes.update(model.get_terminal_nodes(set()))
+                terminal_nodes.update(model.get_terminal_nodes_for_build(set()))
             for model in models_list:
                 model.confirmed_no_cycles = False
         else:
@@ -50,7 +50,7 @@ class ModelBuilder:
         coroutines = []
         for model_name in terminal_nodes:
             model = self._static_models[model_name]
-            coro = model.build_model(duckdb_conn, full_refresh, is_terminal_node=True)
+            coro = model.build_model(duckdb_conn, full_refresh)
             coroutines.append(coro)
         await u.asyncio_gather(coroutines)
 

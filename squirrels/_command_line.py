@@ -134,7 +134,7 @@ def main():
                 _run_duckdb_cli(project)
             elif args.command == c.RUN_CMD:
                 if args.build:
-                    task = project.build()
+                    task = project.build(full_refresh=True)
                     asyncio.run(task)
                 server = ApiServer(args.no_cache, project)
                 server.run(args)

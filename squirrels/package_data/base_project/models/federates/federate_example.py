@@ -16,10 +16,10 @@ def main(sqrl: ModelArgs) -> pl.LazyFrame | pl.DataFrame | pd.DataFrame:
     df = sqrl.ref("build_example")
 
     df = df.filter(
-        (pl.col("amount") >= sqrl.ctx["min_amount"]) &
-        (pl.col("amount") <= sqrl.ctx["max_amount"]) &
-        (pl.col("date") >= dequote(sqrl.ctx["start_date"])) &
-        (pl.col("date") <= dequote(sqrl.ctx["end_date"]))
+        (pl.col("amount") >= sqrl.ctx["min_amount_from_range"]) &
+        (pl.col("amount") <= sqrl.ctx["max_amount_from_range"]) &
+        (pl.col("date") >= dequote(sqrl.ctx["start_date_from_range"])) &
+        (pl.col("date") <= dequote(sqrl.ctx["end_date_from_range"]))
     )
 
     if sqrl.ctx["has_categories"]:

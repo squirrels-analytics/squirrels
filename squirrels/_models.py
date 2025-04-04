@@ -173,7 +173,7 @@ class StaticModel(DataModel):
         try:
             return self._load_duckdb_view_to_python_df(local_conn, use_venv=True)
         except Exception as e:
-            raise u.ConfigurationError(f'Failed to load static model "{self.name}"... Must be built using `sqrl build` first') from e
+            raise InvalidInputError(61, f'Model "{self.name}" depends on static data models that cannot be found.')
         finally:
             local_conn.close()
     
@@ -197,7 +197,7 @@ class StaticModel(DataModel):
         if (self.wait_count_for_build == 0):
             await self.build_model(conn, full_refresh)
     
-    async def build_model(self, conn: duckdb.DuckDBPyConnection, full_refresh: bool, *, is_terminal_node: bool = False) -> None:
+    async def build_model(self, conn: duckdb.DuckDBPyConnection, full_refresh: bool) -> None:
         if self.needs_python_df and self.result is None:
             local_conn = conn.cursor()
             try:
@@ -220,7 +220,7 @@ class Seed(StaticModel):
     def model_type(self) -> ModelType:
         return ModelType.SEED
     
-    async def build_model(self, conn: duckdb.DuckDBPyConnection, full_refresh: bool, *, is_terminal_node: bool = True) -> None:
+    async def build_model(self, conn: duckdb.DuckDBPyConnection, full_refresh: bool) -> None:
         start = time.time()
 
         print(f"[{u.get_current_time()}] 🔨 BUILDING: seed model '{self.name}'")
@@ -300,7 +300,7 @@ class SourceModel(StaticModel):
         finally:
             local_conn.close()
 
-    async def build_model(self, conn: duckdb.DuckDBPyConnection, full_refresh: bool, *, is_terminal_node: bool = True) -> None:
+    async def build_model(self, conn: duckdb.DuckDBPyConnection, full_refresh: bool) -> None:
         if self.model_config.load_to_duckdb:
             start = time.time()
             print(f"[{u.get_current_time()}] 🔨 BUILDING: source model '{self.name}'")
@@ -717,6 +717,13 @@ class BuildModel(StaticModel, QueryModel):
         compiled_query = mq.SqlModelQuery(compiled_query_str, is_duckdb=True)
         return compiled_query
     
+    def _ref_for_python(self, dependent_model_name: str) -> pl.LazyFrame:
+        if dependent_model_name not in self.upstreams_for_build:
+            raise u.ConfigurationError(f'Model "{self.name}" must include model "{dependent_model_name}" as a dependency to use')
+        df = self.upstreams_for_build[dependent_model_name].result
+        assert df is not None
+        return df
+    
     def _get_compile_python_model_args(self, conn_args: ConnectionsArgs) -> BuildModelArgs:
         
         def run_external_sql(connection_name: str, sql_query: str):
@@ -781,29 +788,29 @@ class BuildModel(StaticModel, QueryModel):
             self.result = query_result.lazy()
         await asyncio.to_thread(self._create_table_from_df, conn, query_result)
 
-    async def build_model(self, conn: duckdb.DuckDBPyConnection, full_refresh: bool, *, is_terminal_node: bool = False) -> None:
+    async def build_model(self, conn: duckdb.DuckDBPyConnection, full_refresh: bool) -> None:
         start = time.time()
         print(f"[{u.get_current_time()}] 🔨 BUILDING: build model '{self.name}'")
         
         if isinstance(self.compiled_query, mq.SqlModelQuery):
             await self._build_sql_model(self.compiled_query, conn)
         elif isinstance(self.compiled_query, mq.PyModelQuery):
-            if is_terminal_node:
-                # First ensure all upstream models have an associated Python dataframe
-                def load_df(conn: duckdb.DuckDBPyConnection, dep_model: DataModel):
-                    if dep_model.result is None:
-                        local_conn = conn.cursor()
-                        try:
-                            dep_model.result = dep_model._load_duckdb_view_to_python_df(local_conn)
-                        finally:
-                            local_conn.close()
-                    
-                coroutines = []
-                for dep_model in self.upstreams_for_build.values():
-                    coro = asyncio.to_thread(load_df, conn, dep_model)
-                    coroutines.append(coro)
-                await u.asyncio_gather(coroutines)
+            # First ensure all upstream models have an associated Python dataframe
+            def load_df(conn: duckdb.DuckDBPyConnection, dep_model: DataModel):
+                if dep_model.result is None:
+                    local_conn = conn.cursor()
+                    try:
+                        dep_model.result = dep_model._load_duckdb_view_to_python_df(local_conn)
+                    finally:
+                        local_conn.close()
+                
+            coroutines = []
+            for dep_model in self.upstreams_for_build.values():
+                coro = asyncio.to_thread(load_df, conn, dep_model)
+                coroutines.append(coro)
+            await u.asyncio_gather(coroutines)
             
+            # Then run the model's Python function to build the model
             await self._build_python_model(self.compiled_query, conn)
         else:
             raise NotImplementedError(f"Query type not supported: {self.query_file.__class__.__name__}")
