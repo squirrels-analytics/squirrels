@@ -214,7 +214,7 @@ class Authenticator(_t.Generic[User]):
             # Find columns that are in the database but not in the model
             extra_db_columns = existing_columns - columns_to_drop - model_columns
             if extra_db_columns:
-                self.logger.warn(f"The following database columns are not in the User model: {extra_db_columns}\n"
+                self.logger.warning(f"The following database columns are not in the User model: {extra_db_columns}\n"
                     "If you want to drop these columns, please use the `dropped_columns` class method of the User model.")
 
             # Get admin password from environment variable if exists

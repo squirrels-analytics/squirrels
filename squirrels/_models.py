@@ -896,7 +896,7 @@ class DAG:
             try:
                 conn.execute(f"ATTACH '{self.duckdb_filepath}' AS venv {read_only}")
             except duckdb.IOException as e:
-                self.logger.warn(f"Unable to attach to duckdb venv file: {self.duckdb_filepath}")
+                self.logger.warning(f"Unable to attach to duckdb venv file: {self.duckdb_filepath}")
                 raise e
             
             coroutines = []
