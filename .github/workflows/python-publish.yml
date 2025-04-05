@@ -1,8 +1,9 @@
 name: Publish Python Package
 
 on:
-  release:
-    types: [published]
+  push:
+    tags:
+      - 'v*'
 
 permissions:
   contents: read
@@ -12,7 +13,33 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v3
-      - name: Build and publish to pypi
-        uses: JRubics/poetry-publish@v1.17
+      
+      - name: Set up Python
+        uses: actions/setup-python@v4
         with:
-          pypi_token: ${{ secrets.PYPI_API_TOKEN }}
+          python-version: '3.x'
+          
+      - name: Extract version from tag
+        id: get_version
+        run: echo "VERSION=${GITHUB_REF#refs/tags/v}" >> $GITHUB_OUTPUT
+        
+      - name: Update version in pyproject.toml
+        run: |
+          # Use sed to replace the version in pyproject.toml
+          sed -i "s/^version = \".*\"/version = \"${{ steps.get_version.outputs.VERSION }}\"/" pyproject.toml
+          echo "Updated version in pyproject.toml to ${{ steps.get_version.outputs.VERSION }}"
+          
+      - name: Install build dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install build twine
+          
+      - name: Build package
+        run: python -m build
+        
+      - name: Publish to PyPI
+        env:
+          TWINE_USERNAME: __token__
+          TWINE_PASSWORD: ${{ secrets.PYPI_API_TOKEN }}
+        run: |
+          python -m twine upload --username $TWINE_USERNAME --password $TWINE_PASSWORD dist/*
