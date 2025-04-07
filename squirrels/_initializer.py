@@ -10,9 +10,9 @@ TMP_FOLDER = "tmp"
 
 
 class Initializer:
-    def __init__(self, *, project_name: Optional[str] = None, overwrite: bool = False):
-        self.project_name = project_name
-        self.overwrite = overwrite
+    def __init__(self, *, project_name: Optional[str] = None, use_curr_dir: bool = False):
+        self.project_name = project_name if not use_curr_dir else None
+        self.use_curr_dir = use_curr_dir
 
     def _path_exists(self, filepath: u.Path) -> bool:
         return os.path.exists(filepath)
@@ -40,8 +40,6 @@ class Initializer:
             if self._files_have_same_content(src_path, filepath2):
                 perform_copy = False
                 extra_msg = "Skipping... file contents is same as source"
-            elif self.overwrite:
-                extra_msg = "Overwriting file..."
             else:
                 filepath2 = self._add_timestamp_to_filename(old_filepath)
                 extra_msg = f'Creating file as "{filepath2}" instead...'
@@ -116,42 +114,63 @@ class Initializer:
         self._copy_file(u.Path(c.DOTENV_FILE + ".example"))
 
     def init_project(self, args):
-        options = ["core", "connections", "parameters", "build", "federate", "dashboard"]
-        _, CONNECTIONS, PARAMETERS, BUILD, FEDERATE, DASHBOARD = options
+        options = ["connections", "parameters", "build", "federate", "dashboard", "admin_password"]
+        CONNECTIONS, PARAMETERS, BUILD, FEDERATE, DASHBOARD, ADMIN_PASSWORD = options
 
         # Add project name prompt if not provided
-        if self.project_name is None:
+        if self.project_name is None and not args.curr_dir:
             questions = [
-                inquirer.Text('project_name', message="What is your project name? (leave blank to create in current directory)")
+                inquirer.Text('project_name', message="What is your project folder name? (leave blank to create in current directory)")
             ]
             answers = inquirer.prompt(questions)
             assert isinstance(answers, dict)
             self.project_name = answers['project_name']
 
         answers = { x: getattr(args, x) for x in options }
-        if not any(answers.values()):
-            questions = [
-                inquirer.List(
-                    CONNECTIONS, message=f"How would you like to configure the database connections?", choices=c.CONF_FORMAT_CHOICES
-                ),
-                inquirer.List(
-                    PARAMETERS, message=f"How would you like to configure the parameters?", choices=c.CONF_FORMAT_CHOICES2
-                ),
-                inquirer.List(
-                    BUILD, message="What's the file format for the build model?", choices=c.FILE_TYPE_CHOICES
-                ),
-                inquirer.List(
-                    FEDERATE, message="What's the file format for the federated model?", choices=c.FILE_TYPE_CHOICES
-                ),
-                inquirer.Confirm(
-                    DASHBOARD, message=f"Do you want to include a dashboard example?", default=False
-                ),
-                inquirer.Password(
-                    "admin_password", message="What's the admin password? (leave blank to generate a random one)"
-                ),
-            ]
-            answers = inquirer.prompt(questions)
-            assert isinstance(answers, dict)
+        if DASHBOARD in answers:
+            answers[DASHBOARD] = (answers[DASHBOARD] == 'y') # convert 'y' or 'n' to boolean
+
+        if not args.use_defaults:
+            questions = []
+            if answers.get(CONNECTIONS) is None:
+                questions.append(
+                    inquirer.List(
+                        CONNECTIONS, message=f"How would you like to configure the database connections?", choices=c.CONF_FORMAT_CHOICES
+                    ),
+                )
+            if answers.get(PARAMETERS) is None:
+                questions.append(
+                    inquirer.List(
+                        PARAMETERS, message=f"How would you like to configure the parameters?", choices=c.CONF_FORMAT_CHOICES2
+                    ),
+                )
+            if answers.get(BUILD) is None:
+                questions.append(
+                    inquirer.List(
+                        BUILD, message="What's the file format for the build model?", choices=c.FILE_TYPE_CHOICES
+                    ),
+                )
+            if answers.get(FEDERATE) is None:
+                questions.append(
+                    inquirer.List(
+                        FEDERATE, message="What's the file format for the federated model?", choices=c.FILE_TYPE_CHOICES
+                    ),
+                )
+            if answers.get(DASHBOARD) is None:
+                questions.append(
+                    inquirer.Confirm(
+                        DASHBOARD, message=f"Do you want to include a dashboard example?", default=False
+                    ),
+                )
+            if answers.get(ADMIN_PASSWORD) is None:
+                questions.append(
+                    inquirer.Password(
+                        "admin_password", message="What's the admin password? (leave blank to generate a random one)"
+                    ),
+                )
+            more_answers = inquirer.prompt(questions)
+            assert isinstance(more_answers, dict)
+            answers.update(more_answers)
         
         def get_answer(key, default):
             """

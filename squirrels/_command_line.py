@@ -1,5 +1,5 @@
 from argparse import ArgumentParser, _SubParsersAction
-import sys, asyncio, traceback, io, os, subprocess
+import sys, asyncio, traceback, io, subprocess
 
 sys.path.append('.')
 
@@ -48,14 +48,15 @@ def main():
 
     init_parser = add_subparser(subparsers, c.INIT_CMD, 'Create a new squirrels project')
     
-    init_parser.add_argument('name', nargs='?', type=str, help='The name of the project')
-    init_parser.add_argument('-o', '--overwrite', action='store_true', help="Overwrite files that already exist")
-    init_parser.add_argument('--core', action='store_true', help='Include all core files')
+    init_parser.add_argument('name', nargs='?', type=str, help='The name of the project folder to create. Ignored if --curr-dir is used')
+    init_parser.add_argument('--curr-dir', action='store_true', help='Create the project in the current directory')
+    init_parser.add_argument('--use-defaults', action='store_true', help='Use default values for unspecified options (except project folder name) instead of prompting for input')
     init_parser.add_argument('--connections', type=str, choices=c.CONF_FORMAT_CHOICES, help=f'Configure database connections as yaml (default) or python')
     init_parser.add_argument('--parameters', type=str, choices=c.CONF_FORMAT_CHOICES, help=f'Configure parameters as python (default) or yaml')
     init_parser.add_argument('--build', type=str, choices=c.FILE_TYPE_CHOICES, help='Create build model as sql (default) or python file')
     init_parser.add_argument('--federate', type=str, choices=c.FILE_TYPE_CHOICES, help='Create federated model as sql (default) or python file')
-    init_parser.add_argument('--dashboard', action='store_true', help=f'Include a sample dashboard file')
+    init_parser.add_argument('--dashboard', type=str, choices=['y', 'n'], help=f'Include (y) or exclude (n, default) a sample dashboard file')
+    init_parser.add_argument('--admin-password', type=str, help='The password for the admin user. If --use-defaults is used, then a random password is generated')
 
     def with_file_format_options(parser: ArgumentParser):
         help_text = "Create model as sql (default) or python file"
@@ -116,7 +117,7 @@ def main():
     if args.version:
         print(__version__)
     elif args.command == c.INIT_CMD:
-        Initializer(project_name=args.name, overwrite=args.overwrite).init_project(args)
+        Initializer(project_name=args.name, use_curr_dir=args.curr_dir).init_project(args)
     elif args.command == c.GET_FILE_CMD:
         Initializer().get_file(args)
     elif args.command is None:
