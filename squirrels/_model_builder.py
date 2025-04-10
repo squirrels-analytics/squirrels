@@ -79,6 +79,8 @@ class ModelBuilder:
                     duckdb_stg_path.replace(duckdb_dev_path)
                 elif duckdb_path.exists():
                     shutil.copy(duckdb_path, duckdb_dev_path)
+            else:
+                duckdb_dev_path.unlink(missing_ok=True) # delete any lingering development copy to create a fresh one later
                 
             self._logger.log_activity_time("creating development copy of virtual data environment", start)
         

@@ -47,7 +47,7 @@ class QueryModelConfig(ModelConfig):
 
 
 class BuildModelConfig(QueryModelConfig):
-    materialization: str = Field(default="TABLE", description="The materialization of the model (ignored if Python model which is always a table)")
+    materialization: str = Field(default="VIEW", description="The materialization of the model (ignored if Python model which is always a table)")
 
     def get_sql_for_build(self, model_name: str, select_query: str) -> str:
         if self.materialization.upper() == "TABLE":

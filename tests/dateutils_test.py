@@ -2,7 +2,7 @@ from datetime import datetime, date
 from functools import partial
 import pytest
 
-from squirrels import dateutils as d
+import dateutils as d
 
 
 class TestDayIdxOfMonthsCycle:

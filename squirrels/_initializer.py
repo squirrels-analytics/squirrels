@@ -196,7 +196,7 @@ class Initializer:
         parameters_use_py = (parameters_format == c.PYTHON_FORMAT)
 
         build_config_file = c.BUILD_FILE_STEM + ".yml"
-        build_format = get_answer(BUILD, c.PYTHON_FILE_TYPE)
+        build_format = get_answer(BUILD, c.SQL_FILE_TYPE)
         if build_format == c.SQL_FILE_TYPE:
             build_file = c.BUILD_FILE_STEM + ".sql"
         elif build_format == c.PYTHON_FILE_TYPE:

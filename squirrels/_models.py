@@ -476,15 +476,17 @@ class DbviewModel(QueryModel):
         connection_props = self.conn_set.get_connection(connection_name)
         
         if self.model_config.translate_to_duckdb and isinstance(connection_props, ConnectionProperties):
+            source_func = lambda source_name: "venv." + source_name
             macros = {
-                "source": lambda source_name: "venv." + source_name
+                "source": source_func, "ref": source_func
             }
             compiled_query2 = self._get_compiled_sql_query_str(compiled_query_str, macros)
             compiled_query_str = self._get_duckdb_query(connection_props.dialect, compiled_query2)
             is_duckdb = True
         else:
+            source_func = lambda source_name: self.sources[source_name].get_table()
             macros = {
-                "source": lambda source_name: self.sources[source_name].get_table()
+                "source": source_func, "ref": source_func
             }
             compiled_query_str = self._get_compiled_sql_query_str(compiled_query_str, macros)
             is_duckdb = False

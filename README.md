@@ -24,8 +24,8 @@ Here are a few of the things that squirrels can do:
 - Configure parameter widgets (types include single-select, multi-select, date, number, etc.) for your datasets (in `parameters.py`).
 - Use Jinja SQL templates (just like dbt!) or python functions (that return a Python dataframe such as polars or pandas) to define dynamic query logic based on parameter selections.
 - Query multiple databases and join the results together in a final view in one API endpoint/dataset!
-- Test your API endpoints with an interactive UI or by a command line that generates rendered sql queries and results (for a given set of parameter selections).
-- Define authentication logic (in `auth.py`) and authorize privacy scope per dataset (in `squirrels.yml`). The user's attributes can even be used in your query logic!
+- Test your API endpoints with Squirrels Studio or by a command line that generates rendered sql queries and results (for a given set of parameter selections).
+- Define User model (in `user.py`) and authorize privacy scope per dataset (in `squirrels.yml`). The user's attributes can even be used in your query logic!
 
 ## License
 
@@ -39,18 +39,18 @@ The sections below describe how to set up your local environment for squirrels d
 
 ### Setup
 
-This project requires python version 3.10 or above to be installed. It also uses the python build tool `poetry`. Information on setting up poetry can be found at: https://python-poetry.org/docs/.
+This project requires python version 3.10 or above to be installed. It also uses the python package manager `uv`. Information on setting up poetry can be found at: https://docs.astral.sh/uv/getting-started/installation/.
 
-Then, to install all dependencies, run:
+Then, to install all dependencies in a virtual environment, run:
 
+```bash
+uv sync
 ```
-poetry install
-```
 
-And activate the virtual environment created by poetry with:
+And activate the virtual environment with:
 
-```
-poetry shell
+```bash
+source .venv/bin/activate
 ```
 
 To confirm that the setup worked, run the following to show the help page for all squirrels CLI commands:
@@ -59,11 +59,9 @@ To confirm that the setup worked, run the following to show the help page for al
 sqrl -h
 ```
 
-You can enter `exit` to exit the virtual environment shell. You can also run `poetry run sqrl -h` to run squirrels commands without activating the virtual environment.
-
 ### Testing
 
-In poetry's virtual environment, run `pytest`.
+Run `uv run pytest`. Or if you have the virtual environment activated, simply run `pytest`.
 
 ### Project Structure
 
@@ -72,7 +70,3 @@ From the root of the git repo, the source code can be found in the `squirrels` f
 To understand what a specific squirrels command is doing, start from the `_command_line.py` file as your entry point.
 
 The library version is maintained in both the `pyproject.toml` and the `squirrels/_version.py` files.
-
-When a user initializes a squirrels project using `sqrl init`, the files are copied from the `squirrels/package_data/base_project` folder. The contents in the `database` subfolder were constructed from the scripts in the `database_elt` folder.
-
-For the Squirrels UI activated by `sqrl run`, the HTML, CSS, and Javascript files can be found in the `static` and `templates` subfolders of `squirrels/package_data`. The CSS and Javascript files are minified and built from the source files in this project: https://github.com/squirrels-analytics/squirrels-testing-ui.

@@ -20,7 +20,7 @@ polars_dtypes_to_sqrl_dtypes: dict[type[pl.DataType], list[str]] = {
     pl.Int32: ["integer", "int", "int4"],
     pl.Int64: ["bigint", "long", "int8"],
     pl.Float32: ["float", "float4", "real"],
-    pl.Float64: ["double", "float8"],
+    pl.Float64: ["double", "float8", "decimal"], # Note: Polars Decimal type is considered unstable, so we use Float64 for "decimal"
     pl.Boolean: ["boolean", "bool", "logical"],
     pl.Date: ["date"],
     pl.Time: ["time"],

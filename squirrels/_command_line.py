@@ -11,10 +11,12 @@ from ._project import SquirrelsProject
 from . import _constants as c, _utils as u
 
 
-def _run_duckdb_cli(project: SquirrelsProject):
+def _run_duckdb_cli(project: SquirrelsProject, ui: bool):
     _, target_init_path = u._read_duckdb_init_sql()
     init_args = f"-init {target_init_path}" if target_init_path else ""
     command = ['duckdb']
+    if ui:
+        command.append('-ui')
     if init_args:
         command.extend(init_args.split())
     command.extend(['-readonly', project._duckdb_venv_path])
@@ -63,7 +65,7 @@ def main():
         parser.add_argument('--format', type=str, choices=c.FILE_TYPE_CHOICES, default=c.SQL_FILE_TYPE, help=help_text)
         return parser
     
-    get_file_help_text = "Get a sample file for the squirrels project. If the file name already exists, it will be prefixed with a timestamp."
+    get_file_help_text = "Get a sample file for the squirrels project. If the file name already exists, it will be suffixed with a timestamp."
     get_file_parser = add_subparser(subparsers, c.GET_FILE_CMD, get_file_help_text)
     get_file_subparsers = get_file_parser.add_subparsers(title='file_name', dest='file_name')
     add_subparser(get_file_subparsers, c.DOTENV_FILE, f'Get sample {c.DOTENV_FILE} and {c.DOTENV_FILE}.example files')
@@ -105,6 +107,7 @@ def main():
     build_parser.add_argument('--stage', type=str, help='If the venv file is in use, stage the duckdb file to replace the venv later')
 
     duckdb_parser = add_subparser(subparsers, c.DUCKDB_CMD, 'Run the duckdb command line tool')
+    duckdb_parser.add_argument('--ui', action='store_true', help='Run the duckdb local UI')
 
     run_parser = add_subparser(subparsers, c.RUN_CMD, 'Run the API server')
     run_parser.add_argument('--build', action='store_true', help='Build the virtual data environment (with duckdb) first before running the API server')
@@ -132,7 +135,7 @@ def main():
                 asyncio.run(task)
                 print()
             elif args.command == c.DUCKDB_CMD:
-                _run_duckdb_cli(project)
+                _run_duckdb_cli(project, args.ui)
             elif args.command == c.RUN_CMD:
                 if args.build:
                     task = project.build(full_refresh=True)
