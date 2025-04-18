@@ -460,6 +460,7 @@ class DbviewModel(QueryModel):
             return "{{ source(\"" + source_name + "\") }}"
         
         kwargs["source"] = source
+        kwargs["ref"] = source
         return kwargs
 
     def _get_duckdb_query(self, read_dialect: str, query: str) -> str:
@@ -476,17 +477,15 @@ class DbviewModel(QueryModel):
         connection_props = self.conn_set.get_connection(connection_name)
         
         if self.model_config.translate_to_duckdb and isinstance(connection_props, ConnectionProperties):
-            source_func = lambda source_name: "venv." + source_name
-            macros = {
-                "source": source_func, "ref": source_func
+            macros = { 
+                "source": lambda source_name: "venv." + source_name 
             }
             compiled_query2 = self._get_compiled_sql_query_str(compiled_query_str, macros)
             compiled_query_str = self._get_duckdb_query(connection_props.dialect, compiled_query2)
             is_duckdb = True
         else:
-            source_func = lambda source_name: self.sources[source_name].get_table()
-            macros = {
-                "source": source_func, "ref": source_func
+            macros = { 
+                "source": lambda source_name: self.sources[source_name].get_table() 
             }
             compiled_query_str = self._get_compiled_sql_query_str(compiled_query_str, macros)
             is_duckdb = False

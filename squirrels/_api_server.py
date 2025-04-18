@@ -189,17 +189,17 @@ class ApiServer:
                 traceback.print_exception(exc.error, file=buffer)
                 buffer.write(str(exc))
                 response = JSONResponse(
-                    status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, content={"message": f"An unexpected error occurred", "blame": "Squirrels project"}
+                    status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, content={"message": f"An unexpected server error occurred", "blame": "Squirrels project"}
                 )
             except ConfigurationError as exc:
                 traceback.print_exc(file=buffer)
                 response = JSONResponse(
-                    status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, content={"message": f"An unexpected error occurred", "blame": "Squirrels project"}
+                    status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, content={"message": f"An unexpected server error occurred", "blame": "Squirrels project"}
                 )
             except Exception as exc:
                 traceback.print_exc(file=buffer)
                 response = JSONResponse(
-                    status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, content={"message": f"An unexpected error occurred", "blame": "Squirrels framework"}
+                    status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, content={"message": f"An unexpected server error occurred", "blame": "Squirrels framework"}
                 )
             
             err_msg = buffer.getvalue()

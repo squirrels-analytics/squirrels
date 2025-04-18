@@ -1,4 +1,4 @@
-{# DuckDB dialect #}
+{#- DuckDB dialect -#}
 
 SELECT a.id,
     STRFTIME(a.date, '%Y-%m-%d') AS date,

@@ -1,4 +1,4 @@
-{# SQLite dialect (based on connection used) #}
+{#- SQLite dialect (based on connection used) -#}
 
 SELECT STRFTIME('%Y-%m', date) AS month
     , printf('%.2f', SUM(amount)) as total_amount

@@ -1,12 +1,6 @@
 from squirrels import ModelArgs, parameters as p
 import polars as pl, pandas as pd
 
-def dequote(value: str) -> str:
-    return value[1:-1]
-
-def joined_str_to_list(value: str) -> list[str]:
-    return [dequote(category) for category in str(value).split(",")]
-
 
 def main(sqrl: ModelArgs) -> pl.LazyFrame | pl.DataFrame | pd.DataFrame:
     """
@@ -18,19 +12,17 @@ def main(sqrl: ModelArgs) -> pl.LazyFrame | pl.DataFrame | pd.DataFrame:
     df = df.filter(
         (pl.col("amount") >= sqrl.ctx["min_amount_from_range"]) &
         (pl.col("amount") <= sqrl.ctx["max_amount_from_range"]) &
-        (pl.col("date") >= dequote(sqrl.ctx["start_date_from_range"])) &
-        (pl.col("date") <= dequote(sqrl.ctx["end_date_from_range"]))
+        (pl.col("date") >= sqrl.ctx["start_date_from_range"]) &
+        (pl.col("date") <= sqrl.ctx["end_date_from_range"])
     )
 
     if sqrl.ctx["has_categories"]:
-        categories_list = joined_str_to_list(sqrl.ctx["categories"])
-        df = df.filter(pl.col("category_id").is_in(categories_list))
+        df = df.filter(pl.col("category_id").is_in(sqrl.ctx["categories"]))
 
     if sqrl.ctx["has_subcategories"]:
-        subcategories_list = joined_str_to_list(sqrl.ctx["subcategories"])
-        df = df.filter(pl.col("subcategory_id").is_in(subcategories_list))
+        df = df.filter(pl.col("subcategory_id").is_in(sqrl.ctx["subcategories"]))
 
-    dimension_cols = sqrl.ctx["group_by_cols_list"]
+    dimension_cols = sqrl.ctx["group_by_cols"]
     df = df.group_by(dimension_cols).agg(
         pl.sum("amount").cast(pl.Decimal(precision=15, scale=2)).alias("total_amount")
     )

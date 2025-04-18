@@ -143,7 +143,27 @@ class SquirrelsProject:
     
     @ft.cached_property
     def _j2_env(self) -> u.EnvironmentWithMacros:
-        return u.EnvironmentWithMacros(self._logger, loader=u.j2.FileSystemLoader(self._filepath))
+        env = u.EnvironmentWithMacros(self._logger, loader=u.j2.FileSystemLoader(self._filepath))
+
+        def value_to_str(value: t.Any, attribute: str | None = None) -> str:
+            if attribute is None:
+                return str(value)
+            else:
+                return str(getattr(value, attribute))
+
+        def join(value: list[t.Any], d: str = ", ", attribute: str | None = None) -> str:
+            return d.join(map(lambda x: value_to_str(x, attribute), value))
+
+        def quote(value: t.Any, q: str = "'", attribute: str | None = None) -> str:
+            return q + value_to_str(value, attribute) + q
+        
+        def quote_and_join(value: list[t.Any], q: str = "'", d: str = ", ", attribute: str | None = None) -> str:
+            return d.join(map(lambda x: quote(x, q, attribute), value))
+        
+        env.filters["join"] = join
+        env.filters["quote"] = quote
+        env.filters["quote_and_join"] = quote_and_join
+        return env
 
     @ft.cached_property
     def _duckdb_venv_path(self) -> str:

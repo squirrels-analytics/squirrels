@@ -18,10 +18,9 @@ def main(ctx: dict[str, Any], sqrl: ContextArgs) -> None:
         aliases = group_by_param.get_selected("aliases", default_field="columns")
         assert isinstance(columns, list) and isinstance(aliases, list) and len(columns) == len(aliases)
 
-        ctx["select_dim_cols"] = ", ".join(x+" as "+y for x, y in zip(columns, aliases))
-        ctx["group_by_cols"] = ", ".join(columns)
-        ctx["order_by_cols"] = ", ".join((x+" DESC") for x in aliases)
-        ctx["group_by_cols_list"] = columns
+        ctx["select_dim_cols"] = (x+" as "+y for x, y in zip(columns, aliases))
+        ctx["group_by_cols"] = columns
+        ctx["order_by_cols"] = ((x+" DESC") for x in aliases)
         ctx["rename_dict"] = {old: new for old, new in zip(columns, aliases)}
     
     if sqrl.param_exists("limit"):
@@ -36,34 +35,34 @@ def main(ctx: dict[str, Any], sqrl: ContextArgs) -> None:
         start_date_param = sqrl.prms["start_date"]
         assert isinstance(start_date_param, p.DateParameter)
 
-        ctx["start_date"] = start_date_param.get_selected_date_quoted()
+        ctx["start_date"] = start_date_param.get_selected_date()
     
     if sqrl.param_exists("end_date"):
         end_date_param = sqrl.prms["end_date"]
         assert isinstance(end_date_param, p.DateParameter)
 
-        ctx["end_date"] = end_date_param.get_selected_date_quoted()
+        ctx["end_date"] = end_date_param.get_selected_date()
 
     if sqrl.param_exists("date_range"):
         date_range_param = sqrl.prms["date_range"]
         assert isinstance(date_range_param, p.DateRangeParameter)
 
-        ctx["start_date_from_range"] = date_range_param.get_selected_start_date_quoted()
-        ctx["end_date_from_range"] = date_range_param.get_selected_end_date_quoted()
+        ctx["start_date_from_range"] = date_range_param.get_selected_start_date()
+        ctx["end_date_from_range"] = date_range_param.get_selected_end_date()
     
     if sqrl.param_exists("category"):
         category_param = sqrl.prms["category"]
         assert isinstance(category_param, p.MultiSelectParameter)
 
         ctx["has_categories"] = category_param.has_non_empty_selection()
-        ctx["categories"] = category_param.get_selected_ids_quoted_joined()
+        ctx["categories"] = category_param.get_selected_ids_as_list()
     
     if sqrl.param_exists("subcategory"):
         subcategory_param = sqrl.prms["subcategory"]
         assert isinstance(subcategory_param, p.MultiSelectParameter)
 
         ctx["has_subcategories"] = subcategory_param.has_non_empty_selection()
-        ctx["subcategories"] = subcategory_param.get_selected_ids_quoted_joined()
+        ctx["subcategories"] = subcategory_param.get_selected_ids_as_list()
     
     if sqrl.param_exists("min_filter"):
         min_amount_filter = sqrl.prms["min_filter"]

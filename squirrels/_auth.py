@@ -282,8 +282,8 @@ class Authenticator(_t.Generic[User]):
                 if not update_user:
                     raise InvalidInputError(101, f"User '{username}' already exists")
                 
-                if username == c.ADMIN_USERNAME:
-                    raise InvalidInputError(24, "Changing the admin user is not permitted")
+                if username == c.ADMIN_USERNAME and user_data.get("is_admin") is False:
+                    raise InvalidInputError(24, "Setting the admin user to non-admin is not permitted")
                 new_user = self.DbUser(password_hash=existing_user.password_hash, **user_data)
                 session.delete(existing_user)
             else:

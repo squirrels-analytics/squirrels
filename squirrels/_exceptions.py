@@ -20,7 +20,7 @@ class InvalidInputError(Exception):
     21 - Authorized user is forbidden to delete users
     22 - Cannot delete your own user
     23 - Cannot delete the admin user
-    24 - Cannot change the admin user
+    24 - Setting the admin user to non-admin is not permitted
     25 - User does not have permission to access the dataset / dashboard
     26 - User does not have permission to build the virtual data environment
     27 - User does not have permission to query data models
