@@ -424,6 +424,12 @@ class QueryModel(DataModel):
             dependent_model_names.add(self.name)
             for dep_model in self.upstreams.values():
                 dep_model.retrieve_dependent_query_models(dependent_model_names)
+    
+    def _log_sql_to_run(self, sql: str, placeholders: dict[str, Any] | None = None) -> None:
+        log_msg = f"SQL to run for model '{self.name}':\n{sql}"
+        if placeholders is not None:
+            log_msg += f"\n\n(with placeholders: {placeholders})"
+        self.logger.info(log_msg)
 
 
 @dataclass
@@ -519,7 +525,7 @@ class DbviewModel(QueryModel):
                 if is_duckdb:
                     local_conn = conn.cursor()
                     try:
-                        self.logger.info(f"Running duckdb query: {query}")
+                        self.logger.info(f"Running dbview '{self.name}' on duckdb")
                         return local_conn.sql(query, params=placeholders).pl()
                     except duckdb.CatalogException as e:
                         raise InvalidInputError(61, f'Model "{self.name}" depends on static data models that cannot be found.')
@@ -528,10 +534,12 @@ class DbviewModel(QueryModel):
                     finally:
                         local_conn.close()
                 else:
-                    return self._run_sql_query_on_connection(connection_name, query, placeholders)
+                    self.logger.info(f"Running dbview '{self.name}' on connection: {connection_name}")
+                    return self.conn_set.run_sql_query_from_conn_name(query, connection_name, placeholders)
             except RuntimeError as e:
                 raise FileExecutionError(f'Failed to run dbview sql model "{self.name}"', e)
         
+        self._log_sql_to_run(query, placeholders)
         result = await asyncio.to_thread(run_sql_query_on_connection, is_duckdb, query, placeholders)
         self.result = result.lazy()
 
@@ -637,10 +645,12 @@ class FederateModel(QueryModel):
             query = compiled_query.query
 
             def create_table(local_conn: duckdb.DuckDBPyConnection):
-                placeholer_exists = lambda key: re.search(r"\$" + key + r"(?!\w)", query)
-                existing_placeholders = {key: value for key, value in placeholders.items() if placeholer_exists(key)}
+                # DuckDB doesn't support specifying named parameters that are not used in the query, so filtering them out
+                placeholder_exists = lambda key: re.search(r"\$" + key + r"(?!\w)", query)
+                existing_placeholders = {key: value for key, value in placeholders.items() if placeholder_exists(key)}
 
                 create_query = self.model_config.get_sql_for_create(self.name, query)
+                self._log_sql_to_run(create_query, existing_placeholders)
                 try:
                     return local_conn.execute(create_query, existing_placeholders)
                 except duckdb.CatalogException as e:
@@ -771,6 +781,7 @@ class BuildModel(StaticModel, QueryModel):
 
         def create_table():
             create_query = self.model_config.get_sql_for_build(self.name, query)
+            self._log_sql_to_run(create_query)
             local_conn = conn.cursor()
             try:
                 return u.run_duckdb_stmt(self.logger, local_conn, create_query)

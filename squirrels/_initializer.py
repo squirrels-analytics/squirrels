@@ -127,7 +127,7 @@ class Initializer:
             self.project_name = answers['project_name']
 
         answers = { x: getattr(args, x) for x in options }
-        if DASHBOARD in answers:
+        if answers.get(DASHBOARD) is not None:
             answers[DASHBOARD] = (answers[DASHBOARD] == 'y') # convert 'y' or 'n' to boolean
 
         if not args.use_defaults:

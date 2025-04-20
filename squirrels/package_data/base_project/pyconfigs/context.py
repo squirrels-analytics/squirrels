@@ -20,16 +20,15 @@ def main(ctx: dict[str, Any], sqrl: ContextArgs) -> None:
 
         ctx["select_dim_cols"] = (x+" as "+y for x, y in zip(columns, aliases))
         ctx["group_by_cols"] = columns
-        ctx["order_by_cols"] = ((x+" DESC") for x in aliases)
+        ctx["order_by_cols"] = (x for x in aliases if x != "id")
+        ctx["order_by_cols_desc"] = (x+" DESC" for x in ctx["order_by_cols"])
         ctx["rename_dict"] = {old: new for old, new in zip(columns, aliases)}
     
     if sqrl.param_exists("limit"):
         limit_param = sqrl.prms["limit"]
         assert isinstance(limit_param, p.NumberParameter)
 
-        ctx["limit_clause"] = f"LIMIT {limit_param.get_selected_value()}"
-    else:
-        ctx["limit_clause"] = ""
+        ctx["limit"] = int(limit_param.get_selected_value())
 
     if sqrl.param_exists("start_date"):
         start_date_param = sqrl.prms["start_date"]

@@ -7,15 +7,19 @@ SELECT {{ ctx.select_dim_cols | join }}
 FROM {{ ref("build_example") }} AS a
 
 WHERE {{ date_and_amount_filters(use_from_range=true) }}
-    {%- if ctx.has_categories %} 
+{%- if ctx.has_categories %} 
     AND category_id IN ({{ ctx.categories | quote_and_join }}) 
-    {%- endif %}
-    {%- if ctx.has_subcategories %} 
+{%- endif %}
+{%- if ctx.has_subcategories %} 
     AND subcategory_id IN ({{ ctx.subcategories | quote_and_join }}) 
-    {%- endif %}
+{%- endif %}
 
 GROUP BY {{ ctx.group_by_cols | join }}
 
-ORDER BY {{ ctx.order_by_cols | join }}
+ORDER BY {{ ctx.order_by_cols_desc | join }}
 
-{{ ctx.limit_clause }}
+{%- if ctx.limit %}
+
+LIMIT {{ ctx.limit }}
+
+{%- endif %}
