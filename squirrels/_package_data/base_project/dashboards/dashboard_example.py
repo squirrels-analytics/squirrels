@@ -1,8 +1,8 @@
-from squirrels import DashboardArgs, dashboards as d
+from squirrels import arguments as args, dashboards as d
 from matplotlib import pyplot as plt, figure as f, axes as a
 
 
-async def main(sqrl: DashboardArgs) -> d.PngDashboard:
+async def main(sqrl: args.DashboardArgs) -> d.PngDashboard:
     spending_by_month_df = await sqrl.dataset("federate_dataset_example", fixed_parameters={"group_by": "g4"})
     spending_by_subcategory_df = await sqrl.dataset("federate_dataset_example", fixed_parameters={"group_by": "g3"})
 

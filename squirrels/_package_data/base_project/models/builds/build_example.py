@@ -1,8 +1,8 @@
-from squirrels import BuildModelArgs
+from squirrels import arguments as args
 import polars as pl, pandas as pd
 
 
-def main(sqrl: BuildModelArgs) -> pl.LazyFrame | pl.DataFrame | pd.DataFrame:
+def main(sqrl: args.BuildModelArgs) -> pl.LazyFrame | pl.DataFrame | pd.DataFrame:
     """
     Create a build model by joining/processing sources or other build models to form a new
     Python DataFrame (using polars LazyFrame, polars DataFrame, or pandas DataFrame).
@@ -17,6 +17,7 @@ def main(sqrl: BuildModelArgs) -> pl.LazyFrame | pl.DataFrame | pd.DataFrame:
         .join(categories_df, on="category_id", how="left")
 
     df = df.with_columns(
+        pl.col("id").cast(pl.Int32).alias("id"),
         pl.col("date").dt.strftime("%Y-%m").alias("month"),
         pl.col("date").dt.strftime("%Y-%m-%d").alias("date"),
     )

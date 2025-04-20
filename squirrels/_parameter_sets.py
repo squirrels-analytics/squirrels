@@ -4,8 +4,8 @@ from dataclasses import dataclass, field
 from collections import OrderedDict
 import time, concurrent.futures, polars as pl
 
-from . import _utils as u, _constants as c, parameters as p, _parameter_configs as _pc, _py_module as pm, _api_response_models as arm
-from .arguments.init_time_args import ParametersArgs
+from . import _parameters as p, _utils as u, _constants as c, _parameter_configs as pc, _py_module as pm, _api_response_models as arm
+from ._arguments._init_time_args import ParametersArgs
 from ._manifest import ParametersConfig, ManifestConfig
 from ._connection_set import ConnectionSet, ConnectionsArgs
 from ._seeds import Seeds
@@ -34,21 +34,21 @@ class ParameterConfigsSet:
     """
     Pool of parameter configs, can create multiple for unit testing purposes
     """
-    _data: dict[str, _pc.ParameterConfigBase] = field(default_factory=OrderedDict)
-    _data_source_params: dict[str, _pc.DataSourceParameterConfig] = field(default_factory=dict)
+    _data: dict[str, pc.ParameterConfigBase] = field(default_factory=OrderedDict)
+    _data_source_params: dict[str, pc.DataSourceParameterConfig] = field(default_factory=dict)
         
-    def get(self, name: Optional[str]) -> Optional[_pc.ParameterConfigBase]:
+    def get(self, name: Optional[str]) -> Optional[pc.ParameterConfigBase]:
         try:
             return self._data[name] if name is not None else None
         except KeyError as e:
             raise u.ConfigurationError(f'Unable to find parameter named "{name}"') from e
 
-    def add(self, param_config: _pc.ParameterConfigBase) -> None:
+    def add(self, param_config: pc.ParameterConfigBase) -> None:
         self._data[param_config.name] = param_config
-        if isinstance(param_config, _pc.DataSourceParameterConfig):
+        if isinstance(param_config, pc.DataSourceParameterConfig):
             self._data_source_params[param_config.name] = param_config
     
-    def _get_all_ds_param_configs(self) -> Sequence[_pc.DataSourceParameterConfig]:
+    def _get_all_ds_param_configs(self) -> Sequence[pc.DataSourceParameterConfig]:
         return list(self._data_source_params.values())
 
     def __convert_datasource_params(self, df_dict: dict[str, pl.DataFrame]) -> None:
@@ -64,7 +64,7 @@ class ParameterConfigsSet:
                     if parent_name is not None and parent_name not in done:
                         stack.append(parent_name)
                         continue
-                    if isinstance(param, _pc.DataSourceParameterConfig):
+                    if isinstance(param, pc.DataSourceParameterConfig):
                         if name not in df_dict:
                             raise u.ConfigurationError(f'No reference data found for parameter "{name}"')
                         self._data[name] = param.convert(df_dict[name])
@@ -73,12 +73,12 @@ class ParameterConfigsSet:
     
     def __validate_param_relationships(self) -> None:
         for param_config in self._data.values():
-            assert isinstance(param_config, _pc.ParameterConfig)
+            assert isinstance(param_config, pc.ParameterConfig)
             parent_name = param_config.parent_name
             parent = self.get(parent_name)
             if parent:
-                if not isinstance(param_config, _pc.SelectionParameterConfig):
-                    if not isinstance(parent, _pc.SingleSelectParameterConfig):
+                if not isinstance(param_config, pc.SelectionParameterConfig):
+                    if not isinstance(parent, pc.SingleSelectParameterConfig):
                         raise u.ConfigurationError(f'Only single-select parameters can be parents of non-select parameters. ' +
                                                    f'Parameter "{parent_name}" is the parent of non-select parameter ' +
                                                    f'"{param_config.name}" but "{parent_name}" is not a single-select parameter.')
@@ -92,7 +92,7 @@ class ParameterConfigsSet:
                                                        f'among the options of non-select parameter "{param_config.name}".')
                         seen.update(lookup_keys)
                 
-                if not isinstance(parent, _pc.SelectionParameterConfig):
+                if not isinstance(parent, pc.SelectionParameterConfig):
                     raise u.ConfigurationError(f'Only selection parameters can be parents. Parameter "{parent_name}" is the parent of ' +
                                                f'"{param_config.name}" but "{parent_name}" is not a selection parameter.')
                 
@@ -121,7 +121,7 @@ class ParameterConfigsSet:
                 children = []
                 if curr_name not in parameters_by_name:
                     param_conf = self.get(curr_name)
-                    assert isinstance(param_conf, _pc.ParameterConfig)
+                    assert isinstance(param_conf, pc.ParameterConfig)
                     parent_name = param_conf.parent_name
                     if parent_name is None:
                         parent = None
@@ -133,7 +133,7 @@ class ParameterConfigsSet:
                     assert isinstance(parent, p._SelectionParameter) or parent is None
                     param = param_conf.with_selection(selections.get(curr_name), user, parent)
                     parameters_by_name[curr_name] = param
-                    if isinstance(param_conf, _pc.SelectionParameterConfig):
+                    if isinstance(param_conf, pc.SelectionParameterConfig):
                         children = list(x for x in param_conf.children.keys() if x in dataset_params)
                 stack.pop()
                 stack.extend(children)
@@ -141,10 +141,10 @@ class ParameterConfigsSet:
         ordered_parameters = OrderedDict((key, parameters_by_name[key]) for key in dataset_params if key in parameters_by_name)
         return ParameterSet(ordered_parameters)
     
-    def get_all_api_field_info(self) -> dict[str, _pc.APIParamFieldInfo]:
+    def get_all_api_field_info(self) -> dict[str, pc.APIParamFieldInfo]:
         api_field_infos = {}
         for param, config in self._data.items():
-            assert isinstance(config, _pc.ParameterConfig)
+            assert isinstance(config, pc.ParameterConfig)
             api_field_infos[param] = config.get_api_field_info()
         return api_field_infos
 
@@ -157,7 +157,7 @@ class ParameterConfigsSetIO:
     
     @classmethod
     def _get_df_dict_from_data_sources(cls, default_conn_name: str, seeds: Seeds, conn_set: ConnectionSet) -> dict[str, pl.DataFrame]:
-        def get_dataframe(ds_param_config: _pc.DataSourceParameterConfig) -> tuple[str, pl.DataFrame]:
+        def get_dataframe(ds_param_config: pc.DataSourceParameterConfig) -> tuple[str, pl.DataFrame]:
             return ds_param_config.name, ds_param_config.get_dataframe(default_conn_name, conn_set, seeds)
         
         ds_param_configs = cls.obj._get_all_ds_param_configs()

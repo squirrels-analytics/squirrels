@@ -9,7 +9,7 @@ import polars as pl, pandas as pd, networkx as nx
 
 from . import _constants as c, _utils as u, _py_module as pm, _model_queries as mq, _model_configs as mc, _sources as src, _api_response_models as arm
 from ._exceptions import FileExecutionError, InvalidInputError
-from .arguments.run_time_args import ContextArgs, ModelArgs, BuildModelArgs
+from ._arguments._run_time_args import ContextArgs, ModelArgs, BuildModelArgs
 from ._auth import BaseUser
 from ._connection_set import ConnectionsArgs, ConnectionSet, ConnectionProperties
 from ._manifest import DatasetConfig

@@ -1,7 +1,7 @@
 from typing import Any
 import pytest
 
-from squirrels.arguments.run_time_args import ParametersArgs, ContextArgs, TextValue
+from squirrels._arguments._run_time_args import ParametersArgs, ContextArgs, TextValue
 
 
 @pytest.mark.parametrize("placeholder,value,expected",[

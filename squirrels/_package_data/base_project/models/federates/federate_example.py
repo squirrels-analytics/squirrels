@@ -1,8 +1,8 @@
-from squirrels import ModelArgs
+from squirrels import arguments as args
 import polars as pl, pandas as pd
 
 
-def main(sqrl: ModelArgs) -> pl.LazyFrame | pl.DataFrame | pd.DataFrame:
+def main(sqrl: args.ModelArgs) -> pl.LazyFrame | pl.DataFrame | pd.DataFrame:
     """
     Create federated models by joining/processing dependent models (sources, seeds, builds, dbviews, other federates, etc.) to
     form a new Python DataFrame (using polars LazyFrame, polars DataFrame, or pandas DataFrame).

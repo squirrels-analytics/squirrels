@@ -1,5 +1,6 @@
 from dotenv import dotenv_values
 from uuid import uuid4
+from pathlib import Path
 import asyncio, typing as t, functools as ft, shutil, json, os
 import logging as l, matplotlib.pyplot as plt, networkx as nx, polars as pl
 import sqlglot, sqlglot.expressions
@@ -7,9 +8,9 @@ import sqlglot, sqlglot.expressions
 from ._auth import Authenticator, BaseUser
 from ._model_builder import ModelBuilder
 from ._exceptions import InvalidInputError, ConfigurationError
-from . import _utils as u, _constants as c, _manifest as mf, _connection_set as cs, _api_response_models as arm
+from . import _dashboard_types as dash, _dataset_types as dr, _utils as u, _constants as c, _manifest as mf, _connection_set as cs, _api_response_models as arm
 from . import _seeds as s, _models as m, _model_configs as mc, _model_queries as mq, _sources as so
-from . import _parameter_sets as ps, _dashboards_io as d, dashboards as dash, dataset_result as dr
+from . import _parameter_sets as ps, _dashboards_io as d
 
 T = t.TypeVar("T", bound=dash.Dashboard)
 M = t.TypeVar("M", bound=m.DataModel)
@@ -70,7 +71,7 @@ class SquirrelsProject:
             raise ValueError("log_format must be either 'text' or 'json'")
             
         if log_file:
-            path = u.Path(base_path, c.LOGS_FOLDER, log_file)
+            path = Path(base_path, c.LOGS_FOLDER, log_file)
             path.parent.mkdir(parents=True, exist_ok=True)
 
             handler = l.FileHandler(path)
@@ -168,7 +169,7 @@ class SquirrelsProject:
     @ft.cached_property
     def _duckdb_venv_path(self) -> str:
         duckdb_filepath_setting_val = self._env_vars.get(c.SQRL_DUCKDB_VENV_DB_FILE_PATH, f"{c.TARGET_FOLDER}/{c.DUCKDB_VENV_FILE}")
-        return str(u.Path(self._filepath, duckdb_filepath_setting_val))
+        return str(Path(self._filepath, duckdb_filepath_setting_val))
     
     def close(self) -> None:
         """
@@ -275,7 +276,7 @@ class SquirrelsProject:
         dag = m.DAG(None, fake_target_model, models_dict, self._duckdb_venv_path, self._logger)
         return dag
     
-    def _draw_dag(self, dag: m.DAG, output_folder: u.Path) -> None:
+    def _draw_dag(self, dag: m.DAG, output_folder: Path) -> None:
         color_map = {
             m.ModelType.SEED: "green", m.ModelType.DBVIEW: "red", m.ModelType.FEDERATE: "skyblue",
             m.ModelType.BUILD: "purple", m.ModelType.SOURCE: "orange"
@@ -295,7 +296,7 @@ class SquirrelsProject:
         
         fig.tight_layout()
         plt.margins(x=0.1, y=0.1)
-        fig.savefig(u.Path(output_folder, "dag.png"))
+        fig.savefig(Path(output_folder, "dag.png"))
         plt.close(fig)
     
     async def _get_compiled_dag(self, *, sql_query: str | None = None, selections: dict[str, t.Any] = {}, user: BaseUser | None = None) -> m.DAG:
@@ -391,28 +392,28 @@ class SquirrelsProject:
             runquery=runquery, recurse=recurse, default_traits=self._manifest_cfg.get_default_traits()
         )
         
-        output_folder = u.Path(self._filepath, c.TARGET_FOLDER, c.COMPILE_FOLDER, dataset, test_set)
+        output_folder = Path(self._filepath, c.TARGET_FOLDER, c.COMPILE_FOLDER, dataset, test_set)
         if output_folder.exists():
             shutil.rmtree(output_folder)
         output_folder.mkdir(parents=True, exist_ok=True)
         
         def write_placeholders() -> None:
-            output_filepath = u.Path(output_folder, "placeholders.json")
+            output_filepath = Path(output_folder, "placeholders.json")
             with open(output_filepath, 'w') as f:
                 json.dump(dag.placeholders, f, indent=4)
         
         def write_model_outputs(model: m.DataModel) -> None:
             assert isinstance(model, m.QueryModel)
             subfolder = c.DBVIEWS_FOLDER if model.model_type == m.ModelType.DBVIEW else c.FEDERATES_FOLDER
-            subpath = u.Path(output_folder, subfolder)
+            subpath = Path(output_folder, subfolder)
             subpath.mkdir(parents=True, exist_ok=True)
             if isinstance(model.compiled_query, mq.SqlModelQuery):
-                output_filepath = u.Path(subpath, model.name+'.sql')
+                output_filepath = Path(subpath, model.name+'.sql')
                 query = model.compiled_query.query
                 with open(output_filepath, 'w') as f:
                     f.write(query)
             if runquery and isinstance(model.result, pl.LazyFrame):
-                output_filepath = u.Path(subpath, model.name+'.csv')
+                output_filepath = Path(subpath, model.name+'.csv')
                 model.result.collect().write_csv(output_filepath)
 
         write_placeholders()

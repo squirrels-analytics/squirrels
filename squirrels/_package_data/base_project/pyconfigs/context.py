@@ -1,8 +1,8 @@
 from typing import Any
-from squirrels import ContextArgs, parameters as p
+from squirrels import arguments as args, parameters as p
 
 
-def main(ctx: dict[str, Any], sqrl: ContextArgs) -> None:
+def main(ctx: dict[str, Any], sqrl: args.ContextArgs) -> None:
     """
     Define context variables AFTER parameter selections are made by adding entries to the dictionary "ctx". 
     These context variables can then be used in the models.
@@ -18,11 +18,11 @@ def main(ctx: dict[str, Any], sqrl: ContextArgs) -> None:
         aliases = group_by_param.get_selected("aliases", default_field="columns")
         assert isinstance(columns, list) and isinstance(aliases, list) and len(columns) == len(aliases)
 
-        ctx["select_dim_cols"] = (x+" as "+y for x, y in zip(columns, aliases))
         ctx["group_by_cols"] = columns
-        ctx["order_by_cols"] = (x for x in aliases if x != "id")
+        ctx["rename_dict"] = {x: y for x, y in zip(columns, aliases) if not y.startswith("_")}
+        ctx["select_dim_cols"] = (x+" as "+y for x, y in ctx["rename_dict"].items())
+        ctx["order_by_cols"] = (x for x in ctx["rename_dict"].values())
         ctx["order_by_cols_desc"] = (x+" DESC" for x in ctx["order_by_cols"])
-        ctx["rename_dict"] = {old: new for old, new in zip(columns, aliases)}
     
     if sqrl.param_exists("limit"):
         limit_param = sqrl.prms["limit"]

@@ -1,8 +1,8 @@
 from typing import Literal
-from squirrels import BaseUser
+from squirrels import types as t
 
 
-class User(BaseUser):
+class User(t.BaseUser):
     """
     Extend the BaseUser class with custom attributes. The attributes defined here will be added as columns to the users table. 
     - Only the following types are supported: [str, int, float, bool, typing.Literal]

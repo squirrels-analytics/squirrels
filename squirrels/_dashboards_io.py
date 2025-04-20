@@ -4,11 +4,11 @@ from dataclasses import dataclass
 from pydantic import BaseModel, Field
 import os, time
 
-from .arguments.run_time_args import DashboardArgs
+from ._arguments._run_time_args import DashboardArgs
 from ._py_module import PyModule
 from ._manifest import AnalyticsOutputConfig
 from ._exceptions import InvalidInputError, ConfigurationError, FileExecutionError
-from . import _constants as c, _utils as u, dashboards as d
+from . import _constants as c, _dashboard_types as d, _utils as u
 
 T = TypeVar('T', bound=d.Dashboard)
 

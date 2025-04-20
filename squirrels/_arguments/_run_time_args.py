@@ -1,9 +1,9 @@
 from typing import Callable, Any, Coroutine
 import polars as pl
 
-from .init_time_args import _WithConnectionDictArgs, ParametersArgs, BuildModelArgs, ConnectionsArgs
+from ._init_time_args import _WithConnectionDictArgs, ParametersArgs, BuildModelArgs, ConnectionsArgs
 from .._auth import BaseUser
-from ..parameters import Parameter, TextValue
+from .._parameters import Parameter, TextValue
 
 
 class AuthLoginArgs(_WithConnectionDictArgs):

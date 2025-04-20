@@ -1,7 +1,7 @@
-from squirrels import ParametersArgs, parameters as p, parameter_options as po, data_sources as ds
+from squirrels import arguments as args, data_sources as ds, parameter_options as po, parameters as p
 
 
-def main(sqrl: ParametersArgs) -> None:
+def main(sqrl: args.ParametersArgs) -> None:
     """
     Create all widget parameters in this file. If two or more datasets use a different set of parameters, define them all
     here, and specify the subset of parameters used for each dataset in the "squirrels.yml" file.
@@ -19,11 +19,16 @@ def main(sqrl: ParametersArgs) -> None:
     ## Example of creating SingleSelectParameter and specifying each option by code
     user_attribute = "role"
     group_by_options = [
-        po.SelectParameterOption("g0", "Transaction", columns=["date", "category", "subcategory", "description"], user_groups=["manager"]),
-        po.SelectParameterOption("g1", "Day", columns=["date"], aliases=["day"], user_groups=["manager", "employee"]),
-        po.SelectParameterOption("g4", "Month", columns=["month"], user_groups=["manager", "employee"]),
-        po.SelectParameterOption("g2", "Category", columns=["category"], user_groups=["manager", "employee"]),
-        po.SelectParameterOption("g3", "Subcategory", columns=["category", "subcategory"], user_groups=["manager", "employee"]),
+        po.SelectParameterOption(
+            "trans", "Transaction",  
+            columns=["id", "date", "category", "subcategory", "description"],
+            aliases=["_id", "date", "category", "subcategory", "description"], # any alias starting with "_" will not be selected
+            user_groups=["manager"]
+        ),
+        po.SelectParameterOption("day", "Day",            columns=["date"], aliases=["day"],   user_groups=["manager", "employee"]),
+        po.SelectParameterOption("month", "Month",        columns=["month"],                   user_groups=["manager", "employee"]),
+        po.SelectParameterOption("cat", "Category",       columns=["category"],                user_groups=["manager", "employee"]),
+        po.SelectParameterOption("subcat", "Subcategory", columns=["category", "subcategory"], user_groups=["manager", "employee"]),
     ]
     p.SingleSelectParameter.CreateWithOptions(
         "group_by", "Group By", group_by_options, description="Dimension(s) to aggregate by", user_attribute=user_attribute

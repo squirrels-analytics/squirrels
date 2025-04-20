@@ -3,7 +3,7 @@ from dataclasses import dataclass, field
 from typing import Callable, Generic, TypeVar, Any
 import polars as pl, pandas as pd
 
-from .arguments.run_time_args import BuildModelArgs
+from ._arguments._run_time_args import BuildModelArgs
 from ._model_configs import ModelConfig
 
 

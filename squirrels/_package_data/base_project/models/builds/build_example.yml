@@ -10,6 +10,7 @@ depends_on:                # optional for SQL models - the "ref" macro also adds
 
 columns:
   - name: id
+    type: integer
     depends_on:
       - src_transactions.id
     pass_through: true

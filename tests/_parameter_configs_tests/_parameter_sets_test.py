@@ -1,10 +1,10 @@
 from collections import OrderedDict
 import pytest, polars as pl
 
-from squirrels import _parameter_sets as ps, parameters as p, _parameter_configs as _pc, parameter_options as _po, data_sources as d
+from squirrels import _data_sources as d, _parameter_options as po, _parameter_sets as ps, _parameters as p, _parameter_configs as pc
 from squirrels import _utils as u, _auth as a
 
-from tests.parameter_configs_tests.conftest import User
+from tests._parameter_configs_tests.conftest import User
 
 @pytest.fixture(scope="module")
 def user() -> User:
@@ -16,7 +16,7 @@ def add_param(data: dict[str, p.Parameter], param: p.Parameter):
 
 
 @pytest.fixture(scope="module")
-def parameter_set0(ss_config_with_ms_parent: _pc.SingleSelectParameterConfig) -> ps.ParameterSet:
+def parameter_set0(ss_config_with_ms_parent: pc.SingleSelectParameterConfig) -> ps.ParameterSet:
     data = OrderedDict()
     
     ss_options = ss_config_with_ms_parent.all_options
@@ -26,7 +26,7 @@ def parameter_set0(ss_config_with_ms_parent: _pc.SingleSelectParameterConfig) ->
 
 
 @pytest.fixture(scope="module")
-def parameter_set1(ms_config_basic: _pc.MultiSelectParameterConfig, ss_config_with_ms_parent: _pc.SingleSelectParameterConfig) -> ps.ParameterSet:
+def parameter_set1(ms_config_basic: pc.MultiSelectParameterConfig, ss_config_with_ms_parent: pc.SingleSelectParameterConfig) -> ps.ParameterSet:
     data = OrderedDict()
     
     ss_options = [ss_config_with_ms_parent.all_options[idx] for idx in [0,1,2]]
@@ -43,8 +43,8 @@ def parameter_set1(ms_config_basic: _pc.MultiSelectParameterConfig, ss_config_wi
 
 @pytest.fixture(scope="module")
 def parameter_set2(
-    ms_config_basic: _pc.MultiSelectParameterConfig, ss_config_with_ms_parent: _pc.SingleSelectParameterConfig, 
-    date_config_with_parent: _pc.DateParameterConfig
+    ms_config_basic: pc.MultiSelectParameterConfig, ss_config_with_ms_parent: pc.SingleSelectParameterConfig, 
+    date_config_with_parent: pc.DateParameterConfig
 ) -> ps.ParameterSet:
     data = OrderedDict()
 
@@ -67,7 +67,7 @@ def parameter_set2(
 
 @pytest.fixture(scope="module")
 def param_configs_set1(
-    ms_config_basic: _pc.MultiSelectParameterConfig, ss_config_with_ms_parent: _pc.SingleSelectParameterConfig
+    ms_config_basic: pc.MultiSelectParameterConfig, ss_config_with_ms_parent: pc.SingleSelectParameterConfig
 ) -> ps.ParameterConfigsSet:
     config_set = ps.ParameterConfigsSet()
     config_set.add(ss_config_with_ms_parent.copy())
@@ -78,8 +78,8 @@ def param_configs_set1(
 
 @pytest.fixture(scope="module")
 def param_configs_set2(
-    ms_config_basic: _pc.MultiSelectParameterConfig, ss_config_with_ms_parent: _pc.SingleSelectParameterConfig, 
-    date_config_with_parent: _pc.DateParameterConfig
+    ms_config_basic: pc.MultiSelectParameterConfig, ss_config_with_ms_parent: pc.SingleSelectParameterConfig, 
+    date_config_with_parent: pc.DateParameterConfig
 ) -> ps.ParameterConfigsSet:
     config_set = ps.ParameterConfigsSet()
     config_set.add(ss_config_with_ms_parent.copy())
@@ -87,8 +87,8 @@ def param_configs_set2(
     datasource = d.SelectDataSource(
         "ms_table", "my_id", "my_label", is_default_col="my_default_flag", user_group_col="my_user_group"
     )
-    ms_ds_param = _pc.DataSourceParameterConfig(
-        _pc.MultiSelectParameterConfig, ms_config_basic.name, ms_config_basic.label, datasource, 
+    ms_ds_param = pc.DataSourceParameterConfig(
+        pc.MultiSelectParameterConfig, ms_config_basic.name, ms_config_basic.label, datasource, 
         user_attribute=ms_config_basic.user_attribute
     )
     config_set.add(ms_ds_param)
@@ -96,21 +96,21 @@ def param_configs_set2(
     data_datasource = d.DateDataSource(
         "date_table", "my_default", id_col="my_id", user_group_col="my_user_group", parent_id_col="my_parent_id"
     )
-    date_ds_param = _pc.DataSourceParameterConfig(
-        _pc.DateParameterConfig, date_config_with_parent.name, date_config_with_parent.label, data_datasource, 
+    date_ds_param = pc.DataSourceParameterConfig(
+        pc.DateParameterConfig, date_config_with_parent.name, date_config_with_parent.label, data_datasource, 
         user_attribute=date_config_with_parent.user_attribute, parent_name=ss_config_with_ms_parent.name
     )
     config_set.add(date_ds_param)
 
     df_dict = {}
 
-    def make_ms_option(x: _po.SelectParameterOption, user_group: str):
+    def make_ms_option(x: po.SelectParameterOption, user_group: str):
         return {"my_id": x._identifier, "my_label": x._label, "my_default_flag": int(x._is_default), "my_user_group": user_group}
     
     ms_data = [make_ms_option(x, user_group) for x in ms_config_basic.all_options for user_group in x._user_groups]
     df_dict[ms_ds_param.name] = pl.DataFrame(ms_data)
 
-    def make_date_option(x: _po.DateParameterOption, user_group: str, parent_id: str):
+    def make_date_option(x: po.DateParameterOption, user_group: str, parent_id: str):
         default_date = x._default_date.strftime("%Y-%m-%d")
         return {"my_id": 'id'+default_date, "my_default": default_date, "my_user_group": user_group, "my_parent_id": parent_id}
     
@@ -166,50 +166,50 @@ def test_parameter_set_to_json_dict(parameter_set1: ps.ParameterSet):
 
 def test_invalid_non_select_parent():
     configs_set = ps.ParameterConfigsSet()
-    configs_set.add(_pc.DateParameterConfig("parent_date", "My Date", (_po.DateParameterOption("2023-01-01"),)))
-    configs_set.add(_pc.SingleSelectParameterConfig("child_ss", "My Single Select", (), parent_name="parent_date"))
+    configs_set.add(pc.DateParameterConfig("parent_date", "My Date", (po.DateParameterOption("2023-01-01"),)))
+    configs_set.add(pc.SingleSelectParameterConfig("child_ss", "My Single Select", (), parent_name="parent_date"))
     with pytest.raises(u.ConfigurationError):
         configs_set._post_process_params({})
 
 
 def test_invalid_ms_parent_on_non_select_child():
     configs_set = ps.ParameterConfigsSet()
-    configs_set.add(_pc.MultiSelectParameterConfig("parent_ms", "My Multi Select", ()))
-    configs_set.add(_pc.DateParameterConfig("child_date", "My Date", (_po.DateParameterOption("2023-01-01"),), parent_name="parent_ms"))
+    configs_set.add(pc.MultiSelectParameterConfig("parent_ms", "My Multi Select", ()))
+    configs_set.add(pc.DateParameterConfig("child_date", "My Date", (po.DateParameterOption("2023-01-01"),), parent_name="parent_ms"))
     with pytest.raises(u.ConfigurationError):
         configs_set._post_process_params({})
 
 
 def test_invalid_overlapping_parent_options():
     configs_set = ps.ParameterConfigsSet()
-    select_options = [_po.SelectParameterOption("ss0", "Option 0")]
-    configs_set.add(_pc.SingleSelectParameterConfig("parent_ss", "My Single Select", select_options))
+    select_options = [po.SelectParameterOption("ss0", "Option 0")]
+    configs_set.add(pc.SingleSelectParameterConfig("parent_ss", "My Single Select", select_options))
     number_options = [
-        _po.NumberParameterOption(0, 10, parent_option_ids="ss0"),
-        _po.NumberParameterOption(0, 20, parent_option_ids="ss0")
+        po.NumberParameterOption(0, 10, parent_option_ids="ss0"),
+        po.NumberParameterOption(0, 20, parent_option_ids="ss0")
     ]
-    configs_set.add(_pc.NumberParameterConfig("child_number", "My Number", number_options, parent_name="parent_ss"))
+    configs_set.add(pc.NumberParameterConfig("child_number", "My Number", number_options, parent_name="parent_ss"))
     with pytest.raises(u.ConfigurationError):
         configs_set._post_process_params({})
 
 
 def test_invalid_overlapping_parent_options_within_user_group():
     configs_set = ps.ParameterConfigsSet()
-    select_options = [_po.SelectParameterOption("ss0", "Option 0")]
-    configs_set.add(_pc.SingleSelectParameterConfig("parent_ss", "My Single Select", select_options))
+    select_options = [po.SelectParameterOption("ss0", "Option 0")]
+    configs_set.add(pc.SingleSelectParameterConfig("parent_ss", "My Single Select", select_options))
     number_options = [
-        _po.NumberParameterOption(0, 10, parent_option_ids="ss0", user_groups="org1"),
-        _po.NumberParameterOption(0, 20, parent_option_ids="ss0", user_groups="org2"),
-        _po.NumberParameterOption(0, 30, parent_option_ids="ss1", user_groups="org2")
+        po.NumberParameterOption(0, 10, parent_option_ids="ss0", user_groups="org1"),
+        po.NumberParameterOption(0, 20, parent_option_ids="ss0", user_groups="org2"),
+        po.NumberParameterOption(0, 30, parent_option_ids="ss1", user_groups="org2")
     ]
-    configs_set.add(_pc.NumberParameterConfig("child_number", "My Number", number_options, parent_name="parent_ss"))
+    configs_set.add(pc.NumberParameterConfig("child_number", "My Number", number_options, parent_name="parent_ss"))
     try:
         configs_set._post_process_params({})
     except u.ConfigurationError:
         pytest.fail("Duplicate parent_option_ids under different user_groups should not error")
     
-    number_options.append(_po.NumberParameterOption(0, 40, parent_option_ids="ss1", user_groups="org2"))
-    configs_set.add(_pc.NumberParameterConfig("child_number", "My Number", number_options, parent_name="parent_ss"))
+    number_options.append(po.NumberParameterOption(0, 40, parent_option_ids="ss1", user_groups="org2"))
+    configs_set.add(pc.NumberParameterConfig("child_number", "My Number", number_options, parent_name="parent_ss"))
     with pytest.raises(u.ConfigurationError):
         configs_set._post_process_params({})
 
