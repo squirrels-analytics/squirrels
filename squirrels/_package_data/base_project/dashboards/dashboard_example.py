@@ -3,8 +3,8 @@ from matplotlib import pyplot as plt, figure as f, axes as a
 
 
 async def main(sqrl: args.DashboardArgs) -> d.PngDashboard:
-    spending_by_month_df = await sqrl.dataset("federate_dataset_example", fixed_parameters={"group_by": "g4"})
-    spending_by_subcategory_df = await sqrl.dataset("federate_dataset_example", fixed_parameters={"group_by": "g3"})
+    spending_by_month_df = await sqrl.dataset("federate_dataset_example", fixed_parameters={"group_by": "month"})
+    spending_by_subcategory_df = await sqrl.dataset("federate_dataset_example", fixed_parameters={"group_by": "subcat"})
 
     # Create a figure with two subplots
     fig, (ax0, ax1) = plt.subplots(2, 1, figsize=(8, 8), height_ratios=(1, 2))

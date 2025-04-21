@@ -36,7 +36,7 @@ def main(sqrl: args.ParametersArgs) -> None:
 
     ## Example of creating NumberParameter with options
     parent = "group_by"
-    limit_options = [po.NumberParameterOption(0, 1000, increment=10, default_value=1000, parent_option_ids="g0")]
+    limit_options = [po.NumberParameterOption(0, 1000, increment=10, default_value=1000, parent_option_ids="trans")]
     p.NumberParameter.CreateWithOptions(
         "limit", "Max Number of Rows", limit_options, parent_name=parent, description="Maximum number of rows to return"
     )

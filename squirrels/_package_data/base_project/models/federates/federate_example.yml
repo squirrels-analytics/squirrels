@@ -11,7 +11,7 @@ eager: false               # optional - defaults to false. Only applies to SQL m
 columns:
   - name: date
     type: string
-    condition: parameter 'group_by' (Group By) is 'g0' (Transaction)
+    condition: parameter 'group_by' (Group By) is 'trans' (Transaction)
     description: The date of the transaction in 'YYYY-MM-DD' format, in descending order
     category: dimension
     depends_on:
@@ -19,7 +19,7 @@ columns:
   
   - name: description
     type: string
-    condition: parameter 'group_by' (Group By) is 'g0' (Transaction)
+    condition: parameter 'group_by' (Group By) is 'trans' (Transaction)
     description: The description of the transaction
     category: dimension
     depends_on:
@@ -27,7 +27,7 @@ columns:
   
   - name: day
     type: string
-    condition: parameter 'group_by' (Group By) is 'g1' (Day)
+    condition: parameter 'group_by' (Group By) is 'day' (Day)
     description: The day for which the amount is aggregated by, in descending order
     category: dimension
     depends_on:
@@ -35,7 +35,7 @@ columns:
   
   - name: month
     type: string
-    condition: parameter 'group_by' (Group By) is 'g4' (Month)
+    condition: parameter 'group_by' (Group By) is 'month' (Month)
     description: The month for which the amount is aggregated by, in descending order
     category: dimension
     depends_on:
@@ -43,7 +43,7 @@ columns:
 
   - name: category
     type: string
-    condition: parameter `group_by` (Group By) is `g0` (Transaction), `g2` (Category), or `g3` (Subcategory)
+    condition: parameter `group_by` (Group By) is `trans` (Transaction), `cat` (Category), or `subcat` (Subcategory)
     description: The category for which the amount is aggregated by
     category: dimension
     depends_on:
@@ -51,7 +51,7 @@ columns:
   
   - name: subcategory
     type: string
-    condition: parameter `group_by` (Group By) is `g0` (Transaction) or `g3` (Subcategory)
+    condition: parameter `group_by` (Group By) is `trans` (Transaction) or `subcat` (Subcategory)
     description: The subcategory for which the amount is aggregated by
     category: dimension
     depends_on:

@@ -14,9 +14,9 @@ depends_on:
   - name: dataset_example_month
     dataset: federate_dataset_example
     fixed_parameters:
-      - group_by: g4 (Month)
+      - group_by: month (Month)
   
   - name: dataset_example_subcategory
     dataset: federate_dataset_example
     fixed_parameters:
-      - group_by: g3 (Subcategory)
+      - group_by: subcat (Subcategory)

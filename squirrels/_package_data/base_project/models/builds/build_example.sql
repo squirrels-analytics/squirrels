@@ -1,6 +1,6 @@
 {#- DuckDB dialect -#}
 
-SELECT CAST(a.id AS INTEGER) AS id,
+SELECT id,
     STRFTIME(a.date, '%Y-%m-%d') AS date,
     STRFTIME(a.date, '%Y-%m') AS month,
     c.category_id,

@@ -7,26 +7,27 @@ parameters:
       description: Dimension(s) to aggregate by           ## optional, default is empty string
       user_attribute: role                                ## optional, default is null
       all_options:
-        - id: g0
+        - id: trans
           label: Transaction
-          columns: ["date", "category", "subcategory", "description"]   ## custom field
+          columns: ["id", "date", "category", "subcategory", "description"]   ## custom field
+          aliases: ["_id", "date", "category", "subcategory", "description"]  ## custom field (alias starting with "_" will not be selected)
           is_default: false                               ## optional, default, exists for SingleSelect or MultiSelect options only
           user_groups: ["manager"]                        ## optional, default is empty list
           parent_option_ids: []                           ## optional, default, exists for all parameter options
-        - id: g1
+        - id: day
           label: Day
           columns: [date]
-          aliases: [day]                                  ## custom field
+          aliases: [day]
           user_groups: ["manager", "employee"]
-        - id: g4
+        - id: month
           label: Month
           columns: [month]
           user_groups: ["manager", "employee"]
-        - id: g2
+        - id: cat
           label: Category
           columns: [category]
           user_groups: ["manager", "employee"]
-        - id: g3
+        - id: subcat
           label: Subcategory
           columns: [category, subcategory]
           user_groups: ["manager", "employee"]
@@ -44,7 +45,7 @@ parameters:
           max_value: 1000
           increment: 10
           default_value: 1000
-          parent_option_ids: g0
+          parent_option_ids: trans
   
   - type: DateParameter
     factory: CreateFromSource

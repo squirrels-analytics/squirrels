@@ -28,10 +28,11 @@ def main(sqrl: args.ModelArgs) -> pl.LazyFrame | pl.DataFrame | pd.DataFrame:
     df = df.group_by(dimension_cols).agg(
         pl.sum("amount").cast(pl.Decimal(precision=15, scale=2)).alias("total_amount")
     )
-    df = df.select(*dimension_cols, "total_amount").rename(sqrl.ctx["rename_dict"])
+    df = df.rename(sqrl.ctx["rename_dict"])
 
     order_by_cols: list[str] = sqrl.ctx["order_by_cols"]
-    df = df.sort(order_by_cols, descending=True)
+    df = df.select(*order_by_cols, "total_amount") \
+        .sort(order_by_cols, descending=True)
 
     if "limit" in sqrl.ctx:
         limit: int = sqrl.ctx["limit"]

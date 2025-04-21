@@ -17,7 +17,6 @@ def main(sqrl: args.BuildModelArgs) -> pl.LazyFrame | pl.DataFrame | pd.DataFram
         .join(categories_df, on="category_id", how="left")
 
     df = df.with_columns(
-        pl.col("id").cast(pl.Int32).alias("id"),
         pl.col("date").dt.strftime("%Y-%m").alias("month"),
         pl.col("date").dt.strftime("%Y-%m-%d").alias("date"),
     )

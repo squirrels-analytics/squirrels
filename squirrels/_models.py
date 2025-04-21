@@ -425,10 +425,9 @@ class QueryModel(DataModel):
             for dep_model in self.upstreams.values():
                 dep_model.retrieve_dependent_query_models(dependent_model_names)
     
-    def _log_sql_to_run(self, sql: str, placeholders: dict[str, Any] | None = None) -> None:
+    def _log_sql_to_run(self, sql: str, placeholders: dict[str, Any]) -> None:
         log_msg = f"SQL to run for model '{self.name}':\n{sql}"
-        if placeholders is not None:
-            log_msg += f"\n\n(with placeholders: {placeholders})"
+        log_msg += f"\n\n(with placeholders: {placeholders})"
         self.logger.info(log_msg)
 
 
@@ -781,10 +780,9 @@ class BuildModel(StaticModel, QueryModel):
 
         def create_table():
             create_query = self.model_config.get_sql_for_build(self.name, query)
-            self._log_sql_to_run(create_query)
             local_conn = conn.cursor()
             try:
-                return u.run_duckdb_stmt(self.logger, local_conn, create_query)
+                return u.run_duckdb_stmt(self.logger, local_conn, create_query, model_name=self.name)
             except Exception as e:
                 raise FileExecutionError(f'Failed to build static sql model "{self.name}"', e) from e
             finally:
