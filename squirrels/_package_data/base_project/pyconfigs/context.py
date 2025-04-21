@@ -21,7 +21,7 @@ def main(ctx: dict[str, Any], sqrl: args.ContextArgs) -> None:
         ctx["group_by_cols"] = columns
         ctx["rename_dict"] = {x: y for x, y in zip(columns, aliases) if not y.startswith("_")}
         ctx["select_dim_cols"] = list(x+" as "+y for x, y in ctx["rename_dict"].items())
-        ctx["order_by_cols"] = list(x for x in ctx["rename_dict"].values())
+        ctx["order_by_cols"] = list(ctx["rename_dict"].values())
         ctx["order_by_cols_desc"] = list(x+" DESC" for x in ctx["order_by_cols"])
     
     if sqrl.param_exists("limit"):

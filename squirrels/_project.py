@@ -8,9 +8,9 @@ import sqlglot, sqlglot.expressions
 from ._auth import Authenticator, BaseUser
 from ._model_builder import ModelBuilder
 from ._exceptions import InvalidInputError, ConfigurationError
-from . import _dashboard_types as dash, _dataset_types as dr, _utils as u, _constants as c, _manifest as mf, _connection_set as cs, _api_response_models as arm
+from . import _utils as u, _constants as c, _manifest as mf, _connection_set as cs, _api_response_models as arm
 from . import _seeds as s, _models as m, _model_configs as mc, _model_queries as mq, _sources as so
-from . import _parameter_sets as ps, _dashboards_io as d
+from . import _parameter_sets as ps, _dashboards_io as d, _dashboard_types as dash, _dataset_types as dr
 
 T = t.TypeVar("T", bound=dash.Dashboard)
 M = t.TypeVar("M", bound=m.DataModel)

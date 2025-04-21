@@ -22,7 +22,7 @@ def main(sqrl: args.ParametersArgs) -> None:
         po.SelectParameterOption(
             "trans", "Transaction",  
             columns=["id", "date", "category", "subcategory", "description"],
-            aliases=["_id", "date", "category", "subcategory", "description"], # any alias starting with "_" will not be selected
+            aliases=["_id", "date", "category", "subcategory", "description"], # any alias starting with "_" will not be selected - see context.py for implementation
             user_groups=["manager"]
         ),
         po.SelectParameterOption("day", "Day",            columns=["date"], aliases=["day"],   user_groups=["manager", "employee"]),

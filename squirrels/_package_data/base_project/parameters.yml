@@ -10,7 +10,7 @@ parameters:
         - id: trans
           label: Transaction
           columns: ["id", "date", "category", "subcategory", "description"]   ## custom field
-          aliases: ["_id", "date", "category", "subcategory", "description"]  ## custom field (alias starting with "_" will not be selected)
+          aliases: ["_id", "date", "category", "subcategory", "description"]  ## custom field (any alias starting with "_" will not be selected - see context.py for implementation)
           is_default: false                               ## optional, default, exists for SingleSelect or MultiSelect options only
           user_groups: ["manager"]                        ## optional, default is empty list
           parent_option_ids: []                           ## optional, default, exists for all parameter options
