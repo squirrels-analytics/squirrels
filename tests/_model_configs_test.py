@@ -12,5 +12,5 @@ def test_get_sql_for_create(eager: bool, create_type: str):
     select_query = "SELECT * FROM table"
     result = config.get_sql_for_create("test_model", select_query)
     
-    expected = f"CREATE {create_type} test_model AS\nSELECT * FROM table"
+    expected = f"CREATE {create_type} test_model AS\n\nSELECT * FROM table"
     assert result == expected

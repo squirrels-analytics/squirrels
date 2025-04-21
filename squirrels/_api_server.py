@@ -17,9 +17,9 @@ from ._version import __version__, sq_major_version
 from ._manifest import PermissionScope
 from ._auth import BaseUser, AccessToken, UserField
 from ._parameter_sets import ParameterSet
-from .dashboards import Dashboard
+from ._dashboard_types import Dashboard
 from ._project import SquirrelsProject
-from .dataset_result import DatasetResult
+from ._dataset_types import DatasetResult
 from ._parameter_configs import APIParamFieldInfo
 
 mimetypes.add_type('application/javascript', '.js')

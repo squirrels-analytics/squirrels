@@ -290,7 +290,8 @@ def load_yaml_config(filepath: FilePath) -> dict:
 
 
 def run_duckdb_stmt(
-    logger: Logger, duckdb_conn: duckdb.DuckDBPyConnection, stmt: str, *, params: dict[str, Any] | None = None, redacted_values: list[str] = []
+    logger: Logger, duckdb_conn: duckdb.DuckDBPyConnection, stmt: str, *, params: dict[str, Any] | None = None, 
+    model_name: str | None = None, redacted_values: list[str] = []
 ) -> duckdb.DuckDBPyConnection:
     """
     Runs a statement on a DuckDB connection
@@ -306,7 +307,8 @@ def run_duckdb_stmt(
     for value in redacted_values:
         redacted_stmt = redacted_stmt.replace(value, "[REDACTED]")
     
-    logger.info(f"Running statement: {redacted_stmt}", extra={"data": {"params": params}})
+    for_model_name = f" for model '{model_name}'" if model_name is not None else ""
+    logger.info(f"Running SQL statement{for_model_name}:\n{redacted_stmt}", extra={"data": {"params": params}})
     try:
         return duckdb_conn.execute(stmt, params)
     except duckdb.ParserException as e:

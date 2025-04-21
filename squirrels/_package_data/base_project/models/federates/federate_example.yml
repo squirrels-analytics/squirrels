@@ -1,0 +1,65 @@
+description: |
+  This is an example of a federate view model. It takes the build example model and groups or filters the results based on the parameter selections provided.
+
+  Parameters are available to specify the group by dimension and filter by date, amount of the transaction, category, and subcategory.
+
+depends_on:                # optional for SQL models - the "ref" macro also adds to this set
+  - build_example
+
+eager: false               # optional - defaults to false. Only applies to SQL models.
+
+columns:
+  - name: date
+    type: string
+    condition: parameter 'group_by' (Group By) is 'trans' (Transaction)
+    description: The date of the transaction in 'YYYY-MM-DD' format, in descending order
+    category: dimension
+    depends_on:
+      - build_example.date
+  
+  - name: description
+    type: string
+    condition: parameter 'group_by' (Group By) is 'trans' (Transaction)
+    description: The description of the transaction
+    category: dimension
+    depends_on:
+      - build_example.description
+  
+  - name: day
+    type: string
+    condition: parameter 'group_by' (Group By) is 'day' (Day)
+    description: The day for which the amount is aggregated by, in descending order
+    category: dimension
+    depends_on:
+      - build_example.date
+  
+  - name: month
+    type: string
+    condition: parameter 'group_by' (Group By) is 'month' (Month)
+    description: The month for which the amount is aggregated by, in descending order
+    category: dimension
+    depends_on:
+      - build_example.month
+
+  - name: category
+    type: string
+    condition: parameter `group_by` (Group By) is `trans` (Transaction), `cat` (Category), or `subcat` (Subcategory)
+    description: The category for which the amount is aggregated by
+    category: dimension
+    depends_on:
+      - build_example.category
+  
+  - name: subcategory
+    type: string
+    condition: parameter `group_by` (Group By) is `trans` (Transaction) or `subcat` (Subcategory)
+    description: The subcategory for which the amount is aggregated by
+    category: dimension
+    depends_on:
+      - build_example.subcategory
+
+  - name: total_amount
+    type: float
+    description: The total amount spent by the group by dimension
+    category: measure
+    depends_on:
+      - build_example.total_amount

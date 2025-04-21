@@ -57,7 +57,7 @@ class BuildModelConfig(QueryModelConfig):
         else:
             raise ValueError(f"Invalid materialization: {self.materialization}")
         
-        create_prefix = f"CREATE OR REPLACE {materialization} {model_name} AS\n"
+        create_prefix = f"CREATE OR REPLACE {materialization} {model_name} AS\n\n"
         return create_prefix + select_query
 
 
@@ -70,5 +70,5 @@ class FederateModelConfig(QueryModelConfig):
 
     def get_sql_for_create(self, model_name: str, select_query: str) -> str:
         materialization = "TABLE" if self.eager else "VIEW"
-        create_prefix = f"CREATE {materialization} {model_name} AS\n"
+        create_prefix = f"CREATE {materialization} {model_name} AS\n\n"
         return create_prefix + select_query

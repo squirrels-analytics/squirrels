@@ -1,10 +1,11 @@
 from typing import Optional
 from datetime import datetime
+from pathlib import Path
 import inquirer, os, shutil, secrets
 
 from . import _constants as c, _utils as u
 
-base_proj_dir = u.Path(os.path.dirname(__file__), c.PACKAGE_DATA_FOLDER, c.BASE_PROJECT_FOLDER)
+base_proj_dir = Path(os.path.dirname(__file__), c.PACKAGE_DATA_FOLDER, c.BASE_PROJECT_FOLDER)
 
 TMP_FOLDER = "tmp"
 
@@ -14,22 +15,23 @@ class Initializer:
         self.project_name = project_name if not use_curr_dir else None
         self.use_curr_dir = use_curr_dir
 
-    def _path_exists(self, filepath: u.Path) -> bool:
+    def _path_exists(self, filepath: Path) -> bool:
         return os.path.exists(filepath)
     
-    def _files_have_same_content(self, file1: u.Path, file2: u.Path) -> bool:
+    def _files_have_same_content(self, file1: Path, file2: Path) -> bool:
         with open(file1, 'rb') as f1, open(file2, 'rb') as f2:
             return f1.read() == f2.read()
     
-    def _add_timestamp_to_filename(self, path: u.Path) -> u.Path:
+    def _add_timestamp_to_filename(self, path: Path) -> Path:
         timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
         new_filename = f"{path.stem}_{timestamp}{path.suffix}"
         return path.with_name(new_filename)
     
-    def _copy_file(self, filepath: u.Path, *, src_folder: str = ""):
-        src_path = u.Path(base_proj_dir, src_folder, filepath)
+    def _copy_file(self, filepath: Path, *, src_folder: str = "", src_file: Path | None = None):
+        src_file = src_file if src_file is not None else filepath
+        src_path = Path(base_proj_dir, src_folder, src_file)
         
-        filepath2 = u.Path(self.project_name, filepath) if self.project_name else filepath
+        filepath2 = Path(self.project_name, filepath) if self.project_name else filepath
         dest_dir = os.path.dirname(filepath2)
         if dest_dir != "":
             os.makedirs(dest_dir, exist_ok=True)
@@ -51,38 +53,38 @@ class Initializer:
             shutil.copy(src_path, filepath2)
 
     def _copy_macros_file(self, filepath: str):
-        self._copy_file(u.Path(c.MACROS_FOLDER, filepath))
+        self._copy_file(Path(c.MACROS_FOLDER, filepath))
 
     def _copy_models_file(self, filepath: str):
-        self._copy_file(u.Path(c.MODELS_FOLDER, filepath))
+        self._copy_file(Path(c.MODELS_FOLDER, filepath))
 
     def _copy_build_file(self, filepath: str):
-        self._copy_file(u.Path(c.MODELS_FOLDER, c.BUILDS_FOLDER, filepath))
+        self._copy_file(Path(c.MODELS_FOLDER, c.BUILDS_FOLDER, filepath))
 
     def _copy_dbview_file(self, filepath: str):
-        self._copy_file(u.Path(c.MODELS_FOLDER, c.DBVIEWS_FOLDER, filepath))
+        self._copy_file(Path(c.MODELS_FOLDER, c.DBVIEWS_FOLDER, filepath))
 
     def _copy_federate_file(self, filepath: str):
-        self._copy_file(u.Path(c.MODELS_FOLDER, c.FEDERATES_FOLDER, filepath))
+        self._copy_file(Path(c.MODELS_FOLDER, c.FEDERATES_FOLDER, filepath))
 
     def _copy_database_file(self, filepath: str):
-        self._copy_file(u.Path(c.DATABASE_FOLDER, filepath))
+        self._copy_file(Path(c.DATABASE_FOLDER, filepath))
     
     def _copy_pyconfig_file(self, filepath: str):
-        self._copy_file(u.Path(c.PYCONFIGS_FOLDER, filepath))
+        self._copy_file(Path(c.PYCONFIGS_FOLDER, filepath))
     
     def _copy_seed_file(self, filepath: str):
-        self._copy_file(u.Path(c.SEEDS_FOLDER, filepath))
+        self._copy_file(Path(c.SEEDS_FOLDER, filepath))
     
     def _copy_dashboard_file(self, filepath: str):
-        self._copy_file(u.Path(c.DASHBOARDS_FOLDER, filepath))
+        self._copy_file(Path(c.DASHBOARDS_FOLDER, filepath))
 
     def _create_manifest_file(self, has_connections: bool, has_parameters: bool):
         def get_content(file_name: Optional[str]) -> str:
             if file_name is None:
                 return ""
             
-            yaml_path = u.Path(base_proj_dir, file_name)
+            yaml_path = Path(base_proj_dir, file_name)
             return yaml_path.read_text()
         
         file_name_dict = {
@@ -93,10 +95,10 @@ class Initializer:
         
         manifest_template = get_content(c.MANIFEST_JINJA_FILE)
         manifest_content = u.render_string(manifest_template, **substitutions)
-        output_path = u.Path(base_proj_dir, TMP_FOLDER, c.MANIFEST_FILE)
+        output_path = Path(base_proj_dir, TMP_FOLDER, c.MANIFEST_FILE)
         output_path.write_text(manifest_content)
         
-        self._copy_file(u.Path(c.MANIFEST_FILE), src_folder=TMP_FOLDER)
+        self._copy_file(Path(c.MANIFEST_FILE), src_folder=TMP_FOLDER)
     
     def _copy_dotenv_files(self, admin_password: str | None = None):
         substitutions = {
@@ -104,14 +106,17 @@ class Initializer:
             "random_admin_password": admin_password if admin_password else secrets.token_urlsafe(8),
         }
 
-        dotenv_path = u.Path(base_proj_dir, c.DOTENV_FILE)
+        dotenv_path = Path(base_proj_dir, c.DOTENV_FILE)
         contents = u.render_string(dotenv_path.read_text(), **substitutions)
 
-        output_path = u.Path(base_proj_dir, TMP_FOLDER, c.DOTENV_FILE)
+        output_path = Path(base_proj_dir, TMP_FOLDER, c.DOTENV_FILE)
         output_path.write_text(contents)
 
-        self._copy_file(u.Path(c.DOTENV_FILE), src_folder=TMP_FOLDER)
-        self._copy_file(u.Path(c.DOTENV_FILE + ".example"))
+        self._copy_file(Path(c.DOTENV_FILE), src_folder=TMP_FOLDER)
+        self._copy_file(Path(c.DOTENV_FILE + ".example"))
+
+    def _copy_gitignore_file(self):
+        self._copy_file(Path(c.GITIGNORE_FILE), src_file=Path("gitignore"))
 
     def init_project(self, args):
         options = ["connections", "parameters", "build", "federate", "dashboard", "admin_password"]
@@ -221,7 +226,7 @@ class Initializer:
         self._copy_dotenv_files(admin_password)
         self._create_manifest_file(connections_use_yaml, parameters_use_yaml)
         
-        self._copy_file(u.Path(c.GITIGNORE_FILE))
+        self._copy_gitignore_file()
         
         if connections_use_py:
             self._copy_pyconfig_file(c.CONNECTIONS_FILE)
@@ -272,7 +277,7 @@ class Initializer:
             print(f"You may also run `sqrl get-file {c.GITIGNORE_FILE}` to add a sample {c.GITIGNORE_FILE} file to your project.")
             print()
         elif args.file_name == c.GITIGNORE_FILE:
-            self._copy_file(u.Path(c.GITIGNORE_FILE))
+            self._copy_gitignore_file()
         elif args.file_name == c.MANIFEST_FILE:
             self._create_manifest_file(not args.no_connections, args.parameters)
         elif args.file_name in (c.USER_FILE, c.CONNECTIONS_FILE, c.PARAMETERS_FILE, c.CONTEXT_FILE):
