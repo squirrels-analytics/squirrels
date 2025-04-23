@@ -5,7 +5,7 @@ import time, polars as pl
 
 from . import _utils as u, _constants as c, _py_module as pm
 from ._arguments._init_time_args import ConnectionsArgs
-from ._manifest import ManifestConfig, ConnectionProperties, ConnectionType
+from ._manifest import ManifestConfig, ConnectionProperties, ConnectionTypeEnum
 
 
 @dataclass
@@ -31,11 +31,11 @@ class ConnectionSet:
     def run_sql_query_from_conn_name(self, query: str, conn_name: str, placeholders: dict = {}) -> pl.DataFrame:
         conn = self.get_connection(conn_name)
         try:
-            if isinstance(conn, ConnectionProperties) and (conn.type == ConnectionType.CONNECTORX or conn.type == ConnectionType.ADBC):
+            if isinstance(conn, ConnectionProperties) and (conn.type == ConnectionTypeEnum.CONNECTORX or conn.type == ConnectionTypeEnum.ADBC):
                 if len(placeholders) > 0:
                     raise u.ConfigurationError(f"Connection '{conn_name}' is a ConnectorX or ADBC connection, which does not support placeholders")
                 df = pl.read_database_uri(query, conn.uri, engine=conn.type.value)
-            elif isinstance(conn, ConnectionProperties) and conn.type == ConnectionType.SQLALCHEMY:
+            elif isinstance(conn, ConnectionProperties) and conn.type == ConnectionTypeEnum.SQLALCHEMY:
                 with conn.engine.connect() as connection:
                     df = pl.read_database(query, connection, execute_options={"parameters": placeholders})
             else:
@@ -52,7 +52,7 @@ class ConnectionSet:
             if isinstance(conn, Engine):
                 conn.dispose()
             elif isinstance(conn, ConnectionProperties):
-                if conn.type == ConnectionType.SQLALCHEMY:
+                if conn.type == ConnectionTypeEnum.SQLALCHEMY:
                     conn.engine.dispose()
             elif hasattr(conn, 'close'):
                 conn.close()

@@ -1,1 +1,1 @@
-from ._manifest import ConnectionProperties, ConnectionType
+from ._manifest import ConnectionProperties, ConnectionTypeEnum

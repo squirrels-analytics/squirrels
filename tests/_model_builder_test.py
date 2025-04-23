@@ -2,7 +2,7 @@ from pathlib import Path
 import pytest, asyncio, sqlite3, duckdb, polars as pl
 
 from squirrels._connection_set import ConnectionSet, ConnectionProperties
-from squirrels._manifest import ConnectionType
+from squirrels._manifest import ConnectionTypeEnum
 from squirrels._models import SourceModel
 from squirrels._model_builder import ModelBuilder
 from squirrels._model_configs import ColumnConfig
@@ -43,7 +43,7 @@ def sqlite_conn(sqlite_path):
 
 @pytest.fixture(scope="module")
 def connection_set(sqlite_path):
-    return ConnectionSet({"test_conn": ConnectionProperties(type=ConnectionType.CONNECTORX, uri=f"sqlite://{sqlite_path}")})
+    return ConnectionSet({"test_conn": ConnectionProperties(type=ConnectionTypeEnum.CONNECTORX, uri=f"sqlite://{sqlite_path}")})
 
 
 @pytest.fixture(scope="module")

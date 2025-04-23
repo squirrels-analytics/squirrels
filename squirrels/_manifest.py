@@ -39,7 +39,7 @@ class _ConfigWithNameBaseModel(BaseModel):
     name: str
 
 
-class ConnectionType(Enum):
+class ConnectionTypeEnum(Enum):
     SQLALCHEMY = "sqlalchemy"
     CONNECTORX = "connectorx"
     ADBC = "adbc"
@@ -54,7 +54,7 @@ class ConnectionProperties(BaseModel):
         uri: The URI for the connection
     """
     label: str | None = None
-    type: ConnectionType = Field(default=ConnectionType.SQLALCHEMY)
+    type: ConnectionTypeEnum = Field(default=ConnectionTypeEnum.SQLALCHEMY)
     uri: str
     sa_create_engine_args: dict[str, Any] = Field(default_factory=dict)
 
@@ -64,14 +64,14 @@ class ConnectionProperties(BaseModel):
         Creates and caches a SQLAlchemy engine if the connection type is sqlalchemy.
         Returns None for other connection types.
         """
-        if self.type == ConnectionType.SQLALCHEMY:
+        if self.type == ConnectionTypeEnum.SQLALCHEMY:
             return create_engine(self.uri, **self.sa_create_engine_args)
         else:
             raise ValueError(f'Connection type "{self.type}" does not support engine property')
 
     @cached_property
     def dialect(self) -> str:
-        if self.type == ConnectionType.SQLALCHEMY:
+        if self.type == ConnectionTypeEnum.SQLALCHEMY:
             dialect = self.engine.dialect.name
         else:
             url = urlparse(self.uri)
@@ -83,7 +83,7 @@ class ConnectionProperties(BaseModel):
     
     @cached_property
     def attach_uri_for_duckdb(self) -> str | None:
-        if self.type == ConnectionType.SQLALCHEMY:
+        if self.type == ConnectionTypeEnum.SQLALCHEMY:
             url = self.engine.url
             host = url.host
             port = url.port

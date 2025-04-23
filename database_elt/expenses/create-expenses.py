@@ -34,8 +34,11 @@ def generate_expense_description(vendors=None, items=None, adjectives=None):
     return " ".join(description_parts).strip()
 
 # Define the number of transactions to generate
-num_transactions = 1_000
+num_transactions = 1000
 batches = 100
+start_date = '2024-01-01'
+end_date = '2024-12-31'
+
 batch_size = num_transactions // batches
 
 # Generate the data
@@ -49,9 +52,10 @@ for _ in tqdm.tqdm(range(batches)):
     df_current = descriptions_df.sample(batch_size, with_replacement=True, shuffle=True)
     df_current = df_current.with_columns(
         pl.lit(rng.integers(
-            np.datetime64('2024-01-01').astype(int), 
-            np.datetime64('2025-01-01').astype(int), 
-            size=batch_size
+            np.datetime64(start_date).astype(int), 
+            np.datetime64(end_date).astype(int), 
+            size=batch_size,
+            endpoint=True
         ).astype('datetime64[D]')).alias('date'),
         pl.lit(rng.integers(0, 14, size=batch_size)).alias('subcategory_id'),
         pl.lit(rng.exponential(30, size=batch_size).round(2)).alias('amount'),
@@ -77,14 +81,17 @@ try:
     )
     ''')
 
-    # Convert DataFrame to records and insert into database
-    records = df.to_numpy().tolist()
-    conn.executemany(
-        'INSERT INTO expenses (id, date, subcategory_id, amount, description) VALUES (?, ?, ?, ?, ?)',
-        records
-    )
-
     # Commit changes and close connection
     conn.commit()
 finally:
     conn.close()
+
+print("Writing to sqlite database...")
+
+# Split the dataframe into batches for writing to database
+for i in tqdm.tqdm(range(batches)):
+    start_idx = i * batch_size
+    end_idx = (i + 1) * batch_size if i != batches - 1 else num_transactions
+    
+    df_batch = df.slice(start_idx, end_idx - start_idx)
+    df_batch.write_database("expenses", connection="sqlite:///expenses.db", if_table_exists="append")

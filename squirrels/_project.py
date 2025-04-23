@@ -133,6 +133,10 @@ class SquirrelsProject:
         return Authenticator(self._logger, self._filepath, self._env_vars)
     
     @ft.cached_property
+    def User(self) -> t.Type[BaseUser]:
+        return self._auth.User
+    
+    @ft.cached_property
     def _param_args(self) -> ps.ParametersArgs:
         return ps.ParameterConfigsSetIO.get_param_args(self._conn_args)
     
@@ -541,7 +545,7 @@ class SquirrelsProject:
         )
     
     async def dashboard(
-        self, name: str, *, selections: dict[str, t.Any] = {}, user: BaseUser | None = None, dashboard_type: t.Type[T] = dash.Dashboard
+        self, name: str, *, selections: dict[str, t.Any] = {}, user: BaseUser | None = None, dashboard_type: t.Type[T] = dash.PngDashboard
     ) -> T:
         """
         Async method to retrieve a dashboard given parameter selections.

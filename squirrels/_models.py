@@ -253,8 +253,12 @@ class SourceModel(StaticModel):
             connection_props = self.conn_set.get_connection(conn_name)
             if isinstance(connection_props, ConnectionProperties):
                 dialect = connection_props.dialect
+                attach_uri = connection_props.attach_uri_for_duckdb
             else:
-                raise u.ConfigurationError(f'Unable to use connection "{conn_name}" for source "{self.name}"')
+                raise u.ConfigurationError(f'Unable to use connection "{conn_name}" for source "{self.name}". Connection "{conn_name}" must be a ConnectionProperties object')
+            
+            if attach_uri is None:
+                raise u.ConfigurationError(f'Loading to duckdb is not supported for source "{self.name}" since its connection "{conn_name}" uses an unsupported dialect')
             
             result = u.run_duckdb_stmt(self.logger, local_conn, f"FROM (SHOW DATABASES) WHERE database_name = 'db_{conn_name}'").fetchone()
             if result is None:
@@ -351,7 +355,7 @@ class QueryModel(DataModel):
     def _get_compile_sql_model_args_from_ctx_args(
         self, ctx: dict[str, Any], ctx_args: ContextArgs
     ) -> dict[str, Any]:
-        is_placeholder = lambda placeholder: placeholder in ctx_args.placeholders
+        is_placeholder = lambda placeholder: placeholder in ctx_args._placeholders_copy
         kwargs = {
             "proj_vars": ctx_args.proj_vars, "env_vars": ctx_args.env_vars, "user": ctx_args.user, "prms": ctx_args.prms, 
             "traits": ctx_args.traits, "ctx": ctx, "is_placeholder": is_placeholder, "set_placeholder": ctx_args.set_placeholder,
@@ -588,7 +592,7 @@ class FederateModel(QueryModel):
         connections = self.conn_set.get_connections_as_dict()
         
         def run_external_sql(connection_name: str, sql_query: str) -> pl.DataFrame:
-            return self._run_sql_query_on_connection(connection_name, sql_query, ctx_args.placeholders)
+            return self._run_sql_query_on_connection(connection_name, sql_query, ctx_args._placeholders_copy)
         
         conn_args = ConnectionsArgs(ctx_args.project_path, ctx_args.proj_vars, ctx_args.env_vars)
         build_model_args = BuildModelArgs(conn_args, connections, dependencies, self._ref_for_python, run_external_sql)
@@ -930,7 +934,7 @@ class DAG:
 
         self._compile_models(context, ctx_args, recurse)
         
-        self.placeholders = ctx_args.placeholders
+        self.placeholders = ctx_args._placeholders_copy
         if runquery:
             await self._run_models()
         

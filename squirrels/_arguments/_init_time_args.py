@@ -88,14 +88,14 @@ class BuildModelArgs(_WithConnectionDictArgs):
 
     def run_sql_on_dataframes(self, sql_query: str, *, dataframes: dict[str, pl.LazyFrame] | None = None, **kwargs) -> pl.DataFrame:
         """
-        Uses a dictionary of dataframes to execute a SQL query in an embedded in-memory database (sqlite or duckdb based on setting)
+        Uses a dictionary of dataframes to execute a SQL query in an embedded in-memory DuckDB database
 
         Arguments:
             sql_query: The SQL query to run
             dataframes: A dictionary of table names to their polars LazyFrame. If None, uses results of dependent models
         
         Returns:
-            The result as a polars LazyFrame from running the query
+            The result as a polars DataFrame from running the query
         """
         if dataframes is None:
             dataframes = {x: self.ref(x) for x in self._dependencies}

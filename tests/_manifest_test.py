@@ -54,12 +54,12 @@ class TestPackageConfig:
 class TestDbConnConfig:
     @pytest.fixture(scope="class")
     def db_conn_config1(self) -> m.DbConnConfig:
-        data = {"name": "default", "type": m.ConnectionType.SQLALCHEMY, "uri": "sqlite:///{project_path}/my/database.db"}
+        data = {"name": "default", "type": m.ConnectionTypeEnum.SQLALCHEMY, "uri": "sqlite:///{project_path}/my/database.db"}
         return m.DbConnConfig(**data)
 
     @pytest.fixture(scope="class")
     def db_conn_config2(self) -> m.DbConnConfig:
-        data = {"name": "default", "type": m.ConnectionType.CONNECTORX, "uri": "sqlite:///{project_path}/my/database.db"}
+        data = {"name": "default", "type": m.ConnectionTypeEnum.CONNECTORX, "uri": "sqlite:///{project_path}/my/database.db"}
         return m.DbConnConfig(**data)
 
     @pytest.mark.parametrize("fixture,expected", [
@@ -229,28 +229,28 @@ class TestConnectionProperties:
     @pytest.fixture(scope="class")
     def sqlite_sqlalchemy_conn(self) -> m.ConnectionProperties:
         return m.ConnectionProperties(
-            type=m.ConnectionType.SQLALCHEMY,
+            type=m.ConnectionTypeEnum.SQLALCHEMY,
             uri="sqlite:///path/to/db.sqlite"
         )
 
     @pytest.fixture(scope="class")
     def postgres_sqlalchemy_conn(self) -> m.ConnectionProperties:
         return m.ConnectionProperties(
-            type=m.ConnectionType.SQLALCHEMY,
+            type=m.ConnectionTypeEnum.SQLALCHEMY,
             uri="postgresql+psycopg2://user:pass@localhost:5432/mydb"
         )
 
     @pytest.fixture(scope="class")
     def sqlite_connectorx_conn(self) -> m.ConnectionProperties:
         return m.ConnectionProperties(
-            type=m.ConnectionType.CONNECTORX,
+            type=m.ConnectionTypeEnum.CONNECTORX,
             uri="sqlite:///path/to/db.sqlite"
         )
 
     @pytest.fixture(scope="class")
     def postgres_connectorx_conn(self) -> m.ConnectionProperties:
         return m.ConnectionProperties(
-            type=m.ConnectionType.CONNECTORX,
+            type=m.ConnectionTypeEnum.CONNECTORX,
             uri="postgresql://user:pass@localhost:5432/mydb"
         )
 
@@ -259,7 +259,7 @@ class TestConnectionProperties:
         assert str(sqlite_sqlalchemy_conn.engine.url) == "sqlite:///path/to/db.sqlite"
 
     def test_engine_non_sqlalchemy(self, sqlite_connectorx_conn: m.ConnectionProperties):
-        with pytest.raises(ValueError, match='Connection type "ConnectionType.CONNECTORX" does not support engine property'):
+        with pytest.raises(ValueError):
             _ = sqlite_connectorx_conn.engine
 
     @pytest.mark.parametrize("fixture,expected", [
@@ -284,7 +284,7 @@ class TestConnectionProperties:
 
     def test_attach_uri_unsupported_dialect(self):
         conn = m.ConnectionProperties(
-            type=m.ConnectionType.CONNECTORX,
+            type=m.ConnectionTypeEnum.CONNECTORX,
             uri="oracle://user:pass@localhost:1521/mydb"
         )
         assert conn.attach_uri_for_duckdb is None

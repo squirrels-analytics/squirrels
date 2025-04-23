@@ -1,31 +1,9 @@
 from typing import Callable, Any, Coroutine
 import polars as pl
 
-from ._init_time_args import _WithConnectionDictArgs, ParametersArgs, BuildModelArgs, ConnectionsArgs
+from ._init_time_args import ParametersArgs, BuildModelArgs
 from .._auth import BaseUser
 from .._parameters import Parameter, TextValue
-
-
-class AuthLoginArgs(_WithConnectionDictArgs):
-
-    def __init__(
-        self, conn_args: ConnectionsArgs, _connections: dict[str, Any], 
-        username: str, 
-        password: str
-    ):
-        super().__init__(conn_args.project_path, conn_args.proj_vars, conn_args.env_vars, _connections)
-        self.username = username
-        self.password = password
-
-
-class AuthTokenArgs(_WithConnectionDictArgs):
-
-    def __init__(
-        self, conn_args: ConnectionsArgs, _connections: dict[str, Any], 
-        token: str
-    ):
-        super().__init__(conn_args.project_path, conn_args.proj_vars, conn_args.env_vars, _connections)
-        self.token = token
 
 
 class ContextArgs(ParametersArgs):
@@ -57,7 +35,7 @@ class ContextArgs(ParametersArgs):
         return self._traits.copy()
 
     @property
-    def placeholders(self) -> dict[str, Any]:
+    def _placeholders_copy(self) -> dict[str, Any]:
         """
         A dictionary of placeholder name to placeholder value
         """
@@ -103,7 +81,7 @@ class ModelArgs(BuildModelArgs, ContextArgs):
         self.user = ctx_args.user
         self._prms = ctx_args.prms
         self._traits = ctx_args.traits
-        self._placeholders = ctx_args.placeholders
+        self._placeholders = ctx_args._placeholders_copy
         self._connections = build_model_args.connections
         self._dependencies = build_model_args.dependencies
         self._ref = build_model_args.ref
