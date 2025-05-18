@@ -1,5 +1,5 @@
 from __future__ import annotations
-from typing import Callable, Type, TypeVar, Sequence, Any
+from typing import Callable, Type, TypeVar, Sequence, Generic, Any
 from dataclasses import dataclass
 from datetime import datetime, date
 from decimal import Decimal
@@ -10,13 +10,16 @@ from . import _api_response_models as arm, _utils as u
 
 IntOrFloat = TypeVar("IntOrFloat", int, float)
 
+PC = TypeVar("PC", bound=pc.ParameterConfig)
+PO = TypeVar("PO", bound=po.ParameterOption)
+DS = TypeVar("DS", bound=d.DataSource)
 
 @dataclass
-class Parameter(metaclass=ABCMeta):
+class Parameter(Generic[PC, PO, DS], metaclass=ABCMeta):
     """
     Abstract class for all parameter widgets
     """
-    _config: pc.ParameterConfig
+    _config: PC
 
     @abstractmethod
     def is_enabled(self) -> bool:
@@ -24,33 +27,22 @@ class Parameter(metaclass=ABCMeta):
 
     @staticmethod
     @abstractmethod
-    def _ParameterConfigType() -> Type[pc.ParameterConfig]:
+    def _ParameterConfigType() -> Type[PC]: # Gets the actual type of the ParameterConfig TypeVar at runtime
+        pass
+    
+    @staticmethod
+    @abstractmethod
+    def _ParameterOptionType() -> Type[PO]: # Gets the actual type of the ParameterOption TypeVar at runtime
+        pass
+    
+    @staticmethod
+    @abstractmethod
+    def _DataSourceType() -> Type[DS]: # Gets the actual type of the DataSource TypeVar at runtime
         pass
     
     @classmethod
-    def _CreateWithOptionsHelper(
-        cls, name: str, label: str, all_options: Sequence[po.ParameterOption | dict], *, description: str = "",
-        user_attribute: str | None = None, parent_name: str | None = None, **kwargs
-    ) -> None:
-        param_config_type = cls._ParameterConfigType()
-        param_config = param_config_type(
-            name, label, all_options, description=description, user_attribute=user_attribute, parent_name=parent_name, **kwargs
-        )
-        ps.ParameterConfigsSetIO.obj.add(param_config)
-    
-    @classmethod
-    def Create(
-        cls, name: str, label: str, all_options: Sequence[po.ParameterOption | dict], *, description: str = "",
-        user_attribute: str | None = None, parent_name: str | None = None, **kwargs
-    ) -> None:
-        """
-        DEPRECATED. Use CreateWithOptions instead
-        """
-        cls._CreateWithOptionsHelper(name, label, all_options, description=description, user_attribute=user_attribute, parent_name=parent_name)
-    
-    @classmethod
     def CreateWithOptions(
-        cls, name: str, label: str, all_options: Sequence[po.ParameterOption | dict], *, description: str = "",
+        cls, name: str, label: str, all_options: Sequence[PO | dict], *, description: str = "",
         user_attribute: str | None = None, parent_name: str | None = None, **kwargs
     ) -> None:
         """
@@ -64,7 +56,37 @@ class Parameter(metaclass=ABCMeta):
             user_attribute: The user attribute that may cascade the options for this parameter. Default is None
             parent_name: Name of parent parameter that may cascade the options for this parameter. Default is None (no parent)
         """
-        cls._CreateWithOptionsHelper(name, label, all_options, description=description, user_attribute=user_attribute, parent_name=parent_name)
+        param_option_type = cls._ParameterOptionType()
+        if not isinstance(all_options, Sequence) or not all(isinstance(x, (param_option_type, dict)) for x in all_options):
+            raise u.ConfigurationError(f"The parameter must take a sequence of {param_option_type.__name__} objects")
+        
+        param_config_type = cls._ParameterConfigType()
+        param_config = param_config_type(
+            name, label, all_options, description=description, user_attribute=user_attribute, parent_name=parent_name, **kwargs
+        )
+        ps.ParameterConfigsSetIO.obj.add(param_config)
+    
+    @classmethod
+    def create_with_options(
+        cls, name: str, label: str, *, description: str = "", user_attribute: str | None = None, parent_name: str | None = None
+    ):
+        """
+        Python decorator for creating the configurations for a Parameter that may include user attribute or parent.
+
+        The decorated function must return a list of ParameterOption objects.
+
+        Arguments:
+            name: The name of the parameter
+            label: The display label for the parameter
+            description: Explains the meaning of the parameter
+            user_attribute: The user attribute that may cascade the options for this parameter. Default is None
+            parent_name: Name of parent parameter that may cascade the options for this parameter. Default is None (no parent)
+        """
+        def decorator(func: Callable[[], Sequence[PO]]) -> Callable[[], Sequence[PO]]:
+            cls.CreateWithOptions(name, label, func(), description=description, user_attribute=user_attribute, parent_name=parent_name)
+            return func
+            
+        return decorator
 
     @classmethod
     @abstractmethod
@@ -72,10 +94,19 @@ class Parameter(metaclass=ABCMeta):
         pass
 
     @classmethod
+    @abstractmethod
+    def create_simple(cls, name: str, label: str, *args, description: str = "", **kwargs) -> None:
+        pass
+
+    @classmethod
     def _CreateFromSourceHelper(
-        cls, name: str, label: str, data_source: d.DataSource | dict, *, extra_args: dict = {}, description: str = "", 
+        cls, name: str, label: str, data_source: DS | dict, *, extra_args: dict = {}, description: str = "", 
         user_attribute: str | None = None, parent_name: str | None = None
     ) -> None:
+        data_source_type = cls._DataSourceType()
+        if not isinstance(data_source, (data_source_type, dict)):
+            raise u.ConfigurationError(f"The data source must be a {data_source_type.__name__} object")
+        
         param_config = pc.DataSourceParameterConfig(
             cls._ParameterConfigType(), name, label, data_source, description=description, user_attribute=user_attribute, 
             parent_name=parent_name, extra_args=extra_args
@@ -84,7 +115,7 @@ class Parameter(metaclass=ABCMeta):
     
     @classmethod
     def CreateFromSource(
-        cls, name: str, label: str, data_source: d.DataSource | dict, *, description: str = "", 
+        cls, name: str, label: str, data_source: DS | dict, *, description: str = "", 
         user_attribute: str | None = None, parent_name: str | None = None, **kwargs
     ) -> None:
         """
@@ -99,6 +130,27 @@ class Parameter(metaclass=ABCMeta):
             parent_name: Name of parent parameter that may cascade the options for this parameter. Default is None (no parent)
         """
         cls._CreateFromSourceHelper(name, label, data_source, description=description, user_attribute=user_attribute, parent_name=parent_name)
+    
+    @classmethod
+    def create_from_source(
+        cls, name: str, label: str, *, description: str = "", user_attribute: str | None = None, parent_name: str | None = None
+    ):
+        """
+        Python decorator for creating the configurations for a Parameter that uses a DataSource to receive the options from a lookup table
+
+        The decorated function must return a DataSource object.
+
+        Arguments:
+            name: The name of the parameter
+            label: The display label for the parameter
+            description: Explains the meaning of the parameter
+            user_attribute: The user attribute that may cascade the options for this parameter. Default is None
+            parent_name: Name of parent parameter that may cascade the options for this parameter. Default is None (no parent)
+        """
+        def decorator(func: Callable[[], DS]):
+            cls.CreateFromSource(name, label, func(), description=description, user_attribute=user_attribute, parent_name=parent_name)
+            return func
+        return decorator
         
     def _enquote(self, value: str) -> str:
         return "'" + value.replace("'", "''") + "'" 
@@ -142,9 +194,10 @@ class Parameter(metaclass=ABCMeta):
         return self._get_response_model0().model_validate(self._to_json_dict0())
 
 
+SelectionPC = TypeVar("SelectionPC", bound=pc.SelectionParameterConfig)
+
 @dataclass
-class _SelectionParameter(Parameter):
-    _config: pc.SelectionParameterConfig
+class _SelectionParameter(Parameter[SelectionPC, po.SelectParameterOption, d.SelectDataSource], Generic[SelectionPC]):
     _options: Sequence[po.SelectParameterOption]
 
     def __post_init__(self):
@@ -173,7 +226,7 @@ class _SelectionParameter(Parameter):
 
 
 @dataclass
-class SingleSelectParameter(_SelectionParameter):
+class SingleSelectParameter(_SelectionParameter[pc.SingleSelectParameterConfig]):
     """
     Class for single-select parameter widgets.
 
@@ -182,7 +235,6 @@ class SingleSelectParameter(_SelectionParameter):
         options: The parameter options that are currently selectable
         selected_id: The ID of the selected option
     """
-    _config: pc.SingleSelectParameterConfig
     _selected_id: str | None
 
     def __post_init__(self):
@@ -197,12 +249,20 @@ class SingleSelectParameter(_SelectionParameter):
     def _ParameterConfigType():
         return pc.SingleSelectParameterConfig
     
+    @staticmethod
+    def _ParameterOptionType():
+        return po.SelectParameterOption
+    
+    @staticmethod
+    def _DataSourceType():
+        return d.SelectDataSource
+    
     @classmethod
     def CreateSimple(
-        cls, name: str, label: str, all_options: Sequence[po.SelectParameterOption], *, description: str = "", **kwargs
+        cls, name: str, label: str, all_options: Sequence[po.SelectParameterOption | dict], *, description: str = "", **kwargs
     ) -> None:
         """
-        Method for creating the configurations for a Parameter that doesn't involve user attributes or parent parameters
+        Method for creating the configurations for a SingleSelectParameter that doesn't involve user attributes or parent parameters
 
         Arguments:
             name: The name of the parameter
@@ -211,6 +271,23 @@ class SingleSelectParameter(_SelectionParameter):
             description: Explains the meaning of the parameter
         """
         cls.CreateWithOptions(name, label, all_options, description=description)
+    
+    @classmethod
+    def create_simple(cls, name: str, label: str, *, description: str = ""):
+        """
+        Python decorator for creating the configurations for a SingleSelectParameter that doesn't involve user attributes or parent parameters
+
+        The decorated function must return a list of SelectParameterOption objects.
+
+        Arguments:
+            name: The name of the parameter
+            label: The display label for the parameter
+            description: Explains the meaning of the parameter
+        """
+        def decorator(func: Callable[[], Sequence[po.SelectParameterOption]]):
+            cls.CreateSimple(name, label, func(), description=description)
+            return func
+        return decorator
 
     def get_selected(
         self, field: str | None = None, *, default_field: str | None = None, default: Any = None, **kwargs
@@ -323,7 +400,7 @@ class SingleSelectParameter(_SelectionParameter):
 
 
 @dataclass
-class MultiSelectParameter(_SelectionParameter):
+class MultiSelectParameter(_SelectionParameter[pc.MultiSelectParameterConfig]):
     """
     Class for multi-select parameter widgets.
 
@@ -332,7 +409,6 @@ class MultiSelectParameter(_SelectionParameter):
         options: The parameter options that are currently selectable
         selected_ids: A sequence of IDs of the selected options
     """
-    _config: pc.MultiSelectParameterConfig
     _selected_ids: Sequence[str]
 
     def __post_init__(self):
@@ -344,6 +420,14 @@ class MultiSelectParameter(_SelectionParameter):
     @staticmethod
     def _ParameterConfigType():
         return pc.MultiSelectParameterConfig
+    
+    @staticmethod
+    def _ParameterOptionType():
+        return po.SelectParameterOption
+    
+    @staticmethod
+    def _DataSourceType():
+        return d.SelectDataSource
     
     @classmethod
     def CreateWithOptions(
@@ -365,25 +449,39 @@ class MultiSelectParameter(_SelectionParameter):
             user_attribute: The user attribute that may cascade the options for this parameter. Default is None
             parent_name: Name of parent parameter that may cascade the options for this parameter. Default is None (no parent)
         """
-        cls._CreateWithOptionsHelper(
+        super().CreateWithOptions(
             name, label, all_options, description=description, user_attribute=user_attribute, parent_name=parent_name,
             show_select_all=show_select_all, order_matters=order_matters, none_is_all=none_is_all
         )
-    
-    @classmethod
-    def Create(
-        cls, name: str, label: str, all_options: Sequence[po.SelectParameterOption | dict], *, description: str = "",
-        show_select_all: bool = True, order_matters: bool = False, none_is_all: bool = True,
-        user_attribute: str | None = None, parent_name: str | None = None, **kwargs
-    ) -> None:
-        """
-        DEPRECATED. Use CreateWithOptions instead
-        """
-        cls._CreateWithOptionsHelper(
-            name, label, all_options, description=description, user_attribute=user_attribute, parent_name=parent_name, 
-            show_select_all=show_select_all, order_matters=order_matters, none_is_all=none_is_all
-        )
 
+    @classmethod
+    def create_with_options(
+        cls, name: str, label: str, *, description: str = "", show_select_all: bool = True, order_matters: bool = False, 
+        none_is_all: bool = True, user_attribute: str | None = None, parent_name: str | None = None
+    ):
+        """
+        Python decorator for creating the configurations for a MultiSelectParameter that may include user attribute or parent
+
+        The decorated function must return a list of SelectParameterOption objects.
+
+        Arguments:
+            name: The name of the parameter
+            label: The display label for the parameter
+            description: Explains the meaning of the parameter
+            show_select_all: Communicate to front-end whether to include a "select all" option
+            order_matters: Communicate to front-end whether the order of the selections made matter
+            none_is_all: Whether having no options selected is equivalent to all selectable options selected
+            user_attribute: The user attribute that may cascade the options for this parameter. Default is None
+            parent_name: Name of parent parameter that may cascade the options for this parameter. Default is None (no parent)
+        """
+        def decorator(func: Callable[[], Sequence[po.SelectParameterOption]]):
+            cls.CreateWithOptions(
+                name, label, func(), description=description, user_attribute=user_attribute, parent_name=parent_name,
+                show_select_all=show_select_all, order_matters=order_matters, none_is_all=none_is_all
+            )
+            return func
+        return decorator
+    
     @classmethod
     def CreateSimple(
         cls, name: str, label: str, all_options: Sequence[po.SelectParameterOption], *, description: str = "",
@@ -405,6 +503,32 @@ class MultiSelectParameter(_SelectionParameter):
             name, label, all_options, description=description,
             show_select_all=show_select_all, order_matters=order_matters, none_is_all=none_is_all
         )
+    
+    @classmethod
+    def create_simple(
+        cls, name: str, label: str, *, description: str = "", 
+        show_select_all: bool = True, order_matters: bool = False, none_is_all: bool = True
+    ):
+        """
+        Python decorator for creating the configurations for a MultiSelectParameter that doesn't involve user attributes or parent parameters
+
+        The decorated function must return a list of SelectParameterOption objects.
+
+        Arguments:
+            name: The name of the parameter
+            label: The display label for the parameter
+            description: Explains the meaning of the parameter
+            show_select_all: Communicate to front-end whether to include a "select all" option
+            order_matters: Communicate to front-end whether the order of the selections made matter
+            none_is_all: Whether having no options selected is equivalent to all selectable options selected
+        """
+        def decorator(func: Callable[[], Sequence[po.SelectParameterOption]]):
+            cls.CreateSimple(
+                name, label, func(), description=description, 
+                show_select_all=show_select_all, order_matters=order_matters, none_is_all=none_is_all
+            )
+            return func
+        return decorator
     
     @classmethod
     def CreateFromSource(
@@ -433,6 +557,37 @@ class MultiSelectParameter(_SelectionParameter):
             name, label, data_source, extra_args=extra_args, description=description,
             user_attribute=user_attribute, parent_name=parent_name
         )
+    
+    @classmethod
+    def create_from_source(
+        cls, name: str, label: str, *, description: str = "",
+        show_select_all: bool = True, order_matters: bool = False, none_is_all: bool = True,
+        user_attribute: str | None = None, parent_name: str | None = None
+    ):
+        """
+        Python decorator for creating the configurations for a MultiSelectParameter that uses a SelectDataSource to receive the options from a lookup table
+
+        The decorated function must return a SelectDataSource object.
+        
+        Arguments:
+            name: The name of the parameter
+            label: The display label for the parameter
+            data_source: The lookup table to use for this parameter
+            description: Explains the meaning of the parameter
+            show_select_all: Communicate to front-end whether to include a "select all" option
+            order_matters: Communicate to front-end whether the order of the selections made matter
+            none_is_all: Whether having no options selected is equivalent to all selectable options selected
+            user_attribute: The user attribute that may cascade the options for this parameter. Default is None
+            parent_name: Name of parent parameter that may cascade the options for this parameter. Default is None (no parent)
+        """
+        def decorator(func: Callable[[], d.SelectDataSource]):
+            cls.CreateFromSource(
+                name, label, func(), description=description,
+                show_select_all=show_select_all, order_matters=order_matters, none_is_all=none_is_all,
+                user_attribute=user_attribute, parent_name=parent_name
+            )
+            return func
+        return decorator
 
     def has_non_empty_selection(self) -> bool:
         """
@@ -629,9 +784,11 @@ class MultiSelectParameter(_SelectionParameter):
         return arm.MultiSelectParameterModel if self.is_enabled() else arm.NoneParameterModel
 
 
+DatePO = TypeVar("DatePO", bound=po._DateTypeParameterOption)
+
 @dataclass
-class _DateTypeParameter(Parameter):
-    _curr_option: po._DateTypeParameterOption | None
+class _DateTypeParameter(Parameter[PC, DatePO, DS], Generic[PC, DatePO, DS]):
+    _curr_option: DatePO | None
     
     def is_enabled(self) -> bool:
         return self._curr_option is not None
@@ -648,7 +805,7 @@ class _DateTypeParameter(Parameter):
 
 
 @dataclass
-class DateParameter(_DateTypeParameter):
+class DateParameter(_DateTypeParameter[pc.DateParameterConfig, po.DateParameterOption, d.DateDataSource]):
     """
     Class for date parameter widgets.
 
@@ -657,8 +814,6 @@ class DateParameter(_DateTypeParameter):
         curr_option: The current option showing for defaults based on user attribute and selection of parent
         selected_date: The selected date
     """
-    _config: pc.DateParameterConfig
-    _curr_option: po.DateParameterOption | None
     _selected_date: date | str | None
 
     def __post_init__(self):
@@ -672,23 +827,57 @@ class DateParameter(_DateTypeParameter):
     def _ParameterConfigType():
         return pc.DateParameterConfig
 
+    @staticmethod
+    def _ParameterOptionType():
+        return po.DateParameterOption
+
+    @staticmethod
+    def _DataSourceType():
+        return d.DateDataSource
+
     @classmethod
     def CreateSimple(
         cls, name: str, label: str, default_date: str | date, *, description: str = "", 
         min_date: str | date | None = None, max_date: str | date | None = None, date_format: str = '%Y-%m-%d', **kwargs
     ) -> None:
         """
-        Method for creating the configurations for a Parameter that doesn't involve user attributes or parent parameters
+        Method for creating the configurations for a DateParameter that doesn't involve user attributes or parent parameters
 
         Arguments:
             name: The name of the parameter
             label: The display label for the parameter
             default_date: Default date for this option
             description: Explains the meaning of the parameter
+            min_date: Minimum selectable date
+            max_date: Maximum selectable date
             date_format: Format of the default date, default is '%Y-%m-%d'
         """
         single_param_option = po.DateParameterOption(default_date, min_date=min_date, max_date=max_date, date_format=date_format)
         cls.CreateWithOptions(name, label, (single_param_option,), description=description)
+
+    @classmethod
+    def create_simple(
+        cls, name: str, label: str, default_date: str | date, *, description: str = "", 
+        min_date: str | date | None = None, max_date: str | date | None = None, date_format: str = '%Y-%m-%d'
+    ):
+        """
+        Python decorator for creating the configurations for a DateParameter that doesn't involve user attributes or parent parameters
+
+        Arguments:
+            name: The name of the parameter
+            label: The display label for the parameter
+            default_date: Default date for this option
+            description: Explains the meaning of the parameter
+            min_date: Minimum selectable date
+            max_date: Maximum selectable date
+            date_format: Format of the default date, default is '%Y-%m-%d'
+        """
+        cls.CreateSimple(
+            name, label, default_date, description=description, min_date=min_date, max_date=max_date, date_format=date_format
+        )
+        def decorator(func: Callable[[], Any]):
+            return func
+        return decorator
     
     def get_selected_date(self, *, date_format: str | None = None, **kwargs) -> str:
         """
@@ -737,7 +926,7 @@ class DateParameter(_DateTypeParameter):
 
 
 @dataclass
-class DateRangeParameter(_DateTypeParameter):
+class DateRangeParameter(_DateTypeParameter[pc.DateRangeParameterConfig, po.DateRangeParameterOption, d.DateRangeDataSource]):
     """
     Class for date range parameter widgets.
 
@@ -747,8 +936,6 @@ class DateRangeParameter(_DateTypeParameter):
         selected_start_date: The selected start date
         selected_end_date: The selected end date
     """
-    _config: pc.DateRangeParameterConfig
-    _curr_option: po.DateRangeParameterOption | None
     _selected_start_date: date | str | None
     _selected_end_date: date | str | None
 
@@ -766,14 +953,21 @@ class DateRangeParameter(_DateTypeParameter):
     def _ParameterConfigType():
         return pc.DateRangeParameterConfig
 
+    @staticmethod
+    def _ParameterOptionType():
+        return po.DateRangeParameterOption
+
+    @staticmethod
+    def _DataSourceType():
+        return d.DateRangeDataSource
+
     @classmethod
     def CreateSimple(
-        cls, name: str, label: str, default_start_date: str | date, default_end_date: str | date, *, 
-        description: str = "", min_date: str | date | None = None, max_date: str | date | None = None,
-        date_format: str = '%Y-%m-%d', **kwargs
+        cls, name: str, label: str, default_start_date: str | date, default_end_date: str | date, *, description: str = "", 
+        min_date: str | date | None = None, max_date: str | date | None = None, date_format: str = '%Y-%m-%d', **kwargs
     ) -> None:
         """
-        Method for creating the configurations for a Parameter that doesn't involve user attributes or parent parameters
+        Method for creating the configurations for a DateRangeParameter that doesn't involve user attributes or parent parameters
 
         Arguments:
             name: The name of the parameter
@@ -781,12 +975,40 @@ class DateRangeParameter(_DateTypeParameter):
             default_start_date: Default start date for this option
             default_end_date: Default end date for this option
             description: Explains the meaning of the parameter
+            min_date: Minimum selectable date
+            max_date: Maximum selectable date
             date_format: Format of the default date, default is '%Y-%m-%d'
         """
         single_param_option = po.DateRangeParameterOption(
             default_start_date, default_end_date, min_date=min_date, max_date=max_date, date_format=date_format
         )
         cls.CreateWithOptions(name, label, (single_param_option,), description=description)
+    
+    @classmethod
+    def create_simple(
+        cls, name: str, label: str, default_start_date: str | date, default_end_date: str | date, *, description: str = "", 
+        min_date: str | date | None = None, max_date: str | date | None = None, date_format: str = '%Y-%m-%d'
+    ):
+        """
+        Python decorator for creating the configurations for a DateRangeParameter that doesn't involve user attributes or parent parameters
+
+        Arguments:
+            name: The name of the parameter
+            label: The display label for the parameter
+            default_start_date: Default start date for this option
+            default_end_date: Default end date for this option
+            description: Explains the meaning of the parameter
+            min_date: Minimum selectable date
+            max_date: Maximum selectable date
+            date_format: Format of the default date, default is '%Y-%m-%d'
+        """
+        cls.CreateSimple(
+            name, label, default_start_date, default_end_date, description=description, 
+            min_date=min_date, max_date=max_date, date_format=date_format
+        )
+        def decorator(func: Callable[[], Any]):
+            return func
+        return decorator
     
     def get_selected_start_date(self, *, date_format: str | None = None, **kwargs) -> str:
         """
@@ -859,9 +1081,11 @@ class DateRangeParameter(_DateTypeParameter):
         return arm.DateRangeParameterModel if self.is_enabled() else arm.NoneParameterModel
 
 
+NumericPO = TypeVar("NumericPO", bound=po._NumericParameterOption)
+
 @dataclass
-class _NumberTypeParameter(Parameter):
-    _curr_option: po._NumericParameterOption | None
+class _NumberTypeParameter(Parameter[PC, NumericPO, DS], Generic[PC, NumericPO, DS]):
+    _curr_option: NumericPO | None
     
     def is_enabled(self) -> bool:
         return self._curr_option is not None
@@ -876,7 +1100,7 @@ class _NumberTypeParameter(Parameter):
     
 
 @dataclass
-class NumberParameter(_NumberTypeParameter):
+class NumberParameter(_NumberTypeParameter[pc.NumberParameterConfig, po.NumberParameterOption, d.NumberDataSource]):
     """
     Class for number parameter widgets.
 
@@ -885,8 +1109,6 @@ class NumberParameter(_NumberTypeParameter):
         curr_option: The current option showing for defaults based on user attribute and selection of parent
         selected_value: The selected integer or decimal number
     """
-    _config: pc.NumberParameterConfig
-    _curr_option: po.NumberParameterOption | None
     _selected_value: po.Number | None
 
     def __post_init__(self):
@@ -896,6 +1118,14 @@ class NumberParameter(_NumberTypeParameter):
     @staticmethod
     def _ParameterConfigType():
         return pc.NumberParameterConfig
+    
+    @staticmethod
+    def _ParameterOptionType():
+        return po.NumberParameterOption
+
+    @staticmethod
+    def _DataSourceType():
+        return d.NumberDataSource
 
     @classmethod
     def CreateSimple(
@@ -903,7 +1133,7 @@ class NumberParameter(_NumberTypeParameter):
         increment: po.Number = 1, default_value: po.Number | None = None, **kwargs
     ) -> None:
         """
-        Method for creating the configurations for a Parameter that doesn't involve user attributes or parent parameters
+        Method for creating the configurations for a NumberParameter that doesn't involve user attributes or parent parameters
         
         * Note that the "Number" type denotes an int, a Decimal (from decimal module), or a string that can be parsed to Decimal
         
@@ -918,6 +1148,32 @@ class NumberParameter(_NumberTypeParameter):
         """
         single_param_option = po.NumberParameterOption(min_value, max_value, increment=increment, default_value=default_value)
         cls.CreateWithOptions(name, label, (single_param_option,), description=description)
+
+    @classmethod
+    def create_simple(
+        cls, name: str, label: str, min_value: po.Number, max_value: po.Number, *, description: str = "", 
+        increment: po.Number = 1, default_value: po.Number | None = None
+    ):
+        """
+        Python decorator for creating the configurations for a NumberParameter that doesn't involve user attributes or parent parameters
+
+        * Note that the "Number" type denotes an int, a Decimal (from decimal module), or a string that can be parsed to Decimal
+
+        Arguments:
+            name: The name of the parameter
+            label: The display label for the parameter
+            min_value: Minimum selectable value
+            max_value: Maximum selectable value
+            description: Explains the meaning of the parameter
+            increment: Increment of selectable values, and must fit evenly between min_value and max_value
+            default_value: Default value for the parameter
+        """
+        cls.CreateSimple(
+            name, label, min_value, max_value, description=description, increment=increment, default_value=default_value
+        )
+        def decorator(func: Callable[[], Any]):
+            return func
+        return decorator
     
     def get_selected_value(self, **kwargs) -> float:
         """
@@ -946,7 +1202,7 @@ class NumberParameter(_NumberTypeParameter):
 
 
 @dataclass
-class NumberRangeParameter(_NumberTypeParameter):
+class NumberRangeParameter(_NumberTypeParameter[pc.NumberRangeParameterConfig, po.NumberRangeParameterOption, d.NumberRangeDataSource]):
     """
     Class for number range parameter widgets.
 
@@ -956,8 +1212,6 @@ class NumberRangeParameter(_NumberTypeParameter):
         selected_lower_value: The selected lower integer or decimal number
         selected_upper_value: The selected upper integer or decimal number
     """
-    _config: pc.NumberRangeParameterConfig
-    _curr_option: po.NumberRangeParameterOption | None
     _selected_lower_value: po.Number | None
     _selected_upper_value: po.Number | None
 
@@ -971,15 +1225,22 @@ class NumberRangeParameter(_NumberTypeParameter):
     @staticmethod
     def _ParameterConfigType():
         return pc.NumberRangeParameterConfig
+    
+    @staticmethod
+    def _ParameterOptionType():
+        return po.NumberRangeParameterOption
+
+    @staticmethod
+    def _DataSourceType():
+        return d.NumberRangeDataSource
 
     @classmethod
     def CreateSimple(
         cls, name: str, label: str, min_value: po.Number, max_value: po.Number, *, description: str = "",
-        increment: po.Number = 1, default_lower_value: po.Number | None = None, default_upper_value: po.Number | None = None,
-        **kwargs
+        increment: po.Number = 1, default_lower_value: po.Number | None = None, default_upper_value: po.Number | None = None,**kwargs
     ) -> None:
         """
-        Method for creating the configurations for a Parameter that doesn't involve user attributes or parent parameters
+        Method for creating the configurations for a NumberRangeParameter that doesn't involve user attributes or parent parameters
         
         * Note that the "Number" type denotes an int, a Decimal (from decimal module), or a string that can be parsed to Decimal
 
@@ -998,6 +1259,35 @@ class NumberRangeParameter(_NumberTypeParameter):
             min_value, max_value, increment=increment, default_lower_value=default_lower_value, default_upper_value=default_upper_value
         )
         cls.CreateWithOptions(name, label, (single_param_option,), description=description)
+    
+    @classmethod
+    def create_simple(
+        cls, name: str, label: str, min_value: po.Number, max_value: po.Number, *, description: str = "", 
+        increment: po.Number = 1, default_lower_value: po.Number | None = None, default_upper_value: po.Number | None = None
+    ):
+        """
+        Python decorator for creating the configurations for a NumberRangeParameter that doesn't involve user attributes or parent parameters
+
+        * Note that the "Number" type denotes an int, a Decimal (from decimal module), or a string that can be parsed to Decimal
+
+        Arguments:
+            name: The name of the parameter
+            label: The display label for the parameter
+            min_value: Minimum selectable value
+            max_value: Maximum selectable value
+            description: Explains the meaning of the parameter
+            increment: Increment of selectable values, and must fit evenly between min_value and max_value
+            default_lower_value: Default lower value for this option, and must be selectable based on min_value, max_value, and increment
+            default_upper_value: Default upper value for this option, and must be selectable based on min_value, max_value, and increment. 
+                    Must also be greater than default_lower_value
+        """
+        cls.CreateSimple(
+            name, label, min_value, max_value, description=description, 
+            increment=increment, default_lower_value=default_lower_value, default_upper_value=default_upper_value
+        )
+        def decorator(func: Callable[[], Any]):
+            return func
+        return decorator
     
     def get_selected_lower_value(self, **kwargs) -> float:
         """
@@ -1118,11 +1408,10 @@ class TextValue:
 
 
 @dataclass
-class TextParameter(Parameter):
+class TextParameter(Parameter[pc.TextParameterConfig, po.TextParameterOption, d.TextDataSource]):
     """
     Class for text parameter widgets.
     """
-    _config: pc.TextParameterConfig
     _curr_option: po.TextParameterOption | None
     _entered_text: str | None
 
@@ -1140,13 +1429,21 @@ class TextParameter(Parameter):
     def _ParameterConfigType():
         return pc.TextParameterConfig
     
+    @staticmethod
+    def _ParameterOptionType():
+        return po.TextParameterOption
+    
+    @staticmethod
+    def _DataSourceType():
+        return d.TextDataSource
+
     @classmethod
     def CreateWithOptions(
         cls, name: str, label: str, all_options: Sequence[po.TextParameterOption | dict], *, description: str = "",
         input_type: str = "text", user_attribute: str | None = None, parent_name: str | None = None, **kwargs
     ) -> None:
         """
-        Method for creating the configurations for a MultiSelectParameter that may include user attribute or parent
+        Method for creating the configurations for a TextParameter that doesn't involve user attribute or parent
 
         Arguments:
             name: The name of the parameter
@@ -1157,28 +1454,43 @@ class TextParameter(Parameter):
             user_attribute: The user attribute that may cascade the options for this parameter. Default is None
             parent_name: Name of parent parameter that may cascade the options for this parameter. Default is None (no parent)
         """
-        cls._CreateWithOptionsHelper(
-            name, label, all_options, description=description, input_type=input_type, user_attribute=user_attribute, parent_name=parent_name
+        super().CreateWithOptions(
+            name, label, all_options, description=description, input_type=input_type, 
+            user_attribute=user_attribute, parent_name=parent_name
         )
     
     @classmethod
-    def Create(
-        cls, name: str, label: str, all_options: Sequence[po.TextParameterOption | dict], *, description: str = "",
-        input_type: str = "text", user_attribute: str | None = None, parent_name: str | None = None, **kwargs
-    ) -> None:
+    def create_with_options(
+        cls, name: str, label: str, *, description: str = "", 
+        input_type: str = "text", user_attribute: str | None = None, parent_name: str | None = None
+    ):
         """
-        DEPRECATED. Use CreateWithOptions instead
-        """
-        cls._CreateWithOptionsHelper(
-            name, label, all_options, description=description, input_type=input_type, user_attribute=user_attribute, parent_name=parent_name
-        )
+        Python decorator for creating the configurations for a TextParameter that may include user attribute or parent
 
+        The decorated function must return a list of TextParameterOption objects.
+
+        Arguments:
+            name: The name of the parameter
+            label: The display label for the parameter
+            description: Explains the meaning of the parameter
+            input_type: The type of input field to use. Must be one of "text", "textarea", "number", "color", "date", "datetime-local", "month", "time", and "password". Optional, default is "text". More information on input types other than "textarea" can be found at https://www.w3schools.com/html/html_form_input_types.asp. More information on "textarea" can be found at https://www.w3schools.com/tags/tag_textarea.asp
+            user_attribute: The user attribute that may cascade the options for this parameter. Default is None
+            parent_name: Name of parent parameter that may cascade the options for this parameter. Default is None (no parent)
+        """
+        def decorator(func: Callable[[], Sequence[po.TextParameterOption]]):
+            cls.CreateWithOptions(
+                name, label, func(), description=description, input_type=input_type,
+                user_attribute=user_attribute, parent_name=parent_name
+            )
+            return func
+        return decorator
+    
     @classmethod
     def CreateSimple(
         cls, name: str, label: str, *, description: str = "", default_text: str = "", input_type: str = "text", **kwargs
     ) -> None:
         """
-        Method for creating the configurations for a Parameter that doesn't involve user attributes or parent parameters
+        Method for creating the configurations for a TextParameter that doesn't involve user attributes or parent parameters
         
         Arguments:
             name: The name of the parameter
@@ -1191,12 +1503,29 @@ class TextParameter(Parameter):
         cls.CreateWithOptions(name, label, (single_param_option,), description=description, input_type=input_type)
     
     @classmethod
+    def create_simple(cls, name: str, label: str, *, description: str = "", default_text: str = "", input_type: str = "text"):
+        """
+        Python decorator for creating the configurations for a TextParameter that doesn't involve user attributes or parent parameters
+
+        Arguments:
+            name: The name of the parameter
+            label: The display label for the parameter
+            description: Explains the meaning of the parameter
+            default_text: Default input text for this option. Optional, default is empty string.
+            input_type: The type of input field to use. Must be one of "text", "textarea", "number", "color", "date", "datetime-local", "month", "time", and "password". Optional, default is "text". More information on input types other than "textarea" can be found at https://www.w3schools.com/html/html_form_input_types.asp. More information on "textarea" can be found at https://www.w3schools.com/tags/tag_textarea.asp
+        """
+        cls.CreateSimple(name, label, description=description, default_text=default_text, input_type=input_type)
+        def decorator(func: Callable[[], Any]):
+            return func
+        return decorator
+    
+    @classmethod
     def CreateFromSource(
         cls, name: str, label: str, data_source: d.TextDataSource | dict, *, description: str = "",
         input_type: str = "text", user_attribute: str | None = None, parent_name: str | None = None, **kwargs
     ) -> None:
         """
-        Method for creating the configurations for a MultiSelectParameter that uses a SelectDataSource to receive the options
+        Method for creating the configurations for a TextParameter that uses a TextDataSource to receive the options
 
         Arguments:
             name: The name of the parameter
@@ -1213,6 +1542,30 @@ class TextParameter(Parameter):
         cls._CreateFromSourceHelper(
             name, label, data_source, extra_args=extra_args, description=description, user_attribute=user_attribute, parent_name=parent_name
         )
+    
+    @classmethod
+    def create_from_source(
+        cls, name: str, label: str, data_source: d.TextDataSource | dict, *, description: str = "",
+        input_type: str = "text", user_attribute: str | None = None, parent_name: str | None = None
+    ):
+        """
+        Python decorator for creating the configurations for a TextParameter that uses a TextDataSource to receive the options from a lookup table
+
+        The decorated function must return a TextDataSource object.
+
+        Arguments:
+            name: The name of the parameter
+            label: The display label for the parameter
+            data_source: The lookup table to use for this parameter
+            description: Explains the meaning of the parameter
+            input_type: The type of input field to use. Options are one of "text", "textarea", "number", "color", "date", "datetime-local", "month", "time", and "password". Optional, default is "text". More information on input types other than "textarea" can be found at https://www.w3schools.com/html/html_form_input_types.asp. More information on "textarea" can be found at https://www.w3schools.com/tags/tag_textarea.asp
+            user_attribute: The user attribute that may cascade the options for this parameter. Default is None
+            parent_name: Name of parent parameter that may cascade the options for this parameter. Default is None (no parent)
+        """
+        def decorator(func: Callable[[], d.TextDataSource]):
+            cls.CreateFromSource(name, label, data_source, description=description, input_type=input_type, user_attribute=user_attribute, parent_name=parent_name)
+            return func
+        return decorator
     
     def get_entered_text(self, **kwargs) -> TextValue:
         """

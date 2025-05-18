@@ -168,8 +168,9 @@ class ApiServer:
                 await _log_request_run(request)
                 return await call_next(request)
             except InvalidInputError as exc:
-                traceback.print_exc(file=buffer)
+                # traceback.print_exception(exc, file=buffer)
                 message = str(exc)
+                self.logger.error(message)
                 if exc.error_code < 20:
                     status_code = status.HTTP_401_UNAUTHORIZED
                 elif exc.error_code < 40:
@@ -203,15 +204,16 @@ class ApiServer:
                 )
             
             err_msg = buffer.getvalue()
-            self.logger.error(err_msg)
-            print(err_msg)
+            if err_msg:
+                self.logger.error(err_msg)
+                print(err_msg)
             return response
 
         app.add_middleware(
             CORSMiddleware, allow_origins=["*"], allow_credentials=True, allow_methods=["*"], allow_headers=["*"], 
             expose_headers=["Applied-Username"]
         )
-
+        
         # Helpers
         T = TypeVar('T')
         
