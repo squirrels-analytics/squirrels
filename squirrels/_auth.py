@@ -1,9 +1,10 @@
+from typing import Callable
 from datetime import datetime, timedelta, timezone
 from enum import Enum
 from functools import cached_property
 from jwt.exceptions import InvalidTokenError
 from passlib.context import CryptContext
-from pydantic import BaseModel, ConfigDict, ValidationError
+from pydantic import BaseModel, ConfigDict, ValidationError, Field, field_serializer
 from pydantic_core import PydanticUndefined
 from sqlalchemy import create_engine, Engine, func, inspect, text, ForeignKey
 from sqlalchemy import Column, String, Integer, Float, Boolean
@@ -12,7 +13,8 @@ import jwt, types, typing as _t, uuid
 
 from ._manifest import PermissionScope
 from ._py_module import PyModule
-from ._exceptions import InvalidInputError, ConfigurationError
+from ._exceptions import InvalidInputErrorTmp, ConfigurationError
+from ._arguments._init_time_args import AuthProviderArgs
 from . import _utils as u, _constants as c
 
 pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
@@ -34,13 +36,17 @@ class BaseUser(BaseModel):
 
 User = _t.TypeVar('User', bound=BaseUser)
 
-class AccessToken(BaseModel):
+class ApiKey(BaseModel):
     model_config = ConfigDict(from_attributes=True)
-    token_id: str
+    id: str
     title: str
     username: str
     created_at: datetime
     expires_at: datetime
+    
+    @field_serializer('created_at', 'expires_at')
+    def serialize_datetime(self, dt: datetime) -> str:
+        return dt.strftime("%Y-%m-%dT%H:%M:%S.%fZ")
 
 
 class UserField(BaseModel):
@@ -51,10 +57,31 @@ class UserField(BaseModel):
     default: _t.Any | None
 
 
+class ProviderConfigs(BaseModel):
+    client_id: str
+    client_secret: str
+    server_metadata_url: str
+    client_kwargs: dict = Field(default_factory=dict)
+    get_user: Callable[[dict], BaseUser]
+
+class AuthProvider(BaseModel):
+    name: str
+    label: str
+    icon: str
+    provider_configs: ProviderConfigs
+
+ProviderFunctionType = Callable[[AuthProviderArgs], AuthProvider]
+
+
 class Authenticator(_t.Generic[User]):
-    def __init__(self, logger: u.Logger, base_path: str, env_vars: dict[str, str], *, sa_engine: Engine | None = None, cls: type[User] | None = None):
+    providers: list[ProviderFunctionType] = []  # static variable to stage providers
+
+    def __init__(
+        self, logger: u.Logger, base_path: str, auth_args: AuthProviderArgs, provider_functions: list[ProviderFunctionType], 
+        user_cls: type[User], *, sa_engine: Engine | None = None
+    ):
         self.logger = logger
-        self.env_vars = env_vars
+        self.env_vars = auth_args.env_vars
         self.secret_key = self.env_vars.get(c.SQRL_SECRET_KEY)
 
         # Create a new declarative base for this instance
@@ -69,27 +96,30 @@ class Authenticator(_t.Generic[User]):
             password_hash: Mapped[str] = mapped_column(nullable=False)
             created_at: Mapped[datetime] = mapped_column(nullable=False, server_default=func.now())
         
-        # Define DbAccessToken class for this instance
-        class DbAccessToken(self.Base):
-            __tablename__ = 'access_tokens'
+        # Define DbApiKey class for this instance
+        class DbApiKey(self.Base):
+            __tablename__ = 'api_keys'
             
-            token_id: Mapped[str] = mapped_column(primary_key=True, default=lambda: str(uuid.uuid4()))
+            id: Mapped[str] = mapped_column(primary_key=True, default=lambda: uuid.uuid4().hex)
+            hashed_key: Mapped[str] = mapped_column(unique=True, nullable=False)
             title: Mapped[str] = mapped_column(nullable=False)
             username: Mapped[str] = mapped_column(ForeignKey('users.username', ondelete='CASCADE'), nullable=False)
             created_at: Mapped[datetime] = mapped_column(nullable=False)
             expires_at: Mapped[datetime] = mapped_column(nullable=False)
-
+        
             def __repr__(self):
-                return f"<AccessToken(token_id='{self.token_id}', username='{self.username}')>"
+                return f"<DbApiKey(id='{self.id}', username='{self.username}')>"
         
         self.DbBaseUser = DbBaseUser
-        self.DbAccessToken = DbAccessToken
+        self.DbApiKey = DbApiKey
         
-        self.User = self._get_user_model(base_path) if cls is None else cls
+        self.User = user_cls
         self.DbUser: type[DbBaseUser] = self._initialize_db_user_model(self.User)
+
+        self.auth_providers = [provider_function(auth_args) for provider_function in provider_functions]
         
         if sa_engine is None:
-            sqlite_relative_path = env_vars.get(c.SQRL_AUTH_DB_FILE_PATH, f"{c.TARGET_FOLDER}/{c.DB_FILE}")
+            sqlite_relative_path = self.env_vars.get(c.SQRL_AUTH_DB_FILE_PATH, f"{c.TARGET_FOLDER}/{c.DB_FILE}")
             sqlite_path = u.Path(base_path, sqlite_relative_path)
             sqlite_path.parent.mkdir(parents=True, exist_ok=True)
             self.engine = create_engine(f"sqlite:///{str(sqlite_path)}")
@@ -272,7 +302,7 @@ class Authenticator(_t.Generic[User]):
         try:
             user_data = self.User(**user_fields, username=username).model_dump(mode='json')
         except ValidationError as e:
-            raise InvalidInputError(102, f"Invalid user field '{e.errors()[0]['loc'][0]}': {e.errors()[0]['msg']}")
+            raise InvalidInputErrorTmp(102, f"Invalid user field '{e.errors()[0]['loc'][0]}': {e.errors()[0]['msg']}")
 
         # Add a new user
         try:
@@ -280,19 +310,20 @@ class Authenticator(_t.Generic[User]):
             existing_user = session.get(self.DbUser, username)
             if existing_user is not None:
                 if not update_user:
-                    raise InvalidInputError(101, f"User '{username}' already exists")
+                    raise InvalidInputErrorTmp(101, f"User '{username}' already exists")
                 
                 if username == c.ADMIN_USERNAME and user_data.get("is_admin") is False:
-                    raise InvalidInputError(24, "Setting the admin user to non-admin is not permitted")
+                    raise InvalidInputErrorTmp(24, "Setting the admin user to non-admin is not permitted")
+                
                 new_user = self.DbUser(password_hash=existing_user.password_hash, **user_data)
                 session.delete(existing_user)
             else:
                 if update_user:
-                    raise InvalidInputError(41, f"No user found for username: {username}")
+                    raise InvalidInputErrorTmp(41, f"No user found for username: {username}")
                 
                 password = user_fields.get('password')
                 if password is None:
-                    raise InvalidInputError(100, f"Missing required field 'password' when adding a new user")
+                    raise InvalidInputErrorTmp(100, f"Missing required field 'password' when adding a new user")
                 password_hash = pwd_context.hash(password)
                 new_user = self.DbUser(password_hash=password_hash, **user_data)
             
@@ -302,6 +333,28 @@ class Authenticator(_t.Generic[User]):
             # Commit the transaction
             session.commit()
 
+        finally:
+            session.close()
+    
+    def create_or_get_user_from_provider(self, provider_name: str, user_info: dict) -> User:
+        provider = next((p for p in self.auth_providers if p.name == provider_name), None)
+        if provider is None:
+            raise InvalidInputErrorTmp(42, f"Provider '{provider_name}' not found")
+        
+        user = provider.provider_configs.get_user(user_info)
+        session = self.Session()
+        try:
+            db_user = session.get(self.DbUser, user.username)
+            if db_user is None:
+                # Create new user
+                user_data = user.model_dump()
+                password_hash = ""  # No hash makes it impossible to login with username and password
+                db_user = self.DbUser(password_hash=password_hash, **user_data)
+                session.add(db_user)
+                session.commit()
+        
+            return self.User.model_validate(db_user)
+        
         finally:
             session.close()
 
@@ -315,7 +368,7 @@ class Authenticator(_t.Generic[User]):
                 user = self.User.model_validate(db_user)
                 return user # type: ignore
             else:
-                raise InvalidInputError(0, f"Username or password not found")
+                raise InvalidInputErrorTmp(0, f"Username or password not found")
 
         finally:
             session.close()
@@ -325,114 +378,133 @@ class Authenticator(_t.Generic[User]):
         try:
             db_user = session.get(self.DbUser, username)
             if db_user is None:
-                raise InvalidInputError(2, f"User not found")
+                raise InvalidInputErrorTmp(2, f"User not found")
             
-            if pwd_context.verify(old_password, db_user.password_hash):
+            if db_user.password_hash and pwd_context.verify(old_password, db_user.password_hash):
                 db_user.password_hash = pwd_context.hash(new_password)
                 session.commit()
             else:
-                raise InvalidInputError(3, f"Incorrect password")
+                raise InvalidInputErrorTmp(3, f"Incorrect password")
         finally:
             session.close()
 
     def delete_user(self, username: str) -> None:
         if username == c.ADMIN_USERNAME:
-            raise InvalidInputError(23, "Cannot delete the admin user")
+            raise InvalidInputErrorTmp(23, "Cannot delete the admin user")
         
         session = self.Session()
         try:
             db_user = session.get(self.DbUser, username)
             if db_user is None:
-                raise InvalidInputError(41, f"No user found for username: {username}")
+                raise InvalidInputErrorTmp(41, f"No user found for username: {username}")
             session.delete(db_user)
             session.commit()
         finally:
             session.close()
 
-    def get_all_users(self) -> list[User]:
+    def get_all_users(self) -> list:
         session = self.Session()
         try:
             db_users = session.query(self.DbUser).all()
-            return [self.User.model_validate(user) for user in db_users] # type: ignore
+            return [self.User.model_validate(user) for user in db_users]
         finally:
             session.close()
     
-    def create_access_token(self, user: User, expiry_minutes: int | None, *, title: str | None = None) -> tuple[str, datetime]:
+    def create_access_token(self, user: User, expiry_minutes: int | None, *, title: str | None = None) -> str:
+        """
+        Creates an API key if title is provided. Otherwise, creates a JWT token.
+        """
         created_at = datetime.now(timezone.utc)
         expire_at = created_at + timedelta(minutes=expiry_minutes) if expiry_minutes is not None else datetime.max
-        token_id = None
-        if title is not None:
-            session = self.Session()
-            try:
-                access_token = self.DbAccessToken(title=title, username=user.username, created_at=created_at, expires_at=expire_at)
-                session.add(access_token)
-                session.commit()
-                token_id = access_token.token_id
-            finally:
-                session.close()
         
         if self.secret_key is None:
             raise ConfigurationError(f"Environment variable '{c.SQRL_SECRET_KEY}' is required to create an access token")
-        to_encode = {"username": user.username, "token_id": token_id, "exp": expire_at}
-        encoded_jwt = jwt.encode(to_encode, self.secret_key, algorithm="HS256")
-        return encoded_jwt, expire_at
+        
+        if title is not None:
+            session = self.Session()
+            try:
+                token_id = "sqrl-" + uuid.uuid4().hex
+                hashed_key = u.hash_string(token_id, salt=self.secret_key)
+                api_key = self.DbApiKey(hashed_key=hashed_key, title=title, username=user.username, created_at=created_at, expires_at=expire_at)
+                session.add(api_key)
+                session.commit()
+            finally:
+                session.close()
+        else:
+            to_encode = {"username": user.username, "exp": expire_at}
+            token_id = jwt.encode(to_encode, self.secret_key, algorithm="HS256")
+        
+        return token_id
     
     def get_user_from_token(self, token: str | None) -> User | None:
-        if token is None or token == "":
+        """
+        Get a user from an access token (JWT, or API key if token starts with 'sqrl-')
+        """
+        if not token:
             return None
         
         if self.secret_key is None:
             raise ConfigurationError(f"Environment variable '{c.SQRL_SECRET_KEY}' is required to get user from an access token")
 
-        try:
-            payload: dict = jwt.decode(token, self.secret_key, algorithms=["HS256"])
-        except InvalidTokenError:
-            raise InvalidInputError(1, "Invalid authorization token")
-        
         session = self.Session()
         try:
-            if payload.get("token_id") is not None:
-                access_token = session.query(self.DbAccessToken).filter(
-                    self.DbAccessToken.username == payload["username"],
-                    self.DbAccessToken.token_id == payload["token_id"],
-                    self.DbAccessToken.expires_at >= func.now()
+            if token.startswith("sqrl-"):
+                hashed_key = u.hash_string(token, salt=self.secret_key)
+                api_key = session.query(self.DbApiKey).filter(
+                    self.DbApiKey.hashed_key == hashed_key,
+                    self.DbApiKey.expires_at >= func.now()
                 ).first()
-                if access_token is None:
-                    raise InvalidInputError(1, "Invalid authorization token")
-            
-            db_user = session.get(self.DbUser, payload["username"])
+                if api_key is None:
+                    raise InvalidTokenError()
+                username = api_key.username
+            else:
+                payload: dict = jwt.decode(token, self.secret_key, algorithms=["HS256"])
+                username = payload["username"]
+                
+            db_user = session.get(self.DbUser, username)
             if db_user is None:
-                raise InvalidInputError(1, "Invalid authorization token")
+                raise InvalidTokenError()
+        
+        except InvalidTokenError:
+            raise InvalidInputErrorTmp(1, "Invalid authorization token")
         finally:
             session.close()
         
         user = self.User.model_validate(db_user)
         return user # type: ignore
     
-    def get_all_tokens(self, username: str) -> list[AccessToken]:
+    def get_all_api_keys(self, username: str) -> list[ApiKey]:
+        """
+        Get the ID, title, and expiry date of all API keys for a user. Note that the ID is a hash of the API key, not the API key itself.
+        """
         session = self.Session()
         try:
-            tokens = session.query(self.DbAccessToken).filter(
-                self.DbAccessToken.username == username,
-                self.DbAccessToken.expires_at >= func.now()
+            tokens = session.query(self.DbApiKey).filter(
+                self.DbApiKey.username == username,
+                self.DbApiKey.expires_at >= func.now()
             ).all()
             
-            return [AccessToken.model_validate(token) for token in tokens]
+            return [ApiKey.model_validate(token) for token in tokens]
         finally:
             session.close()
     
-    def revoke_token(self, username: str, token_id: str) -> None:
+    def revoke_api_key(self, username: str, api_key_id: str) -> None:
+        """
+        Revoke an API key
+        """
         session = self.Session()
         try:
-            access_token = session.query(self.DbAccessToken).filter(
-                self.DbAccessToken.username == username,
-                self.DbAccessToken.token_id == token_id
+
+            api_key = session.query(self.DbApiKey).filter(
+                self.DbApiKey.username == username,
+                self.DbApiKey.id == api_key_id
             ).first()
             
-            if access_token is None:
-                raise InvalidInputError(40, f"No access token found for token_id: {token_id}")
+            if api_key is None:
+                print(f"The API key could not be found: {api_key_id}")
+                raise InvalidInputErrorTmp(40, f"The API key could not be found")
             
-            session.delete(access_token)
+            session.delete(api_key)
             session.commit()
         finally:
             session.close()
@@ -449,3 +521,21 @@ class Authenticator(_t.Generic[User]):
 
     def close(self) -> None:
         self.engine.dispose()
+
+
+def provider(name: str, label: str, icon: str):
+    """
+    Decorator to register an authentication provider
+
+    Arguments:
+        name: The name of the provider (must be unique, e.g. 'google')
+        label: The label of the provider (e.g. 'Google')
+        icon: The URL of the icon of the provider (e.g. 'https://www.google.com/favicon.ico')
+    """
+    def decorator(func: Callable[[AuthProviderArgs], ProviderConfigs]):
+        def wrapper(sqrl: AuthProviderArgs):
+            provider_configs = func(sqrl)
+            return AuthProvider(name=name, label=label, icon=icon, provider_configs=provider_configs)
+        Authenticator.providers.append(wrapper)
+        return wrapper
+    return decorator

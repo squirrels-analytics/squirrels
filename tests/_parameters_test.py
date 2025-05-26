@@ -4,7 +4,7 @@ from decimal import Decimal
 import pytest
 
 from squirrels import _parameter_options as po, _parameters as p, _parameter_configs as pc, _utils as u
-from squirrels._exceptions import InvalidInputError, ConfigurationError
+from squirrels._exceptions import InvalidInputErrorTmp, ConfigurationError
 
 
 class TestSingleSelectParameter:
@@ -24,7 +24,7 @@ class TestSingleSelectParameter:
     def test_invalid_init(self, config1: pc.SingleSelectParameterConfig):
         with pytest.raises(AssertionError):
             p.SingleSelectParameter(config1, config1.all_options, None)
-        with pytest.raises(InvalidInputError):
+        with pytest.raises(InvalidInputErrorTmp):
             p.SingleSelectParameter(config1, config1.all_options, 'wrong_id')
 
     def test_get_selected(self, param1: p.SingleSelectParameter):
@@ -87,7 +87,7 @@ class TestMultiSelectParameter:
         return p.MultiSelectParameter(config, config.all_options, [])
     
     def test_invalid_init(self, config1: pc.MultiSelectParameterConfig):
-        with pytest.raises(InvalidInputError):
+        with pytest.raises(InvalidInputErrorTmp):
             p.MultiSelectParameter(config1, config1.all_options, "wrong_id")
     
     def test_get_selected1(self, param1: p.MultiSelectParameter):
@@ -147,7 +147,7 @@ class TestDateParameter:
         return p.DateParameter(config1, config1.all_options[0], date(2021,1,1))
     
     def test_invalid_init(self, config1: pc.DateParameterConfig):
-        with pytest.raises(InvalidInputError):
+        with pytest.raises(InvalidInputErrorTmp):
             p.DateParameter(config1, config1.all_options[0], date(2019,1,1))
     
     def test_get_selected1(self, param1: p.DateParameter):
@@ -205,7 +205,7 @@ class TestNumberParameter:
         return p.NumberParameter(config1, config1.all_options[0], Decimal("4.5"))
     
     def test_invalid_init(self, config1: pc.NumberParameterConfig):
-        with pytest.raises(InvalidInputError):
+        with pytest.raises(InvalidInputErrorTmp):
             p.NumberParameter(config1, config1.all_options[0], Decimal("4.6"))
     
     def test_get_selected(self, param1: p.NumberParameter):
@@ -236,7 +236,7 @@ class TestNumberRangeParameter:
         return p.NumberRangeParameter(config1, config1.all_options[0], "2.5", "6.5")
 
     def test_invalid_init(self, config1: pc.NumberRangeParameterConfig):
-        with pytest.raises(InvalidInputError):
+        with pytest.raises(InvalidInputErrorTmp):
             p.NumberRangeParameter(config1, config1.all_options[0], "2.5", "6.7")
     
     def test_get_selected(self, param1: p.NumberRangeParameter):
@@ -319,7 +319,7 @@ class TestTextParameter:
         ("#00000G", "color")
     ])
     def test_invalid_init(self, default_text: str, input_type: str):
-        with pytest.raises(InvalidInputError):
+        with pytest.raises(InvalidInputErrorTmp):
             self.create_param(default_text, input_type)
     
     @pytest.mark.parametrize("default_text,input_type", [

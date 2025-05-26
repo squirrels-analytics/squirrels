@@ -1,4 +1,4 @@
-from squirrels import parameters as p, parameter_options as po, data_sources as ds
+from squirrels import arguments as args, parameters as p, parameter_options as po, data_sources as ds
 
 
 ## Example of creating SingleSelectParameter and specifying each option by code

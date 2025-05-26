@@ -1,4 +1,4 @@
-class InvalidInputError(Exception):
+class InvalidInputErrorTmp(Exception):
     """
     Use this exception when the error is due to providing invalid inputs to the REST API
 
@@ -26,6 +26,7 @@ class InvalidInputError(Exception):
     27 - User does not have permission to query data models
     40 - No token found for token_id
     41 - No user found for username
+    42 - Provider not found
     60 - An existing build process is already running and a concurrent build is not allowed
     61 - Model depends on static data models that cannot be found
     100 - Missing required field 'username' or 'password' when adding a new user
@@ -40,6 +41,14 @@ class InvalidInputError(Exception):
     def __init__(self, error_code: int, message: str, *args) -> None:
         self.error_code = error_code
         super().__init__(message, *args)
+
+
+class InvalidInputError(Exception):
+    def __init__(self, status_code: int, error: str, error_description: str, *args) -> None:
+        self.status_code = status_code
+        self.error = error
+        self.error_description = error_description
+        super().__init__(error_description, *args)
 
 
 class ConfigurationError(Exception):

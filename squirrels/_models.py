@@ -8,7 +8,7 @@ import asyncio, os, re, time, duckdb, sqlglot
 import polars as pl, pandas as pd, networkx as nx
 
 from . import _constants as c, _utils as u, _py_module as pm, _model_queries as mq, _model_configs as mc, _sources as src, _api_response_models as arm
-from ._exceptions import FileExecutionError, InvalidInputError
+from ._exceptions import FileExecutionError, InvalidInputErrorTmp
 from ._arguments._run_time_args import ContextArgs, ModelArgs, BuildModelArgs
 from ._auth import BaseUser
 from ._connection_set import ConnectionsArgs, ConnectionSet, ConnectionProperties
@@ -173,7 +173,7 @@ class StaticModel(DataModel):
         try:
             return self._load_duckdb_view_to_python_df(local_conn, use_venv=True)
         except Exception as e:
-            raise InvalidInputError(61, f'Model "{self.name}" depends on static data models that cannot be found.')
+            raise InvalidInputErrorTmp(61, f'Model "{self.name}" depends on static data models that cannot be found.')
         finally:
             local_conn.close()
     
@@ -531,7 +531,7 @@ class DbviewModel(QueryModel):
                         self.logger.info(f"Running dbview '{self.name}' on duckdb")
                         return local_conn.sql(query, params=placeholders).pl()
                     except duckdb.CatalogException as e:
-                        raise InvalidInputError(61, f'Model "{self.name}" depends on static data models that cannot be found.')
+                        raise InvalidInputErrorTmp(61, f'Model "{self.name}" depends on static data models that cannot be found.')
                     except Exception as e:
                         raise RuntimeError(e)
                     finally:
@@ -657,10 +657,10 @@ class FederateModel(QueryModel):
                 try:
                     return local_conn.execute(create_query, existing_placeholders)
                 except duckdb.CatalogException as e:
-                    raise InvalidInputError(61, f'Model "{self.name}" depends on static data models that cannot be found.')
+                    raise InvalidInputErrorTmp(61, f'Model "{self.name}" depends on static data models that cannot be found.')
                 except Exception as e:
                     if self.name == "__fake_target":
-                        raise InvalidInputError(204, f"Failed to run provided SQL query")
+                        raise InvalidInputErrorTmp(204, f"Failed to run provided SQL query")
                     else:
                         raise FileExecutionError(f'Failed to run federate sql model "{self.name}"', e) from e
             

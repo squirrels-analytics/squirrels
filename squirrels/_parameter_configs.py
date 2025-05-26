@@ -10,7 +10,7 @@ from pydantic.fields import Field
 import polars as pl, re
 
 from . import _data_sources as d, _parameter_options as po, _parameters as p, _utils as u, _constants as c
-from ._exceptions import InvalidInputError
+from ._exceptions import InvalidInputErrorTmp
 from ._auth import BaseUser
 from ._connection_set import ConnectionSet
 from ._seeds import Seeds
@@ -107,8 +107,8 @@ class ParameterConfig(Generic[ParamOptionType], ParameterConfigBase):
     def DataSource(*args, **kwargs) -> d.DataSource:
         pass
     
-    def _invalid_input_error(self, selection: str, more_details: str = '') -> InvalidInputError:
-        return InvalidInputError(200, f'Selected value "{selection}" is not valid for parameter "{self.name}". ' + more_details)
+    def _invalid_input_error(self, selection: str, more_details: str = '') -> InvalidInputErrorTmp:
+        return InvalidInputErrorTmp(200, f'Selected value "{selection}" is not valid for parameter "{self.name}". ' + more_details)
     
     @abstractmethod
     def with_selection(

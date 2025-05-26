@@ -1,6 +1,6 @@
 from typing import Coroutine, Mapping, Callable, TypeVar, Annotated, Any
 from dataclasses import make_dataclass, asdict
-from fastapi import Depends, FastAPI, Request, Response, status
+from fastapi import Depends, FastAPI, Request, Response, status, HTTPException
 from fastapi.responses import HTMLResponse, JSONResponse, RedirectResponse
 from fastapi.security import OAuth2PasswordBearer, OAuth2PasswordRequestForm
 from fastapi.middleware.cors import CORSMiddleware
@@ -9,13 +9,15 @@ from contextlib import asynccontextmanager
 from cachetools import TTLCache
 from argparse import Namespace
 from pathlib import Path
+from authlib.integrations.starlette_client import OAuth
+from starlette.middleware.sessions import SessionMiddleware
 import io, time, mimetypes, traceback, uuid, asyncio, urllib.parse
 
 from . import _constants as c, _utils as u, _api_response_models as arm
-from ._exceptions import InvalidInputError, ConfigurationError, FileExecutionError
+from ._exceptions import InvalidInputErrorTmp, ConfigurationError, FileExecutionError
 from ._version import __version__, sq_major_version
 from ._manifest import PermissionScope
-from ._auth import BaseUser, AccessToken, UserField
+from ._auth import BaseUser, ApiKey, UserField
 from ._parameter_sets import ParameterSet
 from ._dashboard_types import Dashboard
 from ._project import SquirrelsProject
@@ -81,34 +83,11 @@ class ApiServer:
     def _validate_request_params(self, all_request_params: Mapping, params: Mapping) -> None:
         invalid_params = [param for param in all_request_params if param not in params]
         if params.get("x_verify_params", False) and invalid_params:
-            raise InvalidInputError(201, f"Invalid query parameters: {', '.join(invalid_params)}")
-        
+            raise InvalidInputErrorTmp(201, f"Invalid query parameters: {', '.join(invalid_params)}")
     
-    def run(self, uvicorn_args: Namespace) -> None:
-        """
-        Runs the API server with uvicorn for CLI "squirrels run"
 
-        Arguments:
-            uvicorn_args: List of arguments to pass to uvicorn.run. Currently only supports "host" and "port"
-        """
-        start = time.time()
-        
-        squirrels_version_path = f'/api/squirrels-v{sq_major_version}'
-        project_name = u.normalize_name_for_api(self.manifest_cfg.project_variables.name)
-        project_version = f"v{self.manifest_cfg.project_variables.major_version}"
-        project_metadata_path = squirrels_version_path + f"/project/{project_name}/{project_version}"
-        
-        param_fields = self.param_cfg_set.get_all_api_field_info()
-
+    def _get_tags_metadata(self) -> list[dict]:
         tags_metadata = [
-            {
-                "name": "Authentication",
-                "description": "Submit authentication credentials, and get token for authentication",
-            },
-            {
-                "name": "User Management",
-                "description": "Manage users and their attributes",
-            },
             {
                 "name": "Project Metadata",
                 "description": "Get information on project such as name, version, and other API endpoints",
@@ -131,6 +110,37 @@ class ApiServer:
                 "description": f"Get parameters or results for dashboard '{dashboard_name}'",
             })
         
+        tags_metadata.extend([
+            {
+                "name": "Authentication",
+                "description": "Submit authentication credentials, and get token for authentication",
+            },
+            {
+                "name": "User Management",
+                "description": "Manage users and their attributes",
+            },
+        ])
+        return tags_metadata
+    
+
+    def run(self, uvicorn_args: Namespace) -> None:
+        """
+        Runs the API server with uvicorn for CLI "squirrels run"
+
+        Arguments:
+            uvicorn_args: List of arguments to pass to uvicorn.run. Currently only supports "host" and "port"
+        """
+        start = time.time()
+        
+        squirrels_version_path = f'/api/squirrels-v{sq_major_version}'
+        project_name = u.normalize_name_for_api(self.manifest_cfg.project_variables.name)
+        project_version = f"v{self.manifest_cfg.project_variables.major_version}"
+        project_metadata_path = squirrels_version_path + f"/project/{project_name}/{project_version}"
+        
+        param_fields = self.param_cfg_set.get_all_api_field_info()
+
+        tags_metadata = self._get_tags_metadata()
+        
         app = FastAPI(
             title=f"Squirrels APIs for '{self.manifest_cfg.project_variables.label}'", openapi_tags=tags_metadata,
             description="For specifying parameter selections to dataset APIs, you can choose between using query parameters with the GET method or using request body with the POST method",
@@ -139,6 +149,19 @@ class ApiServer:
             docs_url=project_metadata_path+"/docs",
             redoc_url=project_metadata_path+"/redoc"
         )
+
+        app.add_middleware(SessionMiddleware, secret_key=self.env_vars.get(c.SQRL_SECRET_KEY, ""), max_age=None)
+
+        oauth = OAuth()
+
+        for provider in self.authenticator.auth_providers:
+            oauth.register(
+                name=provider.name,
+                server_metadata_url=provider.provider_configs.server_metadata_url,
+                client_id=provider.provider_configs.client_id,
+                client_secret=provider.provider_configs.client_secret,
+                client_kwargs=provider.provider_configs.client_kwargs
+            )
 
         async def _log_request_run(request: Request) -> None:
             headers = dict(request.scope["headers"])
@@ -167,7 +190,7 @@ class ApiServer:
             try:
                 await _log_request_run(request)
                 return await call_next(request)
-            except InvalidInputError as exc:
+            except InvalidInputErrorTmp as exc:
                 # traceback.print_exception(exc, file=buffer)
                 message = str(exc)
                 self.logger.error(message)
@@ -183,6 +206,7 @@ class ApiServer:
                     status_code = status.HTTP_409_CONFLICT
                 else:
                     status_code = status.HTTP_400_BAD_REQUEST
+                
                 response = JSONResponse(
                     status_code=status_code, content={"message": message, "blame": "API client", "error_code": exc.error_code}
                 )
@@ -317,24 +341,151 @@ class ApiServer:
                 squirrels_version=__version__
             )
         
-        # Authentication
-        login_path = project_metadata_path + '/login'
+        # Authentication & Authorization
 
+        ## Get Authenticated User Fields From Token API
+        userinfo_path = project_metadata_path + '/userinfo'
+
+        fields_without_username = {
+            k: (v.annotation, v.default) 
+            for k, v in self.authenticator.User.model_fields.items() 
+            if k != "username"
+        }
+        UserModel = create_model("UserModel", __base__=BaseModel, **fields_without_username) # type: ignore
+        class UpdateUserModel(UserModel):
+            is_admin: bool
+
+        class UserInfoModel(UpdateUserModel):
+            username: str
+    
+            def __hash__(self):
+                return hash(self.username)
+
+        class AddUserModel(UserInfoModel):
+            password: str
+        
+        login_path = project_metadata_path + '/login'
         oauth2_scheme = OAuth2PasswordBearer(tokenUrl=login_path, auto_error=False)
 
-        async def get_current_user(response: Response, token: str = Depends(oauth2_scheme)) -> BaseUser | None:
-            user = self.authenticator.get_user_from_token(token)
+        async def get_current_user(request: Request, response: Response, token: str | None = Depends(oauth2_scheme)) -> UserInfoModel | None:
+            final_token = token if token is not None else request.session.get("access_token")
+            user = self.authenticator.get_user_from_token(final_token)
             username = "" if user is None else user.username
             response.headers["Applied-Username"] = username
+            return UserInfoModel(**user.model_dump(mode='json')) if user else None
+
+        @app.get(userinfo_path, description="Get the authenticated user's fields", tags=["Authentication"])
+        async def get_userinfo(user: UserInfoModel | None = Depends(get_current_user)) -> UserInfoModel:
+            if user is None:
+                raise InvalidInputErrorTmp(1, "Invalid authorization token")
             return user
 
         ## Login API
-        @app.post(login_path, tags=["Authentication"])
-        async def login_for_access_token(form_data: OAuth2PasswordRequestForm = Depends()) -> arm.LoginReponse:
+        logout_path = project_metadata_path + '/logout'
+
+        def login_helper(
+            request: Request, user: BaseUser, redirect_url: str | None, *, 
+            redirect_status_code: int = status.HTTP_307_TEMPORARY_REDIRECT
+        ):
+            access_token = self.authenticator.create_access_token(user, expiry_minutes=expiry_mins)
+            request.session["access_token"] = access_token
+            return RedirectResponse(url=redirect_url, status_code=redirect_status_code) if redirect_url else user
+
+        @app.post(login_path, tags=["Authentication"], description="Authenticate with username and password. Returns user information if no redirect_url is provided, otherwise redirects to the specified URL.", responses={
+            200: {"model": UserInfoModel, "description": "Login successful, returns user information"},
+            302: {"description": "Redirect if redirect URL parameter is specified"},
+        })
+        async def login(request: Request, form_data: OAuth2PasswordRequestForm = Depends(), redirect_url: str | None = None):
             user = self.authenticator.get_user(form_data.username, form_data.password)
-            access_token, expiry = self.authenticator.create_access_token(user, expiry_minutes=expiry_mins)
-            return arm.LoginReponse(access_token=access_token, token_type="bearer", username=user.username, is_admin=user.is_admin, expiry_time=expiry)
+            return login_helper(request, user, redirect_url, redirect_status_code=status.HTTP_302_FOUND)
         
+        @app.get(login_path, tags=["Authentication"], description="Authenticate with an existing API key or session token. Returns user information if no redirect_url is provided, otherwise redirects to the specified URL.", responses={
+            200: {"model": UserInfoModel, "description": "Login successful, returns user information"},
+            307: {"description": "Redirect if redirect URL parameter is specified"},
+        })
+        async def login_with_api_key(
+            request: Request, redirect_url: str | None = None, user: UserInfoModel | None = Depends(get_current_user)
+        ):
+            if user is None:
+                raise InvalidInputErrorTmp(1, "Invalid authorization token")
+            return login_helper(request, user, redirect_url)
+        
+        @app.get(logout_path, tags=["Authentication"], responses={
+            200: {"description": "Logout successful"},
+            302: {"description": "Redirect if redirect URL parameter is specified"},
+        })
+        async def logout(request: Request, redirect_url: str | None = None):
+            request.session.pop("access_token", None)
+            if redirect_url:
+                return RedirectResponse(url=redirect_url)
+        
+        ## Provider Authentication APIs
+        providers_path = project_metadata_path + '/providers'
+        provider_login_path = project_metadata_path + '/providers/{provider_name}/login'
+        provider_callback_path = project_metadata_path + '/providers/{provider_name}/callback'
+
+        @app.get(providers_path, tags=["Authentication"])
+        async def get_providers(request: Request) -> list[arm.ProviderResponse]:
+            """Get list of available authentication providers"""
+            return [
+                arm.ProviderResponse(
+                    name=provider.name,
+                    label=provider.label,
+                    icon=provider.icon,
+                    login_url=str(request.url_for('provider_login', provider_name=provider.name))
+                )
+                for provider in self.authenticator.auth_providers
+            ]
+
+        @app.get(provider_login_path, tags=["Authentication"])
+        async def provider_login(request: Request, provider_name: str, redirect_url: str | None = None) -> RedirectResponse:
+            """Get OAuth login URL for the provider"""
+            client = oauth.create_client(provider_name)
+            if client is None:
+                raise HTTPException(status_code=404, detail=f"Provider {provider_name} not found or configured.")
+
+            callback_uri = str(request.url_for('provider_callback', provider_name=provider_name))
+            request.session["redirect_url"] = redirect_url
+
+            return await client.authorize_redirect(request, callback_uri)
+
+        @app.get(provider_callback_path, tags=["Authentication"], responses={
+            200: {"model": UserInfoModel, "description": "Login successful, returns user information"},
+            302: {"description": "Redirect if redirect_url is in session"},
+        })
+        async def provider_callback(request: Request, provider_name: str):
+            """Handle OAuth callback from provider"""
+            client = oauth.create_client(provider_name)
+            if client is None:
+                raise HTTPException(status_code=404, detail=f"Provider {provider_name} not found or configured.")
+
+            try:
+                token = await client.authorize_access_token(request)
+            except Exception as e:
+                # Log the error e
+                raise HTTPException(status_code=400, detail=f"Could not authorize access token: {str(e)}")
+            
+            user_info: dict = {}
+            if token:
+                # For OIDC providers, Authlib typically parses the id_token and
+                # makes the claims available in token['userinfo'] or directly in token['id_token'] (if already parsed)
+                if 'userinfo' in token:
+                    user_info = token['userinfo']
+                elif 'id_token' in token and isinstance(token['id_token'], dict) and 'sub' in token['id_token']:
+                    user_info = token['id_token']
+                else:
+                    raise HTTPException(status_code=400, detail=f"User information not found in token for {provider_name}")
+
+            # Get or create user
+            user = self.authenticator.create_or_get_user_from_provider(provider_name, user_info)
+
+            # Create access token and store it in session
+            access_token = self.authenticator.create_access_token(user, expiry_minutes=expiry_mins)
+            request.session["access_token"] = access_token
+
+            redirect_url = request.session.pop("redirect_url", None)
+            return RedirectResponse(url=redirect_url) if redirect_url else user
+
         ## Change Password API
         change_password_path = project_metadata_path + '/change-password'
 
@@ -343,75 +494,45 @@ class ApiServer:
             new_password: str
 
         @app.put(change_password_path, description="Change the password for the current user", tags=["Authentication"])
-        async def change_password(request: ChangePasswordRequest, user: BaseUser | None = Depends(get_current_user)) -> None:
+        async def change_password(request: ChangePasswordRequest, user: UserInfoModel | None = Depends(get_current_user)) -> None:
             if user is None:
-                raise InvalidInputError(1, "Invalid authorization token")
+                raise InvalidInputErrorTmp(1, "Invalid authorization token")
             self.authenticator.change_password(user.username, request.old_password, request.new_password)
 
-        ## Token API
-        tokens_path = project_metadata_path + '/tokens'
+        ## API Key APIs
+        api_key_path = project_metadata_path + '/api-key'
 
-        class TokenRequestBody(BaseModel):
-            title: str | None = Field(default=None, description=f"The title of the token. If not provided, a temporary token is created (expiring in {expiry_mins} minutes) and cannot be revoked")
+        class ApiKeyRequestBody(BaseModel):
+            title: str = Field(description=f"The title of the API key")
             expiry_minutes: int | None = Field(
                 default=None, 
-                description=f"The number of minutes the token is valid for (or indefinitely if not provided). Ignored and set to {expiry_mins} minutes if title is not provided."
+                description=f"The number of minutes the API key is valid for (or valid indefinitely if not provided)."
             )
 
-        @app.post(tokens_path, description="Create a new token for the user", tags=["Authentication"])
-        async def create_token(body: TokenRequestBody, user: BaseUser | None = Depends(get_current_user)) -> arm.LoginReponse:
+        @app.post(api_key_path, description="Create a new API key for the user", tags=["Authentication"])
+        async def create_api_key(body: ApiKeyRequestBody, user: UserInfoModel | None = Depends(get_current_user)) -> arm.ApiKeyResponse:
             if user is None:
-                raise InvalidInputError(1, "Invalid authorization token")
+                raise InvalidInputErrorTmp(1, "Invalid authorization token")
             
-            if body.title is None:
-                expiry_minutes = expiry_mins
-            else:
-                expiry_minutes = body.expiry_minutes
-            
-            access_token, expiry = self.authenticator.create_access_token(user, expiry_minutes=expiry_minutes, title=body.title)
-            return arm.LoginReponse(access_token=access_token, token_type="bearer", username=user.username, is_admin=user.is_admin, expiry_time=expiry)
+            api_key = self.authenticator.create_access_token(user, expiry_minutes=body.expiry_minutes, title=body.title)
+            return arm.ApiKeyResponse(api_key=api_key)
         
         ## Get All Tokens API
-        @app.get(tokens_path, description="Get all tokens with title for the current user", tags=["Authentication"])
-        async def get_all_tokens(user: BaseUser | None = Depends(get_current_user)) -> list[AccessToken]:
+        @app.get(api_key_path, description="Get all API keys with title for the current user", tags=["Authentication"])
+        async def get_all_api_keys(user: UserInfoModel | None = Depends(get_current_user)) -> list[ApiKey]:
             if user is None:
-                raise InvalidInputError(1, "Invalid authorization token")
-            return self.authenticator.get_all_tokens(user.username)
+                raise InvalidInputErrorTmp(1, "Invalid authorization token")
+            return self.authenticator.get_all_api_keys(user.username)
         
         ## Revoke Token API
-        revoke_token_path = project_metadata_path + '/tokens/{token_id}'
+        revoke_api_key_path = project_metadata_path + '/api-key/{api_key_id}'
 
-        @app.delete(revoke_token_path, description="Revoke a token", tags=["Authentication"])
-        async def revoke_token(token_id: str, user: BaseUser | None = Depends(get_current_user)) -> None:
+        @app.delete(revoke_api_key_path, description="Revoke an API key", tags=["Authentication"])
+        async def revoke_api_key(api_key_id: str, user: UserInfoModel | None = Depends(get_current_user)) -> None:
             if user is None:
-                raise InvalidInputError(1, "Invalid authorization token")
-            self.authenticator.revoke_token(user.username, token_id)
+                raise InvalidInputErrorTmp(1, "Invalid authorization token")
+            self.authenticator.revoke_api_key(user.username, api_key_id)
         
-        ## Get Authenticated User Fields From Token API
-        get_me_path = project_metadata_path + '/me'
-
-        fields_without_username = {
-            k: (v.annotation, v.default) 
-            for k, v in self.authenticator.User.model_fields.items() 
-            if k != "username"
-        }
-        UserModel = create_model("UserModel", __base__=BaseModel, **fields_without_username) # type: ignore
-
-        class UserWithoutUsername(UserModel):
-            pass
-
-        class UserWithUsername(UserModel):
-            username: str
-
-        class AddUserRequestBody(UserWithUsername):
-            password: str
-        
-        @app.get(get_me_path, description="Get the authenticated user's fields", tags=["Authentication"])
-        async def get_me(user: BaseUser | None = Depends(get_current_user)) -> UserWithUsername:
-            if user is None:
-                raise InvalidInputError(1, "Invalid authorization token")
-            return UserWithUsername(**user.model_dump(mode='json'))
-
         # User Management
 
         ## User Fields API
@@ -426,10 +547,10 @@ class ApiServer:
 
         @app.post(add_user_path, description="Add a new user by providing details for username, password, and user fields", tags=["User Management"])
         async def add_user(
-            new_user: AddUserRequestBody, user: BaseUser | None = Depends(get_current_user)
+            new_user: AddUserModel, user: UserInfoModel | None = Depends(get_current_user)
         ) -> None:
             if user is None or not user.is_admin:
-                raise InvalidInputError(20, "Authorized user is forbidden to add new users")
+                raise InvalidInputErrorTmp(20, "Authorized user is forbidden to add new users")
             self.authenticator.add_user(new_user.username, new_user.model_dump(mode='json', exclude={"username"}))
 
         ## Update User API
@@ -437,28 +558,28 @@ class ApiServer:
 
         @app.put(update_user_path, description="Update the user of the given username given the new user details", tags=["User Management"])
         async def update_user(
-            username: str, updated_user: UserWithoutUsername, user: BaseUser | None = Depends(get_current_user)
+            username: str, updated_user: UpdateUserModel, user: UserInfoModel | None = Depends(get_current_user)
         ) -> None:
             if user is None or not user.is_admin:
-                raise InvalidInputError(20, "Authorized user is forbidden to update users")
+                raise InvalidInputErrorTmp(20, "Authorized user is forbidden to update users")
             self.authenticator.add_user(username, updated_user.model_dump(mode='json'), update_user=True)
 
         ## List Users API
         list_users_path = project_metadata_path + '/users'
 
         @app.get(list_users_path, tags=["User Management"])
-        async def list_all_users() -> list[UserWithUsername]:
+        async def list_all_users() -> list[UserInfoModel]:
             return self.authenticator.get_all_users()
         
         ## Delete User API
         delete_user_path = project_metadata_path + '/users/{username}'
 
         @app.delete(delete_user_path, tags=["User Management"])
-        async def delete_user(username: str, user: BaseUser | None = Depends(get_current_user)) -> None:
+        async def delete_user(username: str, user: UserInfoModel | None = Depends(get_current_user)) -> None:
             if user is None or not user.is_admin:
-                raise InvalidInputError(21, "Authorized user is forbidden to delete users")
+                raise InvalidInputErrorTmp(21, "Authorized user is forbidden to delete users")
             if username == user.username:
-                raise InvalidInputError(22, "Cannot delete your own user")
+                raise InvalidInputErrorTmp(22, "Cannot delete your own user")
             self.authenticator.delete_user(username)
         
         # Data Catalog API
@@ -470,7 +591,7 @@ class ApiServer:
         dashboard_results_path = project_metadata_path + '/dashboard/{dashboard}'
         dashboard_parameters_path = dashboard_results_path + '/parameters'
         
-        async def get_data_catalog0(user: BaseUser | None) -> arm.CatalogModel:
+        async def get_data_catalog0(user: UserInfoModel | None) -> arm.CatalogModel:
             parameters = self.param_cfg_set.apply_selections(None, {}, user)
             parameters_model = parameters.to_api_response_model0()
             full_parameters_list = [p.name for p in parameters_model.parameters]
@@ -531,7 +652,7 @@ class ApiServer:
             )
         
         @app.get(data_catalog_path, tags=["Project Metadata"], summary="Get catalog of datasets and dashboards available for user")
-        async def get_data_catalog(request: Request, user: BaseUser | None = Depends(get_current_user)) -> arm.CatalogModel:
+        async def get_data_catalog(request: Request, user: UserInfoModel | None = Depends(get_current_user)) -> arm.CatalogModel:
             """
             Get catalog of datasets and dashboards available for the authenticated user.
             
@@ -547,12 +668,12 @@ class ApiServer:
         
         async def get_parameters_helper(
             parameters_tuple: tuple[str, ...] | None, entity_type: str, entity_name: str, entity_scope: PermissionScope,
-            user: BaseUser | None, selections: tuple[tuple[str, Any], ...]
+            user: UserInfoModel | None, selections: tuple[tuple[str, Any], ...]
         ) -> ParameterSet:
             selections_dict = dict(selections)
             if "x_parent_param" not in selections_dict:
                 if len(selections_dict) > 1:
-                    raise InvalidInputError(202, f"The parameters endpoint takes at most 1 widget parameter selection (unless x_parent_param is provided). Got {selections_dict}")
+                    raise InvalidInputErrorTmp(202, f"The parameters endpoint takes at most 1 widget parameter selection (unless x_parent_param is provided). Got {selections_dict}")
                 elif len(selections_dict) == 1:
                     parent_param = next(iter(selections_dict))
                     selections_dict["x_parent_param"] = parent_param
@@ -574,13 +695,13 @@ class ApiServer:
 
         async def get_parameters_cachable(
             parameters_tuple: tuple[str, ...] | None, entity_type: str, entity_name: str, entity_scope: PermissionScope,
-            user: BaseUser | None, selections: tuple[tuple[str, Any], ...]
+            user: UserInfoModel | None, selections: tuple[tuple[str, Any], ...]
         ) -> ParameterSet:
             return await do_cachable_action(params_cache, get_parameters_helper, parameters_tuple, entity_type, entity_name, entity_scope, user, selections)
         
         async def get_parameters_definition(
             parameters_list: list[str] | None, entity_type: str, entity_name: str, entity_scope: PermissionScope,
-            user: BaseUser | None, all_request_params: dict, params: Mapping
+            user: UserInfoModel | None, all_request_params: dict, params: Mapping
         ) -> arm.ParametersModel:
             self._validate_request_params(all_request_params, params)
 
@@ -608,7 +729,7 @@ class ApiServer:
 
         @app.get(project_level_parameters_path, tags=["Project Metadata"], description=parameters_description)
         async def get_project_parameters(
-            request: Request, params: QueryModelForGetProjectParams, user: BaseUser | None = Depends(get_current_user) # type: ignore
+            request: Request, params: QueryModelForGetProjectParams, user: UserInfoModel | None = Depends(get_current_user) # type: ignore
         ) -> arm.ParametersModel:
             start = time.time()
             result = await get_parameters_definition(
@@ -619,7 +740,7 @@ class ApiServer:
 
         @app.post(project_level_parameters_path, tags=["Project Metadata"], description=parameters_description)
         async def get_project_parameters_with_post(
-            request: Request, params: QueryModelForPostProjectParams, user: BaseUser | None = Depends(get_current_user) # type: ignore
+            request: Request, params: QueryModelForPostProjectParams, user: UserInfoModel | None = Depends(get_current_user) # type: ignore
         ) -> arm.ParametersModel:
             start = time.time()
             params_model: BaseModel = params
@@ -632,7 +753,7 @@ class ApiServer:
         
         # Dataset Results API Helpers
         async def get_dataset_results_helper(
-            dataset: str, user: BaseUser | None, selections: tuple[tuple[str, Any], ...]
+            dataset: str, user: UserInfoModel | None, selections: tuple[tuple[str, Any], ...]
         ) -> DatasetResult:
             return await self.project.dataset(dataset, selections=dict(selections), user=user)
 
@@ -641,12 +762,12 @@ class ApiServer:
         dataset_results_cache = TTLCache(maxsize=dataset_results_cache_size, ttl=dataset_results_cache_ttl*60)
 
         async def get_dataset_results_cachable(
-            dataset: str, user: BaseUser | None, selections: tuple[tuple[str, Any], ...]
+            dataset: str, user: UserInfoModel | None, selections: tuple[tuple[str, Any], ...]
         ) -> DatasetResult:
             return await do_cachable_action(dataset_results_cache, get_dataset_results_helper, dataset, user, selections)
         
         async def get_dataset_results_definition(
-            dataset_name: str, user: BaseUser | None, all_request_params: dict, params: Mapping
+            dataset_name: str, user: UserInfoModel | None, all_request_params: dict, params: Mapping
         ) -> arm.DatasetResultModel:
             self._validate_request_params(all_request_params, params)
 
@@ -664,7 +785,7 @@ class ApiServer:
         
         # Dashboard Results API Helpers
         async def get_dashboard_results_helper(
-            dashboard: str, user: BaseUser | None, selections: tuple[tuple[str, Any], ...]
+            dashboard: str, user: UserInfoModel | None, selections: tuple[tuple[str, Any], ...]
         ) -> Dashboard:
             return await self.project.dashboard(dashboard, selections=dict(selections), user=user)
         
@@ -673,12 +794,12 @@ class ApiServer:
         dashboard_results_cache = TTLCache(maxsize=dashboard_results_cache_size, ttl=dashboard_results_cache_ttl*60)
 
         async def get_dashboard_results_cachable(
-            dashboard: str, user: BaseUser | None, selections: tuple[tuple[str, Any], ...]
+            dashboard: str, user: UserInfoModel | None, selections: tuple[tuple[str, Any], ...]
         ) -> Dashboard:
             return await do_cachable_action(dashboard_results_cache, get_dashboard_results_helper, dashboard, user, selections)
         
         async def get_dashboard_results_definition(
-            dashboard_name: str, user: BaseUser | None, all_request_params: dict, params: Mapping
+            dashboard_name: str, user: UserInfoModel | None, all_request_params: dict, params: Mapping
         ) -> Response:
             self._validate_request_params(all_request_params, params)
             
@@ -707,7 +828,7 @@ class ApiServer:
 
             @app.get(curr_parameters_path, tags=[f"Dataset '{dataset_name}'"], description=parameters_description, response_class=JSONResponse)
             async def get_dataset_parameters(
-                request: Request, params: QueryModelForGetParams, user: BaseUser | None = Depends(get_current_user) # type: ignore
+                request: Request, params: QueryModelForGetParams, user: UserInfoModel | None = Depends(get_current_user) # type: ignore
             ) -> arm.ParametersModel:
                 start = time.time()
                 curr_dataset_name = get_dataset_name(request, -2)
@@ -721,7 +842,7 @@ class ApiServer:
 
             @app.post(curr_parameters_path, tags=[f"Dataset '{dataset_name}'"], description=parameters_description, response_class=JSONResponse)
             async def get_dataset_parameters_with_post(
-                request: Request, params: QueryModelForPostParams, user: BaseUser | None = Depends(get_current_user) # type: ignore
+                request: Request, params: QueryModelForPostParams, user: UserInfoModel | None = Depends(get_current_user) # type: ignore
             ) -> arm.ParametersModel:
                 start = time.time()
                 curr_dataset_name = get_dataset_name(request, -2)
@@ -737,7 +858,7 @@ class ApiServer:
             
             @app.get(curr_results_path, tags=[f"Dataset '{dataset_name}'"], description=dataset_config.description, response_class=JSONResponse)
             async def get_dataset_results(
-                request: Request, params: QueryModelForGetDataset, user: BaseUser | None = Depends(get_current_user) # type: ignore
+                request: Request, params: QueryModelForGetDataset, user: UserInfoModel | None = Depends(get_current_user) # type: ignore
             ) -> arm.DatasetResultModel:
                 start = time.time()
                 curr_dataset_name = get_dataset_name(request, -1)
@@ -747,7 +868,7 @@ class ApiServer:
             
             @app.post(curr_results_path, tags=[f"Dataset '{dataset_name}'"], description=dataset_config.description, response_class=JSONResponse)
             async def get_dataset_results_with_post(
-                request: Request, params: QueryModelForPostDataset, user: BaseUser | None = Depends(get_current_user) # type: ignore
+                request: Request, params: QueryModelForPostDataset, user: UserInfoModel | None = Depends(get_current_user) # type: ignore
             ) -> arm.DatasetResultModel:
                 start = time.time()
                 curr_dataset_name = get_dataset_name(request, -1)
@@ -770,7 +891,7 @@ class ApiServer:
 
             @app.get(curr_parameters_path, tags=[f"Dashboard '{dashboard_name}'"], description=parameters_description, response_class=JSONResponse)
             async def get_dashboard_parameters(
-                request: Request, params: QueryModelForGetParams, user: BaseUser | None = Depends(get_current_user) # type: ignore
+                request: Request, params: QueryModelForGetParams, user: UserInfoModel | None = Depends(get_current_user) # type: ignore
             ) -> arm.ParametersModel:
                 start = time.time()
                 curr_dashboard_name = get_dashboard_name(request, -2)
@@ -784,7 +905,7 @@ class ApiServer:
 
             @app.post(curr_parameters_path, tags=[f"Dashboard '{dashboard_name}'"], description=parameters_description, response_class=JSONResponse)
             async def get_dashboard_parameters_with_post(
-                request: Request, params: QueryModelForPostParams, user: BaseUser | None = Depends(get_current_user) # type: ignore
+                request: Request, params: QueryModelForPostParams, user: UserInfoModel | None = Depends(get_current_user) # type: ignore
             ) -> arm.ParametersModel:
                 start = time.time()
                 curr_dashboard_name = get_dashboard_name(request, -2)
@@ -800,7 +921,7 @@ class ApiServer:
             
             @app.get(curr_results_path, tags=[f"Dashboard '{dashboard_name}'"], description=dashboard.config.description, response_class=Response)
             async def get_dashboard_results(
-                request: Request, params: QueryModelForGetDash, user: BaseUser | None = Depends(get_current_user) # type: ignore
+                request: Request, params: QueryModelForGetDash, user: UserInfoModel | None = Depends(get_current_user) # type: ignore
             ) -> Response:
                 start = time.time()
                 curr_dashboard_name = get_dashboard_name(request, -1)
@@ -810,7 +931,7 @@ class ApiServer:
 
             @app.post(curr_results_path, tags=[f"Dashboard '{dashboard_name}'"], description=dashboard.config.description, response_class=Response)
             async def get_dashboard_results_with_post(
-                request: Request, params: QueryModelForPostDash, user: BaseUser | None = Depends(get_current_user) # type: ignore
+                request: Request, params: QueryModelForPostDash, user: UserInfoModel | None = Depends(get_current_user) # type: ignore
             ) -> Response:
                 start = time.time()
                 curr_dashboard_name = get_dashboard_name(request, -1)
@@ -822,9 +943,9 @@ class ApiServer:
 
         # Build Project API
         @app.post(project_metadata_path + '/build', tags=["Data Management"], summary="Build or update the virtual data environment for the project")
-        async def build(user: BaseUser | None = Depends(get_current_user)): # type: ignore
+        async def build(user: UserInfoModel | None = Depends(get_current_user)): # type: ignore
             if not self.authenticator.can_user_access_scope(user, PermissionScope.PRIVATE):
-                raise InvalidInputError(26, f"User '{user}' does not have permission to build the virtual data environment")
+                raise InvalidInputErrorTmp(26, f"User '{user}' does not have permission to build the virtual data environment")
             await self.project.build(stage_file=True)
             return Response(status_code=status.HTTP_200_OK)
         
@@ -833,26 +954,26 @@ class ApiServer:
         QueryModelForQueryModels, QueryModelForPostQueryModels = get_query_models_for_querying_models()
 
         async def query_models_helper(
-            sql_query: str, user: BaseUser | None, selections: tuple[tuple[str, Any], ...]
+            sql_query: str, user: UserInfoModel | None, selections: tuple[tuple[str, Any], ...]
         ) -> DatasetResult:
             return await self.project.query_models(sql_query, selections=dict(selections), user=user)
 
         async def query_models_cachable(
-            sql_query: str, user: BaseUser | None, selections: tuple[tuple[str, Any], ...]
+            sql_query: str, user: UserInfoModel | None, selections: tuple[tuple[str, Any], ...]
         ) -> DatasetResult:
             # Share the same cache for dataset results
             return await do_cachable_action(dataset_results_cache, query_models_helper, sql_query, user, selections)
 
         async def query_models_definition(
-            user: BaseUser | None, all_request_params: dict, params: Mapping
+            user: UserInfoModel | None, all_request_params: dict, params: Mapping
         ) -> arm.DatasetResultModel:
             self._validate_request_params(all_request_params, params)
 
             if not self.authenticator.can_user_access_scope(user, PermissionScope.PRIVATE):
-                raise InvalidInputError(27, f"User '{user}' does not have permission to query data models")
+                raise InvalidInputErrorTmp(27, f"User '{user}' does not have permission to query data models")
             sql_query = params.get("x_sql_query")
             if sql_query is None:
-                raise InvalidInputError(203, "SQL query must be provided")
+                raise InvalidInputErrorTmp(203, "SQL query must be provided")
             
             query_models_function = query_models_helper if self.no_cache else query_models_cachable
             uncached_keys = {"x_verify_params", "x_sql_query", "x_orientation", "x_limit", "x_offset"}
@@ -866,7 +987,7 @@ class ApiServer:
 
         @app.get(query_models_path, tags=["Data Management"], response_class=JSONResponse)
         async def query_models(
-            request: Request, params: QueryModelForQueryModels, user: BaseUser | None = Depends(get_current_user)  # type: ignore
+            request: Request, params: QueryModelForQueryModels, user: UserInfoModel | None = Depends(get_current_user)  # type: ignore
         ) -> arm.DatasetResultModel:
             start = time.time()
             result = await query_models_definition(user, dict(request.query_params), asdict(params))
@@ -875,7 +996,7 @@ class ApiServer:
         
         @app.post(query_models_path, tags=["Data Management"], response_class=JSONResponse)
         async def query_models_with_post(
-            request: Request, params: QueryModelForPostQueryModels, user: BaseUser | None = Depends(get_current_user)  # type: ignore
+            request: Request, params: QueryModelForPostQueryModels, user: UserInfoModel | None = Depends(get_current_user)  # type: ignore
         ) -> arm.DatasetResultModel:
             start = time.time()
             params: BaseModel = params
@@ -888,11 +1009,11 @@ class ApiServer:
         full_hostname = f"http://{uvicorn_args.host}:{uvicorn_args.port}"
         encoded_hostname = urllib.parse.quote(full_hostname, safe="")
         squirrels_studio_url = f"https://squirrels-analytics.github.io/squirrels-studio/#/login?host={encoded_hostname}&projectName={project_name}&projectVersion={project_version}"
-
+        
         @app.get("/", include_in_schema=False)
         async def redirect_to_studio():
             return RedirectResponse(url=squirrels_studio_url)
-        
+
         # Run the API Server
         import uvicorn
         

@@ -5,9 +5,10 @@ import asyncio, typing as t, functools as ft, shutil, json, os
 import logging as l, matplotlib.pyplot as plt, networkx as nx, polars as pl
 import sqlglot, sqlglot.expressions
 
-from ._auth import Authenticator, BaseUser
+from ._auth import Authenticator, BaseUser, AuthProviderArgs, ProviderFunctionType
 from ._model_builder import ModelBuilder
-from ._exceptions import InvalidInputError, ConfigurationError
+from ._exceptions import InvalidInputErrorTmp, ConfigurationError
+from ._py_module import PyModule
 from . import _utils as u, _constants as c, _manifest as mf, _connection_set as cs, _api_response_models as arm
 from . import _seeds as s, _models as m, _model_configs as mc, _model_queries as mq, _sources as so
 from . import _parameter_sets as ps, _dashboards_io as d, _dashboard_types as dash, _dataset_types as dr
@@ -129,16 +130,33 @@ class SquirrelsProject:
         return cs.ConnectionSetIO.load_from_file(self._logger, self._filepath, self._manifest_cfg, self._conn_args)
     
     @ft.cached_property
-    def _auth(self) -> Authenticator:
-        return Authenticator(self._logger, self._filepath, self._env_vars)
+    def _user_cls_and_provider_functions(self) -> tuple[type[BaseUser], list[ProviderFunctionType]]:
+        user_module_path = u.Path(self._filepath, c.PYCONFIGS_FOLDER, c.USER_FILE)
+        user_module = PyModule(user_module_path)
+        
+        User = user_module.get_func_or_class("User", default_attr=BaseUser)  # adds to Authenticator.providers as side effect
+        provider_functions = Authenticator.providers
+        Authenticator.providers = []
+        
+        if not issubclass(User, BaseUser):
+            raise ConfigurationError(f"User class in '{c.USER_FILE}' must inherit from BaseUser")
+        
+        return User, provider_functions
     
     @ft.cached_property
-    def User(self) -> t.Type[BaseUser]:
-        return self._auth.User
+    def _auth_args(self) -> AuthProviderArgs:
+        conn_args = self._conn_args
+        return AuthProviderArgs(conn_args.project_path, conn_args.proj_vars, conn_args.env_vars)
+    
+    @ft.cached_property
+    def _auth(self) -> Authenticator[BaseUser]:
+        User, provider_functions = self._user_cls_and_provider_functions
+        return Authenticator(self._logger, self._filepath, self._auth_args, provider_functions, user_cls=User)
     
     @ft.cached_property
     def _param_args(self) -> ps.ParametersArgs:
-        return ps.ParameterConfigsSetIO.get_param_args(self._conn_args)
+        conn_args = self._conn_args
+        return ps.ParametersArgs(conn_args.project_path, conn_args.proj_vars, conn_args.env_vars)
     
     @ft.cached_property
     def _param_cfg_set(self) -> ps.ParameterConfigsSet:
@@ -261,7 +279,7 @@ class SquirrelsProject:
             for model_name in dependencies:
                 model = models_dict[model_name]
                 if isinstance(model, m.SourceModel) and not model.model_config.load_to_duckdb:
-                    raise InvalidInputError(203, f"Source model '{model_name}' cannot be queried with DuckDB")
+                    raise InvalidInputErrorTmp(203, f"Source model '{model_name}' cannot be queried with DuckDB")
                 if isinstance(model, (m.SourceModel, m.BuildModel)):
                     substitutions[model_name] = f"venv.{model_name}"
             
@@ -478,9 +496,9 @@ class SquirrelsProject:
             print(queries[0])
             print()
 
-    def _permission_error(self, user: BaseUser | None, data_type: str, data_name: str, scope: str) -> InvalidInputError:
+    def _permission_error(self, user: BaseUser | None, data_type: str, data_name: str, scope: str) -> InvalidInputErrorTmp:
         username = "" if user is None else f" '{user.username}'"
-        return InvalidInputError(25, f"User{username} does not have permission to access {scope} {data_type}: {data_name}")
+        return InvalidInputErrorTmp(25, f"User{username} does not have permission to access {scope} {data_type}: {data_name}")
     
     def seed(self, name: str) -> pl.LazyFrame:
         """
