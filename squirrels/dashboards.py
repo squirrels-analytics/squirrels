@@ -1,1 +1,1 @@
-from ._dashboard_types import PngDashboard, HtmlDashboard
+from ._dashboards import PngDashboard, HtmlDashboard

@@ -34,9 +34,10 @@ dependencies = [
     "bcrypt>=4.0.1,<5",
     "python-dotenv>=1.0.1,<2",
     "libpass>=1.9.0,<2",
-    "httpx>=0.28.1",
-    "authlib>=1.5.2",
-    "itsdangerous>=2.2.0",
+    "httpx>=0.28.1,<1",
+    "authlib>=1.5.2,<2",
+    "itsdangerous>=2.2.0,<3",
+    "mcp>=1.9.2",
 ]
 
 [project.urls]

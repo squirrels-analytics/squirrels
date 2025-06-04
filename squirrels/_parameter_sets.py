@@ -4,10 +4,11 @@ from dataclasses import dataclass, field
 from collections import OrderedDict
 import time, concurrent.futures, polars as pl
 
-from . import _parameters as p, _utils as u, _constants as c, _parameter_configs as pc, _py_module as pm, _api_response_models as arm
-from ._arguments._init_time_args import ParametersArgs
+from . import _parameters as p, _utils as u, _constants as c, _parameter_configs as pc, _py_module as pm
+from ._schemas import response_models as rm
+from ._arguments.init_time_args import ParametersArgs
 from ._manifest import ParametersConfig, ManifestConfig
-from ._connection_set import ConnectionSet, ConnectionsArgs
+from ._connection_set import ConnectionSet
 from ._seeds import Seeds
 from ._auth import BaseUser
 
@@ -22,11 +23,11 @@ class ParameterSet:
     def get_parameters_as_dict(self) -> dict[str, p.Parameter]:
         return self._parameters_dict.copy()
 
-    def to_api_response_model0(self) -> arm.ParametersModel:
+    def to_api_response_model0(self) -> rm.ParametersModel:
         parameters = []
         for x in self._parameters_dict.values():
             parameters.append(x._to_api_response_model0())
-        return arm.ParametersModel(parameters=parameters)
+        return rm.ParametersModel(parameters=parameters)
 
 
 @dataclass

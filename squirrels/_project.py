@@ -6,14 +6,15 @@ import logging as l, matplotlib.pyplot as plt, networkx as nx, polars as pl
 import sqlglot, sqlglot.expressions
 
 from ._auth import Authenticator, BaseUser, AuthProviderArgs, ProviderFunctionType
+from ._schemas import response_models as rm
 from ._model_builder import ModelBuilder
-from ._exceptions import InvalidInputErrorTmp, ConfigurationError
+from ._exceptions import InvalidInputError, ConfigurationError
 from ._py_module import PyModule
-from . import _utils as u, _constants as c, _manifest as mf, _connection_set as cs, _api_response_models as arm
+from . import _dashboards as d, _utils as u, _constants as c, _manifest as mf, _connection_set as cs
 from . import _seeds as s, _models as m, _model_configs as mc, _model_queries as mq, _sources as so
-from . import _parameter_sets as ps, _dashboards_io as d, _dashboard_types as dash, _dataset_types as dr
+from . import _parameter_sets as ps, _dataset_types as dr
 
-T = t.TypeVar("T", bound=dash.Dashboard)
+T = t.TypeVar("T", bound=d.Dashboard)
 M = t.TypeVar("M", bound=m.DataModel)
 
 
@@ -279,7 +280,7 @@ class SquirrelsProject:
             for model_name in dependencies:
                 model = models_dict[model_name]
                 if isinstance(model, m.SourceModel) and not model.model_config.load_to_duckdb:
-                    raise InvalidInputErrorTmp(203, f"Source model '{model_name}' cannot be queried with DuckDB")
+                    raise InvalidInputError(400, "Unqueryable source model", f"Source model '{model_name}' cannot be queried with DuckDB")
                 if isinstance(model, (m.SourceModel, m.BuildModel)):
                     substitutions[model_name] = f"venv.{model_name}"
             
@@ -328,18 +329,18 @@ class SquirrelsProject:
         await dag.execute(self._param_args, self._param_cfg_set, self._context_func, user, selections, runquery=False, default_traits=default_traits)
         return dag
     
-    def _get_all_connections(self) -> list[arm.ConnectionItemModel]:
+    def _get_all_connections(self) -> list[rm.ConnectionItemModel]:
         connections = []
         for conn_name, conn_props in self._conn_set.get_connections_as_dict().items():
             if isinstance(conn_props, mf.ConnectionProperties):
                 label = conn_props.label if conn_props.label is not None else conn_name
-                connections.append(arm.ConnectionItemModel(name=conn_name, label=label))
+                connections.append(rm.ConnectionItemModel(name=conn_name, label=label))
         return connections
     
-    def _get_all_data_models(self, compiled_dag: m.DAG) -> list[arm.DataModelItem]:
+    def _get_all_data_models(self, compiled_dag: m.DAG) -> list[rm.DataModelItem]:
         return compiled_dag.get_all_data_models()
     
-    async def get_all_data_models(self) -> list[arm.DataModelItem]:
+    async def get_all_data_models(self) -> list[rm.DataModelItem]:
         """
         Get all data models in the project
 
@@ -349,26 +350,26 @@ class SquirrelsProject:
         compiled_dag = await self._get_compiled_dag()
         return self._get_all_data_models(compiled_dag)
 
-    def _get_all_data_lineage(self, compiled_dag: m.DAG) -> list[arm.LineageRelation]:
+    def _get_all_data_lineage(self, compiled_dag: m.DAG) -> list[rm.LineageRelation]:
         all_lineage = compiled_dag.get_all_model_lineage()
 
         # Add dataset nodes to the lineage
         for dataset in self._manifest_cfg.datasets.values():
-            target_dataset = arm.LineageNode(name=dataset.name, type="dataset")
-            source_model = arm.LineageNode(name=dataset.model, type="model")
-            all_lineage.append(arm.LineageRelation(type="runtime", source=source_model, target=target_dataset))
+            target_dataset = rm.LineageNode(name=dataset.name, type="dataset")
+            source_model = rm.LineageNode(name=dataset.model, type="model")
+            all_lineage.append(rm.LineageRelation(type="runtime", source=source_model, target=target_dataset))
 
         # Add dashboard nodes to the lineage
         for dashboard in self._dashboards.values():
-            target_dashboard = arm.LineageNode(name=dashboard.dashboard_name, type="dashboard")
+            target_dashboard = rm.LineageNode(name=dashboard.dashboard_name, type="dashboard")
             datasets = set(x.dataset for x in dashboard.config.depends_on)
             for dataset in datasets:
-                source_dataset = arm.LineageNode(name=dataset, type="dataset")
-                all_lineage.append(arm.LineageRelation(type="runtime", source=source_dataset, target=target_dashboard))
+                source_dataset = rm.LineageNode(name=dataset, type="dataset")
+                all_lineage.append(rm.LineageRelation(type="runtime", source=source_dataset, target=target_dashboard))
 
         return all_lineage
 
-    async def get_all_data_lineage(self) -> list[arm.LineageRelation]:
+    async def get_all_data_lineage(self) -> list[rm.LineageRelation]:
         """
         Get all data lineage in the project
 
@@ -496,9 +497,9 @@ class SquirrelsProject:
             print(queries[0])
             print()
 
-    def _permission_error(self, user: BaseUser | None, data_type: str, data_name: str, scope: str) -> InvalidInputErrorTmp:
+    def _permission_error(self, user: BaseUser | None, data_type: str, data_name: str, scope: str) -> InvalidInputError:
         username = "" if user is None else f" '{user.username}'"
-        return InvalidInputErrorTmp(25, f"User{username} does not have permission to access {scope} {data_type}: {data_name}")
+        return InvalidInputError(403, f"Unauthorized access to {data_type}", f"User{username} does not have permission to access {scope} {data_type}: {data_name}")
     
     def seed(self, name: str) -> pl.LazyFrame:
         """
@@ -563,7 +564,7 @@ class SquirrelsProject:
         )
     
     async def dashboard(
-        self, name: str, *, selections: dict[str, t.Any] = {}, user: BaseUser | None = None, dashboard_type: t.Type[T] = dash.PngDashboard
+        self, name: str, *, selections: dict[str, t.Any] = {}, user: BaseUser | None = None, dashboard_type: t.Type[T] = d.PngDashboard
     ) -> T:
         """
         Async method to retrieve a dashboard given parameter selections.

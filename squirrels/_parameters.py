@@ -5,9 +5,10 @@ from datetime import datetime, date
 from decimal import Decimal
 from abc import ABCMeta, abstractmethod
 
-from ._arguments._init_time_args import ParametersArgs
+from ._arguments.init_time_args import ParametersArgs
+from ._schemas import response_models as rm
 from . import _data_sources as d, _parameter_configs as pc, _parameter_options as po, _parameter_sets as ps
-from . import _api_response_models as arm, _utils as u
+from . import _utils as u
 
 IntOrFloat = TypeVar("IntOrFloat", int, float)
 
@@ -199,10 +200,10 @@ class Parameter(Generic[PC, PO, DS], metaclass=ABCMeta):
         return output
     
     @abstractmethod
-    def _get_response_model0(self) -> type[arm.ParameterModelBase]:
+    def _get_response_model0(self) -> type[rm.ParameterModelBase]:
         pass
     
-    def _to_api_response_model0(self) -> arm.ParameterModelBase:
+    def _to_api_response_model0(self) -> rm.ParameterModelBase:
         return self._get_response_model0().model_validate(self._to_json_dict0())
 
 
@@ -411,7 +412,7 @@ class SingleSelectParameter(_SelectionParameter[pc.SingleSelectParameterConfig])
         return output
     
     def _get_response_model0(self):
-        return arm.SingleSelectParameterModel if self.is_enabled() else arm.NoneParameterModel
+        return rm.SingleSelectParameterModel if self.is_enabled() else rm.NoneParameterModel
 
 
 @dataclass
@@ -805,7 +806,7 @@ class MultiSelectParameter(_SelectionParameter[pc.MultiSelectParameterConfig]):
         return output
     
     def _get_response_model0(self):
-        return arm.MultiSelectParameterModel if self.is_enabled() else arm.NoneParameterModel
+        return rm.MultiSelectParameterModel if self.is_enabled() else rm.NoneParameterModel
 
 
 DatePO = TypeVar("DatePO", bound=po._DateTypeParameterOption)
@@ -949,7 +950,7 @@ class DateParameter(_DateTypeParameter[pc.DateParameterConfig, po.DateParameterO
         return output
     
     def _get_response_model0(self):
-        return arm.DateParameterModel if self.is_enabled() else arm.NoneParameterModel
+        return rm.DateParameterModel if self.is_enabled() else rm.NoneParameterModel
 
 
 @dataclass
@@ -1107,7 +1108,7 @@ class DateRangeParameter(_DateTypeParameter[pc.DateRangeParameterConfig, po.Date
         return output
     
     def _get_response_model0(self):
-        return arm.DateRangeParameterModel if self.is_enabled() else arm.NoneParameterModel
+        return rm.DateRangeParameterModel if self.is_enabled() else rm.NoneParameterModel
 
 
 NumericPO = TypeVar("NumericPO", bound=po._NumericParameterOption)
@@ -1229,7 +1230,7 @@ class NumberParameter(_NumberTypeParameter[pc.NumberParameterConfig, po.NumberPa
         return output
     
     def _get_response_model0(self):
-        return arm.NumberParameterModel if self.is_enabled() else arm.NoneParameterModel
+        return rm.NumberParameterModel if self.is_enabled() else rm.NoneParameterModel
 
 
 @dataclass
@@ -1356,7 +1357,7 @@ class NumberRangeParameter(_NumberTypeParameter[pc.NumberRangeParameterConfig, p
         return output
     
     def _get_response_model0(self):
-        return arm.NumberRangeParameterModel if self.is_enabled() else arm.NoneParameterModel
+        return rm.NumberRangeParameterModel if self.is_enabled() else rm.NoneParameterModel
 
 
 @dataclass
@@ -1660,4 +1661,4 @@ class TextParameter(Parameter[pc.TextParameterConfig, po.TextParameterOption, d.
         return output
     
     def _get_response_model0(self):
-        return arm.TextParameterModel if self.is_enabled() else arm.NoneParameterModel
+        return rm.TextParameterModel if self.is_enabled() else rm.NoneParameterModel

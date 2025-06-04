@@ -114,3 +114,8 @@ MAIN_FUNC = "main"
 # Regex
 DATE_REGEX = r"^\d{4}\-\d{2}\-\d{2}$"
 COLOR_REGEX = r"^#[0-9a-fA-F]{6}$"
+
+# OAuth2
+SUPPORTED_SCOPES = ['read']
+SUPPORTED_GRANT_TYPES = ['authorization_code', 'refresh_token']
+SUPPORTED_RESPONSE_TYPES = ['code']

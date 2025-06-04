@@ -2,8 +2,10 @@ from typing import Annotated, Literal
 from pydantic import BaseModel, Field
 from datetime import date
 
-from . import _model_configs as mc, _sources as s
+from .. import _model_configs as mc, _sources as s
 
+
+## Simple Auth Response Models
 
 class ApiKeyResponse(BaseModel):
     api_key: Annotated[str, Field(examples=["sqrl-12345678"], description="The API key to use subsequent API requests")]
