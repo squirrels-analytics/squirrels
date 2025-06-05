@@ -1,13 +1,14 @@
 from __future__ import annotations
-from typing import Optional, Sequence, Any
+from typing import Optional, Sequence, Callable, Any
 from dataclasses import dataclass, field
 from collections import OrderedDict
 import time, concurrent.futures, polars as pl
 
-from . import _parameters as p, _utils as u, _constants as c, _parameter_configs as pc, _py_module as pm, _api_response_models as arm
-from ._arguments._init_time_args import ParametersArgs
+from . import _parameters as p, _utils as u, _constants as c, _parameter_configs as pc, _py_module as pm
+from ._schemas import response_models as rm
+from ._arguments.init_time_args import ParametersArgs
 from ._manifest import ParametersConfig, ManifestConfig
-from ._connection_set import ConnectionSet, ConnectionsArgs
+from ._connection_set import ConnectionSet
 from ._seeds import Seeds
 from ._auth import BaseUser
 
@@ -22,11 +23,11 @@ class ParameterSet:
     def get_parameters_as_dict(self) -> dict[str, p.Parameter]:
         return self._parameters_dict.copy()
 
-    def to_api_response_model0(self) -> arm.ParametersModel:
+    def to_api_response_model0(self) -> rm.ParametersModel:
         parameters = []
         for x in self._parameters_dict.values():
             parameters.append(x._to_api_response_model0())
-        return arm.ParametersModel(parameters=parameters)
+        return rm.ParametersModel(parameters=parameters)
 
 
 @dataclass
@@ -153,44 +154,53 @@ class ParameterConfigsSetIO:
     """
     Static class for the singleton object of ParameterConfigsSet
     """
-    obj: ParameterConfigsSet # this is static (set in load_from_file) to simplify development experience for pyconfigs/parameters.py
+    param_factories: list[Callable[[ParametersArgs], pc.ParameterConfigBase]] = []  # this is static (set in load_from_file) to stage the functions from pyconfigs/parameters.py before using them
     
     @classmethod
-    def _get_df_dict_from_data_sources(cls, default_conn_name: str, seeds: Seeds, conn_set: ConnectionSet) -> dict[str, pl.DataFrame]:
+    def _get_df_dict_from_data_sources(
+        cls, param_configs_set: ParameterConfigsSet, default_conn_name: str, seeds: Seeds, conn_set: ConnectionSet
+    ) -> dict[str, pl.DataFrame]:
+        
         def get_dataframe(ds_param_config: pc.DataSourceParameterConfig) -> tuple[str, pl.DataFrame]:
             return ds_param_config.name, ds_param_config.get_dataframe(default_conn_name, conn_set, seeds)
         
-        ds_param_configs = cls.obj._get_all_ds_param_configs()
+        ds_param_configs = param_configs_set._get_all_ds_param_configs()
         with concurrent.futures.ThreadPoolExecutor() as executor:
             df_dict = dict(executor.map(get_dataframe, ds_param_configs))
         
         return df_dict
     
     @classmethod
-    def _add_from_dict(cls, param_config: ParametersConfig) -> None:
+    def _add_from_dict(cls, param_configs_set: ParameterConfigsSet, param_config: ParametersConfig) -> None:
         ptype = getattr(p, param_config.type)
         factory = getattr(ptype, param_config.factory)
-        factory(**param_config.arguments)
-    
-    @classmethod
-    def get_param_args(cls, conn_args: ConnectionsArgs) -> ParametersArgs:
-        return ParametersArgs(conn_args.project_path, conn_args.proj_vars, conn_args.env_vars)
+        obj = factory(**param_config.arguments)
+        param_configs_set.add(obj)
     
     @classmethod
     def load_from_file(
         cls, logger: u.Logger, base_path: str, manifest_cfg: ManifestConfig, seeds: Seeds, conn_set: ConnectionSet, param_args: ParametersArgs
     ) -> ParameterConfigsSet:
         start = time.time()
-        cls.obj = ParameterConfigsSet()
+        param_configs_set = ParameterConfigsSet()
 
         for param_as_dict in manifest_cfg.parameters:
-            cls._add_from_dict(param_as_dict)
+            cls._add_from_dict(param_configs_set, param_as_dict)
         
-        pm.run_pyconfig_main(base_path, c.PARAMETERS_FILE, {"sqrl": param_args})
+        main_result = pm.run_pyconfig_main(base_path, c.PARAMETERS_FILE, {"sqrl": param_args})  # adds to cls.param_factories as side effect
+        param_factories = cls.param_factories
+        cls.param_factories = []
+
+        for param_factory in param_factories:
+            param_configs_set.add(param_factory(param_args))
+        
+        if isinstance(main_result, list):
+            for param_config in main_result:
+                param_configs_set.add(param_config)
         
         default_conn_name = manifest_cfg.env_vars.get(c.SQRL_CONNECTIONS_DEFAULT_NAME_USED, "default")
-        df_dict = cls._get_df_dict_from_data_sources(default_conn_name, seeds, conn_set)
-        cls.obj._post_process_params(df_dict)
+        df_dict = cls._get_df_dict_from_data_sources(param_configs_set, default_conn_name, seeds, conn_set)
+        param_configs_set._post_process_params(df_dict)
         
         logger.log_activity_time("loading parameters", start)
-        return cls.obj
+        return param_configs_set

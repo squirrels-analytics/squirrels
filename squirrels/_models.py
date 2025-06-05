@@ -7,9 +7,10 @@ from pathlib import Path
 import asyncio, os, re, time, duckdb, sqlglot
 import polars as pl, pandas as pd, networkx as nx
 
-from . import _constants as c, _utils as u, _py_module as pm, _model_queries as mq, _model_configs as mc, _sources as src, _api_response_models as arm
+from . import _constants as c, _utils as u, _py_module as pm, _model_queries as mq, _model_configs as mc, _sources as src
+from ._schemas import response_models as rm
 from ._exceptions import FileExecutionError, InvalidInputError
-from ._arguments._run_time_args import ContextArgs, ModelArgs, BuildModelArgs
+from ._arguments.run_time_args import ContextArgs, ModelArgs, BuildModelArgs
 from ._auth import BaseUser
 from ._connection_set import ConnectionsArgs, ConnectionSet, ConnectionProperties
 from ._manifest import DatasetConfig
@@ -173,7 +174,7 @@ class StaticModel(DataModel):
         try:
             return self._load_duckdb_view_to_python_df(local_conn, use_venv=True)
         except Exception as e:
-            raise InvalidInputError(61, f'Model "{self.name}" depends on static data models that cannot be found.')
+            raise InvalidInputError(409, f'Dependent data model not found.', f'Model "{self.name}" depends on static data models that cannot be found. Trying building the virtual data environment first.')
         finally:
             local_conn.close()
     
@@ -531,7 +532,7 @@ class DbviewModel(QueryModel):
                         self.logger.info(f"Running dbview '{self.name}' on duckdb")
                         return local_conn.sql(query, params=placeholders).pl()
                     except duckdb.CatalogException as e:
-                        raise InvalidInputError(61, f'Model "{self.name}" depends on static data models that cannot be found.')
+                        raise InvalidInputError(409, f'Dependent data model not found.', f'Model "{self.name}" depends on static data models that cannot be found. Trying building the virtual data environment first.')
                     except Exception as e:
                         raise RuntimeError(e)
                     finally:
@@ -657,10 +658,10 @@ class FederateModel(QueryModel):
                 try:
                     return local_conn.execute(create_query, existing_placeholders)
                 except duckdb.CatalogException as e:
-                    raise InvalidInputError(61, f'Model "{self.name}" depends on static data models that cannot be found.')
+                    raise InvalidInputError(409, f'Dependent data model not found.', f'Model "{self.name}" depends on static data models that cannot be found. Trying building the virtual data environment first.')
                 except Exception as e:
                     if self.name == "__fake_target":
-                        raise InvalidInputError(204, f"Failed to run provided SQL query")
+                        raise InvalidInputError(400, "Invalid SQL query", f"Failed to run provided SQL query")
                     else:
                         raise FileExecutionError(f'Failed to run federate sql model "{self.name}"', e) from e
             
@@ -960,24 +961,24 @@ class DAG:
         
         return G
     
-    def get_all_data_models(self) -> list[arm.DataModelItem]:
+    def get_all_data_models(self) -> list[rm.DataModelItem]:
         data_models = []
         for model_name, model in self.models_dict.items():
             is_queryable = model.is_queryable
-            data_model = arm.DataModelItem(name=model_name, model_type=model.model_type.value, config=model.model_config, is_queryable=is_queryable)
+            data_model = rm.DataModelItem(name=model_name, model_type=model.model_type.value, config=model.model_config, is_queryable=is_queryable)
             data_models.append(data_model)
         return data_models
     
-    def get_all_model_lineage(self) -> list[arm.LineageRelation]:
+    def get_all_model_lineage(self) -> list[rm.LineageRelation]:
         model_lineage = []
         for model_name, model in self.models_dict.items():
             if not isinstance(model, QueryModel):
                 continue
             for dep_model_name in model.model_config.depends_on:
                 edge_type = "buildtime" if isinstance(model, BuildModel) else "runtime"
-                source_model = arm.LineageNode(name=dep_model_name, type="model")
-                target_model = arm.LineageNode(name=model_name, type="model")
-                model_lineage.append(arm.LineageRelation(type=edge_type, source=source_model, target=target_model))
+                source_model = rm.LineageNode(name=dep_model_name, type="model")
+                target_model = rm.LineageNode(name=model_name, type="model")
+                model_lineage.append(rm.LineageRelation(type=edge_type, source=source_model, target=target_model))
         return model_lineage
 
 

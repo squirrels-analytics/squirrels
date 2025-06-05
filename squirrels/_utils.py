@@ -2,10 +2,9 @@ from typing import Sequence, Optional, Union, TypeVar, Callable, Any, Iterable
 from datetime import datetime
 from pathlib import Path
 from functools import lru_cache
-from pydantic import BaseModel
 import os, time, logging, json, duckdb, polars as pl, yaml
 import jinja2 as j2, jinja2.nodes as j2_nodes
-import sqlglot, sqlglot.expressions, asyncio
+import sqlglot, sqlglot.expressions, asyncio, hashlib, inspect, base64
 
 from . import _constants as c
 from ._exceptions import ConfigurationError
@@ -359,3 +358,36 @@ async def asyncio_gather(coroutines: list):
         # Wait for tasks to be cancelled
         await asyncio.gather(*tasks, return_exceptions=True)
         raise
+
+
+def hash_string(input_str: str, salt: str) -> str:
+    """
+    Hashes a string using SHA-256
+    """
+    return hashlib.sha256((input_str + salt).encode()).hexdigest()
+
+
+T = TypeVar('T')
+def call_func(func: Callable[..., T], **kwargs) -> T:
+    """
+    Calls a function with the given arguments if func expects arguments, otherwise calls func without arguments
+    """
+    sig = inspect.signature(func)
+    # Filter kwargs to only include parameters that the function accepts
+    filtered_kwargs = {k: v for k, v in kwargs.items() if k in sig.parameters}
+    return func(**filtered_kwargs)
+
+
+def generate_pkce_challenge(code_verifier: str) -> str:
+    """Generate PKCE code challenge from code verifier"""
+    # Generate SHA256 hash of code_verifier
+    verifier_hash = hashlib.sha256(code_verifier.encode('utf-8')).digest()
+    # Base64 URL encode (without padding)
+    expected_challenge = base64.urlsafe_b64encode(verifier_hash).decode('utf-8').rstrip('=')
+    return expected_challenge
+
+def validate_pkce_challenge(code_verifier: str, code_challenge: str) -> bool:
+    """Validate PKCE code verifier against code challenge"""
+    # Generate expected challenge
+    expected_challenge = generate_pkce_challenge(code_verifier)
+    return expected_challenge == code_challenge

@@ -1,7 +1,7 @@
 import pytest, asyncio, polars as pl, time
 
 from squirrels import _models as m, _utils as u, _model_queries as mq, _model_configs as mc
-from squirrels._arguments._run_time_args import ParametersArgs, ContextArgs
+from squirrels._arguments.run_time_args import ParametersArgs, ContextArgs
 from squirrels._manifest import DatasetConfig
 
 

@@ -4,7 +4,7 @@ from sqlalchemy import Engine
 import time, polars as pl
 
 from . import _utils as u, _constants as c, _py_module as pm
-from ._arguments._init_time_args import ConnectionsArgs
+from ._arguments.init_time_args import ConnectionsArgs
 from ._manifest import ManifestConfig, ConnectionProperties, ConnectionTypeEnum
 
 

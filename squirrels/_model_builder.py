@@ -68,7 +68,7 @@ class ModelBuilder:
         # If the development copy is already in use, a concurrent build is not allowed
         duckdb_dev_lock_path = u.Path(self._duckdb_venv_path + ".dev.lock")
         if duckdb_dev_lock_path.exists():
-            raise InvalidInputError(60, "An existing build process is already running and a concurrent build is not allowed")
+            raise InvalidInputError(409, "Concurrent build not allowed", "An existing build process is already running and a concurrent build is not allowed")
         duckdb_dev_lock_path.touch(exist_ok=False)
         
         # Ensure the lock file is deleted even if an exception is raised

@@ -2,7 +2,7 @@ import pytest, asyncio, polars as pl
 from pathlib import Path
 
 from squirrels import _models as m, _utils as u, _model_queries as mq
-from squirrels._arguments._run_time_args import ParametersArgs, ContextArgs
+from squirrels._arguments.run_time_args import ParametersArgs, ContextArgs
 from squirrels._manifest import DatasetConfig
 from squirrels._model_configs import DbviewModelConfig, FederateModelConfig, SeedConfig
 

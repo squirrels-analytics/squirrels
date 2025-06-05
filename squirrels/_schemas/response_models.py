@@ -1,16 +1,20 @@
 from typing import Annotated, Literal
 from pydantic import BaseModel, Field
-from datetime import datetime, date
+from datetime import date
 
-from . import _model_configs as mc, _sources as s
+from .. import _model_configs as mc, _sources as s
 
 
-class LoginReponse(BaseModel):
-    access_token: Annotated[str, Field(examples=["encoded_jwt_token"], description="An encoded JSON web token to use subsequent API requests")]
-    token_type: Annotated[str, Field(examples=["bearer"], description='Always "bearer" for Bearer token')]
-    username: Annotated[str, Field(examples=["johndoe"], description='The username authenticated with from the form data')]
-    is_admin: Annotated[bool, Field(examples=[False], description="A boolean for whether the user is an admin")]
-    expiry_time: Annotated[datetime, Field(examples=["2023-08-01T12:00:00.000000Z"], description="The expiry time of the access token in yyyy-MM-dd'T'hh:mm:ss.SSSSSS'Z' format")]
+## Simple Auth Response Models
+
+class ApiKeyResponse(BaseModel):
+    api_key: Annotated[str, Field(examples=["sqrl-12345678"], description="The API key to use subsequent API requests")]
+
+class ProviderResponse(BaseModel):
+    name: Annotated[str, Field(examples=["my_provider"], description="The name of the provider")]
+    label: Annotated[str, Field(examples=["My Provider"], description="The human-friendly display name for the provider")]
+    icon: Annotated[str, Field(examples=["https://example.com/my_provider_icon.png"], description="The URL of the provider's icon")]
+    login_url: Annotated[str, Field(examples=["https://example.com/my_provider_login"], description="The URL to redirect to for provider login")]
 
 
 ## Parameters Response Models

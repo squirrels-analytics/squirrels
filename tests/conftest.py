@@ -1,6 +1,6 @@
 import pytest
 
-from squirrels._arguments._init_time_args import ConnectionsArgs
+from squirrels._arguments.init_time_args import ConnectionsArgs
 from squirrels._connection_set import ConnectionSet
 
 

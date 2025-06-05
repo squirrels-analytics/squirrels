@@ -1,7 +1,8 @@
 sandbox*
 playground*
 site/
-.venv/ 
+.venv/
+TODOS.md
 
 # pyenv files
 .python-version

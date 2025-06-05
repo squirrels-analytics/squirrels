@@ -20,6 +20,11 @@ class ConnectionsArgs:
 
 
 @dataclass
+class AuthProviderArgs(ConnectionsArgs):
+    pass
+
+
+@dataclass
 class ParametersArgs(ConnectionsArgs):
     pass
 

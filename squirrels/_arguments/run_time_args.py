@@ -1,7 +1,7 @@
 from typing import Callable, Any, Coroutine
 import polars as pl
 
-from ._init_time_args import ParametersArgs, BuildModelArgs
+from .init_time_args import ParametersArgs, BuildModelArgs
 from .._auth import BaseUser
 from .._parameters import Parameter, TextValue
 

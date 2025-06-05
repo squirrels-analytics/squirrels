@@ -108,7 +108,7 @@ class ParameterConfig(Generic[ParamOptionType], ParameterConfigBase):
         pass
     
     def _invalid_input_error(self, selection: str, more_details: str = '') -> InvalidInputError:
-        return InvalidInputError(200, f'Selected value "{selection}" is not valid for parameter "{self.name}". ' + more_details)
+        return InvalidInputError(400, "Invalid parameter selection", f'Selected value "{selection}" is not valid for parameter "{self.name}". ' + more_details)
     
     @abstractmethod
     def with_selection(
