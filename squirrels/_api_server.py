@@ -1,7 +1,8 @@
 from fastapi import FastAPI, Request, status
 from fastapi.responses import JSONResponse, RedirectResponse
 from fastapi.security import HTTPBearer
-from fastapi.middleware.cors import CORSMiddleware
+from starlette.middleware.base import BaseHTTPMiddleware
+from starlette.responses import Response as StarletteResponse
 from contextlib import asynccontextmanager
 from argparse import Namespace
 from pathlib import Path
@@ -23,6 +24,48 @@ from ._api_routes.data_management import DataManagementRoutes
 from ._api_routes.oauth2 import OAuth2Routes
 
 mimetypes.add_type('application/javascript', '.js')
+
+
+class SmartCORSMiddleware(BaseHTTPMiddleware):
+    """
+    Custom CORS middleware that allows specific origins to use credentials
+    while still allowing all other origins without credentials.
+    """
+    
+    def __init__(self, app, allowed_credential_origins: list[str] | None = None):
+        super().__init__(app)
+        # Origins that are allowed to send credentials (cookies, auth headers)
+        self.allowed_credential_origins = allowed_credential_origins or []
+    
+    async def dispatch(self, request: Request, call_next):
+        origin = request.headers.get("origin")
+        
+        # Call the next middleware/route
+        response: StarletteResponse = await call_next(request)
+        
+        # Handle preflight requests
+        if request.method == "OPTIONS":
+            response.headers["Access-Control-Allow-Methods"] = "*"
+            response.headers["Access-Control-Allow-Headers"] = "Authorization"
+        
+        # Always expose the Applied-Username header
+        response.headers["Access-Control-Expose-Headers"] = "Applied-Username"
+        
+        if origin:
+            scheme = "http" if request.url.hostname in ["localhost", "127.0.0.1"] else "https"
+            request_origin = f"{scheme}://{request.url.netloc}"
+            # Check if this origin is in the whitelist or if origin matches the host origin
+            if origin == request_origin or origin in self.allowed_credential_origins:
+                response.headers["Access-Control-Allow-Origin"] = origin
+                response.headers["Access-Control-Allow-Credentials"] = "true"
+            else:
+                # Allow all other origins but without credentials / cookies
+                response.headers["Access-Control-Allow-Origin"] = "*"
+        else:
+            # No origin header (same-origin request or non-browser)
+            response.headers["Access-Control-Allow-Origin"] = "*"
+        
+        return response
 
 
 class ApiServer:
@@ -216,10 +259,12 @@ class ApiServer:
                 print(err_msg)
             return response
 
-        app.add_middleware(
-            CORSMiddleware, allow_origins=["*"], allow_credentials=True, allow_methods=["*"], allow_headers=["*"], 
-            expose_headers=["Applied-Username"]
-        )
+        # Configure CORS with smart credential handling
+        # Get allowed origins for credentials from environment variable
+        credential_origins_env = self.env_vars.get(c.SQRL_AUTH_CREDENTIAL_ORIGINS, "https://squirrels-analytics.github.io")
+        allowed_credential_origins = [origin.strip() for origin in credential_origins_env.split(",") if origin.strip()]
+        
+        app.add_middleware(SmartCORSMiddleware, allowed_credential_origins=allowed_credential_origins)
         
         # Setup route modules
         self.oauth2_routes.setup_routes(app)

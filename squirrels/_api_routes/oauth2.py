@@ -287,7 +287,8 @@ class OAuth2Routes(RouteBase):
             """OAuth 2.1 Authorization Server Metadata endpoint (RFC 8414)"""
             
             # Get the base URL from the request
-            base_url = f"{request.url.scheme}://{request.url.netloc}"
+            scheme = "http" if request.url.hostname in ("localhost", "127.0.0.1") else "https"
+            base_url = scheme + "://" + request.url.netloc
             
             return OAuthServerMetadata(
                 issuer=base_url,
