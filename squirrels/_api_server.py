@@ -40,16 +40,18 @@ class SmartCORSMiddleware(BaseHTTPMiddleware):
     async def dispatch(self, request: Request, call_next):
         origin = request.headers.get("origin")
         
-        # Call the next middleware/route
-        response: StarletteResponse = await call_next(request)
-        
         # Handle preflight requests
         if request.method == "OPTIONS":
-            response.headers["Access-Control-Allow-Methods"] = "*"
-            response.headers["Access-Control-Allow-Headers"] = "Authorization"
+            response = StarletteResponse(status_code=200) 
+            response.headers["Access-Control-Allow-Methods"] = "GET, POST, PUT, DELETE, OPTIONS"
+            response.headers["Access-Control-Allow-Headers"] = "Authorization, Content-Type"
         
-        # Always expose the Applied-Username header
-        response.headers["Access-Control-Expose-Headers"] = "Applied-Username"
+        else:
+            # Call the next middleware/route
+            response: StarletteResponse = await call_next(request)
+            
+            # Always expose the Applied-Username header
+            response.headers["Access-Control-Expose-Headers"] = "Applied-Username"
         
         if origin:
             scheme = "http" if request.url.hostname in ["localhost", "127.0.0.1"] else "https"
