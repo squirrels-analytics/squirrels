@@ -204,7 +204,7 @@ class ApiServer:
             redoc_url=project_metadata_path+"/redoc"
         )
 
-        app.add_middleware(SessionMiddleware, secret_key=self.env_vars.get(c.SQRL_SECRET_KEY, ""), max_age=None)
+        app.add_middleware(SessionMiddleware, secret_key=self.env_vars.get(c.SQRL_SECRET_KEY, ""), max_age=None, same_site="none", https_only=True)
 
         async def _log_request_run(request: Request) -> None:
             headers = dict(request.scope["headers"])
