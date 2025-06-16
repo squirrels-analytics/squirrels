@@ -2,19 +2,21 @@
 Dataset routes for parameters and results
 """
 from typing import Callable, Any
-from pydantic import Field
+from pydantic import Field, BaseModel
 from fastapi import FastAPI, Depends, Request
-from fastapi.responses import JSONResponse
+from fastapi.responses import JSONResponse, HTMLResponse
 from fastapi.security import HTTPBearer
+
 from mcp.server.fastmcp import FastMCP, Context
 from dataclasses import asdict
 from cachetools import TTLCache
 from textwrap import dedent
+
 import time
 
 from .. import _constants as c, _utils as u
 from .._schemas import response_models as rm
-from .._exceptions import ConfigurationError
+from .._exceptions import ConfigurationError, InvalidInputError
 from .._dataset_types import DatasetResult
 from .._schemas.query_param_models import get_query_models_for_parameters, get_query_models_for_dataset
 from .._auth import BaseUser
@@ -205,3 +207,35 @@ class DatasetRoutes(RouteBase):
             }
             result = await self._get_dataset_results_definition(dataset_name, user, params, params)
             return result
+        
+        # Setup UI for tool results
+        mcp_tool_results_ui_path = project_metadata_path + "/mcp/tool-results-ui"
+
+        @app.get(mcp_tool_results_ui_path + "/list-tools", tags=["MCP Supplements"])
+        async def list_tools():
+            return ["get_dataset_results"]
+
+        class ToolResultBody(BaseModel):
+            """Flexible model for tool results - accepts any additional fields"""
+            
+            class Config:
+                extra = "allow"  # Allow additional fields not defined in the model
+
+        @app.post(mcp_tool_results_ui_path + "/tool/{tool_name}", tags=["MCP Supplements"])
+        async def tool_results_ui(tool_name: str, tool_result: ToolResultBody):
+            if tool_name == "get_dataset_results":
+                # Convert Pydantic model to dict to access any extra fields
+                tool_result_dict = tool_result.model_dump()
+                
+                # Prepare template context
+                context = {
+                    "schema": tool_result_dict.get("schema", {}),
+                    "data": tool_result_dict.get("data", []),
+                }
+                
+                # Render HTML template
+                html_content = self.templates.get_template("dataset_results.html").render(context)
+                return HTMLResponse(content=html_content, status_code=200)
+            else:
+                raise InvalidInputError(400, "Invalid tool name", f"Tool name '{tool_name}' not supported for UI")
+        

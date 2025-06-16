@@ -281,7 +281,7 @@ class ApiServer:
         full_hostname = f"http://{uvicorn_args.host}:{uvicorn_args.port}"
         encoded_hostname = urllib.parse.quote(full_hostname, safe="")
         squirrels_studio_params = f"host={encoded_hostname}&projectName={project_name}&projectVersion={project_version}"
-        squirrels_studio_url = f"https://squirrels-analytics.github.io/squirrels-studio/#/login?{squirrels_studio_params}"
+        squirrels_studio_url = f"https://squirrels-analytics.github.io/squirrels-studio-v1/#/login?{squirrels_studio_params}"
         
         @app.get("/", include_in_schema=False)
         async def redirect_to_studio():

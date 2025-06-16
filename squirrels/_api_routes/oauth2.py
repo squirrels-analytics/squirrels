@@ -1,9 +1,7 @@
-from fastapi import FastAPI, Depends, Request, Query, Response, APIRouter, Form, Header
+from fastapi import FastAPI, Depends, Request, Query, Response, APIRouter, Form
 from fastapi.responses import RedirectResponse, HTMLResponse
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
-from fastapi.templating import Jinja2Templates
-from typing import Annotated, Callable, cast
-from pathlib import Path
+from typing import Annotated, cast
 
 from .base import RouteBase
 from .._schemas.auth_models import (
@@ -18,10 +16,6 @@ class OAuth2Routes(RouteBase):
     
     def __init__(self, get_bearer_token: HTTPBearer, project, no_cache: bool = False):
         super().__init__(get_bearer_token, project, no_cache)
-        
-        # Setup templates
-        template_dir = Path(__file__).parent.parent / "_package_data" / "templates"
-        self.templates = Jinja2Templates(directory=str(template_dir))
     
     def serve_login_page(self, auth_path: str, request: Request, client_id: str) -> HTMLResponse:
         """Helper function to serve the login page with optional error message"""

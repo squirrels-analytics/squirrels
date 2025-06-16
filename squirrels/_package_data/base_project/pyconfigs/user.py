@@ -23,7 +23,7 @@ class User(auth.BaseUser):
         return []
 
 
-@auth.provider(name="google", label="Google", icon="https://www.google.com/favicon.ico")
+# @auth.provider(name="google", label="Google", icon="https://www.google.com/favicon.ico")
 def google_auth_provider(sqrl: args.AuthProviderArgs) -> auth.ProviderConfigs:
     """
     Provider configs for authenticating a user using Google credentials.
@@ -39,6 +39,7 @@ def google_auth_provider(sqrl: args.AuthProviderArgs) -> auth.ProviderConfigs:
         )
 
     # TODO: Add GOOGLE_CLIENT_ID and GOOGLE_CLIENT_SECRET to the .env file
+    # Then, uncomment the @auth.provider decorator above and set the client_id and client_secret below
     provider_configs = auth.ProviderConfigs(
         client_id="", # sqrl.env_vars["GOOGLE_CLIENT_ID"],
         client_secret="", # sqrl.env_vars["GOOGLE_CLIENT_SECRET"],

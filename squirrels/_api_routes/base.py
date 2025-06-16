@@ -4,9 +4,11 @@ Base utilities and dependencies for API routes
 from typing import Any, Mapping, TypeVar, Callable, Coroutine
 from fastapi import Request, Response, Depends
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
+from fastapi.templating import Jinja2Templates
 from cachetools import TTLCache
 from pydantic import BaseModel, create_model
 from mcp.server.fastmcp import Context
+from pathlib import Path
 from datetime import datetime, timezone
 
 from .. import _utils as u, _constants as c
@@ -27,6 +29,10 @@ class RouteBase:
         self.manifest_cfg = project._manifest_cfg
         self.authenticator = project._auth
         self.param_cfg_set = project._param_cfg_set
+        
+        # Setup templates
+        template_dir = Path(__file__).parent.parent / "_package_data" / "templates"
+        self.templates = Jinja2Templates(directory=str(template_dir))
     
         # Create user models
         fields_without_username = {
