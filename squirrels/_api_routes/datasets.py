@@ -65,7 +65,8 @@ class DatasetRoutes(RouteBase):
         return rm.DatasetResultModel(**result.to_json(orientation, select, limit, offset)) 
     
     def setup_routes(
-        self, app: FastAPI, mcp: FastMCP, project_metadata_path: str, project_name: str, param_fields: dict, get_parameters_definition: Callable
+        self, app: FastAPI, mcp: FastMCP, project_metadata_path: str, project_name: str, project_version: str, 
+        param_fields: dict, get_parameters_definition: Callable
     ) -> None:
         """Setup dataset routes"""
         
@@ -147,7 +148,7 @@ class DatasetRoutes(RouteBase):
         # Setup MCP tools
 
         @mcp.tool(
-            name=f"get_dataset_parameters",
+            name=f"get_dataset_parameters_for_{project_name}_{project_version}",
             description=dedent(f"""
             Use this tool to get updates for dataset parameters in the Squirrels project "{project_name}" when a selection is to be made on a parameter with "trigger_refresh" as true.
 
@@ -171,7 +172,7 @@ class DatasetRoutes(RouteBase):
             return await get_dataset_parameters_updates(dataset_name, user, payload, payload)
         
         @mcp.tool(
-            name=f"get_dataset_results",
+            name=f"get_dataset_results_for_{project_name}_{project_version}",
             description=dedent(f"""
             Use this tool to get the dataset results as a JSON object for a dataset in the Squirrels project "{project_name}".
             - Use the "offset" and "limit" arguments to limit the number of rows you require

@@ -273,7 +273,7 @@ class ApiServer:
         self.auth_routes.setup_routes(app)
         get_parameters_definition = self.project_routes.setup_routes(app, self.mcp, project_metadata_path, project_name, project_version, param_fields)
         self.data_management_routes.setup_routes(app, project_metadata_path, param_fields)
-        self.dataset_routes.setup_routes(app, self.mcp, project_metadata_path, project_name, param_fields, get_parameters_definition)
+        self.dataset_routes.setup_routes(app, self.mcp, project_metadata_path, project_name, project_version, param_fields, get_parameters_definition)
         self.dashboard_routes.setup_routes(app, project_metadata_path, param_fields, get_parameters_definition)
         app.mount(project_metadata_path, self.mcp.streamable_http_app())
     

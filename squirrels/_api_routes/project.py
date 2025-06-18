@@ -1,7 +1,7 @@
 """
 Project metadata routes
 """
-from typing import Callable, Any
+from typing import Any
 from fastapi import FastAPI, Depends, Request
 from fastapi.responses import JSONResponse
 from fastapi.security import HTTPBearer
@@ -154,7 +154,7 @@ class ProjectRoutes(RouteBase):
             return await get_data_catalog0(user)
         
         @mcp.tool(
-            name="get_data_catalog", 
+            name=f"get_data_catalog_for_{project_name}_{project_version}", 
             description=f"Use this tool to get the details of all datasets and parameters you can access in the Squirrels project '{project_name}'."
         )
         async def get_data_catalog_tool(ctx: Context):
