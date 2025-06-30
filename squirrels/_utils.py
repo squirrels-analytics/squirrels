@@ -391,3 +391,8 @@ def validate_pkce_challenge(code_verifier: str, code_challenge: str) -> bool:
     # Generate expected challenge
     expected_challenge = generate_pkce_challenge(code_verifier)
     return expected_challenge == code_challenge
+
+
+def get_scheme(hostname: str | None) -> str:
+    """Get the scheme of the request"""
+    return "http" if hostname in ("localhost", "127.0.0.1") else "https"

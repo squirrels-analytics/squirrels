@@ -54,7 +54,7 @@ class SmartCORSMiddleware(BaseHTTPMiddleware):
             response.headers["Access-Control-Expose-Headers"] = "Applied-Username"
         
         if origin:
-            scheme = "http" if request.url.hostname in ["localhost", "127.0.0.1"] else "https"
+            scheme = u.get_scheme(request.url.hostname)
             request_origin = f"{scheme}://{request.url.netloc}"
             # Check if this origin is in the whitelist or if origin matches the host origin
             if origin == request_origin or origin in self.allowed_credential_origins:
@@ -297,5 +297,5 @@ class ApiServer:
         print()
         
         self.logger.log_activity_time("creating app server", start)
-        uvicorn.run(app, host=uvicorn_args.host, port=uvicorn_args.port)
+        uvicorn.run(app, host=uvicorn_args.host, port=uvicorn_args.port, proxy_headers=True, forwarded_allow_ips="*")
     

@@ -9,6 +9,7 @@ from .._schemas.auth_models import (
     TokenResponse, OAuthServerMetadata
 )
 from .._exceptions import InvalidInputError
+from .. import _utils as u
 
 
 class OAuth2Routes(RouteBase):
@@ -281,7 +282,7 @@ class OAuth2Routes(RouteBase):
             """OAuth 2.1 Authorization Server Metadata endpoint (RFC 8414)"""
             
             # Get the base URL from the request
-            scheme = "http" if request.url.hostname in ("localhost", "127.0.0.1") else "https"
+            scheme = u.get_scheme(request.url.hostname)
             base_url = scheme + "://" + request.url.netloc
             
             return OAuthServerMetadata(

@@ -1,14 +1,13 @@
 """
 Authentication and user management routes
 """
-from typing import Annotated, Callable
+from typing import Annotated
 from fastapi import FastAPI, Depends, Request, Response, status, Form, APIRouter
 from fastapi.responses import RedirectResponse
 from fastapi.security import HTTPBearer
 from pydantic import BaseModel, Field
 from authlib.integrations.starlette_client import OAuth
 
-from .. import _constants as c
 from .._schemas import response_models as rm
 from .._exceptions import InvalidInputError
 from .._auth import BaseUser
