@@ -12,12 +12,14 @@ class ContextArgs(ParametersArgs):
         self, param_args: ParametersArgs, 
         user: BaseUser | None, 
         prms: dict[str, Parameter], 
-        traits: dict[str, Any]
+        traits: dict[str, Any],
+        configurables: dict[str, str]
     ):
         super().__init__(param_args.project_path, param_args.proj_vars, param_args.env_vars)
         self.user = user
         self._prms = prms
         self._traits = traits
+        self._configurables = configurables
         self._placeholders = {}
 
     @property
@@ -33,6 +35,13 @@ class ContextArgs(ParametersArgs):
         A dictionary of dataset trait name to value
         """
         return self._traits.copy()
+
+    @property
+    def configurables(self) -> dict[str, str]:
+        """
+        A dictionary of configurable name to value (set by application)
+        """
+        return self._configurables.copy()
 
     @property
     def _placeholders_copy(self) -> dict[str, Any]:
@@ -81,6 +90,7 @@ class ModelArgs(BuildModelArgs, ContextArgs):
         self.user = ctx_args.user
         self._prms = ctx_args.prms
         self._traits = ctx_args.traits
+        self._configurables = ctx_args.configurables
         self._placeholders = ctx_args._placeholders_copy
         self._connections = build_model_args.connections
         self._dependencies = build_model_args.dependencies

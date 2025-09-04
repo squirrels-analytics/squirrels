@@ -1,4 +1,4 @@
-from typing import Annotated, Literal
+from typing import Annotated, Literal, Any
 from pydantic import BaseModel, Field
 from datetime import date
 
@@ -155,6 +155,12 @@ class LineageRelation(BaseModel):
     source: LineageNode
     target: LineageNode
 
+class ConfigurableItemModel(BaseModel):
+    name: str
+    label: str
+    default: str
+    description: str
+
 class CatalogModel(BaseModel):
     parameters: Annotated[ParametersListType, Field(description="The list of all parameters in the project")]
     datasets: Annotated[list[DatasetItemModel], Field(description="The list of accessible datasets")]
@@ -162,6 +168,7 @@ class CatalogModel(BaseModel):
     connections: Annotated[list[ConnectionItemModel], Field(description="The list of connections in the project (only provided for admin users)")]
     models: Annotated[list[DataModelItem], Field(description="The list of data models in the project (only provided for admin users)")]
     lineage: Annotated[list[LineageRelation], Field(description="The lineage information between data assets (only provided for admin users)")]
+    configurables: Annotated[list[ConfigurableItemModel], Field(description="The list of configurables (only provided for admin users)")]
 
 
 ## Dataset Results Response Models

@@ -152,7 +152,8 @@ class SquirrelsProject:
     @ft.cached_property
     def _auth(self) -> Authenticator[BaseUser]:
         User, provider_functions = self._user_cls_and_provider_functions
-        return Authenticator(self._logger, self._filepath, self._auth_args, provider_functions, user_cls=User)
+        external_only = self._manifest_cfg.authentication.type == mf.AuthenticationType.EXTERNAL
+        return Authenticator(self._logger, self._filepath, self._auth_args, provider_functions, user_cls=User, external_only=external_only)
     
     @ft.cached_property
     def _param_args(self) -> ps.ParametersArgs:
@@ -322,11 +323,14 @@ class SquirrelsProject:
         fig.savefig(Path(output_folder, "dag.png"))
         plt.close(fig)
     
-    async def _get_compiled_dag(self, *, sql_query: str | None = None, selections: dict[str, t.Any] = {}, user: BaseUser | None = None) -> m.DAG:
+    async def _get_compiled_dag(self, *, sql_query: str | None = None, selections: dict[str, t.Any] = {}, user: BaseUser | None = None, configurables: dict[str, str] = {}) -> m.DAG:
         dag = self._generate_dag_with_fake_target(sql_query)
         
         default_traits = self._manifest_cfg.get_default_traits()
-        await dag.execute(self._param_args, self._param_cfg_set, self._context_func, user, selections, runquery=False, default_traits=default_traits)
+        await dag.execute(
+            self._param_args, self._param_cfg_set, self._context_func, user, selections,
+            runquery=False, default_traits=default_traits, configurables={**self._manifest_cfg.get_default_configurables(), **configurables}
+        )
         return dag
     
     def _get_all_connections(self) -> list[rm.ConnectionItemModel]:
@@ -535,7 +539,8 @@ class SquirrelsProject:
         )
     
     async def dataset(
-        self, name: str, *, selections: dict[str, t.Any] = {}, user: BaseUser | None = None, require_auth: bool = True
+        self, name: str, *, selections: dict[str, t.Any] = {}, user: BaseUser | None = None, require_auth: bool = True,
+        configurables: dict[str, str] = {}
     ) -> dr.DatasetResult:
         """
         Async method to retrieve a dataset as a DatasetResult object (with metadata) given parameter selections.
@@ -555,7 +560,8 @@ class SquirrelsProject:
         dag = self._generate_dag(name)
         await dag.execute(
             self._param_args, self._param_cfg_set, self._context_func, user, dict(selections), 
-            default_traits=self._manifest_cfg.get_default_traits()
+            default_traits=self._manifest_cfg.get_default_traits(),
+            configurables={**self._manifest_cfg.get_default_configurables(), **configurables}
         )
         assert isinstance(dag.target_model.result, pl.LazyFrame)
         return dr.DatasetResult(
@@ -564,7 +570,8 @@ class SquirrelsProject:
         )
     
     async def dashboard(
-        self, name: str, *, selections: dict[str, t.Any] = {}, user: BaseUser | None = None, dashboard_type: t.Type[T] = d.PngDashboard
+        self, name: str, *, selections: dict[str, t.Any] = {}, user: BaseUser | None = None, dashboard_type: t.Type[T] = d.PngDashboard,
+        configurables: dict[str, str] = {}
     ) -> T:
         """
         Async method to retrieve a dashboard given parameter selections.
@@ -584,7 +591,9 @@ class SquirrelsProject:
         
         async def get_dataset_df(dataset_name: str, fixed_params: dict[str, t.Any]) -> pl.DataFrame:
             final_selections = {**selections, **fixed_params}
-            result = await self.dataset(dataset_name, selections=final_selections, user=user, require_auth=False)
+            result = await self.dataset(
+                dataset_name, selections=final_selections, user=user, require_auth=False, configurables=configurables
+            )
             return result.df
         
         args = d.DashboardArgs(self._param_args, get_dataset_df)
@@ -594,9 +603,9 @@ class SquirrelsProject:
             raise KeyError(f"No dashboard file found for: {name}")
     
     async def query_models(
-        self, sql_query: str, *, selections: dict[str, t.Any] = {}, user: BaseUser | None = None
+        self, sql_query: str, *, selections: dict[str, t.Any] = {}, user: BaseUser | None = None, configurables: dict[str, str] = {}
     ) -> dr.DatasetResult:
-        dag = await self._get_compiled_dag(sql_query=sql_query, selections=selections, user=user)
+        dag = await self._get_compiled_dag(sql_query=sql_query, selections=selections, user=user, configurables=configurables)
         await dag._run_models()
         assert isinstance(dag.target_model.result, pl.LazyFrame)
         return dr.DatasetResult(

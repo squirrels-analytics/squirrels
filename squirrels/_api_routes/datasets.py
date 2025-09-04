@@ -2,9 +2,9 @@
 Dataset routes for parameters and results
 """
 from typing import Callable, Any
-from pydantic import Field, BaseModel
+from pydantic import Field
 from fastapi import FastAPI, Depends, Request
-from fastapi.responses import JSONResponse, HTMLResponse
+from fastapi.responses import JSONResponse
 from fastapi.security import HTTPBearer
 
 from mcp.server.fastmcp import FastMCP, Context
@@ -35,34 +35,48 @@ class DatasetRoutes(RouteBase):
         self.dataset_results_cache = TTLCache(maxsize=dataset_results_cache_size, ttl=dataset_results_cache_ttl*60)
         
     async def _get_dataset_results_helper(
-        self, dataset: str, user: BaseUser | None, selections: tuple[tuple[str, Any], ...]
+        self, dataset: str, user: BaseUser | None, selections: tuple[tuple[str, Any], ...], configurables: tuple[tuple[str, str], ...]
     ) -> DatasetResult:
         """Helper to get dataset results"""
-        return await self.project.dataset(dataset, selections=dict(selections), user=user)
+        # Only pass configurables that are defined in manifest
+        manifest_cfgs = self.manifest_cfg.configurables
+        cfg_filtered = {k: v for k, v in dict(configurables).items() if k in manifest_cfgs}
+        print(cfg_filtered)
+        return await self.project.dataset(dataset, selections=dict(selections), user=user, configurables=cfg_filtered)
 
     async def _get_dataset_results_cachable(
-        self, dataset: str, user: BaseUser | None, selections: tuple[tuple[str, Any], ...]
+        self, dataset: str, user: BaseUser | None, selections: tuple[tuple[str, Any], ...], configurables: tuple[tuple[str, str], ...]
     ) -> DatasetResult:
         """Cachable version of dataset results helper"""
-        return await self.do_cachable_action(self.dataset_results_cache, self._get_dataset_results_helper, dataset, user, selections)
+        return await self.do_cachable_action(self.dataset_results_cache, self._get_dataset_results_helper, dataset, user, selections, configurables)
     
     async def _get_dataset_results_definition(
-        self, dataset_name: str, user: BaseUser | None, all_request_params: dict, params: dict
+        self, dataset_name: str, user: BaseUser | None, all_request_params: dict, params: dict, headers: dict[str, str]
     ) -> rm.DatasetResultModel:
         """Get dataset results definition"""
         self._validate_request_params(all_request_params, params)
 
         get_dataset_function = self._get_dataset_results_helper if self.no_cache else self._get_dataset_results_cachable
-        uncached_keys = {"x_verify_params", "x_orientation", "x_select", "x_limit", "x_offset"}
+        uncached_keys = {"x_verify_params", "x_orientation", "x_sql_query", "x_limit", "x_offset"}
         selections = self.get_selections_as_immutable(params, uncached_keys)
-        result = await get_dataset_function(dataset_name, user, selections)
+        configurables = self.get_configurables_from_headers(headers)
+        result = await get_dataset_function(dataset_name, user, selections, configurables)
+        
+        # Apply optional final SQL transformation before select/limit/offset
+        sql_query = params.get("x_sql_query")
+        if sql_query:
+            try:
+                transformed = u.run_sql_on_dataframes(sql_query, {"result": result.df.lazy()})
+            except Exception as e:
+                raise InvalidInputError(400, "invalid_sql_query", "Failed to run provided SQL on the dataset result") from e
+            
+            transformed = transformed.drop("_row_num", strict=False).with_row_index("_row_num", offset=1)
+            result = DatasetResult(target_model_config=result.target_model_config, df=transformed)
         
         orientation = params.get("x_orientation", "records")
-        raw_select: list[str] | None = params.get("x_select")
-        select = tuple(raw_select) if raw_select is not None else tuple()
         limit = params.get("x_limit", 1000)
         offset = params.get("x_offset", 0)
-        return rm.DatasetResultModel(**result.to_json(orientation, select, limit, offset)) 
+        return rm.DatasetResultModel(**result.to_json(orientation, limit, offset)) 
     
     def setup_routes(
         self, app: FastAPI, mcp: FastMCP, project_metadata_path: str, project_name: str, project_version: str, 
@@ -130,7 +144,9 @@ class DatasetRoutes(RouteBase):
             ) -> rm.DatasetResultModel:
                 start = time.time()
                 curr_dataset_name = self.get_name_from_path_section(request, -1)
-                result = await self._get_dataset_results_definition(curr_dataset_name, user, dict(request.query_params), asdict(params))
+                result = await self._get_dataset_results_definition(
+                    curr_dataset_name, user, dict(request.query_params), asdict(params), headers=dict(request.headers)
+                )
                 self.log_activity_time("GET REQUEST for DATASET RESULTS", start, request)
                 return result
             
@@ -141,14 +157,16 @@ class DatasetRoutes(RouteBase):
                 start = time.time()
                 curr_dataset_name = self.get_name_from_path_section(request, -1)
                 payload: dict = await request.json()
-                result = await self._get_dataset_results_definition(curr_dataset_name, user, payload, params.model_dump())
+                result = await self._get_dataset_results_definition(
+                    curr_dataset_name, user, payload, params.model_dump(), headers=dict(request.headers)
+                )
                 self.log_activity_time("POST REQUEST for DATASET RESULTS", start, request)
                 return result
     
         # Setup MCP tools
 
         @mcp.tool(
-            name=f"get_dataset_parameters_for_{project_name}_{project_version}",
+            name=f"get_dataset_parameters",
             description=dedent(f"""
             Use this tool to get updates for dataset parameters in the Squirrels project "{project_name}" when a selection is to be made on a parameter with "trigger_refresh" as true.
 
@@ -163,7 +181,8 @@ class DatasetRoutes(RouteBase):
             parameter_name: str = Field(description="The name of the parameter triggering the refresh"),
             selected_ids: list[str] = Field(description="The ID(s) of the selected option(s) for the parameter"),
         ):
-            user = self.get_user_from_tool_ctx(ctx)
+            headers = self.get_headers_from_tool_ctx(ctx)
+            user = self.get_user_from_tool_headers(headers)
             dataset_name = u.normalize_name(dataset)
             payload = {
                 "x_parent_param": parameter_name,
@@ -172,7 +191,7 @@ class DatasetRoutes(RouteBase):
             return await get_dataset_parameters_updates(dataset_name, user, payload, payload)
         
         @mcp.tool(
-            name=f"get_dataset_results_for_{project_name}_{project_version}",
+            name=f"get_dataset_results",
             description=dedent(f"""
             Use this tool to get the dataset results as a JSON object for a dataset in the Squirrels project "{project_name}".
             - Use the "offset" and "limit" arguments to limit the number of rows you require
@@ -192,51 +211,28 @@ class DatasetRoutes(RouteBase):
             - For number ranges, use array of numbers like [1,100]
             - For text, use a string for the text value
             - Complex objects are NOT supported""").strip()),
-            offset: int = Field(0, description="The number of rows to skip from first row. Default is 0."),
-            limit: int = Field(100, description="The maximum number of rows to return. Default is 100. Maximum allowed value is 100."),
+            sql_query: str | None = Field(None, description=dedent("""
+            A custom DuckDB SQL query to execute on the final dataset result. 
+            - Use table name 'result' to reference the dataset result.
+            - Use this to apply transformations to the dataset result (such as filtering, sorting, or selecting columns).
+            - If not provided, the dataset result is returned as is.
+            """).strip()),
+            offset: int = Field(0, description="The number of rows to skip from first row. Applied after final SQL. Default is 0."),
+            limit: int = Field(100, description="The maximum number of rows to return. Applied after final SQL. Default is 100. Maximum allowed value is 100."),
         ):
             if limit > 100:
                 raise ValueError("The maximum number of rows to return is 100.")
 
-            user = self.get_user_from_tool_ctx(ctx)
+            headers = self.get_headers_from_tool_ctx(ctx)
+            user = self.get_user_from_tool_headers(headers)
             dataset_name = u.normalize_name(dataset)
             params = {
                 **parameters,
                 "x_orientation": "rows",
+                "x_sql_query": sql_query,
                 "x_offset": offset,
                 "x_limit": limit
             }
-            result = await self._get_dataset_results_definition(dataset_name, user, params, params)
+            result = await self._get_dataset_results_definition(dataset_name, user, params, params, headers)
             return result
-        
-        # Setup UI for tool results
-        mcp_tool_results_ui_path = project_metadata_path + "/mcp/tool-results-ui"
-
-        @app.get(mcp_tool_results_ui_path + "/list-tools", tags=["MCP Supplements"])
-        async def list_tools():
-            return ["get_dataset_results"]
-
-        class ToolResultBody(BaseModel):
-            """Flexible model for tool results - accepts any additional fields"""
-            
-            class Config:
-                extra = "allow"  # Allow additional fields not defined in the model
-
-        @app.post(mcp_tool_results_ui_path + "/tool/{tool_name}", tags=["MCP Supplements"])
-        async def tool_results_ui(tool_name: str, tool_result: ToolResultBody):
-            if tool_name == "get_dataset_results":
-                # Convert Pydantic model to dict to access any extra fields
-                tool_result_dict = tool_result.model_dump()
-                
-                # Prepare template context
-                context = {
-                    "schema": tool_result_dict.get("schema", {}),
-                    "data": tool_result_dict.get("data", []),
-                }
-                
-                # Render HTML template
-                html_content = self.templates.get_template("dataset_results.html").render(context)
-                return HTMLResponse(content=html_content, status_code=200)
-            else:
-                raise InvalidInputError(400, "Invalid tool name", f"Tool name '{tool_name}' not supported for UI")
         

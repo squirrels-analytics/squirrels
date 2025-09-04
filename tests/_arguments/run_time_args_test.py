@@ -11,6 +11,6 @@ from squirrels._arguments.run_time_args import ParametersArgs, ContextArgs, Text
 ])
 def test_set_placeholder(placeholder: str, value: Any, expected: Any):
     param_args = ParametersArgs("", {}, {})
-    context_args = ContextArgs(param_args, None, {}, {})
+    context_args = ContextArgs(param_args, None, {}, {}, {})
     assert context_args.set_placeholder(placeholder, value) == ""
     assert context_args._placeholders_copy[placeholder] == expected

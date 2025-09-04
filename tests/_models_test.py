@@ -12,7 +12,7 @@ def simple_model_config() -> mc.FederateModelConfig:
 @pytest.fixture(scope="module")
 def context_args() -> ContextArgs:
     param_args = ParametersArgs("", {}, {})
-    return ContextArgs(param_args, None, {}, {})
+    return ContextArgs(param_args, None, {}, {}, {})
 
 
 @pytest.fixture(scope="module")

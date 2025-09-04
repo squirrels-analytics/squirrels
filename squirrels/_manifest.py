@@ -114,6 +114,19 @@ class DbConnConfig(ConnectionProperties, _ConfigWithNameBaseModel):
         return self
 
 
+class ConfigurablesConfig(BaseModel):
+    name: str
+    label: str = ""
+    default: str = ""
+    description: str = ""
+
+    @field_validator("default", mode="before")
+    @classmethod
+    def convert_default_to_string(cls, value: Any) -> str:
+        """Convert the default value to a string if it's not already one."""
+        return str(value) if value is not None else ""
+
+
 class ParametersConfig(BaseModel):
     type: str
     factory: str
@@ -124,6 +137,20 @@ class PermissionScope(Enum):
     PUBLIC = 0
     PROTECTED = 1
     PRIVATE = 2
+
+
+class AuthenticationEnforcement(Enum):
+    REQUIRED = "required"
+    OPTIONAL = "optional"
+    DISABLED = "disabled"
+
+class AuthenticationType(Enum):
+    MANAGED = "managed"
+    EXTERNAL = "external"
+
+class AuthenticationConfig(BaseModel):
+    enforcement: AuthenticationEnforcement = AuthenticationEnforcement.OPTIONAL
+    type: AuthenticationType = AuthenticationType.MANAGED
 
 
 class AnalyticsOutputConfig(_ConfigWithNameBaseModel):
@@ -180,9 +207,11 @@ class TestSetsConfig(_ConfigWithNameBaseModel):
 
 class ManifestConfig(BaseModel):
     project_variables: ProjectVarsConfig
+    authentication: AuthenticationConfig = Field(default_factory=AuthenticationConfig)
     packages: list[PackageConfig] = Field(default_factory=list)
     connections: dict[str, DbConnConfig] = Field(default_factory=dict)
     parameters: list[ParametersConfig] = Field(default_factory=list)
+    configurables: dict[str, ConfigurablesConfig] = Field(default_factory=dict)
     selection_test_sets: dict[str, TestSetsConfig] = Field(default_factory=dict)
     dataset_traits: dict[str, DatasetTraitConfig] = Field(default_factory=dict)
     datasets: dict[str, DatasetConfig] = Field(default_factory=dict)
@@ -199,7 +228,7 @@ class ManifestConfig(BaseModel):
             set_of_directories.add(package.directory)
         return packages
     
-    @field_validator("connections", "selection_test_sets", "dataset_traits", "datasets", mode="before")
+    @field_validator("connections", "selection_test_sets", "dataset_traits", "datasets", "configurables", mode="before")
     @classmethod
     def names_are_unique(cls, values: list[dict] | dict[str, dict], info: ValidationInfo) -> dict[str, dict]:
         if isinstance(values, list):
@@ -236,6 +265,21 @@ class ManifestConfig(BaseModel):
                     dataset.traits[trait_name] = trait_config.default
                     
         return self
+
+    @model_validator(mode="after")
+    def validate_authentication_and_scopes(self) -> Self:
+        """
+        Enforce authentication rules:
+        - If authentication.is_required, no dataset may be PUBLIC.
+        """
+        if self.authentication.enforcement == AuthenticationEnforcement.REQUIRED:
+            invalid = [name for name, ds in self.datasets.items() if ds.scope == PermissionScope.PUBLIC]
+            if invalid:
+                raise ValueError(
+                    "Authentication is required, so datasets cannot be public. "
+                    f"Update the scope for datasets: {invalid}"
+                )
+        return self
     
     def get_default_test_set(self, dataset_name: str) -> TestSetsConfig:
         """
@@ -260,6 +304,17 @@ class ManifestConfig(BaseModel):
             default_traits[trait_name] = trait_config.default
         return default_traits
 
+    def get_default_configurables(self) -> dict[str, str]:
+        """
+        Return a dictionary of configurable name to its default value.
+
+        Supports both list- and dict-shaped internal storage for configurables.
+        """
+        defaults: dict[str, str] = {}
+        for name, cfg in self.configurables.items():
+            defaults[name] = str(cfg.default)
+        return defaults
+
 
 class ManifestIO:
 
@@ -269,7 +324,19 @@ class ManifestIO:
 
         raw_content = u.read_file(u.Path(base_path, c.MANIFEST_FILE))
         content = u.render_string(raw_content, base_path=base_path, env_vars=env_vars)
-        manifest_content = yaml.safe_load(content)
+        manifest_content: dict[str, Any] = yaml.safe_load(content)
+
+        auth_cfg: dict[str, Any] = manifest_content.get("authentication", {})
+        is_auth_required = bool(auth_cfg.get("is_required", False))
+
+        if is_auth_required:
+            # If authentication is required, assume PROTECTED when scope is not specified
+            # while explicitly forbidding PUBLIC (enforced in model validator)
+            datasets_raw = manifest_content.get("datasets", [])
+            for ds in datasets_raw:
+                if isinstance(ds, dict) and "scope" not in ds:
+                    ds["scope"] = "protected"
+        
         try:
             manifest_cfg = ManifestConfig(base_path=base_path, **manifest_content)
         except ValidationError as e:

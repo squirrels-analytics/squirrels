@@ -359,8 +359,8 @@ class QueryModel(DataModel):
         is_placeholder = lambda placeholder: placeholder in ctx_args._placeholders_copy
         kwargs = {
             "proj_vars": ctx_args.proj_vars, "env_vars": ctx_args.env_vars, "user": ctx_args.user, "prms": ctx_args.prms, 
-            "traits": ctx_args.traits, "ctx": ctx, "is_placeholder": is_placeholder, "set_placeholder": ctx_args.set_placeholder,
-            "param_exists": ctx_args.param_exists
+            "traits": ctx_args.traits, "configurables": ctx_args.configurables, "ctx": ctx, "is_placeholder": is_placeholder, 
+            "set_placeholder": ctx_args.set_placeholder, "param_exists": ctx_args.param_exists
         }
         return kwargs
     
@@ -866,14 +866,15 @@ class DAG:
         self.logger.log_activity_time("applying selections" + msg_extension, start)
     
     def _compile_context(
-        self, param_args: ParametersArgs, context_func: ContextFunc, user: BaseUser | None, default_traits: dict[str, Any]
+        self, param_args: ParametersArgs, context_func: ContextFunc, user: BaseUser | None, default_traits: dict[str, Any], 
+        configurables: dict[str, str]
     ) -> tuple[dict[str, Any], ContextArgs]:
         start = time.time()
         context = {}
         assert isinstance(self.parameter_set, ParameterSet)
         prms = self.parameter_set.get_parameters_as_dict()
         traits = self.dataset.traits if self.dataset else default_traits
-        args = ContextArgs(param_args, user, prms, traits)
+        args = ContextArgs(param_args, user, prms, traits, configurables)
         msg_extension = self._get_msg_extension()
         try:
             context_func(context, args)
@@ -925,13 +926,13 @@ class DAG:
     
     async def execute(
         self, param_args: ParametersArgs, param_cfg_set: ParameterConfigsSet, context_func: ContextFunc, user: BaseUser | None, selections: dict[str, str], 
-        *, runquery: bool = True, recurse: bool = True, default_traits: dict[str, Any] = {}
+        *, runquery: bool = True, recurse: bool = True, default_traits: dict[str, Any] = {}, configurables: dict[str, str] = {}
     ) -> None:
         recurse = (recurse or runquery)
 
         self.apply_selections(param_cfg_set, user, selections)
 
-        context, ctx_args = self._compile_context(param_args, context_func, user, default_traits)
+        context, ctx_args = self._compile_context(param_args, context_func, user, default_traits, configurables)
 
         self._compile_models(context, ctx_args, recurse)
         

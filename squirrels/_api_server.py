@@ -1,6 +1,7 @@
 from fastapi import FastAPI, Request, status
-from fastapi.responses import JSONResponse, RedirectResponse
+from fastapi.responses import JSONResponse, HTMLResponse, RedirectResponse
 from fastapi.security import HTTPBearer
+from fastapi.templating import Jinja2Templates
 from starlette.middleware.base import BaseHTTPMiddleware
 from starlette.responses import Response as StarletteResponse
 from contextlib import asynccontextmanager
@@ -8,7 +9,7 @@ from argparse import Namespace
 from pathlib import Path
 from starlette.middleware.sessions import SessionMiddleware
 from mcp.server.fastmcp import FastMCP
-import io, time, mimetypes, traceback, uuid, asyncio, urllib.parse, contextlib
+import io, time, mimetypes, traceback, uuid, asyncio, contextlib
 
 from . import _constants as c, _utils as u
 from ._exceptions import InvalidInputError, ConfigurationError, FileExecutionError
@@ -93,7 +94,10 @@ class ApiServer:
         self.context_func = project._context_func
         self.dashboards = project._dashboards
         
-        self.mcp = FastMCP(name="Squirrels", stateless_http=True)
+        self.mcp = FastMCP(
+            name="Squirrels",
+            stateless_http=True
+        )
 
         # Initialize route modules
         get_bearer_token = HTTPBearer(auto_error=False)
@@ -279,23 +283,32 @@ class ApiServer:
     
         # Add Root Path Redirection to Squirrels Studio
         full_hostname = f"http://{uvicorn_args.host}:{uvicorn_args.port}"
-        encoded_hostname = urllib.parse.quote(full_hostname, safe="")
-        squirrels_studio_params = f"host={encoded_hostname}&projectName={project_name}&projectVersion={project_version}"
-        squirrels_studio_url = f"https://squirrels-analytics.github.io/squirrels-studio-v1/#/login?{squirrels_studio_params}"
+        squirrels_studio_path = f"/project/{project_name}/{project_version}/studio"
+        templates = Jinja2Templates(directory=str(Path(__file__).parent / "_package_data" / "templates"))
+
+        @app.get(squirrels_studio_path, include_in_schema=False)
+        async def squirrels_studio():
+            default_studio_path = "https://squirrels-analytics.github.io/squirrels-studio-v1"
+            sqrl_studio_base_url = self.env_vars.get(c.SQRL_STUDIO_BASE_URL, default_studio_path)
+            context = {
+                "sqrl_studio_base_url": sqrl_studio_base_url,
+                "project_name": project_name,
+                "project_version": project_version,
+            }
+            return HTMLResponse(content=templates.get_template("squirrels_studio.html").render(context))
         
         @app.get("/", include_in_schema=False)
         async def redirect_to_studio():
-            return RedirectResponse(url=squirrels_studio_url)
+            return RedirectResponse(url=squirrels_studio_path)
 
         # Run the API Server
         import uvicorn
         
         print("\nWelcome to the Squirrels Data Application!\n")
-        print(f"- Application UI: {squirrels_studio_url}")
+        print(f"- Application UI: {full_hostname}{squirrels_studio_path}")
         print(f"- API Docs (with ReDoc): {full_hostname}{project_metadata_path}/redoc")
         print(f"- API Docs (with Swagger UI): {full_hostname}{project_metadata_path}/docs")
         print()
         
         self.logger.log_activity_time("creating app server", start)
         uvicorn.run(app, host=uvicorn_args.host, port=uvicorn_args.port, proxy_headers=True, forwarded_allow_ips="*")
-    

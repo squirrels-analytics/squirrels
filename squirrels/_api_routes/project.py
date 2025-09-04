@@ -14,7 +14,7 @@ from .. import _utils as u, _constants as c
 from .._schemas import response_models as rm
 from .._parameter_sets import ParameterSet
 from .._exceptions import ConfigurationError, InvalidInputError
-from .._manifest import PermissionScope
+from .._manifest import PermissionScope, AuthenticationEnforcement
 from .._version import __version__
 from .._schemas.query_param_models import get_query_models_for_parameters
 from .._auth import BaseUser
@@ -130,10 +130,15 @@ class ProjectRoutes(RouteBase):
                 connections_items = self.project._get_all_connections()
                 data_models = self.project._get_all_data_models(compiled_dag)
                 lineage_items = self.project._get_all_data_lineage(compiled_dag)
+                configurables_list = [
+                    rm.ConfigurableItemModel(name=name, label=cfg.label, default=cfg.default, description=cfg.description)
+                    for name, cfg in self.manifest_cfg.configurables.items()
+                ]
             else:
                 connections_items = []
                 data_models = []
                 lineage_items = []
+                configurables_list = []
 
             return rm.CatalogModel(
                 parameters=parameters_model.parameters, 
@@ -142,6 +147,7 @@ class ProjectRoutes(RouteBase):
                 connections=connections_items,
                 models=data_models,
                 lineage=lineage_items,
+                configurables=configurables_list,
             )
         
         @app.get(data_catalog_path, tags=["Project Metadata"], summary="Get catalog of datasets and dashboards available for user")
@@ -151,14 +157,18 @@ class ProjectRoutes(RouteBase):
             
             For admin users, this endpoint will also return detailed information about all models and their lineage in the project.
             """
+            # If authentication is required, require user to be authenticated to access catalog
+            if self.manifest_cfg.authentication.enforcement == AuthenticationEnforcement.REQUIRED and user is None:
+                raise InvalidInputError(401, "user_required", "Authentication is required to access the data catalog")
             return await get_data_catalog0(user)
         
         @mcp.tool(
-            name=f"get_data_catalog_for_{project_name}_{project_version}", 
+            name=f"get_data_catalog", 
             description=f"Use this tool to get the details of all datasets and parameters you can access in the Squirrels project '{project_name}'."
         )
         async def get_data_catalog_tool(ctx: Context):
-            user = self.get_user_from_tool_ctx(ctx)
+            headers = self.get_headers_from_tool_ctx(ctx)
+            user = self.get_user_from_tool_headers(headers)
             data_catalog = await get_data_catalog0(user)
             restricted_data_catalog = {
                 "parameters": data_catalog.parameters,
