@@ -1,4 +1,4 @@
-from typing import Annotated, Literal
+from typing import Annotated, Literal, Any
 from pydantic import BaseModel, Field
 from datetime import date
 
@@ -118,18 +118,18 @@ class DatasetItemModel(BaseModel):
     name: Annotated[str, Field(examples=["mydataset"], description=name_description)]
     label: Annotated[str, Field(examples=["My Dataset"], description=label_description)]
     description: Annotated[str, Field(examples=[""], description=description_description)]
-    parameters: Annotated[list[str], Field(examples=["myparam1", "myparam2"], description="The list of parameter names used by the dataset")]
+    parameters: Annotated[list[str], Field(examples=["myparam1", "myparam2"], description="The list of parameter names used by the dataset. If the list is empty, the dataset does not accept any parameters.")]
     data_schema: Annotated[SchemaWithConditionModel, Field(alias="schema", description="JSON object describing the schema of the dataset")]
-    parameters_path: Annotated[str, Field(examples=["/squirrels-v0/myproject/v1/dataset/mydataset/parameters"], description=parameters_path_description)]
-    result_path: Annotated[str, Field(examples=["/squirrels-v0/myproject/v1/dataset/mydataset"], description=result_path_description)]
+    parameters_path: Annotated[str, Field(examples=["/squirrels/v0/myproject/v1/dataset/mydataset/parameters"], description=parameters_path_description)]
+    result_path: Annotated[str, Field(examples=["/squirrels/v0/myproject/v1/dataset/mydataset"], description=result_path_description)]
 
 class DashboardItemModel(ParametersModel):
     name: Annotated[str, Field(examples=["mydashboard"], description=name_description)]
     label: Annotated[str, Field(examples=["My Dashboard"], description=label_description)]
     description: Annotated[str, Field(examples=[""], description=description_description)]
     parameters: Annotated[list[str], Field(examples=["myparam1", "myparam2"], description="The list of parameter names used by the dashboard")]
-    parameters_path: Annotated[str, Field(examples=["/squirrels-v0/myproject/v1/dashboard/mydashboard/parameters"], description=parameters_path_description)]
-    result_path: Annotated[str, Field(examples=["/squirrels-v0/myproject/v1/dashboard/mydashboard"], description=result_path_description)]
+    parameters_path: Annotated[str, Field(examples=["/squirrels/v0/myproject/v1/dashboard/mydashboard/parameters"], description=parameters_path_description)]
+    result_path: Annotated[str, Field(examples=["/squirrels/v0/myproject/v1/dashboard/mydashboard"], description=result_path_description)]
     result_format: Annotated[str, Field(examples=["png", "html"], description="The format of the dashboard's result API response (one of 'png' or 'html')")]
 
 ModelConfigType = mc.ModelConfig | s.Source | mc.SeedConfig | mc.BuildModelConfig | mc.DbviewModelConfig | mc.FederateModelConfig
@@ -155,13 +155,22 @@ class LineageRelation(BaseModel):
     source: LineageNode
     target: LineageNode
 
-class CatalogModel(BaseModel):
-    parameters: Annotated[ParametersListType, Field(description="The list of all parameters in the project")]
+class ConfigurableItemModel(BaseModel):
+    name: str
+    label: str
+    default: str
+    description: str
+
+class CatalogModelForTool(BaseModel):
+    parameters: Annotated[ParametersListType, Field(description="The list of all parameters in the project. It is possible that not all parameters are used by a dataset.")]
     datasets: Annotated[list[DatasetItemModel], Field(description="The list of accessible datasets")]
+    
+class CatalogModel(CatalogModelForTool):
     dashboards: Annotated[list[DashboardItemModel], Field(description="The list of accessible dashboards")]
     connections: Annotated[list[ConnectionItemModel], Field(description="The list of connections in the project (only provided for admin users)")]
     models: Annotated[list[DataModelItem], Field(description="The list of data models in the project (only provided for admin users)")]
     lineage: Annotated[list[LineageRelation], Field(description="The lineage information between data assets (only provided for admin users)")]
+    configurables: Annotated[list[ConfigurableItemModel], Field(description="The list of configurables (only provided for admin users)")]
 
 
 ## Dataset Results Response Models
@@ -184,7 +193,7 @@ class DatasetResultModel(BaseModel):
 
 class ProjectVersionModel(BaseModel):
     major_version: Annotated[int, Field(examples=[1])]
-    data_catalog_path: Annotated[str, Field(examples=["/squirrels-v0/project/myproject/v1/data-catalog"])]
+    data_catalog_path: Annotated[str, Field(examples=["/squirrels/v0/project/myproject/v1/data-catalog"])]
 
 class ProjectModel(BaseModel):
     name: Annotated[str, Field(examples=["myproject"])]

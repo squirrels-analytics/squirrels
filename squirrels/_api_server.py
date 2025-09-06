@@ -1,6 +1,7 @@
 from fastapi import FastAPI, Request, status
-from fastapi.responses import JSONResponse, RedirectResponse
+from fastapi.responses import JSONResponse, HTMLResponse, RedirectResponse
 from fastapi.security import HTTPBearer
+from fastapi.templating import Jinja2Templates
 from starlette.middleware.base import BaseHTTPMiddleware
 from starlette.responses import Response as StarletteResponse
 from contextlib import asynccontextmanager
@@ -8,7 +9,7 @@ from argparse import Namespace
 from pathlib import Path
 from starlette.middleware.sessions import SessionMiddleware
 from mcp.server.fastmcp import FastMCP
-import io, time, mimetypes, traceback, uuid, asyncio, urllib.parse, contextlib
+import io, time, mimetypes, traceback, uuid, asyncio, contextlib
 
 from . import _constants as c, _utils as u
 from ._exceptions import InvalidInputError, ConfigurationError, FileExecutionError
@@ -32,10 +33,11 @@ class SmartCORSMiddleware(BaseHTTPMiddleware):
     while still allowing all other origins without credentials.
     """
     
-    def __init__(self, app, allowed_credential_origins: list[str] | None = None):
+    def __init__(self, app, allowed_credential_origins: list[str], configurables_as_headers: list[str]):
         super().__init__(app)
         # Origins that are allowed to send credentials (cookies, auth headers)
-        self.allowed_credential_origins = allowed_credential_origins or []
+        self.allowed_credential_origins = allowed_credential_origins
+        self.allowed_request_headers = ",".join(["Authorization", "Content-Type"] + configurables_as_headers)
     
     async def dispatch(self, request: Request, call_next):
         origin = request.headers.get("origin")
@@ -44,7 +46,7 @@ class SmartCORSMiddleware(BaseHTTPMiddleware):
         if request.method == "OPTIONS":
             response = StarletteResponse(status_code=200) 
             response.headers["Access-Control-Allow-Methods"] = "GET, POST, PUT, DELETE, OPTIONS"
-            response.headers["Access-Control-Allow-Headers"] = "Authorization, Content-Type"
+            response.headers["Access-Control-Allow-Headers"] = self.allowed_request_headers
         
         else:
             # Call the next middleware/route
@@ -93,7 +95,10 @@ class ApiServer:
         self.context_func = project._context_func
         self.dashboards = project._dashboards
         
-        self.mcp = FastMCP(name="Squirrels", stateless_http=True)
+        self.mcp = FastMCP(
+            name="Squirrels",
+            stateless_http=True
+        )
 
         # Initialize route modules
         get_bearer_token = HTTPBearer(auto_error=False)
@@ -188,7 +193,7 @@ class ApiServer:
         """
         start = time.time()
         
-        squirrels_version_path = f'/api/squirrels-v{sq_major_version}'
+        squirrels_version_path = f'/api/squirrels/v{sq_major_version}'
         project_name = u.normalize_name_for_api(self.manifest_cfg.project_variables.name)
         project_version = f"v{self.manifest_cfg.project_variables.major_version}"
         project_metadata_path = squirrels_version_path + f"/project/{project_name}/{project_version}"
@@ -265,12 +270,13 @@ class ApiServer:
         # Get allowed origins for credentials from environment variable
         credential_origins_env = self.env_vars.get(c.SQRL_AUTH_CREDENTIAL_ORIGINS, "https://squirrels-analytics.github.io")
         allowed_credential_origins = [origin.strip() for origin in credential_origins_env.split(",") if origin.strip()]
+        configurables_as_headers = [f"x-config-{u.normalize_name_for_api(name)}" for name in self.manifest_cfg.configurables.keys()]
         
-        app.add_middleware(SmartCORSMiddleware, allowed_credential_origins=allowed_credential_origins)
+        app.add_middleware(SmartCORSMiddleware, allowed_credential_origins=allowed_credential_origins, configurables_as_headers=configurables_as_headers)
         
         # Setup route modules
-        self.oauth2_routes.setup_routes(app)
-        self.auth_routes.setup_routes(app)
+        self.oauth2_routes.setup_routes(app, squirrels_version_path)
+        self.auth_routes.setup_routes(app, squirrels_version_path)
         get_parameters_definition = self.project_routes.setup_routes(app, self.mcp, project_metadata_path, project_name, project_version, param_fields)
         self.data_management_routes.setup_routes(app, project_metadata_path, param_fields)
         self.dataset_routes.setup_routes(app, self.mcp, project_metadata_path, project_name, project_version, param_fields, get_parameters_definition)
@@ -279,23 +285,33 @@ class ApiServer:
     
         # Add Root Path Redirection to Squirrels Studio
         full_hostname = f"http://{uvicorn_args.host}:{uvicorn_args.port}"
-        encoded_hostname = urllib.parse.quote(full_hostname, safe="")
-        squirrels_studio_params = f"host={encoded_hostname}&projectName={project_name}&projectVersion={project_version}"
-        squirrels_studio_url = f"https://squirrels-analytics.github.io/squirrels-studio-v1/#/login?{squirrels_studio_params}"
+        squirrels_studio_path = f"/project/{project_name}/{project_version}/studio"
+        templates = Jinja2Templates(directory=str(Path(__file__).parent / "_package_data" / "templates"))
+
+        @app.get(squirrels_studio_path, include_in_schema=False)
+        async def squirrels_studio():
+            default_studio_path = "https://squirrels-analytics.github.io/squirrels-studio-v1"
+            sqrl_studio_base_url = self.env_vars.get(c.SQRL_STUDIO_BASE_URL, default_studio_path)
+            context = {
+                "sqrl_studio_base_url": sqrl_studio_base_url,
+                "project_name": project_name,
+                "project_version": project_version,
+            }
+            return HTMLResponse(content=templates.get_template("squirrels_studio.html").render(context))
         
         @app.get("/", include_in_schema=False)
         async def redirect_to_studio():
-            return RedirectResponse(url=squirrels_studio_url)
+            return RedirectResponse(url=squirrels_studio_path)
 
         # Run the API Server
         import uvicorn
         
         print("\nWelcome to the Squirrels Data Application!\n")
-        print(f"- Application UI: {squirrels_studio_url}")
+        print(f"- Application UI: {full_hostname}{squirrels_studio_path}")
         print(f"- API Docs (with ReDoc): {full_hostname}{project_metadata_path}/redoc")
         print(f"- API Docs (with Swagger UI): {full_hostname}{project_metadata_path}/docs")
+        print(f"- MCP Server URL: {full_hostname}{project_metadata_path}/mcp")
         print()
         
         self.logger.log_activity_time("creating app server", start)
         uvicorn.run(app, host=uvicorn_args.host, port=uvicorn_args.port, proxy_headers=True, forwarded_allow_ips="*")
-    

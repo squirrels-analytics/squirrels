@@ -35,19 +35,17 @@ class DatasetMetadata:
 @dataclass
 class DatasetResult(DatasetMetadata):
     df: pl.DataFrame
-    to_json: Callable[[str, tuple[str, ...], int, int], dict] = field(init=False)
+    to_json: Callable[[str, int, int], dict] = field(init=False)
 
     def __post_init__(self):
         self.to_json = lru_cache()(self._to_json)
     
-    def _to_json(self, orientation: Literal["records", "rows", "columns"], select: tuple[str, ...], limit: int, offset: int) -> dict:
+    def _to_json(self, orientation: Literal["records", "rows", "columns"], limit: int, offset: int) -> dict:
         df = self.df.lazy()
         if offset > 0:
             df = df.filter(pl.col("_row_num") > offset)
         if limit > 0:
             df = df.limit(limit)
-        if select:
-            df = df.select(select)
         df = df.collect()
         
         if orientation == "columns":

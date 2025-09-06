@@ -36,11 +36,12 @@ class Authenticator(_t.Generic[User]):
 
     def __init__(
         self, logger: u.Logger, base_path: str, auth_args: AuthProviderArgs, provider_functions: list[ProviderFunctionType], 
-        user_cls: type[User], *, sa_engine: Engine | None = None
+        user_cls: type[User], *, sa_engine: Engine | None = None, external_only: bool = False
     ):
         self.logger = logger
         self.env_vars = auth_args.env_vars
         self.secret_key = self.env_vars.get(c.SQRL_SECRET_KEY)
+        self.external_only = external_only
 
         # Create a new declarative base for this instance
         self.Base = declarative_base()

@@ -83,7 +83,9 @@ class RouteBase:
     def _validate_request_params(self, all_request_params: Mapping, params: Mapping) -> None:
         """Validate request parameters"""
         if params.get("x_verify_params", False):
-            invalid_params = [param for param in all_request_params if param not in params]
+            invalid_params = [
+                param for param in all_request_params if param not in params
+            ]
             if invalid_params:
                 raise InvalidInputError(400, "Invalid query parameters", f"Invalid query parameters: {', '.join(invalid_params)}")
     
@@ -132,18 +134,31 @@ class RouteBase:
         except ValueError:
             raise ConfigurationError(f"Value for environment variable {c.SQRL_AUTH_TOKEN_EXPIRE_MINUTES} is not an integer, got: {expiry_mins}")
         return expiry_mins
-
-    def get_user_from_tool_ctx(self, tool_ctx: Context):
+    
+    def get_headers_from_tool_ctx(self, tool_ctx: Context) -> dict[str, str]:
         request = tool_ctx.request_context.request
         assert request is not None and hasattr(request, "headers")
         headers: dict[str, str] = request.headers
-        # Check if 'Authorization' header is present
-        authorization_header = headers.get('Authorization')
+        return headers
+
+    def get_configurables_from_headers(self, headers: Mapping[str, str]) -> tuple[tuple[str, str], ...]:
+        """Extract configurables from request headers with prefix 'x-config-'."""
+        prefix = "x-config-"
+        cfg_pairs: list[tuple[str, str]] = []
+        for key, value in headers.items():
+            key_lower = str(key).lower()
+            if key_lower.startswith(prefix):
+                cfg_name = key_lower[len(prefix):]
+                cfg_pairs.append((u.normalize_name(cfg_name), str(value)))
         
+        self.logger.info(f"Configurables: {dict(cfg_pairs)}")
+        print(f"Configurables: {dict(cfg_pairs)}")
+        return tuple(cfg_pairs)
+    
+    def get_user_from_tool_headers(self, headers: dict[str, str]):
+        authorization_header = headers.get('Authorization')
         if authorization_header:
-            # Split the header into 'Bearer <token>'
             parts = authorization_header.split()
-            
             if len(parts) == 2 and parts[0] == 'Bearer':
                 access_token = parts[1]
                 user = self.authenticator.get_user_from_token(access_token)

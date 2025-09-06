@@ -127,7 +127,7 @@ def read_file(filepath: FilePath) -> str:
 
 def normalize_name(name: str) -> str:
     """
-    Normalizes names to the convention of the squirrels manifest file.
+    Normalizes names to the convention of the squirrels manifest file (with underscores instead of dashes).
 
     Arguments:
         name: The name to normalize.
@@ -140,7 +140,7 @@ def normalize_name(name: str) -> str:
 
 def normalize_name_for_api(name: str) -> str:
     """
-    Normalizes names to the REST API convention.
+    Normalizes names to the REST API convention (with dashes instead of underscores).
 
     Arguments:
         name: The name to normalize.

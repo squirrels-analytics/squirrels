@@ -31,19 +31,20 @@ class DataManagementRoutes(RouteBase):
         self.query_models_cache = TTLCache(maxsize=dataset_results_cache_size, ttl=dataset_results_cache_ttl*60)
         
     async def _query_models_helper(
-        self, sql_query: str, user: BaseUser | None, selections: tuple[tuple[str, Any], ...]
+        self, sql_query: str, user: BaseUser | None, selections: tuple[tuple[str, Any], ...], configurables: tuple[tuple[str, str], ...]
     ) -> DatasetResult:
         """Helper to query models"""
-        return await self.project.query_models(sql_query, selections=dict(selections), user=user)
+        cfg_filtered = {k: v for k, v in dict(configurables).items() if k in self.manifest_cfg.configurables}
+        return await self.project.query_models(sql_query, selections=dict(selections), user=user, configurables=cfg_filtered)
 
     async def _query_models_cachable(
-        self, sql_query: str, user: BaseUser | None, selections: tuple[tuple[str, Any], ...]
+        self, sql_query: str, user: BaseUser | None, selections: tuple[tuple[str, Any], ...], configurables: tuple[tuple[str, str], ...]
     ) -> DatasetResult:
         """Cachable version of query models helper"""
-        return await self.do_cachable_action(self.query_models_cache, self._query_models_helper, sql_query, user, selections)
+        return await self.do_cachable_action(self.query_models_cache, self._query_models_helper, sql_query, user, selections, configurables)
 
     async def _query_models_definition(
-        self, user: BaseUser | None, all_request_params: dict, params: dict
+        self, user: BaseUser | None, all_request_params: dict, params: dict, *, headers: dict[str, str]
     ) -> rm.DatasetResultModel:
         """Query models definition"""
         self._validate_request_params(all_request_params, params)
@@ -58,12 +59,13 @@ class DataManagementRoutes(RouteBase):
         query_models_function = self._query_models_helper if self.no_cache else self._query_models_cachable
         uncached_keys = {"x_verify_params", "x_sql_query", "x_orientation", "x_limit", "x_offset"}
         selections = self.get_selections_as_immutable(params, uncached_keys)
-        result = await query_models_function(sql_query, user, selections)
+        configurables = self.get_configurables_from_headers(headers)
+        result = await query_models_function(sql_query, user, selections, configurables)
         
         orientation = params.get("x_orientation", "records")
         limit = params.get("x_limit", 1000)
         offset = params.get("x_offset", 0)
-        return rm.DatasetResultModel(**result.to_json(orientation, tuple(), limit, offset)) 
+        return rm.DatasetResultModel(**result.to_json(orientation, limit, offset)) 
     
     def setup_routes(self, app: FastAPI, project_metadata_path: str, param_fields: dict) -> None:
         """Setup data management routes"""
@@ -87,7 +89,7 @@ class DataManagementRoutes(RouteBase):
             request: Request, params: QueryModelForQueryModels, user=Depends(self.get_current_user)  # type: ignore
         ) -> rm.DatasetResultModel:
             start = time.time()
-            result = await self._query_models_definition(user, dict(request.query_params), asdict(params))
+            result = await self._query_models_definition(user, dict(request.query_params), asdict(params), headers=dict(request.headers))
             self.log_activity_time("GET REQUEST for QUERY MODELS", start, request)
             return result
         
@@ -97,7 +99,7 @@ class DataManagementRoutes(RouteBase):
         ) -> rm.DatasetResultModel:
             start = time.time()
             payload: dict = await request.json()
-            result = await self._query_models_definition(user, payload, params.model_dump())
+            result = await self._query_models_definition(user, payload, params.model_dump(), headers=dict(request.headers))
             self.log_activity_time("POST REQUEST for QUERY MODELS", start, request)
             return result
     

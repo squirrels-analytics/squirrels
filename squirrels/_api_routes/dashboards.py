@@ -1,7 +1,7 @@
 """
 Dashboard routes for parameters and results
 """
-from typing import Callable, Any
+from typing import Callable, Coroutine, Any
 from fastapi import FastAPI, Depends, Request, Response
 from fastapi.responses import JSONResponse, HTMLResponse
 from fastapi.security import HTTPBearer
@@ -30,26 +30,28 @@ class DashboardRoutes(RouteBase):
         self.dashboard_results_cache = TTLCache(maxsize=dashboard_results_cache_size, ttl=dashboard_results_cache_ttl*60)
         
     async def _get_dashboard_results_helper(
-        self, dashboard: str, user: BaseUser | None, selections: tuple[tuple[str, Any], ...]
+        self, dashboard: str, user: BaseUser | None, selections: tuple[tuple[str, Any], ...], configurables: tuple[tuple[str, str], ...]
     ) -> Dashboard:
         """Helper to get dashboard results"""
-        return await self.project.dashboard(dashboard, selections=dict(selections), user=user)
+        cfg_filtered = {k: v for k, v in dict(configurables).items() if k in self.manifest_cfg.configurables}
+        return await self.project.dashboard(dashboard, selections=dict(selections), user=user, configurables=cfg_filtered)
     
     async def _get_dashboard_results_cachable(
-        self, dashboard: str, user: BaseUser | None, selections: tuple[tuple[str, Any], ...]
+        self, dashboard: str, user: BaseUser | None, selections: tuple[tuple[str, Any], ...], configurables: tuple[tuple[str, str], ...]
     ) -> Dashboard:
         """Cachable version of dashboard results helper"""
-        return await self.do_cachable_action(self.dashboard_results_cache, self._get_dashboard_results_helper, dashboard, user, selections)
+        return await self.do_cachable_action(self.dashboard_results_cache, self._get_dashboard_results_helper, dashboard, user, selections, configurables)
     
     async def _get_dashboard_results_definition(
-        self, dashboard_name: str, user: BaseUser | None, all_request_params: dict, params: dict
+        self, dashboard_name: str, user: BaseUser | None, all_request_params: dict, params: dict, headers: dict[str, str]
     ) -> Response:
         """Get dashboard results definition"""
         self._validate_request_params(all_request_params, params)
         
         get_dashboard_function = self._get_dashboard_results_helper if self.no_cache else self._get_dashboard_results_cachable
         selections = self.get_selections_as_immutable(params, uncached_keys={"x_verify_params"})
-        dashboard_obj = await get_dashboard_function(dashboard_name, user, selections)
+        configurables = self.get_configurables_from_headers(headers)
+        dashboard_obj = await get_dashboard_function(dashboard_name, user, selections, configurables)
         
         if dashboard_obj._format == c.PNG:
             assert isinstance(dashboard_obj._content, bytes)
@@ -61,7 +63,7 @@ class DashboardRoutes(RouteBase):
         return result 
     
     def setup_routes(
-        self, app: FastAPI, project_metadata_path: str, param_fields: dict, get_parameters_definition: Callable
+        self, app: FastAPI, project_metadata_path: str, param_fields: dict, get_parameters_definition: Callable[..., Coroutine[Any, Any, rm.ParametersModel]]
     ) -> None:
         """Setup dashboard routes"""
         
@@ -125,7 +127,9 @@ class DashboardRoutes(RouteBase):
             ) -> Response:
                 start = time.time()
                 curr_dashboard_name = self.get_name_from_path_section(request, -1)
-                result = await self._get_dashboard_results_definition(curr_dashboard_name, user, dict(request.query_params), asdict(params))
+                result = await self._get_dashboard_results_definition(
+                    curr_dashboard_name, user, dict(request.query_params), asdict(params), headers=dict(request.headers)
+                )
                 self.log_activity_time("GET REQUEST for DASHBOARD RESULTS", start, request)
                 return result
 
@@ -136,7 +140,9 @@ class DashboardRoutes(RouteBase):
                 start = time.time()
                 curr_dashboard_name = self.get_name_from_path_section(request, -1)
                 payload: dict = await request.json()
-                result = await self._get_dashboard_results_definition(curr_dashboard_name, user, payload, params.model_dump())
+                result = await self._get_dashboard_results_definition(
+                    curr_dashboard_name, user, payload, params.model_dump(), headers=dict(request.headers)
+                )
                 self.log_activity_time("POST REQUEST for DASHBOARD RESULTS", start, request)
                 return result
     
