@@ -1,7 +1,7 @@
 """
 Dataset routes for parameters and results
 """
-from typing import Callable, Any
+from typing import Callable, Coroutine, Any
 from pydantic import Field
 from fastapi import FastAPI, Depends, Request
 from fastapi.responses import JSONResponse
@@ -39,9 +39,7 @@ class DatasetRoutes(RouteBase):
     ) -> DatasetResult:
         """Helper to get dataset results"""
         # Only pass configurables that are defined in manifest
-        manifest_cfgs = self.manifest_cfg.configurables
-        cfg_filtered = {k: v for k, v in dict(configurables).items() if k in manifest_cfgs}
-        print(cfg_filtered)
+        cfg_filtered = {k: v for k, v in dict(configurables).items() if k in self.manifest_cfg.configurables}
         return await self.project.dataset(dataset, selections=dict(selections), user=user, configurables=cfg_filtered)
 
     async def _get_dataset_results_cachable(
@@ -80,7 +78,7 @@ class DatasetRoutes(RouteBase):
     
     def setup_routes(
         self, app: FastAPI, mcp: FastMCP, project_metadata_path: str, project_name: str, project_version: str, 
-        param_fields: dict, get_parameters_definition: Callable
+        param_fields: dict, get_parameters_definition: Callable[..., Coroutine[Any, Any, rm.ParametersModel]]
     ) -> None:
         """Setup dataset routes"""
         
@@ -180,7 +178,7 @@ class DatasetRoutes(RouteBase):
             dataset: str = Field(description="The name of the dataset whose parameters the trigger parameter will update"),
             parameter_name: str = Field(description="The name of the parameter triggering the refresh"),
             selected_ids: list[str] = Field(description="The ID(s) of the selected option(s) for the parameter"),
-        ):
+        ) -> rm.ParametersModel:
             headers = self.get_headers_from_tool_ctx(ctx)
             user = self.get_user_from_tool_headers(headers)
             dataset_name = u.normalize_name(dataset)
@@ -210,16 +208,17 @@ class DatasetRoutes(RouteBase):
             - For number, use a number like 1
             - For number ranges, use array of numbers like [1,100]
             - For text, use a string for the text value
-            - Complex objects are NOT supported""").strip()),
+            - Complex objects are NOT supported
+            """).strip()),
             sql_query: str | None = Field(None, description=dedent("""
             A custom DuckDB SQL query to execute on the final dataset result. 
             - Use table name 'result' to reference the dataset result.
-            - Use this to apply transformations to the dataset result (such as filtering, sorting, or selecting columns).
+            - Use this to apply transformations to the dataset result if needed (such as filtering, sorting, or selecting columns).
             - If not provided, the dataset result is returned as is.
             """).strip()),
             offset: int = Field(0, description="The number of rows to skip from first row. Applied after final SQL. Default is 0."),
             limit: int = Field(100, description="The maximum number of rows to return. Applied after final SQL. Default is 100. Maximum allowed value is 100."),
-        ):
+        ) -> rm.DatasetResultModel:
             if limit > 100:
                 raise ValueError("The maximum number of rows to return is 100.")
 

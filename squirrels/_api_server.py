@@ -33,10 +33,11 @@ class SmartCORSMiddleware(BaseHTTPMiddleware):
     while still allowing all other origins without credentials.
     """
     
-    def __init__(self, app, allowed_credential_origins: list[str] | None = None):
+    def __init__(self, app, allowed_credential_origins: list[str], configurables_as_headers: list[str]):
         super().__init__(app)
         # Origins that are allowed to send credentials (cookies, auth headers)
-        self.allowed_credential_origins = allowed_credential_origins or []
+        self.allowed_credential_origins = allowed_credential_origins
+        self.allowed_request_headers = ",".join(["Authorization", "Content-Type"] + configurables_as_headers)
     
     async def dispatch(self, request: Request, call_next):
         origin = request.headers.get("origin")
@@ -45,7 +46,7 @@ class SmartCORSMiddleware(BaseHTTPMiddleware):
         if request.method == "OPTIONS":
             response = StarletteResponse(status_code=200) 
             response.headers["Access-Control-Allow-Methods"] = "GET, POST, PUT, DELETE, OPTIONS"
-            response.headers["Access-Control-Allow-Headers"] = "Authorization, Content-Type"
+            response.headers["Access-Control-Allow-Headers"] = self.allowed_request_headers
         
         else:
             # Call the next middleware/route
@@ -192,7 +193,7 @@ class ApiServer:
         """
         start = time.time()
         
-        squirrels_version_path = f'/api/squirrels-v{sq_major_version}'
+        squirrels_version_path = f'/api/squirrels/v{sq_major_version}'
         project_name = u.normalize_name_for_api(self.manifest_cfg.project_variables.name)
         project_version = f"v{self.manifest_cfg.project_variables.major_version}"
         project_metadata_path = squirrels_version_path + f"/project/{project_name}/{project_version}"
@@ -269,12 +270,13 @@ class ApiServer:
         # Get allowed origins for credentials from environment variable
         credential_origins_env = self.env_vars.get(c.SQRL_AUTH_CREDENTIAL_ORIGINS, "https://squirrels-analytics.github.io")
         allowed_credential_origins = [origin.strip() for origin in credential_origins_env.split(",") if origin.strip()]
+        configurables_as_headers = [f"x-config-{u.normalize_name_for_api(name)}" for name in self.manifest_cfg.configurables.keys()]
         
-        app.add_middleware(SmartCORSMiddleware, allowed_credential_origins=allowed_credential_origins)
+        app.add_middleware(SmartCORSMiddleware, allowed_credential_origins=allowed_credential_origins, configurables_as_headers=configurables_as_headers)
         
         # Setup route modules
-        self.oauth2_routes.setup_routes(app)
-        self.auth_routes.setup_routes(app)
+        self.oauth2_routes.setup_routes(app, squirrels_version_path)
+        self.auth_routes.setup_routes(app, squirrels_version_path)
         get_parameters_definition = self.project_routes.setup_routes(app, self.mcp, project_metadata_path, project_name, project_version, param_fields)
         self.data_management_routes.setup_routes(app, project_metadata_path, param_fields)
         self.dataset_routes.setup_routes(app, self.mcp, project_metadata_path, project_name, project_version, param_fields, get_parameters_definition)
@@ -308,6 +310,7 @@ class ApiServer:
         print(f"- Application UI: {full_hostname}{squirrels_studio_path}")
         print(f"- API Docs (with ReDoc): {full_hostname}{project_metadata_path}/redoc")
         print(f"- API Docs (with Swagger UI): {full_hostname}{project_metadata_path}/docs")
+        print(f"- MCP Server URL: {full_hostname}{project_metadata_path}/mcp")
         print()
         
         self.logger.log_activity_time("creating app server", start)

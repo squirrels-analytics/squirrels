@@ -20,11 +20,12 @@ class AuthRoutes(RouteBase):
     def __init__(self, get_bearer_token: HTTPBearer, project, no_cache: bool = False):
         super().__init__(get_bearer_token, project, no_cache)
         
-    def setup_routes(self, app: FastAPI) -> None:
+    def setup_routes(self, app: FastAPI, squirrels_version_path: str) -> None:
         """Setup all authentication routes"""
 
-        auth_router = APIRouter(prefix="/api/auth")
-        user_management_router = APIRouter(prefix="/api/auth/user-management")
+        auth_path = squirrels_version_path + "/auth"
+        auth_router = APIRouter(prefix=auth_path)
+        user_management_router = APIRouter(prefix=auth_path + "/user-management")
         
         # Get expiry configuration
         expiry_mins = self._get_access_token_expiry_minutes()

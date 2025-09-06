@@ -8,6 +8,7 @@ from fastapi.security import HTTPBearer
 from mcp.server.fastmcp import FastMCP, Context
 from dataclasses import asdict
 from cachetools import TTLCache
+from textwrap import dedent
 import time
 
 from .. import _utils as u, _constants as c
@@ -164,17 +165,17 @@ class ProjectRoutes(RouteBase):
         
         @mcp.tool(
             name=f"get_data_catalog", 
-            description=f"Use this tool to get the details of all datasets and parameters you can access in the Squirrels project '{project_name}'."
+            description=dedent(f"""
+            Use this tool to get the details of all datasets and parameters you can access in the Squirrels project '{project_name}'.
+            
+            Unless the data catalog for this project has already been provided, use this tool at the start of each conversation.
+            """).strip()
         )
-        async def get_data_catalog_tool(ctx: Context):
+        async def get_data_catalog_tool(ctx: Context) -> rm.CatalogModelForTool:
             headers = self.get_headers_from_tool_ctx(ctx)
             user = self.get_user_from_tool_headers(headers)
             data_catalog = await get_data_catalog0(user)
-            restricted_data_catalog = {
-                "parameters": data_catalog.parameters,
-                "datasets": data_catalog.datasets,
-            }
-            return restricted_data_catalog
+            return rm.CatalogModelForTool(parameters=data_catalog.parameters, datasets=data_catalog.datasets)
         
         # Project-level parameters endpoints
         project_level_parameters_path = project_metadata_path + '/parameters'

@@ -1,7 +1,7 @@
 """
 Dashboard routes for parameters and results
 """
-from typing import Callable, Any
+from typing import Callable, Coroutine, Any
 from fastapi import FastAPI, Depends, Request, Response
 from fastapi.responses import JSONResponse, HTMLResponse
 from fastapi.security import HTTPBearer
@@ -63,7 +63,7 @@ class DashboardRoutes(RouteBase):
         return result 
     
     def setup_routes(
-        self, app: FastAPI, project_metadata_path: str, param_fields: dict, get_parameters_definition: Callable
+        self, app: FastAPI, project_metadata_path: str, param_fields: dict, get_parameters_definition: Callable[..., Coroutine[Any, Any, rm.ParametersModel]]
     ) -> None:
         """Setup dashboard routes"""
         

@@ -142,14 +142,17 @@ class RouteBase:
         return headers
 
     def get_configurables_from_headers(self, headers: Mapping[str, str]) -> tuple[tuple[str, str], ...]:
-        """Extract configurables from request headers with prefix 'x-configurables-'."""
-        prefix = "x-configurables-"
+        """Extract configurables from request headers with prefix 'x-config-'."""
+        prefix = "x-config-"
         cfg_pairs: list[tuple[str, str]] = []
         for key, value in headers.items():
             key_lower = str(key).lower()
             if key_lower.startswith(prefix):
                 cfg_name = key_lower[len(prefix):]
                 cfg_pairs.append((u.normalize_name(cfg_name), str(value)))
+        
+        self.logger.info(f"Configurables: {dict(cfg_pairs)}")
+        print(f"Configurables: {dict(cfg_pairs)}")
         return tuple(cfg_pairs)
     
     def get_user_from_tool_headers(self, headers: dict[str, str]):

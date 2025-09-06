@@ -51,10 +51,11 @@ class OAuth2Routes(RouteBase):
             status_code=200
         )
     
-    def setup_routes(self, app: FastAPI) -> None:
+    def setup_routes(self, app: FastAPI, squirrels_version_path: str) -> None:
         """Setup all OAuth2 routes"""
 
-        router_path = "/api/auth/oauth2"
+        auth_path = squirrels_version_path + "/auth"
+        router_path = auth_path + "/oauth2"
         router = APIRouter(prefix=router_path)
         
         # Create user models
@@ -161,7 +162,7 @@ class OAuth2Routes(RouteBase):
                 # Check if user is authenticated
                 if user is None:
                     # User is not authenticated - serve login page
-                    return self.serve_login_page("/api/auth", request, client_id)
+                    return self.serve_login_page(auth_path, request, client_id)
                 
                 # TODO: Serve a page with an "authorize" button even if user is already authenticated
                 # Ex. if not request.session.get("authorization_approved"), redirect to a page with button that submits to "/approve-authorization"
