@@ -320,7 +320,7 @@ class Authenticator(_t.Generic[User]):
         try:
             user_data = self.User(**user_fields, username=username).model_dump(mode='json')
         except ValidationError as e:
-            raise InvalidInputError(400, "Invalid user data", f"Invalid user field '{e.errors()[0]['loc'][0]}': {e.errors()[0]['msg']}")
+            raise InvalidInputError(400, "invalid_user_data", f"Invalid user field '{e.errors()[0]['loc'][0]}': {e.errors()[0]['msg']}")
 
         # Add a new user
         try:
@@ -328,20 +328,20 @@ class Authenticator(_t.Generic[User]):
             existing_user = session.get(self.DbUser, username)
             if existing_user is not None:
                 if not update_user:
-                    raise InvalidInputError(400, "Username already exists", f"User '{username}' already exists")
+                    raise InvalidInputError(400, "username_already_exists", f"User '{username}' already exists")
                 
                 if username == c.ADMIN_USERNAME and user_data.get("is_admin") is False:
-                    raise InvalidInputError(403, "Non-admin 'admin' user not permitted", "Setting the admin user to non-admin is not permitted")
+                    raise InvalidInputError(403, "admin_cannot_be_non_admin", "Setting the admin user to non-admin is not permitted")
                 
                 new_user = self.DbUser(password_hash=existing_user.password_hash, **user_data)
                 session.delete(existing_user)
             else:
                 if update_user:
-                    raise InvalidInputError(404, "No user found for username", f"No user found for username: {username}")
+                    raise InvalidInputError(404, "no_user_found_for_username", f"No user found for username: {username}")
                 
                 password = user_fields.get('password')
                 if password is None:
-                    raise InvalidInputError(400, "Missing required field 'password'", f"Missing required field 'password' when adding a new user")
+                    raise InvalidInputError(400, "missing_password", f"Missing required field 'password' when adding a new user")
                 password_hash = pwd_context.hash(password)
                 new_user = self.DbUser(password_hash=password_hash, **user_data)
             
@@ -357,7 +357,7 @@ class Authenticator(_t.Generic[User]):
     def create_or_get_user_from_provider(self, provider_name: str, user_info: dict) -> User:
         provider = next((p for p in self.auth_providers if p.name == provider_name), None)
         if provider is None:
-            raise InvalidInputError(404, "Provider not found", f"Provider '{provider_name}' not found")
+            raise InvalidInputError(404, "auth_provider_not_found", f"Provider '{provider_name}' not found")
         
         user = provider.provider_configs.get_user(user_info)
         session = self.Session()
@@ -386,7 +386,7 @@ class Authenticator(_t.Generic[User]):
                 user = self.User.model_validate(db_user)
                 return user # type: ignore
             else:
-                raise InvalidInputError(401, "Incorrect username or password", f"Incorrect username or password")
+                raise InvalidInputError(401, "incorrect_username_or_password", f"Incorrect username or password")
 
         finally:
             session.close()
@@ -396,25 +396,25 @@ class Authenticator(_t.Generic[User]):
         try:
             db_user = session.get(self.DbUser, username)
             if db_user is None:
-                raise InvalidInputError(401, "User not found", f"Username '{username}' not found for password change")
+                raise InvalidInputError(401, "user_not_found", f"Username '{username}' not found for password change")
             
             if db_user.password_hash and pwd_context.verify(old_password, db_user.password_hash):
                 db_user.password_hash = pwd_context.hash(new_password)
                 session.commit()
             else:
-                raise InvalidInputError(401, "Incorrect password", f"Incorrect password")
+                raise InvalidInputError(401, "incorrect_password", f"Incorrect password")
         finally:
             session.close()
 
     def delete_user(self, username: str) -> None:
         if username == c.ADMIN_USERNAME:
-            raise InvalidInputError(403, "Cannot delete admin user", "Cannot delete the admin user")
+            raise InvalidInputError(403, "cannot_delete_admin_user", "Cannot delete the admin user")
         
         session = self.Session()
         try:
             db_user = session.get(self.DbUser, username)
             if db_user is None:
-                raise InvalidInputError(404, "No user found for username", f"No user found for username: {username}")
+                raise InvalidInputError(404, "no_user_found_for_username", f"No user found for username: {username}")
             session.delete(db_user)
             session.commit()
         finally:
@@ -484,7 +484,7 @@ class Authenticator(_t.Generic[User]):
                 raise InvalidTokenError()
         
         except InvalidTokenError:
-            raise InvalidInputError(401, "Invalid authorization token", "Invalid authorization token")
+            raise InvalidInputError(401, "invalid_authorization_token", "Invalid authorization token")
         finally:
             session.close()
         
@@ -519,7 +519,7 @@ class Authenticator(_t.Generic[User]):
             ).first()
             
             if api_key is None:
-                raise InvalidInputError(404, "API key not found", f"The API key could not be found: {api_key_id}")
+                raise InvalidInputError(404, "api_key_not_found", f"The API key could not be found: {api_key_id}")
             
             session.delete(api_key)
             session.commit()

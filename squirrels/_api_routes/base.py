@@ -87,7 +87,7 @@ class RouteBase:
                 param for param in all_request_params if param not in params
             ]
             if invalid_params:
-                raise InvalidInputError(400, "Invalid query parameters", f"Invalid query parameters: {', '.join(invalid_params)}")
+                raise InvalidInputError(400, "invalid_query_parameters", f"Invalid query parameters: {', '.join(invalid_params)}")
     
     def get_selections_as_immutable(self, params: Mapping, uncached_keys: set[str]) -> tuple[tuple[str, Any], ...]:
         """Convert selections into a cachable tuple of pairs"""

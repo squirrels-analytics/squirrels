@@ -182,8 +182,6 @@ class DatasetTraitConfig(_ConfigWithNameBaseModel):
 
 class DatasetConfig(AnalyticsOutputConfig):
     model: str = ""
-    traits: dict = Field(default_factory=dict)
-    default_test_set: str = ""
     
     def __hash__(self) -> int:
         return hash("dataset_"+self.name)
@@ -199,6 +197,7 @@ class TestSetsConfig(_ConfigWithNameBaseModel):
     datasets: list[str] | None = None
     user_attributes: dict[str, Any] | None = None
     parameters: dict[str, Any] = Field(default_factory=dict)
+    configurables: dict[str, Any] = Field(default_factory=dict)
 
     @property
     def is_authenticated(self) -> bool:
@@ -213,7 +212,6 @@ class ManifestConfig(BaseModel):
     parameters: list[ParametersConfig] = Field(default_factory=list)
     configurables: dict[str, ConfigurablesConfig] = Field(default_factory=dict)
     selection_test_sets: dict[str, TestSetsConfig] = Field(default_factory=dict)
-    dataset_traits: dict[str, DatasetTraitConfig] = Field(default_factory=dict)
     datasets: dict[str, DatasetConfig] = Field(default_factory=dict)
     base_path: str = "."
     env_vars: dict[str, str] = Field(default_factory=dict)
@@ -228,7 +226,7 @@ class ManifestConfig(BaseModel):
             set_of_directories.add(package.directory)
         return packages
     
-    @field_validator("connections", "selection_test_sets", "dataset_traits", "datasets", "configurables", mode="before")
+    @field_validator("connections", "selection_test_sets", "datasets", "configurables", mode="before")
     @classmethod
     def names_are_unique(cls, values: list[dict] | dict[str, dict], info: ValidationInfo) -> dict[str, dict]:
         if isinstance(values, list):
@@ -249,24 +247,6 @@ class ManifestConfig(BaseModel):
         return self
     
     @model_validator(mode="after")
-    def validate_dataset_traits(self) -> Self:
-        for dataset_name, dataset in self.datasets.items():
-            # Validate that all trait keys in dataset.traits exist in dataset_traits
-            for trait_key in dataset.traits.keys():
-                if trait_key not in self.dataset_traits:
-                    raise ValueError(
-                        f'Dataset "{dataset_name}" references undefined trait "{trait_key}". '
-                        f'Traits must be defined with a default value in the dataset_traits section.'
-                    )
-            
-            # Set default values for any traits that are missing
-            for trait_name, trait_config in self.dataset_traits.items():
-                if trait_name not in dataset.traits:
-                    dataset.traits[trait_name] = trait_config.default
-                    
-        return self
-
-    @model_validator(mode="after")
     def validate_authentication_and_scopes(self) -> Self:
         """
         Enforce authentication rules:
@@ -281,13 +261,11 @@ class ManifestConfig(BaseModel):
                 )
         return self
     
-    def get_default_test_set(self, dataset_name: str) -> TestSetsConfig:
+    def get_default_test_set(self) -> TestSetsConfig:
         """
         Raises KeyError if dataset name doesn't exist
         """
-        default_name_1 = self.datasets[dataset_name].default_test_set
-        default_name_2 = self.env_vars.get(c.SQRL_TEST_SETS_DEFAULT_NAME_USED, "default")
-        default_name = default_name_1 if default_name_1 else default_name_2
+        default_name = self.env_vars.get(c.SQRL_TEST_SETS_DEFAULT_NAME_USED, "default")
         default_test_set = self.selection_test_sets.get(default_name, TestSetsConfig(name=default_name))
         return default_test_set
     
@@ -298,12 +276,6 @@ class ManifestConfig(BaseModel):
                 applicable_test_sets.append(test_set_name)
         return applicable_test_sets
     
-    def get_default_traits(self) -> dict[str, Any]:
-        default_traits = {}
-        for trait_name, trait_config in self.dataset_traits.items():
-            default_traits[trait_name] = trait_config.default
-        return default_traits
-
     def get_default_configurables(self) -> dict[str, str]:
         """
         Return a dictionary of configurable name to its default value.

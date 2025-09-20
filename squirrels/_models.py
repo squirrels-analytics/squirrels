@@ -174,7 +174,7 @@ class StaticModel(DataModel):
         try:
             return self._load_duckdb_view_to_python_df(local_conn, use_venv=True)
         except Exception as e:
-            raise InvalidInputError(409, f'Dependent data model not found.', f'Model "{self.name}" depends on static data models that cannot be found. Trying building the virtual data environment first.')
+            raise InvalidInputError(409, f'dependent_data_model_not_found', f'Model "{self.name}" depends on static data models that cannot be found. Trying building the virtual data environment first.')
         finally:
             local_conn.close()
     
@@ -359,8 +359,8 @@ class QueryModel(DataModel):
         is_placeholder = lambda placeholder: placeholder in ctx_args._placeholders_copy
         kwargs = {
             "proj_vars": ctx_args.proj_vars, "env_vars": ctx_args.env_vars, "user": ctx_args.user, "prms": ctx_args.prms, 
-            "traits": ctx_args.traits, "configurables": ctx_args.configurables, "ctx": ctx, "is_placeholder": is_placeholder, 
-            "set_placeholder": ctx_args.set_placeholder, "param_exists": ctx_args.param_exists
+            "configurables": ctx_args.configurables, "ctx": ctx, "is_placeholder": is_placeholder, "set_placeholder": ctx_args.set_placeholder,
+            "param_exists": ctx_args.param_exists
         }
         return kwargs
     
@@ -478,7 +478,8 @@ class DbviewModel(QueryModel):
             "source": lambda source_name: "venv." + source_name
         }
         compiled_query = self._get_compiled_sql_query_str(query, kwargs)
-        return sqlglot.transpile(compiled_query, read=read_dialect, write="duckdb")[0]
+        duckdb_query = sqlglot.transpile(compiled_query, read=read_dialect, write="duckdb", pretty=True)[0]
+        return "-- translated to duckdb\n" + duckdb_query
     
     def _compile_sql_model(self, kwargs: dict[str, Any]) -> mq.SqlModelQuery:
         compiled_query_str = self._get_compiled_sql_query_str(self.query_file.raw_query, kwargs)
@@ -532,7 +533,7 @@ class DbviewModel(QueryModel):
                         self.logger.info(f"Running dbview '{self.name}' on duckdb")
                         return local_conn.sql(query, params=placeholders).pl()
                     except duckdb.CatalogException as e:
-                        raise InvalidInputError(409, f'Dependent data model not found.', f'Model "{self.name}" depends on static data models that cannot be found. Trying building the virtual data environment first.')
+                        raise InvalidInputError(409, f'dependent_data_model_not_found', f'Model "{self.name}" depends on static data models that cannot be found. Trying building the virtual data environment first.')
                     except Exception as e:
                         raise RuntimeError(e)
                     finally:
@@ -658,10 +659,10 @@ class FederateModel(QueryModel):
                 try:
                     return local_conn.execute(create_query, existing_placeholders)
                 except duckdb.CatalogException as e:
-                    raise InvalidInputError(409, f'Dependent data model not found.', f'Model "{self.name}" depends on static data models that cannot be found. Trying building the virtual data environment first.')
+                    raise InvalidInputError(409, f'dependent_data_model_not_found', f'Model "{self.name}" depends on static data models that cannot be found. Trying building the virtual data environment first.')
                 except Exception as e:
                     if self.name == "__fake_target":
-                        raise InvalidInputError(400, "Invalid SQL query", f"Failed to run provided SQL query")
+                        raise InvalidInputError(400, "invalid_sql_query", f"Failed to run provided SQL query")
                     else:
                         raise FileExecutionError(f'Failed to run federate sql model "{self.name}"', e) from e
             
@@ -866,15 +867,13 @@ class DAG:
         self.logger.log_activity_time("applying selections" + msg_extension, start)
     
     def _compile_context(
-        self, param_args: ParametersArgs, context_func: ContextFunc, user: BaseUser | None, default_traits: dict[str, Any], 
-        configurables: dict[str, str]
+        self, param_args: ParametersArgs, context_func: ContextFunc, user: BaseUser | None, configurables: dict[str, str]
     ) -> tuple[dict[str, Any], ContextArgs]:
         start = time.time()
         context = {}
         assert isinstance(self.parameter_set, ParameterSet)
         prms = self.parameter_set.get_parameters_as_dict()
-        traits = self.dataset.traits if self.dataset else default_traits
-        args = ContextArgs(param_args, user, prms, traits, configurables)
+        args = ContextArgs(param_args, user, prms, configurables)
         msg_extension = self._get_msg_extension()
         try:
             context_func(context, args)
@@ -926,13 +925,13 @@ class DAG:
     
     async def execute(
         self, param_args: ParametersArgs, param_cfg_set: ParameterConfigsSet, context_func: ContextFunc, user: BaseUser | None, selections: dict[str, str], 
-        *, runquery: bool = True, recurse: bool = True, default_traits: dict[str, Any] = {}, configurables: dict[str, str] = {}
+        *, runquery: bool = True, recurse: bool = True, configurables: dict[str, str] = {}
     ) -> None:
         recurse = (recurse or runquery)
 
         self.apply_selections(param_cfg_set, user, selections)
 
-        context, ctx_args = self._compile_context(param_args, context_func, user, default_traits, configurables)
+        context, ctx_args = self._compile_context(param_args, context_func, user, configurables)
 
         self._compile_models(context, ctx_args, recurse)
         

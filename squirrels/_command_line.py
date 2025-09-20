@@ -98,8 +98,8 @@ def main():
     compile_test_set_group = compile_parser.add_mutually_exclusive_group(required=False)
     compile_test_set_group.add_argument('-t', '--test-set', type=str, help="The selection test set to use. If not specified, default selections are used, unless using --all-test-sets")
     compile_test_set_group.add_argument('-T', '--all-test-sets', action="store_true", help="Compile models for all selection test sets")
-    compile_parser.add_argument('-s', '--select', type=str, help="Select single model to compile. If not specified, all models for the dataset are compiled. Ignored if using --all-datasets")
-    compile_parser.add_argument('-r', '--runquery', action='store_true', help='Runs all target models, and produce the results as csv files')
+    compile_parser.add_argument('-s', '--select', type=str, help="Select single model to compile. If not specified, all models are compiled")
+    compile_parser.add_argument('-r', '--runquery', action='store_true', help='Runs all realtime models, and produce the results as csv files. This does not run buildtime models')
 
     build_parser = add_subparser(subparsers, c.BUILD_CMD, 'Build the virtual data environment (with duckdb) for the project')
     build_parser.add_argument('-f', '--full-refresh', action='store_true', help='Drop all tables before building')

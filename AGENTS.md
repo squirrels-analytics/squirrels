@@ -72,7 +72,7 @@ Confirm CLI:
 
 ### Typical generated project structure (per `sqrl init`)
 When you run `sqrl init <name>` (or `--curr-dir`), the initializer creates a project directory with:
-- `squirrels.yml`: Main manifest configuring datasets, routes, dataset traits, privacy scopes, and dashboards.
+- `squirrels.yml`: Main manifest configuring datasets, routes, privacy scopes, and dashboards.
 - `pyconfigs/`
   - `connections.py` or `connections.yml`: Database connections (SQLAlchemy URLs or native connectors)
   - `parameters.py` or `parameters.yml`: Parameter widgets, defaults, and validation

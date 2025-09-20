@@ -56,7 +56,7 @@ class AuthRoutes(RouteBase):
         @auth_router.get("/userinfo", description="Get the authenticated user's fields", tags=["Authentication"])
         async def get_userinfo(user: UserInfoModel | None = Depends(self.get_current_user)) -> UserInfoModel:
             if user is None:
-                raise InvalidInputError(401, "Invalid authorization token", "Invalid authorization token")
+                raise InvalidInputError(401, "invalid_authorization_token", "Invalid authorization token")
             return user
 
         # Login helper
@@ -88,7 +88,7 @@ class AuthRoutes(RouteBase):
             request: Request, redirect_url: str | None = None, user: UserInfoModel | None = Depends(self.get_current_user)
         ):
             if user is None:
-                raise InvalidInputError(401, "Invalid authorization token", "Invalid authorization token")
+                raise InvalidInputError(401, "invalid_authorization_token", "Invalid authorization token")
             return login_helper(request, user, redirect_url)
         
         # Provider authentication endpoints
@@ -111,7 +111,7 @@ class AuthRoutes(RouteBase):
 
         @auth_router.get(provider_login_path, tags=["Authentication"])
         async def provider_login(request: Request, provider_name: str, redirect_url: str | None = None) -> RedirectResponse:
-            """Get OAuth login URL for the provider"""
+            """Redirect to the login URL for the OAuth provider"""
             client = oauth.create_client(provider_name)
             if client is None:
                 raise InvalidInputError(status_code=404, error="provider_not_found", error_description=f"Provider {provider_name} not found or configured.")
@@ -161,13 +161,14 @@ class AuthRoutes(RouteBase):
             302: {"description": "Redirect if redirect URL parameter is specified"},
         })
         async def logout(request: Request, redirect_url: str | None = None):
+            """Logout the current user, and redirect to the specified URL if provided"""
             request.session.pop("access_token", None)
             request.session.pop("access_token_expiry", None)
             if redirect_url:
                 return RedirectResponse(url=redirect_url)
         
         # Change password endpoint
-        change_password_path = '/change-password'
+        change_password_path = '/password'
 
         class ChangePasswordRequest(BaseModel):
             old_password: str
@@ -176,7 +177,7 @@ class AuthRoutes(RouteBase):
         @auth_router.put(change_password_path, description="Change the password for the current user", tags=["Authentication"])
         async def change_password(request: ChangePasswordRequest, user: UserInfoModel | None = Depends(self.get_current_user)) -> None:
             if user is None:
-                raise InvalidInputError(401, "Invalid authorization token", "Invalid authorization token")
+                raise InvalidInputError(401, "invalid_authorization_token", "Invalid authorization token")
             self.authenticator.change_password(user.username, request.old_password, request.new_password)
 
         # API Key endpoints
@@ -192,7 +193,7 @@ class AuthRoutes(RouteBase):
         @auth_router.post(api_key_path, description="Create a new API key for the user", tags=["Authentication"])
         async def create_api_key(body: ApiKeyRequestBody, user: UserInfoModel | None = Depends(self.get_current_user)) -> rm.ApiKeyResponse:
             if user is None:
-                raise InvalidInputError(401, "Invalid authorization token", "Invalid authorization token")
+                raise InvalidInputError(401, "invalid_authorization_token", "Invalid authorization token")
             
             api_key, _ = self.authenticator.create_access_token(user, expiry_minutes=body.expiry_minutes, title=body.title)
             return rm.ApiKeyResponse(api_key=api_key)
@@ -200,7 +201,7 @@ class AuthRoutes(RouteBase):
         @auth_router.get(api_key_path, description="Get all API keys with title for the current user", tags=["Authentication"])
         async def get_all_api_keys(user: UserInfoModel | None = Depends(self.get_current_user)):
             if user is None:
-                raise InvalidInputError(401, "Invalid authorization token", "Invalid authorization token")
+                raise InvalidInputError(401, "invalid_authorization_token", "Invalid authorization token")
             return self.authenticator.get_all_api_keys(user.username)
         
         revoke_api_key_path = '/api-key/{api_key_id}'
@@ -210,7 +211,7 @@ class AuthRoutes(RouteBase):
         })
         async def revoke_api_key(api_key_id: str, user: UserInfoModel | None = Depends(self.get_current_user)) -> Response:
             if user is None:
-                raise InvalidInputError(401, "Invalid authorization token", "Invalid authorization token")
+                raise InvalidInputError(401, "invalid_authorization_token", "Invalid authorization token")
             self.authenticator.revoke_api_key(user.username, api_key_id)
             return Response(status_code=204)
 
@@ -229,7 +230,7 @@ class AuthRoutes(RouteBase):
                 new_user: AddUserModel, user: UserInfoModel | None = Depends(self.get_current_user)
             ) -> None:
                 if user is None or not user.is_admin:
-                    raise InvalidInputError(403, "Forbidden to add user", "Authorized user is forbidden to add new users")
+                    raise InvalidInputError(403, "unauthorized_to_add_user", "Current user cannot add new users")
                 self.authenticator.add_user(new_user.username, new_user.model_dump(mode='json', exclude={"username"}))
 
             update_user_path = '/users/{username}'
@@ -239,7 +240,7 @@ class AuthRoutes(RouteBase):
                 username: str, updated_user: UpdateUserModel, user: UserInfoModel | None = Depends(self.get_current_user)
             ) -> None:
                 if user is None or not user.is_admin:
-                    raise InvalidInputError(403, "Forbidden to update user", "Authorized user is forbidden to update users")
+                    raise InvalidInputError(403, "unauthorized_to_update_user", "Current user cannot update users")
                 self.authenticator.add_user(username, updated_user.model_dump(mode='json'), update_user=True)
 
             list_users_path = '/users'
@@ -255,9 +256,9 @@ class AuthRoutes(RouteBase):
             })
             async def delete_user(username: str, user: UserInfoModel | None = Depends(self.get_current_user)) -> Response:
                 if user is None or not user.is_admin:
-                    raise InvalidInputError(403, "Forbidden to delete user", "Authorized user is forbidden to delete users")
+                    raise InvalidInputError(403, "unauthorized_to_delete_user", "Current user cannot delete users")
                 if username == user.username:
-                    raise InvalidInputError(403, "Cannot delete your own user", "Cannot delete your own user")
+                    raise InvalidInputError(403, "cannot_delete_own_user", "Cannot delete your own user")
                 self.authenticator.delete_user(username)
                 return Response(status_code=204)
 

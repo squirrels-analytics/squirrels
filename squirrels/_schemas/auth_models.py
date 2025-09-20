@@ -14,6 +14,9 @@ class BaseUser(BaseModel):
     
     def __hash__(self):
         return hash(self.username)
+    
+    def __str__(self):
+        return self.username
 
 
 class ApiKey(BaseModel):

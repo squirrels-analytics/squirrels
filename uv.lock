@@ -2549,7 +2549,7 @@ wheels = [
 
 [[package]]
 name = "squirrels"
-version = "0.5.0"
+version = "0.5.0b5"
 source = { editable = "." }
 dependencies = [
     { name = "authlib" },

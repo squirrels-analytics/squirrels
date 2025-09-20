@@ -1,7 +1,7 @@
 """
 Data management routes for build and query models
 """
-from typing import Callable, Any
+from typing import Any
 from fastapi import FastAPI, Depends, Request, Response, status
 from fastapi.responses import JSONResponse
 from fastapi.security import HTTPBearer
@@ -9,13 +9,13 @@ from dataclasses import asdict
 from cachetools import TTLCache
 import time
 
-from .. import _constants as c
+from .. import _constants as c, _utils as u
 from .._schemas import response_models as rm
 from .._exceptions import InvalidInputError
 from .._auth import BaseUser
 from .._manifest import PermissionScope
 from .._dataset_types import DatasetResult
-from .._schemas.query_param_models import get_query_models_for_querying_models
+from .._schemas.query_param_models import get_query_models_for_querying_models, get_query_models_for_compiled_models
 from .base import RouteBase
 
 
@@ -50,11 +50,11 @@ class DataManagementRoutes(RouteBase):
         self._validate_request_params(all_request_params, params)
 
         if not self.authenticator.can_user_access_scope(user, PermissionScope.PRIVATE):
-            raise InvalidInputError(403, "Forbidden to query data models", f"User '{user}' does not have permission to query data models")
+            raise InvalidInputError(403, "unauthorized_access_to_query_models", f"User '{user}' does not have permission to query data models")
         
         sql_query = params.get("x_sql_query")
         if sql_query is None:
-            raise InvalidInputError(400, "SQL query must be provided", "SQL query must be provided")
+            raise InvalidInputError(400, "sql_query_required", "SQL query must be provided")
         
         query_models_function = self._query_models_helper if self.no_cache else self._query_models_cachable
         uncached_keys = {"x_verify_params", "x_sql_query", "x_orientation", "x_limit", "x_offset"}
@@ -67,6 +67,22 @@ class DataManagementRoutes(RouteBase):
         offset = params.get("x_offset", 0)
         return rm.DatasetResultModel(**result.to_json(orientation, limit, offset)) 
     
+    async def _get_compiled_model_definition(
+        self, model_name: str, user: BaseUser | None, all_request_params: dict, params: dict, *, headers: dict[str, str]
+    ) -> rm.CompiledQueryModel:
+        """Get compiled model definition"""
+        normalized_model_name = u.normalize_name(model_name)
+        self._validate_request_params(all_request_params, params)
+
+        # Internal users only
+        if not self.authenticator.can_user_access_scope(user, PermissionScope.PRIVATE):
+            raise InvalidInputError(403, "unauthorized_access_to_compile_model", f"User '{user}' does not have permission to fetch compiled SQL")
+        
+        selections = self.get_selections_as_immutable(params, uncached_keys={"x_verify_params"})
+        configurables = self.get_configurables_from_headers(headers)
+        cfg_filtered = {k: v for k, v in dict(configurables).items() if k in self.manifest_cfg.configurables}
+        return await self.project.get_compiled_model_query(normalized_model_name, selections=dict(selections), user=user, configurables=cfg_filtered)
+        
     def setup_routes(self, app: FastAPI, project_metadata_path: str, param_fields: dict) -> None:
         """Setup data management routes"""
         
@@ -76,12 +92,12 @@ class DataManagementRoutes(RouteBase):
         @app.post(build_path, tags=["Data Management"], summary="Build or update the virtual data environment for the project")
         async def build(user=Depends(self.get_current_user)): # type: ignore
             if not self.authenticator.can_user_access_scope(user, PermissionScope.PRIVATE):
-                raise InvalidInputError(403, "Forbidden to build", f"User '{user}' does not have permission to build the virtual data environment")
+                raise InvalidInputError(403, "unauthorized_access_to_build_model", f"User '{user}' does not have permission to build the virtual data environment")
             await self.project.build(stage_file=True)
             return Response(status_code=status.HTTP_200_OK)
         
-        # Query models endpoints
-        query_models_path = project_metadata_path + '/query-models'
+        # Query result endpoints
+        query_models_path = project_metadata_path + '/query-result'
         QueryModelForQueryModels, QueryModelForPostQueryModels = get_query_models_for_querying_models(param_fields)
 
         @app.get(query_models_path, tags=["Data Management"], response_class=JSONResponse)
@@ -101,5 +117,28 @@ class DataManagementRoutes(RouteBase):
             payload: dict = await request.json()
             result = await self._query_models_definition(user, payload, params.model_dump(), headers=dict(request.headers))
             self.log_activity_time("POST REQUEST for QUERY MODELS", start, request)
+            return result
+
+        # Compiled models endpoints - TODO: remove duplication
+        compiled_models_path = project_metadata_path + '/compiled-models/{model_name}'
+        QueryModelForGetCompiled, QueryModelForPostCompiled = get_query_models_for_compiled_models(param_fields)
+
+        @app.get(compiled_models_path, tags=["Data Management"], response_class=JSONResponse, summary="Get compiled definition for a model")
+        async def get_compiled_model(
+            request: Request, model_name: str, params: QueryModelForGetCompiled, user=Depends(self.get_current_user)
+        ) -> rm.CompiledQueryModel:
+            start = time.time()
+            result = await self._get_compiled_model_definition(model_name, user, dict(request.query_params), asdict(params), headers=dict(request.headers))
+            self.log_activity_time("GET REQUEST for GET COMPILED MODEL", start, request)
+            return result
+
+        @app.post(compiled_models_path, tags=["Data Management"], response_class=JSONResponse, summary="Get compiled definition for a model")
+        async def get_compiled_model_with_post(
+            request: Request, model_name: str, params: QueryModelForPostCompiled, user=Depends(self.get_current_user)
+        ) -> rm.CompiledQueryModel:
+            start = time.time()
+            payload: dict = await request.json()
+            result = await self._get_compiled_model_definition(model_name, user, payload, params.model_dump(), headers=dict(request.headers))
+            self.log_activity_time("POST REQUEST for GET COMPILED MODEL", start, request)
             return result
     

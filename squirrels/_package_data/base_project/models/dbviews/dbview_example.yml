@@ -20,7 +20,7 @@ columns:
   
   - name: total_amount
     type: float
-    description: The total amount spent by the group-by dimension
+    description: The total amount spent by month
     category: measure
     depends_on:
       - src_transactions.amount

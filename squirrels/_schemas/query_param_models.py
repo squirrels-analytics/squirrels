@@ -65,3 +65,11 @@ def get_query_models_for_querying_models(param_fields: dict):
         APIParamFieldInfo("x_sql_query", str, description="The SQL query to execute on the data models"),
     ]
     return _get_query_models_helper(None, predefined_params, param_fields) 
+
+
+def get_query_models_for_compiled_models(param_fields: dict):
+    """Generate query models for fetching compiled model SQL"""
+    predefined_params = [
+        APIParamFieldInfo("x_verify_params", bool, default=False, description="If true, the query parameters are verified to be valid for the model"),
+    ]
+    return _get_query_models_helper(None, predefined_params, param_fields)

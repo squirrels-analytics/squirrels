@@ -281,7 +281,7 @@ class SquirrelsProject:
             for model_name in dependencies:
                 model = models_dict[model_name]
                 if isinstance(model, m.SourceModel) and not model.model_config.load_to_duckdb:
-                    raise InvalidInputError(400, "Unqueryable source model", f"Source model '{model_name}' cannot be queried with DuckDB")
+                    raise InvalidInputError(400, "cannot_query_source_model", f"Source model '{model_name}' cannot be queried with DuckDB")
                 if isinstance(model, (m.SourceModel, m.BuildModel)):
                     substitutions[model_name] = f"venv.{model_name}"
             
@@ -326,10 +326,10 @@ class SquirrelsProject:
     async def _get_compiled_dag(self, *, sql_query: str | None = None, selections: dict[str, t.Any] = {}, user: BaseUser | None = None, configurables: dict[str, str] = {}) -> m.DAG:
         dag = self._generate_dag_with_fake_target(sql_query)
         
-        default_traits = self._manifest_cfg.get_default_traits()
+        configurables = {**self._manifest_cfg.get_default_configurables(), **configurables}
         await dag.execute(
             self._param_args, self._param_cfg_set, self._context_func, user, selections,
-            runquery=False, default_traits=default_traits, configurables={**self._manifest_cfg.get_default_configurables(), **configurables}
+            runquery=False, configurables=configurables
         )
         return dag
     
@@ -387,7 +387,7 @@ class SquirrelsProject:
         self, dataset: str, select: str, test_set: str | None, runquery: bool, recurse: bool
     ) -> t.Any | None:
         dataset_conf = self._manifest_cfg.datasets[dataset]
-        default_test_set_conf = self._manifest_cfg.get_default_test_set(dataset)
+        default_test_set_conf = self._manifest_cfg.get_default_test_set()
         if test_set in self._manifest_cfg.selection_test_sets:
             test_set_conf = self._manifest_cfg.selection_test_sets[test_set]
         elif test_set is None or test_set == default_test_set_conf.name:
@@ -414,9 +414,10 @@ class SquirrelsProject:
 
         # always_python_df is set to True for creating CSV files from results (when runquery is True)
         dag = self._generate_dag(dataset, target_model_name=select, always_python_df=runquery)
+        configurables = {**self._manifest_cfg.get_default_configurables(), **test_set_conf.configurables}
         await dag.execute(
-            self._param_args, self._param_cfg_set, self._context_func, user, selections, 
-            runquery=runquery, recurse=recurse, default_traits=self._manifest_cfg.get_default_traits()
+            self._param_args, self._param_cfg_set, self._context_func, user, selections, runquery=runquery, recurse=recurse,
+            configurables=configurables
         )
         
         output_folder = Path(self._filepath, c.TARGET_FOLDER, c.COMPILE_FOLDER, dataset, test_set)
@@ -496,14 +497,12 @@ class SquirrelsProject:
         queries = await u.asyncio_gather(coroutines)
         
         print(f"Compiled successfully! See the '{c.TARGET_FOLDER}/' folder for results.")
-        print()
         if not recurse and len(queries) == 1 and isinstance(queries[0], str):
-            print(queries[0])
             print()
+            print(queries[0])
 
     def _permission_error(self, user: BaseUser | None, data_type: str, data_name: str, scope: str) -> InvalidInputError:
-        username = "" if user is None else f" '{user.username}'"
-        return InvalidInputError(403, f"Unauthorized access to {data_type}", f"User{username} does not have permission to access {scope} {data_type}: {data_name}")
+        return InvalidInputError(403, f"unauthorized_access_to_{data_type}", f"User '{user}' does not have permission to access {scope} {data_type}: {data_name}")
     
     def seed(self, name: str) -> pl.LazyFrame:
         """
@@ -558,10 +557,9 @@ class SquirrelsProject:
             raise self._permission_error(user, "dataset", name, scope.name)
         
         dag = self._generate_dag(name)
+        configurables = {**self._manifest_cfg.get_default_configurables(), **configurables}
         await dag.execute(
-            self._param_args, self._param_cfg_set, self._context_func, user, dict(selections), 
-            default_traits=self._manifest_cfg.get_default_traits(),
-            configurables={**self._manifest_cfg.get_default_configurables(), **configurables}
+            self._param_args, self._param_cfg_set, self._context_func, user, dict(selections), configurables=configurables
         )
         assert isinstance(dag.target_model.result, pl.LazyFrame)
         return dr.DatasetResult(
@@ -612,3 +610,36 @@ class SquirrelsProject:
             target_model_config=dag.target_model.model_config, 
             df=dag.target_model.result.collect().with_row_index("_row_num", offset=1)
         )
+
+    async def get_compiled_model_query(
+        self, model_name: str, *, selections: dict[str, t.Any] = {}, user: BaseUser | None = None, configurables: dict[str, str] = {}
+    ) -> rm.CompiledQueryModel:
+        """
+        Compile the specified data model and return its language and compiled definition.
+        """
+        name = u.normalize_name(model_name)
+        models_dict = self._get_models_dict(always_python_df=False)
+        if name not in models_dict:
+            raise InvalidInputError(404, "model_not_found", f"No data model found with name: {model_name}")
+
+        model = models_dict[name]
+        # Only dbview and federate models support runtime compiled definition in this context
+        if not isinstance(model, (m.BuildModel, m.DbviewModel, m.FederateModel)):
+            raise InvalidInputError(400, "unsupported_model_type", "Only dbview and federate models currently support compiled definition via this endpoint")
+
+        # Build a DAG with this model as the target, without a dataset context
+        model.is_target = True
+        dag = m.DAG(None, model, models_dict, self._duckdb_venv_path, self._logger)
+
+        cfg = {**self._manifest_cfg.get_default_configurables(), **configurables}
+        await dag.execute(
+            self._param_args, self._param_cfg_set, self._context_func, user, selections, runquery=False, configurables=cfg
+        )
+
+        compiled = getattr(model, "compiled_query", None)
+        if isinstance(compiled, mq.SqlModelQuery):
+            return rm.CompiledQueryModel(language="sql", definition=compiled.query, placeholders=dag.placeholders)
+        else:
+            definition = "# Compiling Python data models is currently not supported. This will be available in a future version of Squirrels..."
+            return rm.CompiledQueryModel(language="python", definition=definition, placeholders=dag.placeholders)
+    

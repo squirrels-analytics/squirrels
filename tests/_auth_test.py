@@ -75,7 +75,7 @@ def test_add_and_get_user(auth: Authenticator[User], test_user_data):
     # Try getting user with wrong password
     with pytest.raises(InvalidInputError) as exc_info:
         auth.get_user("testuser", "wrongpassword")
-    assert exc_info.value.error == "Incorrect username or password"
+    assert exc_info.value.error == "incorrect_username_or_password"
 
 def test_change_password(auth: Authenticator[User]):
     # Add a user first
@@ -90,7 +90,7 @@ def test_change_password(auth: Authenticator[User]):
     # Old password should fail
     with pytest.raises(InvalidInputError) as exc_info:
         auth.get_user("pwduser", "oldpassword")
-    assert exc_info.value.error == "Incorrect username or password"
+    assert exc_info.value.error == "incorrect_username_or_password"
 
     # New password should work
     user = auth.get_user("pwduser", "newpassword")
@@ -169,7 +169,7 @@ def test_expired_token(auth: Authenticator[User], test_user_data):
     # Verify token is invalid
     with pytest.raises(InvalidInputError) as exc_info:
         auth.get_user_from_token(token)
-    assert exc_info.value.error == "Invalid authorization token"
+    assert exc_info.value.error == "invalid_authorization_token"
 
 
 # OAuth Client Management Tests
