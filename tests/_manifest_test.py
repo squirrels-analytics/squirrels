@@ -82,7 +82,7 @@ class TestDatasetConfig:
     def dataset_config2(self) -> m.DatasetConfig:
         data = {
             "name": "my_dataset", "label": "My Dataset", "model": "my_model", "scope": "protected", 
-            "parameters": [], "default_test_set": "default"
+            "parameters": []
         }
         return m.DatasetConfig(**data)
 

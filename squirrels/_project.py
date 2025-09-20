@@ -636,10 +636,16 @@ class SquirrelsProject:
             self._param_args, self._param_cfg_set, self._context_func, user, selections, runquery=False, configurables=cfg
         )
 
-        compiled = getattr(model, "compiled_query", None)
-        if isinstance(compiled, mq.SqlModelQuery):
-            return rm.CompiledQueryModel(language="sql", definition=compiled.query, placeholders=dag.placeholders)
-        else:
+        language = "sql" if isinstance(model.query_file, mq.SqlQueryFile) else "python"
+        if isinstance(model, m.BuildModel):
+            prefix = "--" if language == "sql" else "#"
+            definition = f"{prefix} Compiling build models is currently not supported. This will be available in a future version of Squirrels..."
+        elif isinstance(model.compiled_query, mq.SqlModelQuery):
+            definition = model.compiled_query.query 
+        elif isinstance(model.compiled_query, mq.PyModelQuery): 
             definition = "# Compiling Python data models is currently not supported. This will be available in a future version of Squirrels..."
-            return rm.CompiledQueryModel(language="python", definition=definition, placeholders=dag.placeholders)
+        else:
+            raise NotImplementedError(f"Query type not supported: {model.compiled_query.__class__.__name__}")
+        
+        return rm.CompiledQueryModel(language=language, definition=definition, placeholders=dag.placeholders)
     
