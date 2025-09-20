@@ -31,7 +31,6 @@ datasets:
       - end_date
       - min_filter
       - max_filter
-    traits: {}                            ## optional - defaults to empty object
   
   - name: federate_dataset_example
     label: Example Dataset from Federate Model
@@ -45,7 +44,6 @@ datasets:
       - category
       - subcategory
       - between_filter
-    default_test_set: auth_test1          ## optional - if not specified, uses setting 'selection_test_sets.default_name_used'
 
 
 selection_test_sets:
@@ -65,7 +63,7 @@ selection_test_sets:
     
   - name: auth_test2
     user_attributes:
-      is_internal: True                   ## optional - defaults to False
+      is_admin: True                      ## optional - defaults to False
       role: manager
     parameters:
       group_by: g3                        ## this parameter exists for all datasets. "g3" is the id for option "subcategory"

@@ -26,7 +26,7 @@ class TestSingleSelectParameter:
             p.SingleSelectParameter(config1, config1.all_options, None)
         with pytest.raises(InvalidInputError) as exc_info:
             p.SingleSelectParameter(config1, config1.all_options, 'wrong_id')
-        assert exc_info.value.error == "Invalid parameter selection"
+        assert exc_info.value.error == "invalid_parameter_selection"
 
     def test_get_selected(self, param1: p.SingleSelectParameter):
         param_option = param1._config.all_options[0]
@@ -90,7 +90,7 @@ class TestMultiSelectParameter:
     def test_invalid_init(self, config1: pc.MultiSelectParameterConfig):
         with pytest.raises(InvalidInputError) as exc_info:
             p.MultiSelectParameter(config1, config1.all_options, "wrong_id")
-        assert exc_info.value.error == "Invalid parameter selection"
+        assert exc_info.value.error == "invalid_parameter_selection"
     
     def test_get_selected1(self, param1: p.MultiSelectParameter):
         assert param1.get_selected_ids_as_list() == ('ms1', 'ms2')
@@ -151,7 +151,7 @@ class TestDateParameter:
     def test_invalid_init(self, config1: pc.DateParameterConfig):
         with pytest.raises(InvalidInputError) as exc_info:
             p.DateParameter(config1, config1.all_options[0], date(2019,1,1))
-        assert exc_info.value.error == "Invalid parameter selection"
+        assert exc_info.value.error == "invalid_parameter_selection"
     
     def test_get_selected1(self, param1: p.DateParameter):
         assert param1.get_selected_date() == "2021-01-01"
@@ -210,7 +210,7 @@ class TestNumberParameter:
     def test_invalid_init(self, config1: pc.NumberParameterConfig):
         with pytest.raises(InvalidInputError) as exc_info:
             p.NumberParameter(config1, config1.all_options[0], Decimal("4.6"))
-        assert exc_info.value.error == "Invalid parameter selection"
+        assert exc_info.value.error == "invalid_parameter_selection"
     
     def test_get_selected(self, param1: p.NumberParameter):
         assert param1.get_selected_value() == 4.5
@@ -242,7 +242,7 @@ class TestNumberRangeParameter:
     def test_invalid_init(self, config1: pc.NumberRangeParameterConfig):
         with pytest.raises(InvalidInputError) as exc_info:
             p.NumberRangeParameter(config1, config1.all_options[0], "2.5", "6.7")
-        assert exc_info.value.error == "Invalid parameter selection"
+        assert exc_info.value.error == "invalid_parameter_selection"
     
     def test_get_selected(self, param1: p.NumberRangeParameter):
         assert param1.get_selected_lower_value() == 2.5
@@ -326,7 +326,7 @@ class TestTextParameter:
     def test_invalid_init(self, default_text: str, input_type: str):
         with pytest.raises(InvalidInputError) as exc_info:
             self.create_param(default_text, input_type)
-        assert exc_info.value.error == "Invalid parameter selection"
+        assert exc_info.value.error == "invalid_parameter_selection"
     
     @pytest.mark.parametrize("default_text,input_type", [
         ("", "text"),

@@ -41,7 +41,7 @@ class ProjectRoutes(RouteBase):
         selections_dict = dict(selections)
         if "x_parent_param" not in selections_dict:
             if len(selections_dict) > 1:
-                raise InvalidInputError(400, "Invalid input for cascading parameters", f"The parameters endpoint takes at most 1 widget parameter selection (unless x_parent_param is provided). Got {selections_dict}")
+                raise InvalidInputError(400, "invalid_input_for_cascading_parameters", f"The parameters endpoint takes at most 1 widget parameter selection (unless x_parent_param is provided). Got {selections_dict}")
             elif len(selections_dict) == 1:
                 parent_param = next(iter(selections_dict))
                 selections_dict["x_parent_param"] = parent_param
@@ -97,7 +97,7 @@ class ProjectRoutes(RouteBase):
                     metadata = self.project.dataset_metadata(name).to_json()
                     parameters = config.parameters if config.parameters is not None else full_parameters_list
                     dataset_items.append(rm.DatasetItemModel(
-                        name=name_normalized, label=config.label, 
+                        name=name, label=config.label, 
                         description=config.description,
                         schema=metadata["schema"], # type: ignore
                         parameters=parameters,

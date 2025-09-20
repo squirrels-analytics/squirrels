@@ -189,6 +189,14 @@ class DatasetResultModel(BaseModel):
     )]
 
 
+## Compiled Query Response Model
+
+class CompiledQueryModel(BaseModel):
+    language: Annotated[Literal["sql", "python"], Field(examples=["sql"], description="The language of the data model query: 'sql' or 'python'")]
+    definition: Annotated[str, Field("", description="The compiled SQL or Python definition of the data model.")]
+    placeholders: Annotated[dict[str, Any], Field({}, description="The placeholders for the data model.")]
+
+
 ## Project Metadata Response Models
 
 class ProjectVersionModel(BaseModel):

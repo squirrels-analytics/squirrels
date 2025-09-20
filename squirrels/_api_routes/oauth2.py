@@ -95,7 +95,7 @@ class OAuth2Routes(RouteBase):
         # Client Registration Endpoint
         client_management_path = '/client/{client_id}'
         
-        @router.post("/register", description="Register a new OAuth client", tags=["OAuth2"])
+        @router.post("/client", description="Register a new OAuth client", tags=["OAuth2"])
         async def register_oauth_client(request: ClientRegistrationRequest) -> ClientRegistrationResponse:
             """Register a new OAuth client and return client credentials"""
             
@@ -291,7 +291,7 @@ class OAuth2Routes(RouteBase):
                 authorization_endpoint=f"{base_url}{router_path}/authorize",
                 token_endpoint=f"{base_url}{router_path}/token",
                 revocation_endpoint=f"{base_url}{router_path}/token/revoke",
-                registration_endpoint=f"{base_url}{router_path}/register",
+                registration_endpoint=f"{base_url}{router_path}/client",
                 scopes_supported=["read"],
                 response_types_supported=["code"],
                 grant_types_supported=["authorization_code", "refresh_token"],
