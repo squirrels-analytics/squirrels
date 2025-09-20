@@ -623,9 +623,9 @@ class SquirrelsProject:
             raise InvalidInputError(404, "model_not_found", f"No data model found with name: {model_name}")
 
         model = models_dict[name]
-        # Only dbview and federate models support runtime compiled definition in this context
+        # Only build, dbview, and federate models support runtime compiled definition in this context
         if not isinstance(model, (m.BuildModel, m.DbviewModel, m.FederateModel)):
-            raise InvalidInputError(400, "unsupported_model_type", "Only dbview and federate models currently support compiled definition via this endpoint")
+            raise InvalidInputError(400, "unsupported_model_type", "Only build, dbview, and federate models currently support compiled definition via this endpoint")
 
         # Build a DAG with this model as the target, without a dataset context
         model.is_target = True
