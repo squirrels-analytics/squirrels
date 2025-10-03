@@ -5,7 +5,7 @@ from abc import ABCMeta, abstractmethod
 from enum import Enum
 from pathlib import Path
 import asyncio, os, re, time, duckdb, sqlglot
-import polars as pl, pandas as pd, networkx as nx
+import polars as pl, pandas as pd
 
 from . import _constants as c, _utils as u, _py_module as pm, _model_queries as mq, _model_configs as mc, _sources as src
 from ._schemas import response_models as rm
@@ -13,18 +13,18 @@ from ._exceptions import FileExecutionError, InvalidInputError
 from ._arguments.run_time_args import ContextArgs, ModelArgs, BuildModelArgs
 from ._auth import BaseUser
 from ._connection_set import ConnectionsArgs, ConnectionSet, ConnectionProperties
-from ._manifest import DatasetConfig
+from ._manifest import DatasetConfig, ConnectionTypeEnum
 from ._parameter_sets import ParameterConfigsSet, ParametersArgs, ParameterSet
 
 ContextFunc = Callable[[dict[str, Any], ContextArgs], None]
 
 
 class ModelType(Enum):
+    SEED = "seed"
     SOURCE = "source"
+    BUILD = "build"
     DBVIEW = "dbview"
     FEDERATE = "federate"
-    SEED = "seed"
-    BUILD = "build"
 
 
 @dataclass
@@ -79,8 +79,8 @@ class DataModel(metaclass=ABCMeta):
         self.confirmed_no_cycles = True
         return terminal_nodes
     
-    def _load_duckdb_view_to_python_df(self, conn: duckdb.DuckDBPyConnection, *, use_venv: bool = False) -> pl.LazyFrame:
-        table_name = ("venv." if use_venv else "") + self.name
+    def _load_duckdb_view_to_python_df(self, conn: duckdb.DuckDBPyConnection, *, use_datalake: bool = False) -> pl.LazyFrame:
+        table_name = ("vdl." if use_datalake else "") + self.name
         try:
             return conn.sql(f"FROM {table_name}").pl().lazy()
         except duckdb.CatalogException as e:
@@ -133,11 +133,13 @@ class DataModel(metaclass=ABCMeta):
     
     def _create_table_from_df(self, conn: duckdb.DuckDBPyConnection, query_result: pl.LazyFrame | pd.DataFrame):
         local_conn = conn.cursor()
+        # local_conn = conn
         try:
-            local_conn.register("df", query_result)
-            local_conn.execute(f"CREATE OR REPLACE TABLE {self.name} AS SELECT * FROM df")
+            assert query_result is not None
+            local_conn.execute(f"CREATE OR REPLACE TABLE {self.name} AS FROM query_result")
         finally:
             local_conn.close()
+            # pass
         
     def process_pass_through_columns(self, models_dict: dict[str, DataModel]) -> None:
         pass
@@ -172,9 +174,9 @@ class StaticModel(DataModel):
     def _get_result(self, conn: duckdb.DuckDBPyConnection) -> pl.LazyFrame:
         local_conn = conn.cursor()
         try:
-            return self._load_duckdb_view_to_python_df(local_conn, use_venv=True)
+            return self._load_duckdb_view_to_python_df(local_conn, use_datalake=True)
         except Exception as e:
-            raise InvalidInputError(409, f'dependent_data_model_not_found', f'Model "{self.name}" depends on static data models that cannot be found. Trying building the virtual data environment first.')
+            raise InvalidInputError(409, f'dependent_data_model_not_found', f'Model "{self.name}" depends on static data models that cannot be found. Try building the Virtual Data Lake (VDL) first.')
         finally:
             local_conn.close()
     
@@ -225,10 +227,11 @@ class Seed(StaticModel):
         start = time.time()
 
         print(f"[{u.get_current_time()}] 🔨 BUILDING: seed model '{self.name}'")
-        await asyncio.to_thread(self._create_table_from_df, conn, self.result)
+        # await asyncio.to_thread(self._create_table_from_df, conn, self.result)
+        self._create_table_from_df(conn, self.result) # without threading
 
         print(f"[{u.get_current_time()}] ✅ FINISHED: seed model '{self.name}'")
-        self.logger.log_activity_time(f"building seed model '{self.name}' to venv", start)
+        self.logger.log_activity_time(f"building seed model '{self.name}' into VDL", start)
 
         await super().build_model(conn, full_refresh)
 
@@ -243,10 +246,13 @@ class SourceModel(StaticModel):
     
     @property
     def is_queryable(self) -> bool:
-        return self.model_config.load_to_duckdb
+        return self.model_config.load_to_vdl
     
     def _build_source_model(self, conn: duckdb.DuckDBPyConnection, full_refresh: bool) -> None:
         local_conn = conn.cursor()
+        # local_conn = conn
+        
+        local_conn.begin()
         try:
             source = self.model_config
             conn_name = source.get_connection()
@@ -269,8 +275,9 @@ class SourceModel(StaticModel):
             new_table_name = self.name
 
             if len(source.columns) == 0:
-                stmt = f"CREATE OR REPLACE TABLE {new_table_name} AS SELECT * FROM db_{conn_name}.{table_name}"
+                stmt = f"CREATE OR REPLACE TABLE {new_table_name} AS FROM db_{conn_name}.{table_name}"
                 u.run_duckdb_stmt(self.logger, local_conn, stmt)
+                local_conn.commit()
                 return
             
             increasing_column = source.update_hints.increasing_column
@@ -297,25 +304,37 @@ class SourceModel(StaticModel):
                 if max_val_of_incr_col is None:
                     recreate_table = True
 
-            insert_cols_clause = source.get_cols_for_insert_stmt()
-            insert_replace_clause = source.get_insert_replace_clause()
-            query = source.get_query_for_insert(dialect, conn_name, table_name, max_val_of_incr_col, full_refresh=recreate_table)
-            stmt = f"INSERT {insert_replace_clause} INTO {new_table_name} ({insert_cols_clause}) {query}"
+            query = source.get_query_for_upsert(dialect, conn_name, table_name, max_val_of_incr_col, full_refresh=recreate_table)
+
+            primary_keys = ", ".join(source.primary_key) if source.primary_key else ""
+            match_condition = f"USING ({primary_keys})" if primary_keys else "ON false"
+            stmt = (
+                f"MERGE INTO {new_table_name} "
+                f"USING ({query}) AS src "
+                f"{match_condition} "
+                f"WHEN MATCHED THEN UPDATE "
+                f"WHEN NOT MATCHED THEN INSERT BY NAME"
+            )
             u.run_duckdb_stmt(self.logger, local_conn, stmt)
+
+            local_conn.commit()
+        
         finally:
             local_conn.close()
+            # pass
 
     async def build_model(self, conn: duckdb.DuckDBPyConnection, full_refresh: bool) -> None:
-        if self.model_config.load_to_duckdb:
+        if self.model_config.load_to_vdl:
             start = time.time()
             print(f"[{u.get_current_time()}] 🔨 BUILDING: source model '{self.name}'")
 
-            await asyncio.to_thread(self._build_source_model, conn, full_refresh)
+            # await asyncio.to_thread(self._build_source_model, conn, full_refresh)
+            self._build_source_model(conn, full_refresh) # without threading
             
             print(f"[{u.get_current_time()}] ✅ FINISHED: source model '{self.name}'")
-            self.logger.log_activity_time(f"building source model '{self.name}' to venv", start)
+            self.logger.log_activity_time(f"building source model '{self.name}' into VDL", start)
 
-            await super().build_model(conn, full_refresh)
+        await super().build_model(conn, full_refresh)
         
 
 @dataclass
@@ -338,10 +357,15 @@ class QueryModel(DataModel):
             raise u.ConfigurationError(f'Model "{self.name}" references unknown model "{dependent_model_name}"')
         
         dep_model = models_dict[dependent_model_name]
-        if isinstance(dep_model, SourceModel) and not dep_model.model_config.load_to_duckdb:
-            raise u.ConfigurationError(
-                f'Model "{self.name}" cannot reference source model "{dependent_model_name}" which has load_to_duckdb=False'
-            )
+        if isinstance(dep_model, SourceModel) and not dep_model.model_config.load_to_vdl:
+            # Allow when caller is Build or Federate AND the source connection is duckdb; else error
+            conn_name = dep_model.model_config.get_connection()
+            conn_props = self.conn_set.get_connection(conn_name)
+            is_duckdb_conn = isinstance(conn_props, ConnectionProperties) and conn_props.type == ConnectionTypeEnum.DUCKDB
+            if not (isinstance(self, (BuildModel, FederateModel)) and is_duckdb_conn):
+                raise u.ConfigurationError(
+                    f'Model "{self.name}" cannot reference source model "{dependent_model_name}" which has load_to_vdl=False'
+                )
         
         self.model_config.depends_on.add(dependent_model_name)
         return dependent_model_name
@@ -458,11 +482,11 @@ class DbviewModel(QueryModel):
             if source_model.model_config.get_connection() != self.model_config.get_connection():
                 raise u.ConfigurationError(f'Dbview "{self.name}" references source "{source_name}" with different connection')
             
-            # Check if the source model has load_to_duckdb=False but this dbview has translate_to_duckdb=True
-            if not source_model.model_config.load_to_duckdb and self.model_config.translate_to_duckdb:
+            # Check if the source model has load_to_vdl=False but this dbview has translate_to_duckdb=True
+            if not source_model.model_config.load_to_vdl and self.model_config.translate_to_duckdb:
                 raise u.ConfigurationError(
                     f'Dbview "{self.name}" with translate_to_duckdb=True cannot reference source "{source_name}" '
-                    f'which has load_to_duckdb=False'
+                    f'which has load_to_vdl=False'
                 )
                 
             self.model_config.depends_on.add(source_name)
@@ -475,7 +499,7 @@ class DbviewModel(QueryModel):
 
     def _get_duckdb_query(self, read_dialect: str, query: str) -> str:
         kwargs = {
-            "source": lambda source_name: "venv." + source_name
+            "source": lambda source_name: "vdl." + source_name
         }
         compiled_query = self._get_compiled_sql_query_str(query, kwargs)
         duckdb_query = sqlglot.transpile(compiled_query, read=read_dialect, write="duckdb", pretty=True)[0]
@@ -488,15 +512,20 @@ class DbviewModel(QueryModel):
         connection_props = self.conn_set.get_connection(connection_name)
         
         if self.model_config.translate_to_duckdb and isinstance(connection_props, ConnectionProperties):
-            macros = { 
-                "source": lambda source_name: "venv." + source_name 
+            # Forbid translate_to_duckdb when dbview connection is duckdb
+            if connection_props.type == ConnectionTypeEnum.DUCKDB:
+                raise u.ConfigurationError(
+                    f'Dbview "{self.name}" has translate_to_duckdb=True but its connection is duckdb. Use a federate model instead.'
+                )
+            macros = {
+                "source": lambda source_name: "vdl." + source_name
             }
             compiled_query2 = self._get_compiled_sql_query_str(compiled_query_str, macros)
             compiled_query_str = self._get_duckdb_query(connection_props.dialect, compiled_query2)
             is_duckdb = True
         else:
-            macros = { 
-                "source": lambda source_name: self.sources[source_name].get_table() 
+            macros = {
+                "source": lambda source_name: self.sources[source_name].get_table()
             }
             compiled_query_str = self._get_compiled_sql_query_str(compiled_query_str, macros)
             is_duckdb = False
@@ -533,7 +562,7 @@ class DbviewModel(QueryModel):
                         self.logger.info(f"Running dbview '{self.name}' on duckdb")
                         return local_conn.sql(query, params=placeholders).pl()
                     except duckdb.CatalogException as e:
-                        raise InvalidInputError(409, f'dependent_data_model_not_found', f'Model "{self.name}" depends on static data models that cannot be found. Trying building the virtual data environment first.')
+                        raise InvalidInputError(409, f'dependent_data_model_not_found', f'Model "{self.name}" depends on static data models that cannot be found. Try building the Virtual Data Lake (VDL) first.')
                     except Exception as e:
                         raise RuntimeError(e)
                     finally:
@@ -575,8 +604,16 @@ class FederateModel(QueryModel):
         
         def ref(dependent_model_name: str) -> str:
             dependent_model = self._ref_for_sql(dependent_model_name, models_dict)
-            prefix = "venv." if isinstance(models_dict[dependent_model], (SourceModel, BuildModel)) else ""
-            return prefix + dependent_model
+            dep = models_dict[dependent_model]
+            if isinstance(dep, BuildModel):
+                return "vdl." + dependent_model
+            if isinstance(dep, SourceModel):
+                if dep.model_config.load_to_vdl:
+                    return "vdl." + dependent_model
+                conn_name = dep.model_config.get_connection()
+                table_name = dep.model_config.get_table()
+                return f"db_{conn_name}.{table_name}"
+            return dependent_model
         
         kwargs["ref"] = ref
         return kwargs
@@ -659,7 +696,7 @@ class FederateModel(QueryModel):
                 try:
                     return local_conn.execute(create_query, existing_placeholders)
                 except duckdb.CatalogException as e:
-                    raise InvalidInputError(409, f'dependent_data_model_not_found', f'Model "{self.name}" depends on static data models that cannot be found. Trying building the virtual data environment first.')
+                    raise InvalidInputError(409, f'dependent_data_model_not_found', f'Model "{self.name}" depends on static data models that cannot be found. Try building the Virtual Data Lake (VDL) first.')
                 except Exception as e:
                     if self.name == "__fake_target":
                         raise InvalidInputError(400, "invalid_sql_query", f"Failed to run provided SQL query")
@@ -719,7 +756,12 @@ class BuildModel(StaticModel, QueryModel):
         }
         
         def ref_for_build(dependent_model_name: str) -> str:
-            dependent_model = self._ref_for_sql(dependent_model_name, dict(models_dict))
+            dependent_model = self._ref_for_sql(dependent_model_name, models_dict)
+            dep = models_dict[dependent_model]
+            if isinstance(dep, SourceModel) and not dep.model_config.load_to_vdl:
+                conn_name = dep.model_config.get_connection()
+                table_name = dep.model_config.get_table()
+                return f"db_{conn_name}.{table_name}"
             return dependent_model
         
         kwargs["ref"] = ref_for_build
@@ -787,14 +829,17 @@ class BuildModel(StaticModel, QueryModel):
         def create_table():
             create_query = self.model_config.get_sql_for_build(self.name, query)
             local_conn = conn.cursor()
+            # local_conn = conn
             try:
                 return u.run_duckdb_stmt(self.logger, local_conn, create_query, model_name=self.name)
             except Exception as e:
                 raise FileExecutionError(f'Failed to build static sql model "{self.name}"', e) from e
             finally:
                 local_conn.close()
+                # pass
         
-        await asyncio.to_thread(create_table)
+        # await asyncio.to_thread(create_table)
+        create_table() # without threading
 
     async def _build_python_model(self, compiled_query: mq.PyModelQuery, conn: duckdb.DuckDBPyConnection) -> None:
         query_result = await asyncio.to_thread(compiled_query.query)
@@ -802,7 +847,8 @@ class BuildModel(StaticModel, QueryModel):
             query_result = pl.from_pandas(query_result).lazy()
         if self.needs_python_df_for_build:
             self.result = query_result.lazy()
-        await asyncio.to_thread(self._create_table_from_df, conn, query_result)
+        # await asyncio.to_thread(self._create_table_from_df, conn, query_result)
+        self._create_table_from_df(conn, query_result) # without threading
 
     async def build_model(self, conn: duckdb.DuckDBPyConnection, full_refresh: bool) -> None:
         start = time.time()
@@ -815,17 +861,19 @@ class BuildModel(StaticModel, QueryModel):
             def load_df(conn: duckdb.DuckDBPyConnection, dep_model: DataModel):
                 if dep_model.result is None:
                     local_conn = conn.cursor()
+                    # local_conn = conn
                     try:
                         dep_model.result = dep_model._load_duckdb_view_to_python_df(local_conn)
                     finally:
                         local_conn.close()
+                        # pass
                 
             coroutines = []
             for dep_model in self.upstreams_for_build.values():
                 coro = asyncio.to_thread(load_df, conn, dep_model)
                 coroutines.append(coro)
             await u.asyncio_gather(coroutines)
-            
+
             # Then run the model's Python function to build the model
             await self._build_python_model(self.compiled_query, conn)
         else:
@@ -842,7 +890,7 @@ class DAG:
     dataset: DatasetConfig | None
     target_model: DataModel
     models_dict: dict[str, DataModel]
-    duckdb_filepath: str = field(default="")
+    datalake_db_path: str | None = field(default=None)
     logger: u.Logger = field(default_factory=lambda: u.Logger(""))
     parameter_set: ParameterSet | None = field(default=None, init=False) # set in apply_selections
     placeholders: dict[str, Any] = field(init=False, default_factory=dict)
@@ -893,26 +941,22 @@ class DAG:
         self.logger.log_activity_time(f"validating no cycles in model dependencies", start)
         return terminal_nodes
 
+    def _attach_connections_with_type_duckdb(self, conn: duckdb.DuckDBPyConnection) -> None:
+        for conn_name, connection in self.target_model.conn_set.get_connections_as_dict().items():
+            if not isinstance(connection, ConnectionProperties):
+                continue
+            attach_uri = connection.attach_uri_for_duckdb
+            if attach_uri is None:
+                continue
+            attach_stmt = f"ATTACH IF NOT EXISTS '{attach_uri}' AS db_{conn_name} (READ_ONLY)"
+            u.run_duckdb_stmt(self.logger, conn, attach_stmt, redacted_values=[attach_uri])
+
     async def _run_models(self) -> None:
         terminal_nodes = self._get_terminal_nodes()
 
-        # create an empty duckdb venv file if it does not exist
+        conn = u.create_duckdb_connection(datalake_db_path=self.datalake_db_path)
         try:
-            conn = duckdb.connect(self.duckdb_filepath)
-            conn.close()
-        except duckdb.IOException as e:
-            # unable to create duckdb venv file means it's in use and already exists
-            # do not throw error here since attaching in read-only mode later may still work
-            pass
-        
-        conn = u.create_duckdb_connection()
-        try:
-            read_only = "(READ_ONLY)" if self.duckdb_filepath else ""
-            try:
-                conn.execute(f"ATTACH '{self.duckdb_filepath}' AS venv {read_only}")
-            except duckdb.IOException as e:
-                self.logger.warning(f"Unable to attach to duckdb venv file: {self.duckdb_filepath}")
-                raise e
+            self._attach_connections_with_type_duckdb(conn)
             
             coroutines = []
             for model_name in terminal_nodes:
@@ -945,21 +989,6 @@ class DAG:
         all_model_names = set()
         self.target_model.retrieve_dependent_query_models(all_model_names)
         return all_model_names
-    
-    def to_networkx_graph(self) -> nx.DiGraph:
-        G = nx.DiGraph()
-
-        for model_name, model in self.models_dict.items():
-            level = model.get_max_path_length_to_target()
-            if level is not None:
-                G.add_node(model_name, layer=-level, model_type=model.model_type)
-        
-        for model_name in G.nodes:
-            model = self.models_dict[model_name]
-            for dep_model_name in model.downstreams:
-                G.add_edge(model_name, dep_model_name)
-        
-        return G
     
     def get_all_data_models(self) -> list[rm.DataModelItem]:
         data_models = []

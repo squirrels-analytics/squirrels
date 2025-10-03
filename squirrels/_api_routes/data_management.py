@@ -89,11 +89,11 @@ class DataManagementRoutes(RouteBase):
         # Build project endpoint
         build_path = project_metadata_path + '/build'
         
-        @app.post(build_path, tags=["Data Management"], summary="Build or update the virtual data environment for the project")
+        @app.post(build_path, tags=["Data Management"], summary="Build or update the Virtual Data Lake (VDL) for the project")
         async def build(user=Depends(self.get_current_user)): # type: ignore
             if not self.authenticator.can_user_access_scope(user, PermissionScope.PRIVATE):
-                raise InvalidInputError(403, "unauthorized_access_to_build_model", f"User '{user}' does not have permission to build the virtual data environment")
-            await self.project.build(stage_file=True)
+                raise InvalidInputError(403, "unauthorized_access_to_build_model", f"User '{user}' does not have permission to build the virtual data lake (VDL)")
+            await self.project.build()
             return Response(status_code=status.HTTP_200_OK)
         
         # Query result endpoints

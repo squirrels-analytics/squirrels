@@ -1,4 +1,4 @@
-from typing import Sequence, Optional, Union, TypeVar, Callable, Any, Iterable
+from typing import Sequence, Optional, Union, TypeVar, Callable, Any, Iterable, Literal
 from datetime import datetime
 from pathlib import Path
 from functools import lru_cache
@@ -195,8 +195,10 @@ def process_if_not_none(input_val: Optional[X], processor: Callable[[X], Y]) -> 
     return processor(input_val)
 
 
-@lru_cache(maxsize=1)
-def _read_duckdb_init_sql() -> tuple[str, Path | None]:
+def _read_duckdb_init_sql(
+    *,
+    datalake_db_path: str | None = None,
+) -> str:
     """
     Reads and caches the duckdb init file content.
     Returns None if file doesn't exist or is empty.
@@ -211,35 +213,36 @@ def _read_duckdb_init_sql() -> tuple[str, Path | None]:
         if Path(c.DUCKDB_INIT_FILE).exists():
             with open(c.DUCKDB_INIT_FILE, 'r') as f:
                 init_contents.append(f.read())
-        
-        init_sql = "\n".join(init_contents).strip()
-        target_init_path = None
-        if init_sql:
-            target_init_path = Path(c.TARGET_FOLDER, c.DUCKDB_INIT_FILE)
-            target_init_path.parent.mkdir(parents=True, exist_ok=True)
-            target_init_path.write_text(init_sql)
-        
-        return init_sql, target_init_path
+
+        if datalake_db_path:
+            attach_stmt = f"ATTACH '{datalake_db_path}' AS vdl (READ_ONLY);"
+            init_contents.append(attach_stmt)
+                
+        init_sql = "\n\n".join(init_contents).strip()
+        return init_sql
     except Exception as e:
         raise ConfigurationError(f"Failed to read {c.DUCKDB_INIT_FILE}: {str(e)}") from e
 
-def create_duckdb_connection(filepath: str | Path = ":memory:", *, read_only: bool = False) -> duckdb.DuckDBPyConnection:
+def create_duckdb_connection(
+    db_path: str | Path = ":memory:", 
+    *, 
+    datalake_db_path: str | None = None
+) -> duckdb.DuckDBPyConnection:
     """
     Creates a DuckDB connection and initializes it with statements from duckdb init file
 
     Arguments:
         filepath: Path to the DuckDB database file. Defaults to in-memory database.
-        read_only: Whether to open the database in read-only mode. Defaults to False.
+        datalake_db_path: The path to the VDL catalog database if applicable. If exists, this is attached as 'vdl' (READ_ONLY). Default is None.
     
     Returns:
         A DuckDB connection (which must be closed after use)
     """
-    conn = duckdb.connect(filepath, read_only=read_only)
+    conn = duckdb.connect(db_path)
     
     try:
-        init_sql, _ = _read_duckdb_init_sql()
-        if init_sql:
-            conn.execute(init_sql)
+        init_sql = _read_duckdb_init_sql(datalake_db_path=datalake_db_path)
+        conn.execute(init_sql)
     except Exception as e:
         conn.close()
         raise ConfigurationError(f"Failed to execute {c.DUCKDB_INIT_FILE}: {str(e)}") from e
@@ -283,7 +286,13 @@ def load_yaml_config(filepath: FilePath) -> dict:
     """
     try:
         with open(filepath, 'r') as f:
-            return yaml.safe_load(f)
+            content = yaml.safe_load(f)
+            content = content if content else {}
+        
+        if not isinstance(content, dict):
+            raise yaml.YAMLError(f"Parsed content from YAML file must be a dictionary. Got: {content}")
+        
+        return content
     except yaml.YAMLError as e:
         raise ConfigurationError(f"Failed to parse yaml file: {filepath}") from e
 

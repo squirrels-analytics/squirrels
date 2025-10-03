@@ -38,15 +38,6 @@ def test_source_get_cols_for_create_table_stmt():
     expected = "id INTEGER, name TEXT, PRIMARY KEY (id)"
     assert source.get_cols_for_create_table_stmt() == expected
 
-def test_source_get_cols_for_insert_stmt():
-    source = Source(
-        columns=[
-            ColumnConfig(name="id", type="INTEGER"),
-            ColumnConfig(name="name", type="TEXT")
-        ]
-    )
-    assert source.get_cols_for_insert_stmt() == "id, name"
-
 def test_source_get_max_incr_col_query():
     source = Source(
         columns=[
@@ -67,17 +58,17 @@ def test_source_get_query_for_insert():
         update_hints=UpdateHints(increasing_column="timestamp")
     )
     expected = "SELECT id, timestamp FROM db_default.table_test"
-    assert source.get_query_for_insert(dialect="postgres", conn_name="default", table_name="table_test", max_value_of_increasing_col=None) == expected
-    assert source.get_query_for_insert(dialect="postgres", conn_name="default", table_name="table_test", max_value_of_increasing_col="2024-01-01", full_refresh=True) == expected
+    assert source.get_query_for_upsert(dialect="postgres", conn_name="default", table_name="table_test", max_value_of_increasing_col=None) == expected
+    assert source.get_query_for_upsert(dialect="postgres", conn_name="default", table_name="table_test", max_value_of_increasing_col="2024-01-01", full_refresh=True) == expected
     
     expected = "FROM postgres_query('db_default', 'SELECT id, timestamp FROM table_test WHERE CAST(timestamp AS TIMESTAMP) > CAST(''2024-01-01'' AS TIMESTAMP)')"
-    assert source.get_query_for_insert(dialect="postgres", conn_name="default", table_name="table_test", max_value_of_increasing_col="2024-01-01", full_refresh=False) == expected
+    assert source.get_query_for_upsert(dialect="postgres", conn_name="default", table_name="table_test", max_value_of_increasing_col="2024-01-01", full_refresh=False) == expected
 
     expected = "FROM mysql_query('db_default', 'SELECT id, timestamp FROM table_test WHERE CAST(timestamp AS DATETIME) > CAST(''2024-01-01'' AS DATETIME)')"
-    assert source.get_query_for_insert(dialect="mysql", conn_name="default", table_name="table_test", max_value_of_increasing_col="2024-01-01", full_refresh=False) == expected
+    assert source.get_query_for_upsert(dialect="mysql", conn_name="default", table_name="table_test", max_value_of_increasing_col="2024-01-01", full_refresh=False) == expected
 
     expected = "SELECT id, timestamp FROM db_default.table_test WHERE timestamp::timestamp > '2024-01-01'::timestamp"
-    assert source.get_query_for_insert(dialect="sqlite", conn_name="default", table_name="table_test", max_value_of_increasing_col="2024-01-01", full_refresh=False) == expected
+    assert source.get_query_for_upsert(dialect="sqlite", conn_name="default", table_name="table_test", max_value_of_increasing_col="2024-01-01", full_refresh=False) == expected
 
 def test_source_get_insert_replace_clause():
     source = Source(

@@ -43,6 +43,7 @@ class ConnectionTypeEnum(Enum):
     SQLALCHEMY = "sqlalchemy"
     CONNECTORX = "connectorx"
     ADBC = "adbc"
+    DUCKDB = "duckdb"
 
 
 class ConnectionProperties(BaseModel):
@@ -71,26 +72,32 @@ class ConnectionProperties(BaseModel):
 
     @cached_property
     def dialect(self) -> str:
+        default_dialect = None
         if self.type == ConnectionTypeEnum.SQLALCHEMY:
             dialect = self.engine.dialect.name
+        elif self.type == ConnectionTypeEnum.DUCKDB:
+            dialect = self.uri.split(':')[0]
+            default_dialect = 'duckdb'
         else:
             url = urlparse(self.uri)
             dialect = url.scheme
         
-        processed_dialect = next((d for d in ['sqlite', 'postgres', 'mysql'] if dialect.lower().startswith(d)), None)
+        processed_dialect = next((d for d in ['sqlite', 'postgres', 'mysql', 'duckdb'] if dialect.lower().startswith(d)), default_dialect)
         dialect = processed_dialect if processed_dialect is not None else dialect
         return dialect
     
     @cached_property
     def attach_uri_for_duckdb(self) -> str | None:
-        if self.type == ConnectionTypeEnum.SQLALCHEMY:
+        if self.type == ConnectionTypeEnum.DUCKDB:
+            return self.uri
+        elif self.type == ConnectionTypeEnum.SQLALCHEMY:
             url = self.engine.url
             host = url.host
             port = url.port
             username = url.username
             password = url.password
             database = url.database
-            sqlite_database = database if database is not None else ""
+            database_as_file = database if database is not None else ""
         else:
             url = urlparse(self.uri)
             host = url.hostname
@@ -98,14 +105,14 @@ class ConnectionProperties(BaseModel):
             username = url.username
             password = url.password
             database = url.path.lstrip('/')
-            sqlite_database = self.uri.replace(f"{self.dialect}://", "")
+            database_as_file = self.uri.replace(f"{self.dialect}://", "")
         
-        if self.dialect == 'sqlite':
-            return sqlite_database
-        elif self.dialect in ('postgres', 'mysql'):
-            return f"dbname={database} user={username} password={password} host={host} port={port}"
+        if self.dialect in ('postgres', 'mysql'):
+            props = f"dbname={database} user={username} password={password} host={host} port={port}"
         else:
-            return None
+            props = database_as_file
+        
+        return props if self.dialect == 'duckdb' else f"{self.dialect}:{props}"
 
 
 class DbConnConfig(ConnectionProperties, _ConfigWithNameBaseModel):
@@ -176,10 +183,6 @@ class AnalyticsOutputConfig(_ConfigWithNameBaseModel):
             raise ValueError(f'Scope "{value}" is invalid for dataset/dashboard "{name}". Scope must be one of {scope_list}') from e
 
 
-class DatasetTraitConfig(_ConfigWithNameBaseModel):
-    default: Any 
-
-
 class DatasetConfig(AnalyticsOutputConfig):
     model: str = ""
     
@@ -194,14 +197,9 @@ class DatasetConfig(AnalyticsOutputConfig):
 
 
 class TestSetsConfig(_ConfigWithNameBaseModel):
-    datasets: list[str] | None = None
-    user_attributes: dict[str, Any] | None = None
+    user_attributes: dict[str, Any] = Field(default_factory=dict)
     parameters: dict[str, Any] = Field(default_factory=dict)
     configurables: dict[str, Any] = Field(default_factory=dict)
-
-    @property
-    def is_authenticated(self) -> bool:
-        return self.user_attributes is not None
 
 
 class ManifestConfig(BaseModel):
@@ -265,16 +263,9 @@ class ManifestConfig(BaseModel):
         """
         Raises KeyError if dataset name doesn't exist
         """
-        default_name = self.env_vars.get(c.SQRL_TEST_SETS_DEFAULT_NAME_USED, "default")
-        default_test_set = self.selection_test_sets.get(default_name, TestSetsConfig(name=default_name))
+        default_default_test_set = TestSetsConfig(name=c.DEFAULT_TEST_SET_NAME)
+        default_test_set = self.selection_test_sets.get(c.DEFAULT_TEST_SET_NAME, default_default_test_set)
         return default_test_set
-    
-    def get_applicable_test_sets(self, dataset: str) -> list[str]:
-        applicable_test_sets = []
-        for test_set_name, test_set_config in self.selection_test_sets.items():
-            if test_set_config.datasets is None or dataset in test_set_config.datasets:
-                applicable_test_sets.append(test_set_name)
-        return applicable_test_sets
     
     def get_default_configurables(self) -> dict[str, str]:
         """

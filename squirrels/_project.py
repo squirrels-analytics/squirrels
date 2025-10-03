@@ -2,8 +2,8 @@ from dotenv import dotenv_values
 from uuid import uuid4
 from pathlib import Path
 import asyncio, typing as t, functools as ft, shutil, json, os
-import logging as l, matplotlib.pyplot as plt, networkx as nx, polars as pl
-import sqlglot, sqlglot.expressions
+import logging as l, polars as pl
+import sqlglot, sqlglot.expressions, duckdb
 
 from ._auth import Authenticator, BaseUser, AuthProviderArgs, ProviderFunctionType
 from ._schemas import response_models as rm
@@ -55,6 +55,7 @@ class SquirrelsProject:
         """
         self._filepath = filepath
         self._logger = self._get_logger(self._filepath, log_file, log_level, log_format)
+        self._ensure_virtual_datalake_exists(self._filepath)
 
     def _get_logger(self, base_path: str, log_file: str | None, log_level: str, log_format: str) -> u.Logger:
         logger = u.Logger(name=uuid4().hex)
@@ -81,6 +82,38 @@ class SquirrelsProject:
             logger.addHandler(handler)
         
         return logger
+
+    def _ensure_virtual_datalake_exists(self, project_path: str) -> None:
+        target_path = u.Path(project_path, c.TARGET_FOLDER)
+        target_path.mkdir(parents=True, exist_ok=True)
+
+        # Attempt to set up the virtual data lake with DATA_PATH if possible
+        try:
+            is_ducklake = self.datalake_db_path.startswith("ducklake:")
+            
+            data_path = self._env_vars.get(c.SQRL_VDL_DATA_PATH, c.DEFAULT_VDL_DATA_PATH)
+            data_path = data_path.format(project_path=project_path)
+            
+            options = f"(DATA_PATH '{data_path}')" if is_ducklake else ""
+            attach_stmt = f"ATTACH '{self.datalake_db_path}' AS vdl {options}"
+            with duckdb.connect() as conn:
+                conn.execute(attach_stmt)
+                # TODO: support incremental loads for build models and avoid cleaning up old files all the time
+                conn.execute("CALL ducklake_expire_snapshots('vdl', older_than => now())")
+                conn.execute("CALL ducklake_cleanup_old_files('vdl', cleanup_all => true)")
+        
+        except Exception as e:
+            if "DATA_PATH parameter" in str(e):
+                first_line = str(e).split("\n")[0]
+                note = "NOTE: Squirrels does not allow changing the data path for an existing Virtual Data Lake (VDL)"
+                raise u.ConfigurationError(f"{first_line}\n\n{note}")
+            
+            if is_ducklake and not any(x in self.datalake_db_path for x in [":sqlite:", ":postgres:", ":mysql:"]):
+                extended_error = "\n  Note: if you're using DuckDB for the metadata database, only one process can connect to the VDL at a time."
+            else:
+                extended_error = ""
+            
+            raise u.ConfigurationError(f"Failed to attach Virtual Data Lake (VDL).{extended_error}") from e
     
     @ft.cached_property
     def _env_vars(self) -> dict[str, str]:
@@ -89,6 +122,12 @@ class SquirrelsProject:
         for file in dotenv_files:
             dotenv_vars.update({k: v for k, v in dotenv_values(f"{self._filepath}/{file}").items() if v is not None})
         return {**os.environ, **dotenv_vars}
+    
+    @ft.cached_property
+    def datalake_db_path(self) -> str:
+        datalake_db_path = self._env_vars.get(c.SQRL_VDL_CATALOG_DB_PATH, c.DEFAULT_VDL_CATALOG_DB_PATH)
+        datalake_db_path = datalake_db_path.format(project_path=self._filepath)
+        return datalake_db_path
 
     @ft.cached_property
     def _manifest_cfg(self) -> mf.ManifestConfig:
@@ -190,11 +229,6 @@ class SquirrelsProject:
         env.filters["quote_and_join"] = quote_and_join
         return env
 
-    @ft.cached_property
-    def _duckdb_venv_path(self) -> str:
-        duckdb_filepath_setting_val = self._env_vars.get(c.SQRL_DUCKDB_VENV_DB_FILE_PATH, f"{c.TARGET_FOLDER}/{c.DUCKDB_VENV_FILE}")
-        return str(Path(self._filepath, duckdb_filepath_setting_val))
-    
     def close(self) -> None:
         """
         Deliberately close any open resources within the Squirrels project, such as database connections (instead of relying on the garbage collector).
@@ -229,20 +263,20 @@ class SquirrelsProject:
         return models_dict
 
 
-    async def build(self, *, full_refresh: bool = False, select: str | None = None, stage_file: bool = False) -> None:
+    async def build(self, *, full_refresh: bool = False, select: str | None = None) -> None:
         """
-        Build the virtual data environment for the Squirrels project
+        Build the Virtual Data Lake (VDL) for the Squirrels project
 
         Arguments:
-            full_refresh: Whether to drop all tables and rebuild the virtual data environment from scratch. Default is False.
-            stage_file: Whether to stage the DuckDB file to overwrite the existing one later if the virtual data environment is in use. Default is False.
+            full_refresh: Whether to drop all tables and rebuild the VDL from scratch. Default is False.
+            select: The name of a specific model to build. If None, all models are built. Default is None.
         """
         models_dict: dict[str, m.StaticModel] = self._get_static_models()
-        builder = ModelBuilder(self._duckdb_venv_path, self._conn_set, models_dict, self._conn_args, self._logger)
-        await builder.build(full_refresh, select, stage_file)
+        builder = ModelBuilder(self.datalake_db_path, self._conn_set, models_dict, self._conn_args, self._logger)
+        await builder.build(full_refresh, select)
 
     def _get_models_dict(self, always_python_df: bool) -> dict[str, m.DataModel]:
-        models_dict: dict[str, m.DataModel] = dict(self._get_static_models())
+        models_dict: dict[str, m.DataModel] = self._get_static_models()
         
         for name, val in self._dbview_model_files.items():
             self._add_model(models_dict, m.DbviewModel(
@@ -258,19 +292,18 @@ class SquirrelsProject:
         
         return models_dict
     
-    def _generate_dag(self, dataset: str, *, target_model_name: str | None = None, always_python_df: bool = False) -> m.DAG:
-        models_dict = self._get_models_dict(always_python_df)
+    def _generate_dag(self, dataset: str) -> m.DAG:
+        models_dict = self._get_models_dict(always_python_df=False)
         
         dataset_config = self._manifest_cfg.datasets[dataset]
-        target_model_name = dataset_config.model if target_model_name is None else target_model_name
-        target_model = models_dict[target_model_name]
+        target_model = models_dict[dataset_config.model]
         target_model.is_target = True
-        dag = m.DAG(dataset_config, target_model, models_dict, self._duckdb_venv_path, self._logger)
+        dag = m.DAG(dataset_config, target_model, models_dict, self.datalake_db_path, self._logger)
         
         return dag
     
-    def _generate_dag_with_fake_target(self, sql_query: str | None) -> m.DAG:
-        models_dict = self._get_models_dict(always_python_df=False)
+    def _generate_dag_with_fake_target(self, sql_query: str | None, *, always_python_df: bool = False) -> m.DAG:
+        models_dict = self._get_models_dict(always_python_df=always_python_df)
 
         if sql_query is None:
             dependencies = set(models_dict.keys())
@@ -280,10 +313,10 @@ class SquirrelsProject:
             substitutions = {}
             for model_name in dependencies:
                 model = models_dict[model_name]
-                if isinstance(model, m.SourceModel) and not model.model_config.load_to_duckdb:
+                if isinstance(model, m.SourceModel) and not model.model_config.load_to_vdl:
                     raise InvalidInputError(400, "cannot_query_source_model", f"Source model '{model_name}' cannot be queried with DuckDB")
                 if isinstance(model, (m.SourceModel, m.BuildModel)):
-                    substitutions[model_name] = f"venv.{model_name}"
+                    substitutions[model_name] = f"vdl.{model_name}"
             
             sql_query = parsed.transform(
                 lambda node: sqlglot.expressions.Table(this=substitutions[node.name])
@@ -292,39 +325,19 @@ class SquirrelsProject:
             ).sql()
         
         model_config = mc.FederateModelConfig(depends_on=dependencies)
-        query_file = mq.SqlQueryFile("", sql_query or "")
+        query_file = mq.SqlQueryFile("", sql_query or "SELECT 1")
         fake_target_model = m.FederateModel(
             "__fake_target", model_config, query_file, logger=self._logger, env_vars=self._env_vars, conn_set=self._conn_set, j2_env=self._j2_env
         )
         fake_target_model.is_target = True
-        dag = m.DAG(None, fake_target_model, models_dict, self._duckdb_venv_path, self._logger)
+        dag = m.DAG(None, fake_target_model, models_dict, self.datalake_db_path, self._logger)
         return dag
     
-    def _draw_dag(self, dag: m.DAG, output_folder: Path) -> None:
-        color_map = {
-            m.ModelType.SEED: "green", m.ModelType.DBVIEW: "red", m.ModelType.FEDERATE: "skyblue",
-            m.ModelType.BUILD: "purple", m.ModelType.SOURCE: "orange"
-        }
-
-        G = dag.to_networkx_graph()
-        
-        fig, _ = plt.subplots()
-        pos = nx.multipartite_layout(G, subset_key="layer")
-        colors = [color_map[node[1]] for node in G.nodes(data="model_type")] # type: ignore
-        nx.draw(G, pos=pos, node_shape='^', node_size=1000, node_color=colors, arrowsize=20)
-        
-        y_values = [val[1] for val in pos.values()]
-        scale = max(y_values) - min(y_values) if len(y_values) > 0 else 0
-        label_pos = {key: (val[0], val[1]-0.002-0.1*scale) for key, val in pos.items()}
-        nx.draw_networkx_labels(G, pos=label_pos, font_size=8)
-        
-        fig.tight_layout()
-        plt.margins(x=0.1, y=0.1)
-        fig.savefig(Path(output_folder, "dag.png"))
-        plt.close(fig)
-    
-    async def _get_compiled_dag(self, *, sql_query: str | None = None, selections: dict[str, t.Any] = {}, user: BaseUser | None = None, configurables: dict[str, str] = {}) -> m.DAG:
-        dag = self._generate_dag_with_fake_target(sql_query)
+    async def _get_compiled_dag(
+        self, *, sql_query: str | None = None, selections: dict[str, t.Any] = {}, user: BaseUser | None = None, configurables: dict[str, str] = {}, 
+        always_python_df: bool = False
+    ) -> m.DAG:
+        dag = self._generate_dag_with_fake_target(sql_query, always_python_df=always_python_df)
         
         configurables = {**self._manifest_cfg.get_default_configurables(), **configurables}
         await dag.execute(
@@ -383,123 +396,160 @@ class SquirrelsProject:
         compiled_dag = await self._get_compiled_dag()
         return self._get_all_data_lineage(compiled_dag)
 
-    async def _write_dataset_outputs_given_test_set(
-        self, dataset: str, select: str, test_set: str | None, runquery: bool, recurse: bool
-    ) -> t.Any | None:
-        dataset_conf = self._manifest_cfg.datasets[dataset]
-        default_test_set_conf = self._manifest_cfg.get_default_test_set()
-        if test_set in self._manifest_cfg.selection_test_sets:
-            test_set_conf = self._manifest_cfg.selection_test_sets[test_set]
-        elif test_set is None or test_set == default_test_set_conf.name:
-            test_set, test_set_conf = default_test_set_conf.name, default_test_set_conf
-        else:
-            raise ConfigurationError(f"No test set named '{test_set}' was found when compiling dataset '{dataset}'. The test set must be defined if not default for dataset.")
-        
-        error_msg_intro = f"Cannot compile dataset '{dataset}' with test set '{test_set}'."
-        if test_set_conf.datasets is not None and dataset not in test_set_conf.datasets:
-            raise ConfigurationError(f"{error_msg_intro}\n Applicable datasets for test set '{test_set}' does not include dataset '{dataset}'.")
-        
-        user_attributes = test_set_conf.user_attributes.copy() if test_set_conf.user_attributes is not None else {}
-        selections = test_set_conf.parameters.copy()
-        username, is_admin = user_attributes.pop("username", ""), user_attributes.pop("is_admin", False)
-        if test_set_conf.is_authenticated:
-            user = self._auth.User(username=username, is_admin=is_admin, **user_attributes)
-        elif dataset_conf.scope == mf.PermissionScope.PUBLIC:
-            user = None
-        else:
-            raise ConfigurationError(f"{error_msg_intro}\n Non-public datasets require a test set with 'user_attributes' section defined")
-        
-        if dataset_conf.scope == mf.PermissionScope.PRIVATE and not is_admin:
-            raise ConfigurationError(f"{error_msg_intro}\n Private datasets require a test set with user_attribute 'is_admin' set to true")
-
-        # always_python_df is set to True for creating CSV files from results (when runquery is True)
-        dag = self._generate_dag(dataset, target_model_name=select, always_python_df=runquery)
-        configurables = {**self._manifest_cfg.get_default_configurables(), **test_set_conf.configurables}
-        await dag.execute(
-            self._param_args, self._param_cfg_set, self._context_func, user, selections, runquery=runquery, recurse=recurse,
-            configurables=configurables
-        )
-        
-        output_folder = Path(self._filepath, c.TARGET_FOLDER, c.COMPILE_FOLDER, dataset, test_set)
-        if output_folder.exists():
-            shutil.rmtree(output_folder)
-        output_folder.mkdir(parents=True, exist_ok=True)
-        
-        def write_placeholders() -> None:
-            output_filepath = Path(output_folder, "placeholders.json")
-            with open(output_filepath, 'w') as f:
-                json.dump(dag.placeholders, f, indent=4)
-        
-        def write_model_outputs(model: m.DataModel) -> None:
-            assert isinstance(model, m.QueryModel)
-            subfolder = c.DBVIEWS_FOLDER if model.model_type == m.ModelType.DBVIEW else c.FEDERATES_FOLDER
-            subpath = Path(output_folder, subfolder)
-            subpath.mkdir(parents=True, exist_ok=True)
-            if isinstance(model.compiled_query, mq.SqlModelQuery):
-                output_filepath = Path(subpath, model.name+'.sql')
-                query = model.compiled_query.query
-                with open(output_filepath, 'w') as f:
-                    f.write(query)
-            if runquery and isinstance(model.result, pl.LazyFrame):
-                output_filepath = Path(subpath, model.name+'.csv')
-                model.result.collect().write_csv(output_filepath)
-
-        write_placeholders()
-        all_model_names = dag.get_all_query_models()
-        coroutines = [asyncio.to_thread(write_model_outputs, dag.models_dict[name]) for name in all_model_names]
-        await u.asyncio_gather(coroutines)
-
-        if recurse:
-            self._draw_dag(dag, output_folder)
-        
-        if isinstance(dag.target_model, m.QueryModel) and dag.target_model.compiled_query is not None:
-            return dag.target_model.compiled_query.query
-    
     async def compile(
-        self, *, dataset: str | None = None, do_all_datasets: bool = False, selected_model: str | None = None, test_set: str | None = None, 
-        do_all_test_sets: bool = False, runquery: bool = False
+        self, *, selected_model: str | None = None, test_set: str | None = None, do_all_test_sets: bool = False,
+        runquery: bool = False, clear: bool = False, buildtime_only: bool = False, runtime_only: bool = False
     ) -> None:
         """
-        Async method to compile the SQL templates into files in the "target/" folder. Same functionality as the "sqrl compile" CLI.
+        Compile models into the "target/compile" folder.
 
-        Although all arguments are "optional", the "dataset" argument is required if "do_all_datasets" argument is False.
+        Behavior:
+        - Buildtime outputs: target/compile/buildtime/*.sql (for SQL build models) and dag.png
+        - Runtime outputs: target/compile/runtime/[test_set]/dbviews/*.sql, federates/*.sql, dag.png
+          If runquery=True, also write CSVs for runtime models.
+        - Options: clear entire compile folder first; compile only buildtime or only runtime.
 
         Arguments:
-            dataset: The name of the dataset to compile. Ignored if "do_all_datasets" argument is True, but required (i.e., cannot be None) if "do_all_datasets" is False. Default is None.
-            do_all_datasets: If True, compile all datasets and ignore the "dataset" argument. Default is False.
             selected_model: The name of the model to compile. If specified, the compiled SQL query is also printed in the terminal. If None, all models for the selected dataset are compiled. Default is None.
             test_set: The name of the test set to compile with. If None, the default test set is used (which can vary by dataset). Ignored if `do_all_test_sets` argument is True. Default is None.
             do_all_test_sets: Whether to compile all applicable test sets for the selected dataset(s). If True, the `test_set` argument is ignored. Default is False.
-            runquery**: Whether to run all compiled queries and save each result as a CSV file. If True and `selected_model` is specified, all upstream models of the selected model is compiled as well. Default is False.
+            runquery: Whether to run all compiled queries and save each result as a CSV file. If True and `selected_model` is specified, all upstream models of the selected model is compiled as well. Default is False.
+            clear: Whether to clear the "target/compile/" folder before compiling. Default is False.
+            buildtime_only: Whether to compile only buildtime models. Default is False.
+            runtime_only: Whether to compile only runtime models. Default is False.
         """
-        recurse = True
-        if do_all_datasets:
-            selected_models = [(dataset.name, dataset.model) for dataset in self._manifest_cfg.datasets.values()]
-        else:
-            assert isinstance(dataset, str), "argument 'dataset' must be provided a string value if argument 'do_all_datasets' is False"
-            assert dataset in self._manifest_cfg.datasets, f"dataset '{dataset}' not found in {c.MANIFEST_FILE}"
-            if selected_model is None:
-                selected_model = self._manifest_cfg.datasets[dataset].model
+        border = "=" * 80
+        underlines = "-" * len(border)
+
+        compile_root = Path(self._filepath, c.TARGET_FOLDER, c.COMPILE_FOLDER)
+        if clear and compile_root.exists():
+            shutil.rmtree(compile_root)
+
+        models_dict = self._get_models_dict(always_python_df=False)
+
+        model_to_compile = None
+        if selected_model is not None:
+            normalized = u.normalize_name(selected_model)
+            model_to_compile = models_dict.get(normalized)
+            if model_to_compile is None:
+                print(f"No such model found: {selected_model}")
+                return
+            if not isinstance(model_to_compile, m.QueryModel):
+                print(f"Model '{selected_model}' is not a query model. Nothing to do.")
+                return
+
+        # Buildtime compilation
+        if not runtime_only:
+            print(underlines)
+            print(f"Compiling buildtime models")
+            print(underlines)
+
+            buildtime_folder = Path(compile_root, c.COMPILE_BUILDTIME_FOLDER)
+            buildtime_folder.mkdir(parents=True, exist_ok=True)
+
+            def write_buildtime_model(model: m.DataModel, static_models: dict[str, m.StaticModel]) -> None:
+                if not isinstance(model, m.BuildModel):
+                    return
+                
+                model.compile_for_build(self._conn_args, static_models)
+
+                if isinstance(model.compiled_query, mq.SqlModelQuery):
+                    out_path = Path(buildtime_folder, f"{model.name}.sql")
+                    with open(out_path, 'w') as f:
+                        f.write(model.compiled_query.query)
+                    print(f"Successfully compiled build model: {model.name}")
+                elif isinstance(model.compiled_query, mq.PyModelQuery):
+                    print(f"The build model '{model.name}' is in Python. Compilation for Python is not supported yet.")
+
+            static_models = self._get_static_models()
+            if model_to_compile is not None:
+                write_buildtime_model(model_to_compile, static_models)
             else:
-                recurse = False
-            selected_models = [(dataset, selected_model)]
-        
-        coroutines: list[t.Coroutine] = []
-        for dataset, selected_model in selected_models:
-            if do_all_test_sets:
-                for test_set_name in self._manifest_cfg.get_applicable_test_sets(dataset):
-                    coroutine = self._write_dataset_outputs_given_test_set(dataset, selected_model, test_set_name, runquery, recurse)
-                    coroutines.append(coroutine)
+                coros = [asyncio.to_thread(write_buildtime_model, m, static_models) for m in static_models.values()]
+                await u.asyncio_gather(coros)
             
-            coroutine = self._write_dataset_outputs_given_test_set(dataset, selected_model, test_set, runquery, recurse)
-            coroutines.append(coroutine)
-        
-        queries = await u.asyncio_gather(coroutines)
-        
-        print(f"Compiled successfully! See the '{c.TARGET_FOLDER}/' folder for results.")
-        if not recurse and len(queries) == 1 and isinstance(queries[0], str):
+            print(underlines)
             print()
-            print(queries[0])
+        
+        # Runtime compilation
+        if not buildtime_only:
+            if do_all_test_sets:
+                test_set_names_set = set(self._manifest_cfg.selection_test_sets.keys())
+                test_set_names_set.add(c.DEFAULT_TEST_SET_NAME)
+                test_set_names = list(test_set_names_set)
+            else:
+                test_set_names = [test_set or c.DEFAULT_TEST_SET_NAME]
+
+            for ts_name in test_set_names:
+                print(underlines)
+                print(f"Compiling runtime models (test set '{ts_name}')")
+                print(underlines)
+
+                # Build user and selections from test set config if present
+                ts_conf = self._manifest_cfg.selection_test_sets.get(ts_name, self._manifest_cfg.get_default_test_set())
+                user_attributes = { "username": "", "is_admin": False, **ts_conf.user_attributes }
+                user = self._auth.User(**user_attributes)
+
+                # Generate DAG across all models. When runquery=True, force models to produce Python dataframes so CSVs can be written.
+                dag = await self._get_compiled_dag(
+                    selections=ts_conf.parameters, user=user, configurables=ts_conf.configurables, always_python_df=runquery,
+                )
+                if runquery:
+                    await dag._run_models()
+
+                # Prepare output folders
+                runtime_folder = Path(compile_root, c.COMPILE_RUNTIME_FOLDER, ts_name)
+                dbviews_folder = Path(runtime_folder, c.DBVIEWS_FOLDER)
+                federates_folder = Path(runtime_folder, c.FEDERATES_FOLDER)
+                dbviews_folder.mkdir(parents=True, exist_ok=True)
+                federates_folder.mkdir(parents=True, exist_ok=True)
+                with open(Path(runtime_folder, "placeholders.json"), "w") as f:
+                    json.dump(dag.placeholders, f)
+
+                # Function to write runtime models
+                def write_runtime_model(model: m.DataModel) -> None:
+                    if not isinstance(model, m.QueryModel):
+                        return
+                    
+                    if model.model_type not in (m.ModelType.DBVIEW, m.ModelType.FEDERATE):
+                        return
+                    
+                    subfolder = dbviews_folder if model.model_type == m.ModelType.DBVIEW else federates_folder
+                    model_type = "dbview" if model.model_type == m.ModelType.DBVIEW else "federate"
+
+                    if isinstance(model.compiled_query, mq.SqlModelQuery):
+                        out_sql = Path(subfolder, f"{model.name}.sql")
+                        with open(out_sql, 'w') as f:
+                            f.write(model.compiled_query.query)
+                        print(f"Successfully compiled {model_type} model: {model.name}")
+                    elif isinstance(model.compiled_query, mq.PyModelQuery):
+                        print(f"The {model_type} model '{model.name}' is in Python. Compilation for Python is not supported yet.")
+                    
+                    if runquery and isinstance(model.result, pl.LazyFrame):
+                        out_csv = Path(subfolder, f"{model.name}.csv")
+                        model.result.collect().write_csv(out_csv)
+                        print(f"Successfully created CSV for {model_type} model: {model.name}")
+
+                # If selected_model is provided for runtime, only emit that model's outputs
+                if model_to_compile is not None:
+                    write_runtime_model(model_to_compile)
+                else:
+                    models_to_compile = dag.models_dict.values()
+                    coros = [asyncio.to_thread(write_runtime_model, model) for model in models_to_compile]
+                    await u.asyncio_gather(coros)
+
+                print(underlines)
+                print()
+
+        print(f"All compilations complete! See the '{c.TARGET_FOLDER}/{c.COMPILE_FOLDER}/' folder for results.")
+        if model_to_compile and isinstance(model_to_compile.compiled_query, mq.SqlModelQuery):
+            print()
+            print(border)
+            print(f"Compiled SQL query for model '{model_to_compile.name}':")
+            print(underlines)
+            print(model_to_compile.compiled_query.query)
+            print(border)
+            print()
 
     def _permission_error(self, user: BaseUser | None, data_type: str, data_name: str, scope: str) -> InvalidInputError:
         return InvalidInputError(403, f"unauthorized_access_to_{data_type}", f"User '{user}' does not have permission to access {scope} {data_type}: {data_name}")
@@ -629,7 +679,7 @@ class SquirrelsProject:
 
         # Build a DAG with this model as the target, without a dataset context
         model.is_target = True
-        dag = m.DAG(None, model, models_dict, self._duckdb_venv_path, self._logger)
+        dag = m.DAG(None, model, models_dict, self.datalake_db_path, self._logger)
 
         cfg = {**self._manifest_cfg.get_default_configurables(), **configurables}
         await dag.execute(

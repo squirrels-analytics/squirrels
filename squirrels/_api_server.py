@@ -110,37 +110,33 @@ class ApiServer:
         self.data_management_routes = DataManagementRoutes(get_bearer_token, project, no_cache)
     
     
-    async def _monitor_for_staging_file(self) -> None:
-        """Background task that monitors for staging file and renames it when present"""
-        duckdb_venv_path = self.project._duckdb_venv_path
-        staging_file = Path(duckdb_venv_path + ".stg")
-        target_file = Path(duckdb_venv_path)
+    # async def _monitor_for_staging_file(self) -> None:
+    #     """Background task that monitors for staging file and renames it when present"""
+    #     duckdb_venv_path = self.project._duckdb_venv_path
+    #     staging_file = Path(duckdb_venv_path + ".stg")
+    #     target_file = Path(duckdb_venv_path)
                 
-        while True:
-            try:
-                if staging_file.exists():
-                    try:
-                        staging_file.replace(target_file)
-                        self.logger.info("Successfully renamed staging database to virtual environment database")
-                    except OSError:
-                        # Silently continue if file cannot be renamed (will retry next iteration)
-                        pass
+    #     while True:
+    #         try:
+    #             if staging_file.exists():
+    #                 try:
+    #                     staging_file.replace(target_file)
+    #                     self.logger.info("Successfully renamed staging database to the main DuckDB data lake")
+    #                 except OSError:
+    #                     # Silently continue if file cannot be renamed (will retry next iteration)
+    #                     pass
                 
-            except Exception as e:
-                # Log any unexpected errors but keep running
-                self.logger.error(f"Error in monitoring {c.DUCKDB_VENV_FILE + '.stg'}: {str(e)}")
+    #         except Exception as e:
+    #             # Log any unexpected errors but keep running
+    #             self.logger.error(f"Error in monitoring {c.DUCKDB_VENV_FILE + '.stg'}: {str(e)}")
             
-            await asyncio.sleep(1)  # Check every second
+    #         await asyncio.sleep(1)  # Check every second
     
     @asynccontextmanager
     async def _run_background_tasks(self, app: FastAPI):
-        task = asyncio.create_task(self._monitor_for_staging_file())
-        
         async with contextlib.AsyncExitStack() as stack:
             await stack.enter_async_context(self.mcp.session_manager.run())
             yield
-        
-        task.cancel()
 
 
     def _get_tags_metadata(self) -> list[dict]:

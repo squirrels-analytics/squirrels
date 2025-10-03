@@ -1,7 +1,7 @@
 from typing import Any
 from dataclasses import dataclass, field
 from sqlalchemy import Engine
-import time, polars as pl
+import time, polars as pl, duckdb
 
 from . import _utils as u, _constants as c, _py_module as pm
 from ._arguments.init_time_args import ConnectionsArgs
@@ -38,6 +38,13 @@ class ConnectionSet:
             elif isinstance(conn, ConnectionProperties) and conn.type == ConnectionTypeEnum.SQLALCHEMY:
                 with conn.engine.connect() as connection:
                     df = pl.read_database(query, connection, execute_options={"parameters": placeholders})
+            elif isinstance(conn, ConnectionProperties) and conn.type == ConnectionTypeEnum.DUCKDB:
+                path = conn.uri # .replace("duckdb://", "")
+                dd_conn = duckdb.connect(path)
+                try:
+                    df = dd_conn.sql(query, params=placeholders).pl()
+                finally:
+                    dd_conn.close()
             else:
                 df = pl.read_database(query, conn, execute_options={"parameters": placeholders}) # type: ignore
             return df

@@ -23,10 +23,11 @@ packages: []
 datasets:
   - name: dbview_dataset_example          ## model name uses same name unless "model" field is specified
     label: Example Dataset from DBView Model
-    description: Aggregated expense transactions by month using dbview_example model
+    description: Aggregated expense transactions by custom dimension using dbview_example model
     model: dbview_example 
-    scope: public                         ## optional - one of 'public' (default), 'protected', or 'private'
+    scope: private                        ## optional - one of 'public' (default), 'protected', or 'private'
     parameters:                           ## optional - if not specified, then all parameters are used
+      - group_by
       - start_date
       - end_date
       - min_filter
@@ -36,7 +37,7 @@ datasets:
     label: Example Dataset from Federate Model
     description: Aggregated expense transactions by custom dimension using federate_example model
     model: federate_example 
-    scope: protected                      ## using an auth.py file is suggested for protected or private datasets
+    scope: public                         ## using an auth.py file is suggested for protected or private datasets
     parameters:
       - group_by
       - limit
@@ -47,23 +48,16 @@ datasets:
 
 
 selection_test_sets:
-  - name: no_auth_test1
-    datasets:                             ## optional section - if not provided, then test set is applicable for any dataset
-      - dbview_dataset_example
-    parameters:                           ## optional section - if not provided, then assumes no parameters. For unspecified parameters, default value is used
-      start_date: 2024-07-01              ## this parameter only exists for dataset 'dataset_example'
+  - name: set_start_date
+    parameters:                           ## optional section - if not provided, then default value is used for all parameters
+      start_date: 2024-07-01              ## this parameter is only used by model "dbview_example"
   
-  - name: auth_test1
-    datasets:
-      - federate_dataset_example
-    user_attributes:                      ## optional section - required if using test set on non-public datasets
-      role: employee
+  - name: set_date_range
     parameters:
-      date_range: [2024-02-01,2024-12-01] ## this parameter only exists for dataset 'protected_dataset_example'
+      date_range: [2024-02-01,2024-11-30] ## this parameter is only used by model "federate_example"
     
-  - name: auth_test2
+  - name: use_manager_privileged_group_by
     user_attributes:
-      is_admin: True                      ## optional - defaults to False
       role: manager
     parameters:
-      group_by: g3                        ## this parameter exists for all datasets. "g3" is the id for option "subcategory"
+      group_by: trans                     ## this parameter exists for all datasets

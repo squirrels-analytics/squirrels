@@ -139,38 +139,6 @@ class TestTestSetsConfig:
         data = {"name": "test_set3", "user_attributes": {}}
         return m.TestSetsConfig(**data)
 
-    @pytest.mark.parametrize("fixture,expected", [
-        ("test_sets_config1", False),
-        ("test_sets_config2", True),
-        ("test_sets_config3", True),
-    ])
-    def test_is_authenticated(self, fixture: str, expected: bool, request: pytest.FixtureRequest):
-        test_sets: m.TestSetsConfig = request.getfixturevalue(fixture)
-        assert test_sets.is_authenticated == expected
-
-
-class TestManifestConfig:
-    @pytest.fixture(scope="class")
-    def manifest_config1(self) -> m.ManifestConfig:
-        selection_test_sets = {
-            "test_set1": m.TestSetsConfig(name="test_set1"),
-            "test_set2": m.TestSetsConfig(name="test_set2", datasets=["modelA"]),
-            "test_set3": m.TestSetsConfig(name="test_set3", datasets=["modelB"]),
-        }
-        manifest_cfg = m.ManifestConfig(
-            project_variables=m.ProjectVarsConfig(name="", major_version=0),
-            selection_test_sets=selection_test_sets
-        )
-        return manifest_cfg
-
-
-    @pytest.mark.parametrize("fixture,dataset,expected", [
-        ("manifest_config1", "modelA", ["test_set1", "test_set2"]),
-    ])
-    def test_get_applicable_test_sets(self, fixture: str, dataset: str, expected: list[str], request: pytest.FixtureRequest):
-        manifest_config1: m.ManifestConfig = request.getfixturevalue(fixture)
-        assert manifest_config1.get_applicable_test_sets(dataset) == expected
-
 
 class TestConnectionProperties:
     @pytest.fixture(scope="class")

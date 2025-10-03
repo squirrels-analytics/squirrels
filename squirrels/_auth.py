@@ -137,8 +137,8 @@ class Authenticator(_t.Generic[User]):
         self.auth_providers = [provider_function(auth_args) for provider_function in provider_functions]
         
         if sa_engine is None:
-            sqlite_relative_path = self.env_vars.get(c.SQRL_AUTH_DB_FILE_PATH, f"{c.TARGET_FOLDER}/{c.DB_FILE}")
-            sqlite_path = u.Path(base_path, sqlite_relative_path)
+            raw_sqlite_path = self.env_vars.get(c.SQRL_AUTH_DB_FILE_PATH, f"{{project_path}}/{c.TARGET_FOLDER}/{c.DB_FILE}")
+            sqlite_path = u.Path(raw_sqlite_path.format(project_path=base_path))
             sqlite_path.parent.mkdir(parents=True, exist_ok=True)
             self.engine = create_engine(f"sqlite:///{str(sqlite_path)}")
         else:

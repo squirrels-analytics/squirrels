@@ -1,19 +1,19 @@
 from typing import Any
 from pydantic import BaseModel, Field, model_validator
-import time, sqlglot
+import time, sqlglot, yaml
 
 from . import _utils as u, _constants as c, _model_configs as mc
 
 
 class UpdateHints(BaseModel):
     increasing_column: str | None = Field(default=None)
-    strictly_increasing: bool = Field(default=True, description="Delete the max value of the increasing column, ignored if value is set")
-    selective_overwrite_value: Any = Field(default=None)
+    strictly_increasing: bool = Field(default=True, description="Delete the max value of the increasing column, ignored if selective_overwrite_value is set")
+    selective_overwrite_value: Any = Field(default=None, description="Delete all values of the increasing column greater than or equal to this value")
 
 
 class Source(mc.ConnectionInterface, mc.ModelConfig):
     table: str | None = Field(default=None)
-    load_to_duckdb: bool = Field(default=False, description="Whether to load the data to DuckDB")
+    load_to_vdl: bool = Field(default=False, description="Whether to load the data to the 'virtual data lake' (VDL)")
     primary_key: list[str] = Field(default_factory=list)
     update_hints: UpdateHints = Field(default_factory=UpdateHints)
 
@@ -28,34 +28,28 @@ class Source(mc.ConnectionInterface, mc.ModelConfig):
     
     def get_cols_for_create_table_stmt(self) -> str:
         cols_clause = ", ".join([f"{col.name} {col.type}" for col in self.columns])
-        primary_key_clause = f", PRIMARY KEY ({', '.join(self.primary_key)})" if self.primary_key else ""
-        return f"{cols_clause}{primary_key_clause}"
-    
-    def get_cols_for_insert_stmt(self) -> str:
-        return ", ".join([col.name for col in self.columns])
+        return cols_clause
     
     def get_max_incr_col_query(self, source_name: str) -> str:
         return f"SELECT max({self.update_hints.increasing_column}) FROM {source_name}"
     
-    def get_query_for_insert(self, dialect: str, conn_name: str, table_name: str, max_value_of_increasing_col: Any | None, *, full_refresh: bool = True) -> str:
-        select_cols = self.get_cols_for_insert_stmt()
+    def get_query_for_upsert(self, dialect: str, conn_name: str, table_name: str, max_value_of_increasing_col: Any | None, *, full_refresh: bool = True) -> str:
+        select_cols = ", ".join([col.name for col in self.columns])
         if full_refresh or max_value_of_increasing_col is None:
             return f"SELECT {select_cols} FROM db_{conn_name}.{table_name}"
         
         increasing_col = self.update_hints.increasing_column
         increasing_col_type = next(col.type for col in self.columns if col.name == increasing_col)
         where_cond = f"{increasing_col}::{increasing_col_type} > '{max_value_of_increasing_col}'::{increasing_col_type}"
-        pushdown_query = f"SELECT {select_cols} FROM {table_name} WHERE {where_cond}"
         
-        if dialect in ['postgres', 'mysql']:
-            transpiled_query = sqlglot.transpile(pushdown_query, read='duckdb', write=dialect)[0].replace("'", "''")
-            return f"FROM {dialect}_query('db_{conn_name}', '{transpiled_query}')"
+        # TODO: figure out if using pushdown query is worth it
+        # if dialect in ['postgres', 'mysql']:
+        #     pushdown_query = f"SELECT {select_cols} FROM {table_name} WHERE {where_cond}"
+        #     transpiled_query = sqlglot.transpile(pushdown_query, read='duckdb', write=dialect)[0].replace("'", "''")
+        #     return f"FROM {dialect}_query('db_{conn_name}', '{transpiled_query}')"
         
         return f"SELECT {select_cols} FROM db_{conn_name}.{table_name} WHERE {where_cond}"
     
-    def get_insert_replace_clause(self) -> str:
-        return "" if len(self.primary_key) == 0 else "OR REPLACE"
-
 
 class Sources(BaseModel):
     sources: dict[str, Source] = Field(default_factory=dict)
@@ -98,7 +92,17 @@ class SourcesIO:
         start = time.time()
         
         sources_path = u.Path(base_path, c.MODELS_FOLDER, c.SOURCES_FILE)
-        sources_data = u.load_yaml_config(sources_path) if sources_path.exists() else {}
+        if sources_path.exists():
+            raw_content = u.read_file(sources_path)
+            rendered = u.render_string(raw_content, base_path=base_path, env_vars=env_vars)
+            sources_data = yaml.safe_load(rendered) or {}
+        else:
+            sources_data = {}
+        
+        if not isinstance(sources_data, dict):
+            raise u.ConfigurationError(
+                f"Parsed content from YAML file must be a dictionary. Got: {sources_data}"
+            )
         
         sources = Sources(**sources_data).finalize_null_fields(env_vars)
         

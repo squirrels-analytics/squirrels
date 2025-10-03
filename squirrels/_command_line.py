@@ -1,4 +1,5 @@
 from argparse import ArgumentParser, _SubParsersAction
+from pathlib import Path
 import sys, asyncio, traceback, io, subprocess
 
 sys.path.append('.')
@@ -9,18 +10,31 @@ from ._initializer import Initializer
 from ._package_loader import PackageLoaderIO
 from ._project import SquirrelsProject
 from . import _constants as c, _utils as u
+from ._compile_prompts import prompt_compile_options
 
 
 def _run_duckdb_cli(project: SquirrelsProject, ui: bool):
-    _, target_init_path = u._read_duckdb_init_sql()
-    init_args = f"-init {target_init_path}" if target_init_path else ""
+    init_sql = u._read_duckdb_init_sql(datalake_db_path=project.datalake_db_path)
+    
+    target_init_path = None
+    if init_sql:
+        target_init_path = Path(c.TARGET_FOLDER, c.DUCKDB_INIT_FILE)
+        target_init_path.parent.mkdir(parents=True, exist_ok=True)
+        target_init_path.write_text(init_sql)
+    
+    init_args = ["-init", str(target_init_path)] if target_init_path else []
     command = ['duckdb']
     if ui:
         command.append('-ui')
     if init_args:
-        command.extend(init_args.split())
-    command.extend(['-readonly', project._duckdb_venv_path])
-    print(f'Running command: {" ".join(command)}')
+        command.extend(init_args)
+    
+    print("Starting DuckDB CLI with command:")
+    print(f"$ {' '.join(command)}")
+    print()
+    print("To exit the DuckDB CLI, enter '.exit'")
+    print()
+    
     try:
         subprocess.run(command, check=True)
     except FileNotFoundError:
@@ -92,25 +106,26 @@ def main():
     deps_parser = add_subparser(subparsers, c.DEPS_CMD, f'Load all packages specified in {c.MANIFEST_FILE} (from git)')
 
     compile_parser = add_subparser(subparsers, c.COMPILE_CMD, 'Create rendered SQL files in the folder "./target/compile"')
-    compile_dataset_group = compile_parser.add_mutually_exclusive_group(required=True)
-    compile_dataset_group.add_argument('-d', '--dataset', type=str, help="Select dataset to use for dataset traits. Is required, unless using --all-datasets")
-    compile_dataset_group.add_argument('-D', '--all-datasets', action="store_true", help="Compile models for all datasets. Only required if --dataset is not specified")
+    compile_parser.add_argument('-y', '--yes', action='store_true', help='Disable prompts and assume the default for all settings not overridden by CLI options')
+    compile_parser.add_argument('-c', '--clear', action='store_true', help='Clear the "target/compile/" folder before compiling')
+    compile_scope_group = compile_parser.add_mutually_exclusive_group(required=False)
+    compile_scope_group.add_argument('--buildtime-only', action='store_true', help='Compile only buildtime models')
+    compile_scope_group.add_argument('--runtime-only', action='store_true', help='Compile only runtime models')
     compile_test_set_group = compile_parser.add_mutually_exclusive_group(required=False)
-    compile_test_set_group.add_argument('-t', '--test-set', type=str, help="The selection test set to use. If not specified, default selections are used, unless using --all-test-sets")
-    compile_test_set_group.add_argument('-T', '--all-test-sets', action="store_true", help="Compile models for all selection test sets")
+    compile_test_set_group.add_argument('-t', '--test-set', type=str, help="The selection test set to use. If not specified, default selections are used (unless using --all-test-sets). Not applicable for buildtime models")
+    compile_test_set_group.add_argument('-T', '--all-test-sets', action="store_true", help="Compile models for all selection test sets. Not applicable for buildtime models")
     compile_parser.add_argument('-s', '--select', type=str, help="Select single model to compile. If not specified, all models are compiled")
-    compile_parser.add_argument('-r', '--runquery', action='store_true', help='Runs all realtime models, and produce the results as csv files. This does not run buildtime models')
-
-    build_parser = add_subparser(subparsers, c.BUILD_CMD, 'Build the virtual data environment (with duckdb) for the project')
+    compile_parser.add_argument('-r', '--runquery', action='store_true', help='Run runtime models and write CSV outputs too. Does not apply to buildtime models')
+    
+    build_parser = add_subparser(subparsers, c.BUILD_CMD, 'Build the Virtual Data Lake (VDL) for the project')
     build_parser.add_argument('-f', '--full-refresh', action='store_true', help='Drop all tables before building')
     build_parser.add_argument('-s', '--select', type=str, help="Select one static model to build. If not specified, all models are built")
-    build_parser.add_argument('--stage', type=str, help='If the venv file is in use, stage the duckdb file to replace the venv later')
 
     duckdb_parser = add_subparser(subparsers, c.DUCKDB_CMD, 'Run the duckdb command line tool')
     duckdb_parser.add_argument('--ui', action='store_true', help='Run the duckdb local UI')
 
     run_parser = add_subparser(subparsers, c.RUN_CMD, 'Run the API server')
-    run_parser.add_argument('--build', action='store_true', help='Build the virtual data environment (with duckdb) first before running the API server')
+    run_parser.add_argument('--build', action='store_true', help='Build the VDL first (without full refresh) before running the API server')
     run_parser.add_argument('--no-cache', action='store_true', help='Do not cache any api results')
     run_parser.add_argument('--host', type=str, default='127.0.0.1', help="The host to run on")
     run_parser.add_argument('--port', type=int, default=4465, help="The port to run on")
@@ -131,7 +146,7 @@ def main():
             if args.command == c.DEPS_CMD:
                 PackageLoaderIO.load_packages(project._logger, project._manifest_cfg, reload=True)
             elif args.command == c.BUILD_CMD:
-                task = project.build(full_refresh=args.full_refresh, select=args.select, stage_file=args.stage)
+                task = project.build(full_refresh=args.full_refresh, select=args.select)
                 asyncio.run(task)
                 print()
             elif args.command == c.DUCKDB_CMD:
@@ -143,11 +158,32 @@ def main():
                 server = ApiServer(args.no_cache, project)
                 server.run(args)
             elif args.command == c.COMPILE_CMD:
-                task = project.compile(
-                    dataset=args.dataset, do_all_datasets=args.all_datasets, selected_model=args.select, test_set=args.test_set, 
-                    do_all_test_sets=args.all_test_sets, runquery=args.runquery
-                )
-                asyncio.run(task)
+                # Derive final options with optional interactive prompts (unless --yes is provided)
+                buildtime_only = args.buildtime_only
+                runtime_only = args.runtime_only
+                test_set = args.test_set
+                do_all_test_sets = args.all_test_sets
+                selected_model = args.select
+
+                try:
+                    if not args.yes:
+                        buildtime_only, runtime_only, test_set, do_all_test_sets, selected_model = prompt_compile_options(
+                            project,
+                            buildtime_only=buildtime_only,
+                            runtime_only=runtime_only,
+                            test_set=test_set,
+                            do_all_test_sets=do_all_test_sets,
+                            selected_model=selected_model,
+                        )
+
+                    task = project.compile(
+                        selected_model=selected_model, test_set=test_set, do_all_test_sets=do_all_test_sets, runquery=args.runquery,
+                        clear=args.clear, buildtime_only=buildtime_only, runtime_only=runtime_only
+                    )
+                    asyncio.run(task)
+                
+                except KeyError:
+                    pass
             else:
                 print(f'Error: No such command "{args.command}". Enter "squirrels -h" for help.')
 
