@@ -62,13 +62,16 @@ class RouteBase:
         
         async def get_current_user(
             request: Request, response: Response, auth: HTTPAuthorizationCredentials = Depends(get_bearer_token)
-        ) -> UserInfoModel | None:
+        ) -> UserInfoModel:
             token = auth.credentials if auth and auth.scheme == "Bearer" else None
             final_token = token if token else get_token_from_session(request)
+            
             user = self.authenticator.get_user_from_token(final_token)
-            username = "" if user is None else user.username
-            response.headers["Applied-Username"] = username
-            return UserInfoModel(**user.model_dump(mode='json')) if user else None
+            if user is None:
+                user = self.project._guest_user
+            
+            response.headers["Applied-Username"] = user.username
+            return UserInfoModel(**user.model_dump(mode='json'))
 
         self.get_current_user = get_current_user
         
@@ -151,8 +154,7 @@ class RouteBase:
                 cfg_name = key_lower[len(prefix):]
                 cfg_pairs.append((u.normalize_name(cfg_name), str(value)))
         
-        self.logger.info(f"Configurables: {dict(cfg_pairs)}")
-        print(f"Configurables: {dict(cfg_pairs)}")
+        self.logger.info(f"Configurables specified: {[k for k, _ in cfg_pairs]}")
         return tuple(cfg_pairs)
     
     def get_user_from_tool_headers(self, headers: dict[str, str]):
@@ -162,8 +164,10 @@ class RouteBase:
             if len(parts) == 2 and parts[0] == 'Bearer':
                 access_token = parts[1]
                 user = self.authenticator.get_user_from_token(access_token)
+                if user is None:
+                    return self.project._guest_user
                 return user
             else:
                 raise ValueError("Invalid Authorization header format")
         else:
-            return None
+            return self.project._guest_user

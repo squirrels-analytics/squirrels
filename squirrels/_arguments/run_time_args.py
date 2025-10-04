@@ -10,7 +10,7 @@ class ContextArgs(ParametersArgs):
 
     def __init__(
         self, param_args: ParametersArgs, 
-        user: BaseUser | None, 
+        user: BaseUser, 
         prms: dict[str, Parameter],
         configurables: dict[str, str]
     ):

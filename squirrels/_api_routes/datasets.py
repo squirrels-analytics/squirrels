@@ -35,21 +35,21 @@ class DatasetRoutes(RouteBase):
         self.dataset_results_cache = TTLCache(maxsize=dataset_results_cache_size, ttl=dataset_results_cache_ttl*60)
         
     async def _get_dataset_results_helper(
-        self, dataset: str, user: BaseUser | None, selections: tuple[tuple[str, Any], ...], configurables: tuple[tuple[str, str], ...]
+        self, dataset: str, user: BaseUser, selections: tuple[tuple[str, Any], ...], configurables: tuple[tuple[str, str], ...]
     ) -> DatasetResult:
         """Helper to get dataset results"""
         # Only pass configurables that are defined in manifest
         cfg_filtered = {k: v for k, v in dict(configurables).items() if k in self.manifest_cfg.configurables}
-        return await self.project.dataset(dataset, selections=dict(selections), user=user, configurables=cfg_filtered)
+        return await self.project.dataset(dataset, user=user, selections=dict(selections), configurables=cfg_filtered)
 
     async def _get_dataset_results_cachable(
-        self, dataset: str, user: BaseUser | None, selections: tuple[tuple[str, Any], ...], configurables: tuple[tuple[str, str], ...]
+        self, dataset: str, user: BaseUser, selections: tuple[tuple[str, Any], ...], configurables: tuple[tuple[str, str], ...]
     ) -> DatasetResult:
         """Cachable version of dataset results helper"""
         return await self.do_cachable_action(self.dataset_results_cache, self._get_dataset_results_helper, dataset, user, selections, configurables)
     
     async def _get_dataset_results_definition(
-        self, dataset_name: str, user: BaseUser | None, all_request_params: dict, params: dict, headers: dict[str, str]
+        self, dataset_name: str, user: BaseUser, all_request_params: dict, params: dict, headers: dict[str, str]
     ) -> rm.DatasetResultModel:
         """Get dataset results definition"""
         self._validate_request_params(all_request_params, params)
@@ -96,7 +96,7 @@ class DatasetRoutes(RouteBase):
                         f"\n  {all_params}"
                     )
         
-        async def get_dataset_parameters_updates(dataset_name: str, user: BaseUser | None, all_request_params: dict, params: dict):
+        async def get_dataset_parameters_updates(dataset_name: str, user: BaseUser, all_request_params: dict, params: dict):
             parameters_list = self.manifest_cfg.datasets[dataset_name].parameters
             scope = self.manifest_cfg.datasets[dataset_name].scope
             result = await get_parameters_definition(

@@ -5,32 +5,32 @@ parameters:
       name: group_by
       label: Group By
       description: Dimension(s) to aggregate by           ## optional, default is empty string
-      user_attribute: role                                ## optional, default is null
+      user_attribute: access_level                        ## optional, default is null
       all_options:
         - id: trans
           label: Transaction
           columns: ["id", "date", "category", "subcategory", "description"]   ## custom field
           aliases: ["_id", "date", "category", "subcategory", "description"]  ## custom field (any alias starting with "_" will not be selected - see context.py for implementation)
           is_default: false                               ## optional, default, exists for SingleSelect or MultiSelect options only
-          user_groups: ["manager"]                        ## optional, default is empty list
+          user_groups: ["admin"]                          ## optional, default is empty list
           parent_option_ids: []                           ## optional, default, exists for all parameter options
         - id: day
           label: Day
           columns: [date]
           aliases: [day]
-          user_groups: ["manager", "employee"]
+          user_groups: ["admin", "member"]
         - id: month
           label: Month
           columns: [month]
-          user_groups: ["manager", "employee"]
+          user_groups: ["admin", "member", "guest"]
         - id: cat
           label: Category
           columns: [category]
-          user_groups: ["manager", "employee"]
+          user_groups: ["admin", "member", "guest"]
         - id: subcat
           label: Subcategory
           columns: [category, subcategory]
-          user_groups: ["manager", "employee"]
+          user_groups: ["admin", "member", "guest"]
       parent_name: null                                   ## optional, default, exists for all parameter types
   
   - type: NumberParameter

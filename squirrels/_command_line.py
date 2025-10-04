@@ -14,7 +14,7 @@ from ._compile_prompts import prompt_compile_options
 
 
 def _run_duckdb_cli(project: SquirrelsProject, ui: bool):
-    init_sql = u._read_duckdb_init_sql(datalake_db_path=project.datalake_db_path)
+    init_sql = u._read_duckdb_init_sql(datalake_db_path=project._datalake_db_path)
     
     target_init_path = None
     if init_sql:

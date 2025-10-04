@@ -89,13 +89,13 @@ class SquirrelsProject:
 
         # Attempt to set up the virtual data lake with DATA_PATH if possible
         try:
-            is_ducklake = self.datalake_db_path.startswith("ducklake:")
+            is_ducklake = self._datalake_db_path.startswith("ducklake:")
             
             data_path = self._env_vars.get(c.SQRL_VDL_DATA_PATH, c.DEFAULT_VDL_DATA_PATH)
             data_path = data_path.format(project_path=project_path)
             
             options = f"(DATA_PATH '{data_path}')" if is_ducklake else ""
-            attach_stmt = f"ATTACH '{self.datalake_db_path}' AS vdl {options}"
+            attach_stmt = f"ATTACH '{self._datalake_db_path}' AS vdl {options}"
             with duckdb.connect() as conn:
                 conn.execute(attach_stmt)
                 # TODO: support incremental loads for build models and avoid cleaning up old files all the time
@@ -108,7 +108,7 @@ class SquirrelsProject:
                 note = "NOTE: Squirrels does not allow changing the data path for an existing Virtual Data Lake (VDL)"
                 raise u.ConfigurationError(f"{first_line}\n\n{note}")
             
-            if is_ducklake and not any(x in self.datalake_db_path for x in [":sqlite:", ":postgres:", ":mysql:"]):
+            if is_ducklake and not any(x in self._datalake_db_path for x in [":sqlite:", ":postgres:", ":mysql:"]):
                 extended_error = "\n  Note: if you're using DuckDB for the metadata database, only one process can connect to the VDL at a time."
             else:
                 extended_error = ""
@@ -124,7 +124,7 @@ class SquirrelsProject:
         return {**os.environ, **dotenv_vars}
     
     @ft.cached_property
-    def datalake_db_path(self) -> str:
+    def _datalake_db_path(self) -> str:
         datalake_db_path = self._env_vars.get(c.SQRL_VDL_CATALOG_DB_PATH, c.DEFAULT_VDL_CATALOG_DB_PATH)
         datalake_db_path = datalake_db_path.format(project_path=self._filepath)
         return datalake_db_path
@@ -193,6 +193,14 @@ class SquirrelsProject:
         User, provider_functions = self._user_cls_and_provider_functions
         external_only = self._manifest_cfg.authentication.type == mf.AuthenticationType.EXTERNAL
         return Authenticator(self._logger, self._filepath, self._auth_args, provider_functions, user_cls=User, external_only=external_only)
+    
+    @ft.cached_property
+    def _guest_user(self) -> BaseUser:
+        return self._auth.User(username="", access_level="guest")
+
+    @ft.cached_property
+    def _admin_user(self) -> BaseUser:
+        return self._auth.User(username="", access_level="admin")
     
     @ft.cached_property
     def _param_args(self) -> ps.ParametersArgs:
@@ -272,7 +280,7 @@ class SquirrelsProject:
             select: The name of a specific model to build. If None, all models are built. Default is None.
         """
         models_dict: dict[str, m.StaticModel] = self._get_static_models()
-        builder = ModelBuilder(self.datalake_db_path, self._conn_set, models_dict, self._conn_args, self._logger)
+        builder = ModelBuilder(self._datalake_db_path, self._conn_set, models_dict, self._conn_args, self._logger)
         await builder.build(full_refresh, select)
 
     def _get_models_dict(self, always_python_df: bool) -> dict[str, m.DataModel]:
@@ -298,7 +306,7 @@ class SquirrelsProject:
         dataset_config = self._manifest_cfg.datasets[dataset]
         target_model = models_dict[dataset_config.model]
         target_model.is_target = True
-        dag = m.DAG(dataset_config, target_model, models_dict, self.datalake_db_path, self._logger)
+        dag = m.DAG(dataset_config, target_model, models_dict, self._datalake_db_path, self._logger)
         
         return dag
     
@@ -313,13 +321,21 @@ class SquirrelsProject:
             substitutions = {}
             for model_name in dependencies:
                 model = models_dict[model_name]
-                if isinstance(model, m.SourceModel) and not model.model_config.load_to_vdl:
+                if isinstance(model, m.SourceModel) and not model.is_queryable:
                     raise InvalidInputError(400, "cannot_query_source_model", f"Source model '{model_name}' cannot be queried with DuckDB")
-                if isinstance(model, (m.SourceModel, m.BuildModel)):
+                if isinstance(model, m.BuildModel):
                     substitutions[model_name] = f"vdl.{model_name}"
+                elif isinstance(model, m.SourceModel):
+                    if model.model_config.load_to_vdl:
+                        substitutions[model_name] = f"vdl.{model_name}"
+                    else:
+                        # DuckDB connection without load_to_vdl - reference via attached database
+                        conn_name = model.model_config.get_connection()
+                        table_name = model.model_config.get_table()
+                        substitutions[model_name] = f"db_{conn_name}.{table_name}"
             
             sql_query = parsed.transform(
-                lambda node: sqlglot.expressions.Table(this=substitutions[node.name])
+                lambda node: sqlglot.expressions.Table(this=substitutions[node.name], alias=node.alias)
                 if isinstance(node, sqlglot.expressions.Table) and node.name in substitutions
                 else node
             ).sql()
@@ -330,11 +346,11 @@ class SquirrelsProject:
             "__fake_target", model_config, query_file, logger=self._logger, env_vars=self._env_vars, conn_set=self._conn_set, j2_env=self._j2_env
         )
         fake_target_model.is_target = True
-        dag = m.DAG(None, fake_target_model, models_dict, self.datalake_db_path, self._logger)
+        dag = m.DAG(None, fake_target_model, models_dict, self._datalake_db_path, self._logger)
         return dag
     
     async def _get_compiled_dag(
-        self, *, sql_query: str | None = None, selections: dict[str, t.Any] = {}, user: BaseUser | None = None, configurables: dict[str, str] = {}, 
+        self, user: BaseUser, *, sql_query: str | None = None, selections: dict[str, t.Any] = {}, configurables: dict[str, str] = {}, 
         always_python_df: bool = False
     ) -> m.DAG:
         dag = self._generate_dag_with_fake_target(sql_query, always_python_df=always_python_df)
@@ -364,7 +380,7 @@ class SquirrelsProject:
         Returns:
             A list of DataModelItem objects
         """
-        compiled_dag = await self._get_compiled_dag()
+        compiled_dag = await self._get_compiled_dag(self._admin_user)
         return self._get_all_data_models(compiled_dag)
 
     def _get_all_data_lineage(self, compiled_dag: m.DAG) -> list[rm.LineageRelation]:
@@ -393,7 +409,7 @@ class SquirrelsProject:
         Returns:
             A list of LineageRelation objects
         """
-        compiled_dag = await self._get_compiled_dag()
+        compiled_dag = await self._get_compiled_dag(self._admin_user)
         return self._get_all_data_lineage(compiled_dag)
 
     async def compile(
@@ -487,12 +503,12 @@ class SquirrelsProject:
 
                 # Build user and selections from test set config if present
                 ts_conf = self._manifest_cfg.selection_test_sets.get(ts_name, self._manifest_cfg.get_default_test_set())
-                user_attributes = { "username": "", "is_admin": False, **ts_conf.user_attributes }
+                user_attributes = { "username": "", "access_level": "guest", **ts_conf.user_attributes }
                 user = self._auth.User(**user_attributes)
 
                 # Generate DAG across all models. When runquery=True, force models to produce Python dataframes so CSVs can be written.
                 dag = await self._get_compiled_dag(
-                    selections=ts_conf.parameters, user=user, configurables=ts_conf.configurables, always_python_df=runquery,
+                    user=user, selections=ts_conf.parameters, configurables=ts_conf.configurables, always_python_df=runquery,
                 )
                 if runquery:
                     await dag._run_models()
@@ -551,7 +567,7 @@ class SquirrelsProject:
             print(border)
             print()
 
-    def _permission_error(self, user: BaseUser | None, data_type: str, data_name: str, scope: str) -> InvalidInputError:
+    def _permission_error(self, user: BaseUser, data_type: str, data_name: str, scope: str) -> InvalidInputError:
         return InvalidInputError(403, f"unauthorized_access_to_{data_type}", f"User '{user}' does not have permission to access {scope} {data_type}: {data_name}")
     
     def seed(self, name: str) -> pl.LazyFrame:
@@ -602,6 +618,9 @@ class SquirrelsProject:
         Returns:
             A DatasetResult object containing the dataset result (as a polars DataFrame), its description, and the column details.
         """
+        if user is None:
+            user = self._guest_user
+        
         scope = self._manifest_cfg.datasets[name].scope
         if require_auth and not self._auth.can_user_access_scope(user, scope):
             raise self._permission_error(user, "dataset", name, scope.name)
@@ -633,6 +652,9 @@ class SquirrelsProject:
         Returns:
             The dashboard type specified by the "dashboard_type" argument.
         """
+        if user is None:
+            user = self._guest_user
+        
         scope = self._dashboards[name].config.scope
         if not self._auth.can_user_access_scope(user, scope):
             raise self._permission_error(user, "dashboard", name, scope.name)
@@ -651,9 +673,12 @@ class SquirrelsProject:
             raise KeyError(f"No dashboard file found for: {name}")
     
     async def query_models(
-        self, sql_query: str, *, selections: dict[str, t.Any] = {}, user: BaseUser | None = None, configurables: dict[str, str] = {}
+        self, sql_query: str, *, user: BaseUser | None = None, selections: dict[str, t.Any] = {}, configurables: dict[str, str] = {}
     ) -> dr.DatasetResult:
-        dag = await self._get_compiled_dag(sql_query=sql_query, selections=selections, user=user, configurables=configurables)
+        if user is None:
+            user = self._guest_user
+        
+        dag = await self._get_compiled_dag(user=user, sql_query=sql_query, selections=selections, configurables=configurables)
         await dag._run_models()
         assert isinstance(dag.target_model.result, pl.LazyFrame)
         return dr.DatasetResult(
@@ -662,11 +687,14 @@ class SquirrelsProject:
         )
 
     async def get_compiled_model_query(
-        self, model_name: str, *, selections: dict[str, t.Any] = {}, user: BaseUser | None = None, configurables: dict[str, str] = {}
+        self, model_name: str, *, user: BaseUser | None = None, selections: dict[str, t.Any] = {}, configurables: dict[str, str] = {}
     ) -> rm.CompiledQueryModel:
         """
         Compile the specified data model and return its language and compiled definition.
         """
+        if user is None:
+            user = self._guest_user
+        
         name = u.normalize_name(model_name)
         models_dict = self._get_models_dict(always_python_df=False)
         if name not in models_dict:
@@ -679,7 +707,7 @@ class SquirrelsProject:
 
         # Build a DAG with this model as the target, without a dataset context
         model.is_target = True
-        dag = m.DAG(None, model, models_dict, self.datalake_db_path, self._logger)
+        dag = m.DAG(None, model, models_dict, self._datalake_db_path, self._logger)
 
         cfg = {**self._manifest_cfg.get_default_configurables(), **configurables}
         await dag.execute(
@@ -688,8 +716,13 @@ class SquirrelsProject:
 
         language = "sql" if isinstance(model.query_file, mq.SqlQueryFile) else "python"
         if isinstance(model, m.BuildModel):
-            prefix = "--" if language == "sql" else "#"
-            definition = f"{prefix} Compiling build models is currently not supported. This will be available in a future version of Squirrels..."
+            # Compile SQL build models; Python build models not yet supported
+            if isinstance(model.query_file, mq.SqlQueryFile):
+                static_models = self._get_static_models()
+                compiled = model._compile_sql_model(model.query_file, self._conn_args, static_models)
+                definition = compiled.query
+            else:
+                definition = "# Compiling Python build models is currently not supported. This will be available in a future version of Squirrels..."
         elif isinstance(model.compiled_query, mq.SqlModelQuery):
             definition = model.compiled_query.query 
         elif isinstance(model.compiled_query, mq.PyModelQuery): 

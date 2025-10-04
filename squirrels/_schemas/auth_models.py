@@ -1,4 +1,4 @@
-from typing import Callable, Any
+from typing import Callable, Any, Literal
 from datetime import datetime
 from pydantic import BaseModel, ConfigDict, Field, field_serializer
 
@@ -6,7 +6,7 @@ from pydantic import BaseModel, ConfigDict, Field, field_serializer
 class BaseUser(BaseModel):
     model_config = ConfigDict(from_attributes=True)
     username: str
-    is_admin: bool = False
+    access_level: Literal["admin", "member", "guest"] = "guest"
     
     @classmethod
     def dropped_columns(cls):

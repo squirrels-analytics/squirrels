@@ -1,7 +1,7 @@
 """
 Authentication and user management routes
 """
-from typing import Annotated
+from typing import Annotated, Literal
 from fastapi import FastAPI, Depends, Request, Response, status, Form, APIRouter
 from fastapi.responses import RedirectResponse
 from fastapi.security import HTTPBearer
@@ -32,7 +32,7 @@ class AuthRoutes(RouteBase):
         
         # Create user models
         class UpdateUserModel(self.UserModel):
-            is_admin: bool
+            access_level: Literal["admin", "member"] # Cannot be "guest"
 
         class UserInfoModel(UpdateUserModel):
             username: str
@@ -54,8 +54,8 @@ class AuthRoutes(RouteBase):
 
         # User info endpoint
         @auth_router.get("/userinfo", description="Get the authenticated user's fields", tags=["Authentication"])
-        async def get_userinfo(user: UserInfoModel | None = Depends(self.get_current_user)) -> UserInfoModel:
-            if user is None:
+        async def get_userinfo(user: UserInfoModel = Depends(self.get_current_user)) -> UserInfoModel:
+            if user.access_level == "guest":
                 raise InvalidInputError(401, "invalid_authorization_token", "Invalid authorization token")
             return user
 
@@ -227,9 +227,9 @@ class AuthRoutes(RouteBase):
 
             @user_management_router.post(add_user_path, description="Add a new user by providing details for username, password, and user fields", tags=["User Management"])
             async def add_user(
-                new_user: AddUserModel, user: UserInfoModel | None = Depends(self.get_current_user)
+                new_user: AddUserModel, user: UserInfoModel = Depends(self.get_current_user)
             ) -> None:
-                if user is None or not user.is_admin:
+                if user.access_level != "admin":
                     raise InvalidInputError(403, "unauthorized_to_add_user", "Current user cannot add new users")
                 self.authenticator.add_user(new_user.username, new_user.model_dump(mode='json', exclude={"username"}))
 
@@ -237,9 +237,9 @@ class AuthRoutes(RouteBase):
 
             @user_management_router.put(update_user_path, description="Update the user of the given username given the new user details", tags=["User Management"])
             async def update_user(
-                username: str, updated_user: UpdateUserModel, user: UserInfoModel | None = Depends(self.get_current_user)
+                username: str, updated_user: UpdateUserModel, user: UserInfoModel = Depends(self.get_current_user)
             ) -> None:
-                if user is None or not user.is_admin:
+                if user.access_level != "admin":
                     raise InvalidInputError(403, "unauthorized_to_update_user", "Current user cannot update users")
                 self.authenticator.add_user(username, updated_user.model_dump(mode='json'), update_user=True)
 
@@ -254,8 +254,8 @@ class AuthRoutes(RouteBase):
             @user_management_router.delete(delete_user_path, tags=["User Management"], responses={
                 204: { "description": "User deleted successfully" }
             })
-            async def delete_user(username: str, user: UserInfoModel | None = Depends(self.get_current_user)) -> Response:
-                if user is None or not user.is_admin:
+            async def delete_user(username: str, user: UserInfoModel = Depends(self.get_current_user)) -> Response:
+                if user.access_level != "admin":
                     raise InvalidInputError(403, "unauthorized_to_delete_user", "Current user cannot delete users")
                 if username == user.username:
                     raise InvalidInputError(403, "cannot_delete_own_user", "Cannot delete your own user")

@@ -35,7 +35,7 @@ class ProjectRoutes(RouteBase):
 
     async def _get_parameters_helper(
         self, parameters_tuple: tuple[str, ...] | None, entity_type: str, entity_name: str, entity_scope: PermissionScope,
-        user: BaseUser | None, selections: tuple[tuple[str, Any], ...]
+        user: BaseUser, selections: tuple[tuple[str, Any], ...]
     ) -> ParameterSet:
         """Helper for getting parameters"""
         selections_dict = dict(selections)
@@ -59,7 +59,7 @@ class ProjectRoutes(RouteBase):
 
     async def _get_parameters_cachable(
         self, parameters_tuple: tuple[str, ...] | None, entity_type: str, entity_name: str, entity_scope: PermissionScope,
-        user: BaseUser | None, selections: tuple[tuple[str, Any], ...]
+        user: BaseUser, selections: tuple[tuple[str, Any], ...]
     ) -> ParameterSet:
         """Cachable version of parameters helper"""
         return await self.do_cachable_action(
@@ -85,7 +85,7 @@ class ProjectRoutes(RouteBase):
         # Data catalog endpoint
         data_catalog_path = project_metadata_path + '/data-catalog'
         
-        async def get_data_catalog0(user: BaseUser | None) -> rm.CatalogModel:
+        async def get_data_catalog0(user: BaseUser) -> rm.CatalogModel:
             parameters = self.param_cfg_set.apply_selections(None, {}, user)
             parameters_model = parameters.to_api_response_model0()
             full_parameters_list = [p.name for p in parameters_model.parameters]
@@ -126,8 +126,8 @@ class ProjectRoutes(RouteBase):
                         result_path=f"{project_metadata_path}/dashboard/{name_normalized}"
                     ))
             
-            if user and user.is_admin:
-                compiled_dag = await self.project._get_compiled_dag(user=user)
+            if user.access_level == "admin":
+                compiled_dag = await self.project._get_compiled_dag(user)
                 connections_items = self.project._get_all_connections()
                 data_models = self.project._get_all_data_models(compiled_dag)
                 lineage_items = self.project._get_all_data_lineage(compiled_dag)
@@ -152,7 +152,7 @@ class ProjectRoutes(RouteBase):
             )
         
         @app.get(data_catalog_path, tags=["Project Metadata"], summary="Get catalog of datasets and dashboards available for user")
-        async def get_data_catalog(request: Request, user: BaseUser | None = Depends(self.get_current_user)) -> rm.CatalogModel:
+        async def get_data_catalog(request: Request, user: BaseUser = Depends(self.get_current_user)) -> rm.CatalogModel:
             """
             Get catalog of datasets and dashboards available for the authenticated user.
             
@@ -188,7 +188,7 @@ class ProjectRoutes(RouteBase):
 
         async def get_parameters_definition(
             parameters_list: list[str] | None, entity_type: str, entity_name: str, entity_scope: PermissionScope,
-            user, all_request_params: dict, params: dict
+            user: BaseUser, all_request_params: dict, params: dict
         ) -> rm.ParametersModel:
             self._validate_request_params(all_request_params, params)
 

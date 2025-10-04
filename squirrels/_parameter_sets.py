@@ -104,13 +104,10 @@ class ParameterConfigsSet:
         self.__validate_param_relationships()
     
     def apply_selections(
-        self, dataset_params: Optional[Sequence[str]], selections: dict[str, Any], user: BaseUser | None, *, parent_param: str | None = None
+        self, dataset_params: Optional[Sequence[str]], selections: dict[str, Any], user: BaseUser, *, parent_param: str | None = None
     ) -> ParameterSet:
         if dataset_params is None:
-            if user is None:
-                dataset_params = [k for k, v in self._data.items() if v.user_attribute is None]
-            else:
-                dataset_params = list(self._data.keys())
+            dataset_params = list(self._data.keys())
         
         parameters_by_name: dict[str, p.Parameter] = {}
         params_to_process = [parent_param] if parent_param else dataset_params

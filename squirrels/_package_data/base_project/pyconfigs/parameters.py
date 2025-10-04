@@ -3,7 +3,7 @@ from squirrels import arguments as args, parameters as p, parameter_options as p
 
 ## Example of creating SingleSelectParameter and specifying each option by code
 @p.SingleSelectParameter.create_with_options(
-    "group_by", "Group By", description="Dimension(s) to aggregate by", user_attribute="role"
+    "group_by", "Group By", description="Dimension(s) to aggregate by", user_attribute="access_level"
 )
 def group_by_options():
     return [
@@ -11,12 +11,12 @@ def group_by_options():
             "trans", "Transaction",  
             columns=["id","date","category","subcategory","description"],
             aliases=["_id","date","category","subcategory","description"], # any alias starting with "_" will not be selected - see context.py for implementation
-            user_groups=["manager"]
+            user_groups=["admin"]
         ),
-        po.SelectParameterOption("day"    , "Day"         , columns=["date"], aliases=["day"]   , user_groups=["manager","employee"]),
-        po.SelectParameterOption("month"  , "Month"       , columns=["month"]                   , user_groups=["manager","employee"]),
-        po.SelectParameterOption("cat"    , "Category"    , columns=["category"]                , user_groups=["manager","employee"]),
-        po.SelectParameterOption("subcat" , "Subcategory" , columns=["category","subcategory"]  , user_groups=["manager","employee"]),
+        po.SelectParameterOption("day"    , "Day"         , columns=["date"], aliases=["day"]   , user_groups=["admin","member"]),
+        po.SelectParameterOption("month"  , "Month"       , columns=["month"]                   , user_groups=["admin","member","guest"]),
+        po.SelectParameterOption("cat"    , "Category"    , columns=["category"]                , user_groups=["admin","member","guest"]),
+        po.SelectParameterOption("subcat" , "Subcategory" , columns=["category","subcategory"]  , user_groups=["admin","member","guest"]),
     ]
 
 

@@ -243,10 +243,19 @@ class SourceModel(StaticModel):
     @property
     def model_type(self) -> ModelType:
         return ModelType.SOURCE
+
+    @property
+    def connection_props(self) -> ConnectionProperties:
+        conn_name = self.model_config.get_connection()
+        conn_props = self.conn_set.get_connection(conn_name)
+        if isinstance(conn_props, ConnectionProperties):
+            return conn_props
+        raise u.ConfigurationError(f'Unable to use connection "{conn_name}" for source "{self.name}". Connection "{conn_name}" must be a ConnectionProperties object')
     
     @property
     def is_queryable(self) -> bool:
-        return self.model_config.load_to_vdl
+        connection_props = self.connection_props
+        return self.model_config.load_to_vdl or connection_props.type == ConnectionTypeEnum.DUCKDB
     
     def _build_source_model(self, conn: duckdb.DuckDBPyConnection, full_refresh: bool) -> None:
         local_conn = conn.cursor()
@@ -257,13 +266,9 @@ class SourceModel(StaticModel):
             source = self.model_config
             conn_name = source.get_connection()
             
-            connection_props = self.conn_set.get_connection(conn_name)
-            if isinstance(connection_props, ConnectionProperties):
-                dialect = connection_props.dialect
-                attach_uri = connection_props.attach_uri_for_duckdb
-            else:
-                raise u.ConfigurationError(f'Unable to use connection "{conn_name}" for source "{self.name}". Connection "{conn_name}" must be a ConnectionProperties object')
-            
+            connection_props = self.connection_props
+            dialect = connection_props.dialect
+            attach_uri = connection_props.attach_uri_for_duckdb
             if attach_uri is None:
                 raise u.ConfigurationError(f'Loading to duckdb is not supported for source "{self.name}" since its connection "{conn_name}" uses an unsupported dialect')
             
@@ -362,9 +367,10 @@ class QueryModel(DataModel):
             conn_name = dep_model.model_config.get_connection()
             conn_props = self.conn_set.get_connection(conn_name)
             is_duckdb_conn = isinstance(conn_props, ConnectionProperties) and conn_props.type == ConnectionTypeEnum.DUCKDB
-            if not (isinstance(self, (BuildModel, FederateModel)) and is_duckdb_conn):
+            if not is_duckdb_conn:
                 raise u.ConfigurationError(
-                    f'Model "{self.name}" cannot reference source model "{dependent_model_name}" which has load_to_vdl=False'
+                    f'Model "{self.name}" cannot reference source model "{dependent_model_name}". '
+                    'To be referenced by a build or federate model, the source must have load_to_vdl=True or a duckdb connection type.'
                 )
         
         self.model_config.depends_on.add(dependent_model_name)
@@ -696,7 +702,10 @@ class FederateModel(QueryModel):
                 try:
                     return local_conn.execute(create_query, existing_placeholders)
                 except duckdb.CatalogException as e:
-                    raise InvalidInputError(409, f'dependent_data_model_not_found', f'Model "{self.name}" depends on static data models that cannot be found. Try building the Virtual Data Lake (VDL) first.')
+                    if self.name == "__fake_target":
+                        raise InvalidInputError(409, "invalid_sql_query", f"Provided SQL query depends on static data models that cannot be found. Try building the Virtual Data Lake (VDL) first.")
+                    else:
+                        raise InvalidInputError(409, f'dependent_data_model_not_found', f'Model "{self.name}" depends on static data models that cannot be found. Try building the Virtual Data Lake (VDL) first.')
                 except Exception as e:
                     if self.name == "__fake_target":
                         raise InvalidInputError(400, "invalid_sql_query", f"Failed to run provided SQL query")
@@ -905,7 +914,7 @@ class DAG:
                 model.compile_for_build(conn_args, static_models)
 
     def apply_selections(
-        self, param_cfg_set: ParameterConfigsSet, user: BaseUser | None, selections: dict[str, str]
+        self, param_cfg_set: ParameterConfigsSet, user: BaseUser, selections: dict[str, str]
     ) -> None:
         start = time.time()
         dataset_params = self.dataset.parameters if self.dataset else None
@@ -915,7 +924,7 @@ class DAG:
         self.logger.log_activity_time("applying selections" + msg_extension, start)
     
     def _compile_context(
-        self, param_args: ParametersArgs, context_func: ContextFunc, user: BaseUser | None, configurables: dict[str, str]
+        self, param_args: ParametersArgs, context_func: ContextFunc, user: BaseUser, configurables: dict[str, str]
     ) -> tuple[dict[str, Any], ContextArgs]:
         start = time.time()
         context = {}
@@ -968,7 +977,7 @@ class DAG:
             conn.close()
     
     async def execute(
-        self, param_args: ParametersArgs, param_cfg_set: ParameterConfigsSet, context_func: ContextFunc, user: BaseUser | None, selections: dict[str, str], 
+        self, param_args: ParametersArgs, param_cfg_set: ParameterConfigsSet, context_func: ContextFunc, user: BaseUser, selections: dict[str, str], 
         *, runquery: bool = True, recurse: bool = True, configurables: dict[str, str] = {}
     ) -> None:
         recurse = (recurse or runquery)

@@ -58,7 +58,7 @@ def test_initialize_db(auth: Authenticator[User]):
     assert len(users) == 1
     admin = users[0]
     assert admin.username == "admin"
-    assert admin.is_admin == True
+    assert admin.access_level == "admin"
 
 def test_add_and_get_user(auth: Authenticator[User], test_user_data):
     # Add a new user
@@ -70,7 +70,7 @@ def test_add_and_get_user(auth: Authenticator[User], test_user_data):
     assert user.email == "test@example.com"
     assert user.role == RoleEnum.MODERATOR
     assert user.age == 25
-    assert user.is_admin == False
+    assert user.access_level == "member"
 
     # Try getting user with wrong password
     with pytest.raises(InvalidInputError) as exc_info:

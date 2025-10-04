@@ -34,7 +34,7 @@ def google_auth_provider(sqrl: args.AuthProviderArgs) -> auth.ProviderConfigs:
     def get_sqrl_user(claims: dict) -> User:
         return User(
             username=claims["email"],
-            is_admin=False,
+            access_level="member",
             role="employee"
         )
 

@@ -23,7 +23,7 @@ from . import _utils as u, _constants as c
 
 pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
 
-reserved_fields = ["username", "is_admin"]
+reserved_fields = ["username", "access_level"]
 disallowed_fields = ["password", "password_hash", "created_at", "token_id", "exp"]
 
 User = _t.TypeVar('User', bound=BaseUser)
@@ -51,7 +51,7 @@ class Authenticator(_t.Generic[User]):
             __tablename__ = 'users'
             __table_args__ = {'extend_existing': True}
             username: Mapped[str] = mapped_column(primary_key=True)
-            is_admin: Mapped[bool] = mapped_column(nullable=False, default=False)
+            access_level: Mapped[str] = mapped_column(nullable=False, default="member")
             password_hash: Mapped[str] = mapped_column(nullable=False)
             created_at: Mapped[datetime] = mapped_column(nullable=False, server_default=func.now())
         
@@ -155,6 +155,11 @@ class Authenticator(_t.Generic[User]):
         self.Session = sessionmaker(bind=self.engine)
 
         self._initialize_db(self.User, self.DbUser, self.engine, self.Session)
+    
+    def _convert_db_user_to_user(self, db_user) -> User:
+        """Convert a database user to a User object"""
+        # user_data = {k: v for k, v in db_user.__dict__.items() if not k.startswith('_')}
+        return self.User.model_validate(db_user)
     
     def _get_user_model(self, base_path: str) -> type[BaseUser]:
         user_module_path = u.Path(base_path, c.PYCONFIGS_FOLDER, c.USER_FILE)
@@ -273,7 +278,7 @@ class Authenticator(_t.Generic[User]):
                 password_hash = pwd_context.hash(admin_password)
                 admin_user = session.get(self.DbUser, c.ADMIN_USERNAME)
                 if admin_user is None:
-                    admin_user = self.DbUser(username=c.ADMIN_USERNAME, password_hash=password_hash, is_admin=True)
+                    admin_user = self.DbUser(username=c.ADMIN_USERNAME, password_hash=password_hash, access_level="admin")
                     session.add(admin_user)
                 else:
                     admin_user.password_hash = password_hash
@@ -330,7 +335,8 @@ class Authenticator(_t.Generic[User]):
                 if not update_user:
                     raise InvalidInputError(400, "username_already_exists", f"User '{username}' already exists")
                 
-                if username == c.ADMIN_USERNAME and user_data.get("is_admin") is False:
+                access_level = user_data.get('access_level', 'member')
+                if username == c.ADMIN_USERNAME and access_level != "admin":
                     raise InvalidInputError(403, "admin_cannot_be_non_admin", "Setting the admin user to non-admin is not permitted")
                 
                 new_user = self.DbUser(password_hash=existing_user.password_hash, **user_data)
@@ -371,7 +377,7 @@ class Authenticator(_t.Generic[User]):
                 session.add(db_user)
                 session.commit()
         
-            return self.User.model_validate(db_user)
+            return self._convert_db_user_to_user(db_user)
         
         finally:
             session.close()
@@ -383,8 +389,8 @@ class Authenticator(_t.Generic[User]):
             db_user = session.get(self.DbUser, username)
             
             if db_user and pwd_context.verify(password, db_user.password_hash):
-                user = self.User.model_validate(db_user)
-                return user # type: ignore
+                user = self._convert_db_user_to_user(db_user)
+                return user
             else:
                 raise InvalidInputError(401, "incorrect_username_or_password", f"Incorrect username or password")
 
@@ -424,7 +430,7 @@ class Authenticator(_t.Generic[User]):
         session = self.Session()
         try:
             db_users = session.query(self.DbUser).all()
-            return [self.User.model_validate(user) for user in db_users]
+            return [self._convert_db_user_to_user(user) for user in db_users]
         finally:
             session.close()
     
@@ -482,13 +488,14 @@ class Authenticator(_t.Generic[User]):
             db_user = session.get(self.DbUser, username)
             if db_user is None:
                 raise InvalidTokenError()
+            
+            user = self._convert_db_user_to_user(db_user)
         
         except InvalidTokenError:
             raise InvalidInputError(401, "invalid_authorization_token", "Invalid authorization token")
         finally:
             session.close()
         
-        user = self.User.model_validate(db_user)
         return user # type: ignore
     
     def get_all_api_keys(self, username: str) -> list[ApiKey]:
@@ -526,12 +533,12 @@ class Authenticator(_t.Generic[User]):
         finally:
             session.close()
 
-    def can_user_access_scope(self, user: User | None, scope: PermissionScope) -> bool:
-        if user is None:
+    def can_user_access_scope(self, user: User, scope: PermissionScope) -> bool:
+        if user.access_level == "guest":
             user_level = PermissionScope.PUBLIC
-        elif user.is_admin:
+        elif user.access_level == "admin":
             user_level = PermissionScope.PRIVATE
-        else:
+        else:  # member
             user_level = PermissionScope.PROTECTED
         
         return user_level.value >= scope.value
@@ -841,15 +848,15 @@ class Authenticator(_t.Generic[User]):
                 raise InvalidInputError(400, "invalid_grant", "Invalid code_verifier")
             
             # Get user
-            user = session.get(self.DbUser, auth_code.username)
-            if user is None:
+            db_user = session.get(self.DbUser, auth_code.username)
+            if db_user is None:
                 raise InvalidInputError(400, "invalid_grant", "User not found")
             
             # Mark authorization code as used
             auth_code.used = True
             
             # Generate tokens
-            user_obj = self.User.model_validate(user)
+            user_obj = self._convert_db_user_to_user(db_user)
             access_token, token_expires_at = self.create_access_token(user_obj, expiry_minutes=access_token_expiry_minutes)
             access_token_hash = pwd_context.hash(access_token)
             
@@ -903,8 +910,8 @@ class Authenticator(_t.Generic[User]):
                 raise InvalidInputError(400, "invalid_grant", "Invalid or expired refresh token")
             
             # Get user
-            user = session.get(self.DbUser, oauth_token.username)
-            if user is None:
+            db_user = session.get(self.DbUser, oauth_token.username)
+            if db_user is None:
                 raise InvalidInputError(400, "invalid_client", "User not found")
             
             # Check secret key is available
@@ -912,7 +919,7 @@ class Authenticator(_t.Generic[User]):
                 raise ConfigurationError(f"Environment variable '{c.SQRL_SECRET_KEY}' is required for OAuth token operations")
             
             # Generate new tokens
-            user_obj = self.User.model_validate(user)
+            user_obj = self._convert_db_user_to_user(db_user)
             access_token, token_expires_at = self.create_access_token(user_obj, expiry_minutes=access_token_expiry_minutes)
             access_token_hash = pwd_context.hash(access_token)
             
