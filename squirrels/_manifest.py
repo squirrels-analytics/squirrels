@@ -108,11 +108,15 @@ class ConnectionProperties(BaseModel):
             database_as_file = self.uri.replace(f"{self.dialect}://", "")
         
         if self.dialect in ('postgres', 'mysql'):
-            props = f"dbname={database} user={username} password={password} host={host} port={port}"
+            attach_uri = f"{self.dialect}:dbname={database} user={username} password={password} host={host} port={port}"
+        elif self.dialect == "sqlite":
+            attach_uri = f"{self.dialect}:{database_as_file}"
+        elif self.dialect == "duckdb":
+            attach_uri = database_as_file
         else:
-            props = database_as_file
+            attach_uri = None
         
-        return props if self.dialect == 'duckdb' else f"{self.dialect}:{props}"
+        return attach_uri
 
 
 class DbConnConfig(ConnectionProperties, _ConfigWithNameBaseModel):

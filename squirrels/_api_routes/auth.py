@@ -31,13 +31,15 @@ class AuthRoutes(RouteBase):
         expiry_mins = self._get_access_token_expiry_minutes()
         
         # Create user models
-        class UpdateUserModel(self.UserModel):
-            access_level: Literal["admin", "member"] # Cannot be "guest"
-
-        class UserInfoModel(UpdateUserModel):
+        class UserInfoModel(self.UserModel):
             username: str
+            access_level: Literal["admin", "member", "guest"]
+
+        class UpdateUserModel(self.UserModel):
+            access_level: Literal["admin", "member"] # Cannot be "guest" for updates/adds
 
         class AddUserModel(UserInfoModel):
+            username: str
             password: str
         
         # Setup OAuth2 login providers
@@ -55,8 +57,8 @@ class AuthRoutes(RouteBase):
         # User info endpoint
         @auth_router.get("/userinfo", description="Get the authenticated user's fields", tags=["Authentication"])
         async def get_userinfo(user: UserInfoModel = Depends(self.get_current_user)) -> UserInfoModel:
-            if user.access_level == "guest":
-                raise InvalidInputError(401, "invalid_authorization_token", "Invalid authorization token")
+            # if user.access_level == "guest":
+            #     raise InvalidInputError(401, "invalid_authorization_token", "Invalid authorization token")
             return user
 
         # Login helper
@@ -85,10 +87,10 @@ class AuthRoutes(RouteBase):
             307: {"description": "Redirect if redirect URL parameter is specified"},
         })
         async def login_with_api_key(
-            request: Request, redirect_url: str | None = None, user: UserInfoModel | None = Depends(self.get_current_user)
+            request: Request, redirect_url: str | None = None, user: UserInfoModel = Depends(self.get_current_user)
         ):
-            if user is None:
-                raise InvalidInputError(401, "invalid_authorization_token", "Invalid authorization token")
+            # if user.access_level == "guest":
+            #     raise InvalidInputError(401, "invalid_authorization_token", "Invalid authorization token")
             return login_helper(request, user, redirect_url)
         
         # Provider authentication endpoints
@@ -175,8 +177,8 @@ class AuthRoutes(RouteBase):
             new_password: str
 
         @auth_router.put(change_password_path, description="Change the password for the current user", tags=["Authentication"])
-        async def change_password(request: ChangePasswordRequest, user: UserInfoModel | None = Depends(self.get_current_user)) -> None:
-            if user is None:
+        async def change_password(request: ChangePasswordRequest, user: UserInfoModel = Depends(self.get_current_user)) -> None:
+            if user.access_level == "guest":
                 raise InvalidInputError(401, "invalid_authorization_token", "Invalid authorization token")
             self.authenticator.change_password(user.username, request.old_password, request.new_password)
 
@@ -192,7 +194,7 @@ class AuthRoutes(RouteBase):
 
         @auth_router.post(api_key_path, description="Create a new API key for the user", tags=["Authentication"])
         async def create_api_key(body: ApiKeyRequestBody, user: UserInfoModel | None = Depends(self.get_current_user)) -> rm.ApiKeyResponse:
-            if user is None:
+            if user.access_level == "guest":
                 raise InvalidInputError(401, "invalid_authorization_token", "Invalid authorization token")
             
             api_key, _ = self.authenticator.create_access_token(user, expiry_minutes=body.expiry_minutes, title=body.title)
@@ -200,7 +202,7 @@ class AuthRoutes(RouteBase):
         
         @auth_router.get(api_key_path, description="Get all API keys with title for the current user", tags=["Authentication"])
         async def get_all_api_keys(user: UserInfoModel | None = Depends(self.get_current_user)):
-            if user is None:
+            if user.access_level == "guest":
                 raise InvalidInputError(401, "invalid_authorization_token", "Invalid authorization token")
             return self.authenticator.get_all_api_keys(user.username)
         
@@ -209,8 +211,8 @@ class AuthRoutes(RouteBase):
         @auth_router.delete(revoke_api_key_path, description="Revoke an API key", tags=["Authentication"], responses={
             204: { "description": "API key revoked successfully" }
         })
-        async def revoke_api_key(api_key_id: str, user: UserInfoModel | None = Depends(self.get_current_user)) -> Response:
-            if user is None:
+        async def revoke_api_key(api_key_id: str, user: UserInfoModel = Depends(self.get_current_user)) -> Response:
+            if user.access_level == "guest":
                 raise InvalidInputError(401, "invalid_authorization_token", "Invalid authorization token")
             self.authenticator.revoke_api_key(user.username, api_key_id)
             return Response(status_code=204)

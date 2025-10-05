@@ -62,7 +62,7 @@ def date_range_options():
     description="The expense categories to filter transactions by"
 )
 def category_source():
-    return ds.SelectDataSource("seed_categories", "category_id", "category", from_seeds=True)
+    return ds.SelectDataSource("seed_categories", "category_id", "category", source="seeds")
 
 
 ## Example of creating MultiSelectParameter with parent from lookup query/table
@@ -72,7 +72,7 @@ def category_source():
 )
 def subcategory_source():
     return ds.SelectDataSource(
-        "seed_subcategories", "subcategory_id", "subcategory", from_seeds=True, parent_id_col="category_id"
+        "seed_subcategories", "subcategory_id", "subcategory", source="seeds", parent_id_col="category_id"
     )
 
 

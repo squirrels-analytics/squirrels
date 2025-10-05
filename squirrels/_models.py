@@ -463,7 +463,7 @@ class QueryModel(DataModel):
     def _log_sql_to_run(self, sql: str, placeholders: dict[str, Any]) -> None:
         log_msg = f"SQL to run for model '{self.name}':\n{sql}"
         log_msg += f"\n\n(with placeholders: {placeholders})"
-        self.logger.info(log_msg)
+        self.logger.debug(log_msg)
 
 
 @dataclass

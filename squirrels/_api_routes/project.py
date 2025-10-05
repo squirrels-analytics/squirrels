@@ -158,10 +158,15 @@ class ProjectRoutes(RouteBase):
             
             For admin users, this endpoint will also return detailed information about all models and their lineage in the project.
             """
+            start = time.time()
+
             # If authentication is required, require user to be authenticated to access catalog
-            if self.manifest_cfg.authentication.enforcement == AuthenticationEnforcement.REQUIRED and user is None:
+            if self.manifest_cfg.authentication.enforcement == AuthenticationEnforcement.REQUIRED and user.access_level == "guest":
                 raise InvalidInputError(401, "user_required", "Authentication is required to access the data catalog")
-            return await get_data_catalog0(user)
+            data_catalog = await get_data_catalog0(user)
+            
+            self.log_activity_time("GET REQUEST for DATA CATALOG", start, request)
+            return data_catalog
         
         @mcp.tool(
             name=f"get_data_catalog", 

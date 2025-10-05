@@ -150,7 +150,7 @@ class OAuth2Routes(RouteBase):
             state: str | None = Query(default=None, description="State parameter for CSRF protection"),
             code_challenge: str = Query(..., description="PKCE code challenge (required)"),
             code_challenge_method: str = Query(default="S256", description="PKCE code challenge method"),
-            user: UserInfoModel | None = Depends(self.get_current_user)
+            user: UserInfoModel = Depends(self.get_current_user)
         ):
             """OAuth 2.1 authorization endpoint for initiating authorization code flow"""
             
@@ -160,7 +160,7 @@ class OAuth2Routes(RouteBase):
                     raise InvalidInputError(400, "unsupported_response_type", "Only 'code' response type is supported")
                 
                 # Check if user is authenticated
-                if user is None:
+                if user.access_level == "guest":
                     # User is not authenticated - serve login page
                     return self.serve_login_page(auth_path, request, client_id)
                 

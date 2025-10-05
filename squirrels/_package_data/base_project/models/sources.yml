@@ -3,7 +3,7 @@ sources:
     description: "The source table for transactions"  # optional
     connection: default           # optional - if not provided, will use the connection named "default" or the default connection specified in settings
     table: expenses               # optional - if not provided, will use the "name" field of the source
-    load_to_vdl: true             # optional - default is false - outside of dbview models that have translate_to_duckdb as false, other models can only reference this source if load_to_vdl is true
+    load_to_vdl: true             # optional - default is false - other than dbview models (with translate_to_duckdb set to false), other models can only reference this source if load_to_vdl is true or connection type is duckdb
     
     update_hints:
       increasing_column: date     # optional - if not provided, will always do full refresh, otherwise uses this column for incremental loads

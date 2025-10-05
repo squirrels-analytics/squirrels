@@ -84,14 +84,6 @@ class EnvironmentWithMacros(j2.Environment):
 
 ## Utility functions/variables
 
-def log_activity_time(logger: logging.Logger, activity: str, start_timestamp: float, *, request_id: str | None = None) -> None:
-    end_timestamp = time.time()
-    time_taken = round((end_timestamp-start_timestamp) * 10**3, 3)
-    data = { "activity": activity, "start_timestamp": start_timestamp, "end_timestamp": end_timestamp, "time_taken_ms": time_taken }
-    info = { "request_id": request_id } if request_id else {}
-    logger.debug(f'Time taken for "{activity}": {time_taken}ms', extra={"data": data, "info": info})
-
-
 def render_string(raw_str: str, *, base_path: str = ".", **kwargs) -> str:
     """
     Given a template string, render it with the given keyword arguments

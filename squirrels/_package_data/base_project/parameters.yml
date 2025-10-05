@@ -92,7 +92,7 @@ parameters:
         table_or_query: seed_categories
         id_col: category_id
         options_col: category
-        from_seeds: true                                  ## optional, default is false, exists for data_source of any parameters
+        source: seeds                                     ## optional, default is "connection", must be "connection", "seeds", or "vdl", exists for data_source of any parameters
         order_by_col: null                                ## optional, default, exists for data_source of SingleSelect and MultiSelect
         is_default_col: null                              ## optional, default, exists for data_source of SingleSelect and MultiSelect
         custom_cols: {}                                   ## optional, default, exists for data_source of SingleSelect and MultiSelect
@@ -112,7 +112,7 @@ parameters:
         table_or_query: seed_subcategories
         id_col: subcategory_id
         options_col: subcategory
-        from_seeds: true
+        source: seeds
         parent_id_col: category_id                        ## optional, default is null, exists for all parameter types
   
   - type: NumberParameter

@@ -2,8 +2,7 @@ from dotenv import dotenv_values
 from uuid import uuid4
 from pathlib import Path
 import asyncio, typing as t, functools as ft, shutil, json, os
-import logging as l, polars as pl
-import sqlglot, sqlglot.expressions, duckdb
+import sqlglot, sqlglot.expressions, duckdb, polars as pl
 
 from ._auth import Authenticator, BaseUser, AuthProviderArgs, ProviderFunctionType
 from ._schemas import response_models as rm
@@ -12,30 +11,10 @@ from ._exceptions import InvalidInputError, ConfigurationError
 from ._py_module import PyModule
 from . import _dashboards as d, _utils as u, _constants as c, _manifest as mf, _connection_set as cs
 from . import _seeds as s, _models as m, _model_configs as mc, _model_queries as mq, _sources as so
-from . import _parameter_sets as ps, _dataset_types as dr
+from . import _parameter_sets as ps, _dataset_types as dr, _logging as l
 
 T = t.TypeVar("T", bound=d.Dashboard)
 M = t.TypeVar("M", bound=m.DataModel)
-
-
-class _CustomJsonFormatter(l.Formatter):
-    def format(self, record: l.LogRecord) -> str:
-        super().format(record)
-        info = {
-            "timestamp": self.formatTime(record),
-            "project_id": record.name,
-            "level": record.levelname,
-            "message": record.getMessage(),
-            "thread": record.thread,
-            "thread_name": record.threadName,
-            "process": record.process,
-            **record.__dict__.get("info", {})
-        }
-        output = {
-            "data": record.__dict__.get("data", {}),
-            "info": info
-        }
-        return json.dumps(output)
 
 
 class SquirrelsProject:
@@ -43,45 +22,29 @@ class SquirrelsProject:
     Initiate an instance of this class to interact with a Squirrels project through Python code. For example this can be handy to experiment with the datasets produced by Squirrels in a Jupyter notebook.
     """
     
-    def __init__(self, *, filepath: str = ".", log_file: str | None = c.LOGS_FILE, log_level: str = "INFO", log_format: str = "text") -> None:
+    def __init__(self, *, filepath: str = ".", log_to_file: bool = False, log_level: str | None = None, log_format: str | None = None) -> None:
         """
         Constructor for SquirrelsProject class. Loads the file contents of the Squirrels project into memory as member fields.
 
         Arguments:
             filepath: The path to the Squirrels project file. Defaults to the current working directory.
-            log_level: The logging level to use. Options are "DEBUG", "INFO", and "WARNING". Default is "INFO".
-            log_file: The name of the log file to write to from the "logs/" subfolder. If None or empty string, then file logging is disabled. Default is "squirrels.log".
-            log_format: The format of the log records. Options are "text" and "json". Default is "text".
+            log_level: The logging level to use. Options are "DEBUG", "INFO", and "WARNING". Default is from SQRL_LOGGING__LOG_LEVEL environment variable or "INFO".
+            log_to_file: Whether to enable logging to file(s) in the "logs/" folder with rotation and retention policies. Default is False.
+            log_format: The format of the log records. Options are "text" and "json". Default is from SQRL_LOGGING__LOG_FORMAT environment variable or "text".
         """
         self._filepath = filepath
-        self._logger = self._get_logger(self._filepath, log_file, log_level, log_format)
-        self._ensure_virtual_datalake_exists(self._filepath)
-
-    def _get_logger(self, base_path: str, log_file: str | None, log_level: str, log_format: str) -> u.Logger:
-        logger = u.Logger(name=uuid4().hex)
-        logger.setLevel(log_level.upper())
-
-        handler = l.StreamHandler()
-        handler.setLevel("WARNING")
-        handler.setFormatter(l.Formatter("%(levelname)s:   %(asctime)s - %(message)s"))
-        logger.addHandler(handler)
-        
-        if log_format.lower() == "json":
-            formatter = _CustomJsonFormatter()
-        elif log_format.lower() == "text":
-            formatter = l.Formatter("[%(name)s] %(asctime)s - %(levelname)s - %(message)s")
-        else:
-            raise ValueError("log_format must be either 'text' or 'json'")
-            
-        if log_file:
-            path = Path(base_path, c.LOGS_FOLDER, log_file)
-            path.parent.mkdir(parents=True, exist_ok=True)
-
-            handler = l.FileHandler(path)
-            handler.setFormatter(formatter)
-            logger.addHandler(handler)
-        
-        return logger
+        self._logger = self._get_logger(filepath, log_to_file, log_level, log_format)
+        self._ensure_virtual_datalake_exists(filepath)
+    
+    def _get_logger(self, filepath: str, log_to_file: bool, log_level: str | None, log_format: str | None) -> u.Logger:
+        env_vars = self._env_vars
+        # CLI arguments take precedence over environment variables
+        log_level = log_level if log_level is not None else env_vars.get(c.SQRL_LOGGING_LOG_LEVEL, "INFO")
+        log_format = log_format if log_format is not None else env_vars.get(c.SQRL_LOGGING_LOG_FORMAT, "text")
+        log_to_file = log_to_file or (env_vars.get(c.SQRL_LOGGING_LOG_TO_FILE, "false").lower() == "true")
+        log_file_size_mb = env_vars.get(c.SQRL_LOGGING_LOG_FILE_SIZE_MB, 50)
+        log_file_backup_count = env_vars.get(c.SQRL_LOGGING_LOG_FILE_BACKUP_COUNT, 1)
+        return l.get_logger(filepath, log_to_file, log_level, log_format, log_file_size_mb, log_file_backup_count)
 
     def _ensure_virtual_datalake_exists(self, project_path: str) -> None:
         target_path = u.Path(project_path, c.TARGET_FOLDER)
@@ -210,7 +173,7 @@ class SquirrelsProject:
     @ft.cached_property
     def _param_cfg_set(self) -> ps.ParameterConfigsSet:
         return ps.ParameterConfigsSetIO.load_from_file(
-            self._logger, self._filepath, self._manifest_cfg, self._seeds, self._conn_set, self._param_args
+            self._logger, self._filepath, self._manifest_cfg, self._seeds, self._conn_set, self._param_args, self._datalake_db_path
         )
     
     @ft.cached_property

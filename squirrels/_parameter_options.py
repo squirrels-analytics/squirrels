@@ -35,7 +35,7 @@ class ParameterOption(metaclass=ABCMeta):
         
         Arguments:
             user_group: The value of the user's "user group attribute". Only None when "user_attribute" is not specified
-                for the Parameter factory. Note that when user is None but "user_attribute" is specified, an error is thrown
+                for the Parameter factory.
             selected_parent_option_ids: List of selected option ids from the parent parameter. Only None when the Parameter
                 object has no parent parameter.
         

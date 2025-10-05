@@ -47,19 +47,19 @@ def main():
     """
     Main entry point for the squirrels command line utilities.
     """
-    def with_help(parser: ArgumentParser):
-        parser.add_argument('-h', '--help', action="help", help="Show this help message and exit")
-        return parser
-
-    parser = with_help(ArgumentParser(description="Command line utilities from the squirrels python package", add_help=False))
+    # Create a parent parser with common logging options
+    parent_parser = ArgumentParser(add_help=False)
+    parent_parser.add_argument('-h', '--help', action="help", help="Show this help message and exit")
+    parent_parser.add_argument('--log-level', type=str, choices=["DEBUG", "INFO", "WARNING"], help='Level of logging to use. Default is from SQRL_LOGGING__LOG_LEVEL environment variable or INFO.')
+    parent_parser.add_argument('--log-format', type=str, choices=["text", "json"], help='Format of the log records. Default is from SQRL_LOGGING__LOG_FORMAT environment variable or text.')
+    parent_parser.add_argument('--log-to-file', action='store_true', help='Enable logging to file(s) in the "logs/" folder with rotation and retention policies.')
+    
+    parser = ArgumentParser(description="Command line utilities from the squirrels python package", add_help=False, parents=[parent_parser])
     parser.add_argument('-V', '--version', action='store_true', help='Show the version and exit')
-    parser.add_argument('--log-level', type=str, choices=["DEBUG", "INFO", "WARNING"], default="INFO", help='Level of logging to use')
-    parser.add_argument('--log-format', type=str, choices=["text", "json"], default="text", help='Format of the log records')
-    parser.add_argument('--log-file', type=str, default=c.LOGS_FILE, help=f'Name of log file to write to in the "logs/" folder. Default is {c.LOGS_FILE}. If name is empty, then file logging is disabled')
     subparsers = parser.add_subparsers(title='commands', dest='command')
 
     def add_subparser(subparsers: _SubParsersAction, cmd: str, help_text: str):
-        subparser = with_help(subparsers.add_parser(cmd, description=help_text, help=help_text, add_help=False))
+        subparser: ArgumentParser = subparsers.add_parser(cmd, description=help_text, help=help_text, add_help=False, parents=[parent_parser])
         return subparser
 
     init_parser = add_subparser(subparsers, c.INIT_CMD, 'Create a new squirrels project')
@@ -141,7 +141,7 @@ def main():
     elif args.command is None:
         print(f'Command is missing. Enter "squirrels -h" for help.')
     else:
-        project = SquirrelsProject(log_level=args.log_level, log_format=args.log_format, log_file=args.log_file)
+        project = SquirrelsProject(log_level=args.log_level, log_format=args.log_format, log_to_file=args.log_to_file)
         try:
             if args.command == c.DEPS_CMD:
                 PackageLoaderIO.load_packages(project._logger, project._manifest_cfg, reload=True)

@@ -110,28 +110,6 @@ class ApiServer:
         self.data_management_routes = DataManagementRoutes(get_bearer_token, project, no_cache)
     
     
-    # async def _monitor_for_staging_file(self) -> None:
-    #     """Background task that monitors for staging file and renames it when present"""
-    #     duckdb_venv_path = self.project._duckdb_venv_path
-    #     staging_file = Path(duckdb_venv_path + ".stg")
-    #     target_file = Path(duckdb_venv_path)
-                
-    #     while True:
-    #         try:
-    #             if staging_file.exists():
-    #                 try:
-    #                     staging_file.replace(target_file)
-    #                     self.logger.info("Successfully renamed staging database to the main DuckDB data lake")
-    #                 except OSError:
-    #                     # Silently continue if file cannot be renamed (will retry next iteration)
-    #                     pass
-                
-    #         except Exception as e:
-    #             # Log any unexpected errors but keep running
-    #             self.logger.error(f"Error in monitoring {c.DUCKDB_VENV_FILE + '.stg'}: {str(e)}")
-            
-    #         await asyncio.sleep(1)  # Check every second
-    
     @asynccontextmanager
     async def _run_background_tasks(self, app: FastAPI):
         async with contextlib.AsyncExitStack() as stack:
@@ -259,7 +237,7 @@ class ApiServer:
             err_msg = buffer.getvalue()
             if err_msg:
                 self.logger.error(err_msg)
-                print(err_msg)
+                # print(err_msg)
             return response
 
         # Configure CORS with smart credential handling
@@ -299,6 +277,8 @@ class ApiServer:
         async def redirect_to_studio():
             return RedirectResponse(url=squirrels_studio_path)
 
+        self.logger.log_activity_time("creating app server", start)
+
         # Run the API Server
         import uvicorn
         
@@ -309,5 +289,4 @@ class ApiServer:
         print(f"- MCP Server URL: {full_hostname}{project_metadata_path}/mcp")
         print()
         
-        self.logger.log_activity_time("creating app server", start)
         uvicorn.run(app, host=uvicorn_args.host, port=uvicorn_args.port, proxy_headers=True, forwarded_allow_ips="*")

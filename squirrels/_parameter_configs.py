@@ -554,12 +554,21 @@ class DataSourceParameterConfig(Generic[ParamConfigType], ParameterConfigBase):
     def convert(self, df: pl.DataFrame) -> ParamConfigType:
         return self.data_source._convert(self, df)
     
-    def get_dataframe(self, default_conn_name: str, conn_set: ConnectionSet, seeds: Seeds) -> pl.DataFrame:
+    def get_dataframe(self, default_conn_name: str, conn_set: ConnectionSet, seeds: Seeds, datalake_db_path: str = "") -> pl.DataFrame:
         datasource = self.data_source
         query = datasource._get_query()
-        if datasource._is_from_seeds:
+        if datasource._source == "seeds":
             df = seeds.run_query(query)
-        else:
+        elif datasource._source == "vdl":
+            vdl_conn = u.create_duckdb_connection(datalake_db_path)
+            try:
+                # Query the VDL database
+                df = vdl_conn.sql(query).pl()
+            except Exception as e:
+                raise u.ConfigurationError(f'Error executing query for datasource parameter "{self.name}" from VDL') from e
+            finally:
+                vdl_conn.close()
+        else:  # source == "connection"
             try:
                 conn_name = datasource._get_connection_name(default_conn_name)
                 df = conn_set.run_sql_query_from_conn_name(query, conn_name)

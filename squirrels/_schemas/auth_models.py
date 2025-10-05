@@ -6,7 +6,7 @@ from pydantic import BaseModel, ConfigDict, Field, field_serializer
 class BaseUser(BaseModel):
     model_config = ConfigDict(from_attributes=True)
     username: str
-    access_level: Literal["admin", "member", "guest"] = "guest"
+    access_level: Literal["admin", "member", "guest"] = "member"
     
     @classmethod
     def dropped_columns(cls):

@@ -188,10 +188,10 @@ class TestConnectionProperties:
         assert conn.dialect == expected
 
     @pytest.mark.parametrize("fixture,expected", [
-        ("sqlite_sqlalchemy_conn", "path/to/db.sqlite"),
-        ("postgres_sqlalchemy_conn", "dbname=mydb user=user password=pass host=localhost port=5432"),
-        ("sqlite_connectorx_conn", "/path/to/db.sqlite"),
-        ("postgres_connectorx_conn", "dbname=mydb user=user password=pass host=localhost port=5432")
+        ("sqlite_sqlalchemy_conn", "sqlite:path/to/db.sqlite"),
+        ("postgres_sqlalchemy_conn", "postgres:dbname=mydb user=user password=pass host=localhost port=5432"),
+        ("sqlite_connectorx_conn", "sqlite:/path/to/db.sqlite"),
+        ("postgres_connectorx_conn", "postgres:dbname=mydb user=user password=pass host=localhost port=5432")
     ])
     def test_attach_uri_for_duckdb(self, fixture: str, expected: str, request: pytest.FixtureRequest):
         conn: m.ConnectionProperties = request.getfixturevalue(fixture)

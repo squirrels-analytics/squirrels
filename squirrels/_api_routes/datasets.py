@@ -34,6 +34,9 @@ class DatasetRoutes(RouteBase):
         dataset_results_cache_ttl = int(self.env_vars.get(c.SQRL_DATASETS_CACHE_TTL_MINUTES, 60))
         self.dataset_results_cache = TTLCache(maxsize=dataset_results_cache_size, ttl=dataset_results_cache_ttl*60)
         
+        # Setup max rows for AI
+        self.max_rows_for_ai = int(self.env_vars.get(c.SQRL_DATASETS_MAX_ROWS_FOR_AI, 100))
+        
     async def _get_dataset_results_helper(
         self, dataset: str, user: BaseUser, selections: tuple[tuple[str, Any], ...], configurables: tuple[tuple[str, str], ...]
     ) -> DatasetResult:
@@ -193,7 +196,7 @@ class DatasetRoutes(RouteBase):
             description=dedent(f"""
             Use this tool to get the dataset results as a JSON object for a dataset in the Squirrels project "{project_name}".
             - Use the "offset" and "limit" arguments to limit the number of rows you require
-            - The "limit" argument controls the number of rows returned. The maximum allowed value is 100. If the 'total_num_rows' field in the response is greater than 100, let the user know that only 100 rows are shown and clarify if they would like to see more.
+            - The "limit" argument controls the number of rows returned. The maximum allowed value is {self.max_rows_for_ai}. If the 'total_num_rows' field in the response is greater than {self.max_rows_for_ai}, let the user know that only {self.max_rows_for_ai} rows are shown and clarify if they would like to see more.
             """).strip()
         )
         async def get_dataset_results_tool(
@@ -217,10 +220,10 @@ class DatasetRoutes(RouteBase):
             - If not provided, the dataset result is returned as is.
             """).strip()),
             offset: int = Field(0, description="The number of rows to skip from first row. Applied after final SQL. Default is 0."),
-            limit: int = Field(100, description="The maximum number of rows to return. Applied after final SQL. Default is 100. Maximum allowed value is 100."),
+            limit: int = Field(self.max_rows_for_ai, description=f"The maximum number of rows to return. Applied after final SQL. Default is {self.max_rows_for_ai}. Maximum allowed value is {self.max_rows_for_ai}."),
         ) -> rm.DatasetResultModel:
-            if limit > 100:
-                raise ValueError("The maximum number of rows to return is 100.")
+            if limit > self.max_rows_for_ai:
+                raise ValueError(f"The maximum number of rows to return is {self.max_rows_for_ai}.")
 
             headers = self.get_headers_from_tool_ctx(ctx)
             user = self.get_user_from_tool_headers(headers)
