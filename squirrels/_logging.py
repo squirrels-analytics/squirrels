@@ -86,7 +86,7 @@ def get_logger(
         file_formatter = _CustomJsonFormatter()
     elif log_format.lower() == "text":
         # Use colored formatter for stdout, plain formatter with colon for file
-        format_string = "[%(asctime)s] %(levelname)s %(message)s"
+        format_string = "%(levelname)s [%(asctime)s] %(message)s"
         stdout_formatter = _ColoredFormatter(format_string, datefmt="%Y-%m-%d %H:%M:%S")
         file_formatter = _PlainFormatter(format_string, datefmt="%Y-%m-%d %H:%M:%S")
     else:

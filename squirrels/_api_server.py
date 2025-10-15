@@ -11,7 +11,7 @@ from starlette.middleware.sessions import SessionMiddleware
 from mcp.server.fastmcp import FastMCP
 import io, time, mimetypes, traceback, uuid, asyncio, contextlib
 
-from . import _constants as c, _utils as u
+from . import _constants as c, _utils as u, _parameter_sets as ps
 from ._exceptions import InvalidInputError, ConfigurationError, FileExecutionError
 from ._version import __version__, sq_major_version
 from ._project import SquirrelsProject
@@ -110,11 +110,63 @@ class ApiServer:
         self.data_management_routes = DataManagementRoutes(get_bearer_token, project, no_cache)
     
     
+    async def _refresh_datasource_params(self) -> None:
+        """
+        Background task to periodically refresh datasource parameter options.
+        Runs every N minutes as configured by SQRL_PARAMETERS__DATASOURCE_REFRESH_MINUTES (default: 60).
+        """
+        refresh_minutes_str = self.env_vars.get(c.SQRL_PARAMETERS_DATASOURCE_REFRESH_MINUTES, "60")
+        try:
+            refresh_minutes = int(refresh_minutes_str)
+            if refresh_minutes <= 0:
+                self.logger.info(f"The value of {c.SQRL_PARAMETERS_DATASOURCE_REFRESH_MINUTES} is: {refresh_minutes_str} minutes")
+                self.logger.info(f"Datasource parameter refresh is disabled since the refresh interval is not positive.")
+                return
+        except ValueError:
+            self.logger.warning(f"Invalid value for {c.SQRL_PARAMETERS_DATASOURCE_REFRESH_MINUTES}: {refresh_minutes_str}. Must be an integer. Disabling datasource parameter refresh.")
+            return
+        
+        refresh_seconds = refresh_minutes * 60
+        self.logger.info(f"Starting datasource parameter refresh background task (every {refresh_minutes} minutes)")
+        
+        while True:
+            try:
+                await asyncio.sleep(refresh_seconds)
+                self.logger.info("Refreshing datasource parameter options...")
+                
+                # Fetch fresh dataframes from datasources in a thread pool to avoid blocking
+                loop = asyncio.get_running_loop()
+                default_conn_name = self.manifest_cfg.env_vars.get(c.SQRL_CONNECTIONS_DEFAULT_NAME_USED, "default")
+                df_dict = await loop.run_in_executor(
+                    None,
+                    ps.ParameterConfigsSetIO._get_df_dict_from_data_sources,
+                    self.param_cfg_set,
+                    default_conn_name,
+                    self.seeds,
+                    self.conn_set,
+                    self.project._datalake_db_path
+                )
+                
+                # Re-convert datasource parameters with fresh data
+                self.param_cfg_set._post_process_params(df_dict)
+                
+                self.logger.info("Successfully refreshed datasource parameter options")
+            except asyncio.CancelledError:
+                self.logger.info("Datasource parameter refresh task cancelled")
+                break
+            except Exception as e:
+                self.logger.error(f"Error refreshing datasource parameter options: {e}", exc_info=True)
+                # Continue the loop even if there's an error
+    
     @asynccontextmanager
     async def _run_background_tasks(self, app: FastAPI):
+        refresh_datasource_task = asyncio.create_task(self._refresh_datasource_params())
+        
         async with contextlib.AsyncExitStack() as stack:
             await stack.enter_async_context(self.mcp.session_manager.run())
             yield
+        
+        refresh_datasource_task.cancel()
 
 
     def _get_tags_metadata(self) -> list[dict]:

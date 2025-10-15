@@ -125,17 +125,14 @@ class DbConnConfig(ConnectionProperties, _ConfigWithNameBaseModel):
         return self
 
 
-class ConfigurablesConfig(BaseModel):
+class DatasetConfigurablesConfig(BaseModel):
     name: str
-    label: str = ""
-    default: str = ""
-    description: str = ""
+    default: str
 
-    @field_validator("default", mode="before")
-    @classmethod
-    def convert_default_to_string(cls, value: Any) -> str:
-        """Convert the default value to a string if it's not already one."""
-        return str(value) if value is not None else ""
+
+class ConfigurablesConfig(DatasetConfigurablesConfig):
+    label: str = ""
+    description: str = ""
 
 
 class ParametersConfig(BaseModel):
@@ -189,6 +186,7 @@ class AnalyticsOutputConfig(_ConfigWithNameBaseModel):
 
 class DatasetConfig(AnalyticsOutputConfig):
     model: str = ""
+    configurables: list[DatasetConfigurablesConfig] = Field(default_factory=list)
     
     def __hash__(self) -> int:
         return hash("dataset_"+self.name)
@@ -263,6 +261,20 @@ class ManifestConfig(BaseModel):
                 )
         return self
     
+    @model_validator(mode="after")
+    def validate_dataset_configurables(self) -> Self:
+        """
+        Validate that dataset configurables reference valid project-level configurables.
+        """
+        for dataset_name, dataset_cfg in self.datasets.items():
+            for cfg_override in dataset_cfg.configurables:
+                if cfg_override.name not in self.configurables:
+                    raise ValueError(
+                        f'Dataset "{dataset_name}" references configurable "{cfg_override.name}" which is not defined '
+                        f'in the project configurables'
+                    )
+        return self
+    
     def get_default_test_set(self) -> TestSetsConfig:
         """
         Raises KeyError if dataset name doesn't exist
@@ -271,15 +283,25 @@ class ManifestConfig(BaseModel):
         default_test_set = self.selection_test_sets.get(c.DEFAULT_TEST_SET_NAME, default_default_test_set)
         return default_test_set
     
-    def get_default_configurables(self) -> dict[str, str]:
+    def get_default_configurables(self, dataset_name: str | None = None) -> dict[str, str]:
         """
         Return a dictionary of configurable name to its default value.
+        
+        If dataset_name is provided, merges project-level defaults with dataset-specific overrides.
 
         Supports both list- and dict-shaped internal storage for configurables.
         """
         defaults: dict[str, str] = {}
         for name, cfg in self.configurables.items():
             defaults[name] = str(cfg.default)
+        
+        # Apply dataset-specific overrides if dataset_name is provided
+        if dataset_name is not None:
+            dataset_cfg = self.datasets.get(dataset_name)
+            if dataset_cfg:
+                for cfg_override in dataset_cfg.configurables:
+                    defaults[cfg_override.name] = cfg_override.default
+        
         return defaults
 
 

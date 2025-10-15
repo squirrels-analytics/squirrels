@@ -589,7 +589,7 @@ class SquirrelsProject:
             raise self._permission_error(user, "dataset", name, scope.name)
         
         dag = self._generate_dag(name)
-        configurables = {**self._manifest_cfg.get_default_configurables(), **configurables}
+        configurables = {**self._manifest_cfg.get_default_configurables(name), **configurables}
         await dag.execute(
             self._param_args, self._param_cfg_set, self._context_func, user, dict(selections), configurables=configurables
         )

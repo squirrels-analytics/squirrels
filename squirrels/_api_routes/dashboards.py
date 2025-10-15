@@ -50,7 +50,7 @@ class DashboardRoutes(RouteBase):
         
         get_dashboard_function = self._get_dashboard_results_helper if self.no_cache else self._get_dashboard_results_cachable
         selections = self.get_selections_as_immutable(params, uncached_keys={"x_verify_params"})
-        configurables = self.get_configurables_from_headers(headers)
+        configurables = self.get_configurables_from_headers(headers) if user.access_level == "admin" else tuple[tuple[str, str], ...]()
         dashboard_obj = await get_dashboard_function(dashboard_name, user, selections, configurables)
         
         if dashboard_obj._format == c.PNG:

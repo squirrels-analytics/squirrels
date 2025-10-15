@@ -96,10 +96,22 @@ class ProjectRoutes(RouteBase):
                     name_normalized = u.normalize_name_for_api(name)
                     metadata = self.project.dataset_metadata(name).to_json()
                     parameters = config.parameters if config.parameters is not None else full_parameters_list
+                    
+                    # Build dataset-specific configurables list
+                    if user.access_level == "admin":
+                        dataset_configurables_defaults = self.manifest_cfg.get_default_configurables(name)
+                        dataset_configurables_list = [
+                            rm.ConfigurableDefaultModel(name=name, default=default)
+                            for name, default in dataset_configurables_defaults.items()
+                        ]
+                    else:
+                        dataset_configurables_list = []
+                    
                     dataset_items.append(rm.DatasetItemModel(
                         name=name, label=config.label, 
                         description=config.description,
                         schema=metadata["schema"], # type: ignore
+                        configurables=dataset_configurables_list,
                         parameters=parameters,
                         parameters_path=f"{project_metadata_path}/dataset/{name_normalized}/parameters",
                         result_path=f"{project_metadata_path}/dataset/{name_normalized}"

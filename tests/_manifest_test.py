@@ -121,6 +121,25 @@ class TestDatasetConfig:
     def test_invalid_dataset(self):
         with pytest.raises(ValueError):
             m.DatasetConfig(name="my_dataset", scope="not_valid") # type: ignore
+    
+    @pytest.fixture(scope="class")
+    def dataset_config_with_configurables(self) -> m.DatasetConfig:
+        data = {
+            "name": "my_dataset",
+            "configurables": [
+                {"name": "config1", "default": "value1"},
+                {"name": "config2", "default": 123}
+            ]
+        }
+        return m.DatasetConfig(**data)
+    
+    def test_dataset_configurables_missing_required_fields(self):
+        """Test that name and default are required fields"""
+        with pytest.raises(ValidationError):
+            m.DatasetConfig(name="my_dataset", configurables=[{"name": "config1"}])
+        
+        with pytest.raises(ValidationError):
+            m.DatasetConfig(name="my_dataset", configurables=[{"default": "value"}])
 
 
 class TestTestSetsConfig:
@@ -203,3 +222,56 @@ class TestConnectionProperties:
             uri="oracle://user:pass@localhost:1521/mydb"
         )
         assert conn.attach_uri_for_duckdb is None
+
+
+class TestManifestConfigurables:
+    @pytest.fixture(scope="class")
+    def manifest_with_configurables(self) -> m.ManifestConfig:
+        data = {
+            "project_variables": {"name": "test_proj", "major_version": 1},
+            "configurables": {
+                "config1": {"name": "config1", "label": "Config 1", "default": "default1", "description": "First config"},
+                "config2": {"name": "config2", "label": "Config 2", "default": "default2", "description": "Second config"}
+            },
+            "datasets": {
+                "dataset1": {
+                    "name": "dataset1",
+                    "configurables": [
+                        {"name": "config1", "default": "dataset1_value"}
+                    ]
+                },
+                "dataset2": {
+                    "name": "dataset2"
+                }
+            }
+        }
+        return m.ManifestConfig(**data)
+    
+    def test_get_default_configurables_no_dataset(self, manifest_with_configurables: m.ManifestConfig):
+        defaults = manifest_with_configurables.get_default_configurables()
+        assert defaults == {"config1": "default1", "config2": "default2"}
+    
+    def test_get_default_configurables_with_dataset_override(self, manifest_with_configurables: m.ManifestConfig):
+        defaults = manifest_with_configurables.get_default_configurables("dataset1")
+        assert defaults == {"config1": "dataset1_value", "config2": "default2"}
+    
+    def test_get_default_configurables_with_dataset_no_override(self, manifest_with_configurables: m.ManifestConfig):
+        defaults = manifest_with_configurables.get_default_configurables("dataset2")
+        assert defaults == {"config1": "default1", "config2": "default2"}
+    
+    def test_invalid_dataset_configurable(self):
+        with pytest.raises(ValueError, match='references configurable "invalid_config"'):
+            m.ManifestConfig(
+                project_variables={"name": "test_proj", "major_version": 1},
+                configurables={
+                    "config1": {"name": "config1", "label": "Config 1", "default": "default1", "description": "First config"}
+                },
+                datasets={
+                    "dataset1": {
+                        "name": "dataset1",
+                        "configurables": [
+                            {"name": "invalid_config", "default": "value"}
+                        ]
+                    }
+                }
+            )

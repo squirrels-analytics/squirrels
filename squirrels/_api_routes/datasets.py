@@ -60,7 +60,7 @@ class DatasetRoutes(RouteBase):
         get_dataset_function = self._get_dataset_results_helper if self.no_cache else self._get_dataset_results_cachable
         uncached_keys = {"x_verify_params", "x_orientation", "x_sql_query", "x_limit", "x_offset"}
         selections = self.get_selections_as_immutable(params, uncached_keys)
-        configurables = self.get_configurables_from_headers(headers)
+        configurables = self.get_configurables_from_headers(headers) if user.access_level == "admin" else tuple[tuple[str, str], ...]()
         result = await get_dataset_function(dataset_name, user, selections, configurables)
         
         # Apply optional final SQL transformation before select/limit/offset
