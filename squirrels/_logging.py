@@ -92,18 +92,11 @@ def get_logger(
     else:
         raise ValueError("log_format must be either 'text' or 'json'")
     
-    # Always add stdout handler at the configured log level
-    stdout_handler = l.StreamHandler()
-    stdout_handler.setLevel(log_level.upper())
-    stdout_handler.setFormatter(stdout_formatter)
-    logger.addHandler(stdout_handler)
-    
-    # Optionally add rotating file handler with retention policies
     if log_to_file:
         log_file_path = Path(base_path, c.LOGS_FOLDER, c.LOGS_FILE)
         log_file_path.parent.mkdir(parents=True, exist_ok=True)
 
-        # Rotating file handler: max 10MB per file, keep 5 backup files
+        # Rotating file handler
         file_handler = RotatingFileHandler(
             log_file_path,
             maxBytes=log_file_size_mb * 1024 * 1024,
@@ -112,5 +105,11 @@ def get_logger(
         file_handler.setLevel(log_level.upper())
         file_handler.setFormatter(file_formatter)
         logger.addHandler(file_handler)
+    
+    else:
+        stdout_handler = l.StreamHandler()
+        stdout_handler.setLevel(log_level.upper())
+        stdout_handler.setFormatter(stdout_formatter)
+        logger.addHandler(stdout_handler)
     
     return logger

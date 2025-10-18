@@ -266,7 +266,7 @@ class Initializer:
         
         self._copy_database_file(c.EXPENSES_DB)
         
-        print(f"\nSuccessfully created new Squirrels project in current directory!\n")
+        print(f"\nSuccessfully created new Squirrels project!\n")
     
     def get_file(self, args):
         if args.file_name == c.DOTENV_FILE:

@@ -1,5 +1,4 @@
 from dotenv import dotenv_values
-from uuid import uuid4
 from pathlib import Path
 import asyncio, typing as t, functools as ft, shutil, json, os
 import sqlglot, sqlglot.expressions, duckdb, polars as pl
@@ -42,8 +41,8 @@ class SquirrelsProject:
         log_level = log_level if log_level is not None else env_vars.get(c.SQRL_LOGGING_LOG_LEVEL, "INFO")
         log_format = log_format if log_format is not None else env_vars.get(c.SQRL_LOGGING_LOG_FORMAT, "text")
         log_to_file = log_to_file or (env_vars.get(c.SQRL_LOGGING_LOG_TO_FILE, "false").lower() == "true")
-        log_file_size_mb = env_vars.get(c.SQRL_LOGGING_LOG_FILE_SIZE_MB, 50)
-        log_file_backup_count = env_vars.get(c.SQRL_LOGGING_LOG_FILE_BACKUP_COUNT, 1)
+        log_file_size_mb = int(env_vars.get(c.SQRL_LOGGING_LOG_FILE_SIZE_MB, 50))
+        log_file_backup_count = int(env_vars.get(c.SQRL_LOGGING_LOG_FILE_BACKUP_COUNT, 1))
         return l.get_logger(filepath, log_to_file, log_level, log_format, log_file_size_mb, log_file_backup_count)
 
     def _ensure_virtual_datalake_exists(self, project_path: str) -> None:

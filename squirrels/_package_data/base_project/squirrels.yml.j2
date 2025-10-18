@@ -55,8 +55,8 @@ selection_test_sets:
     parameters:
       date_range: [2024-02-01,2024-11-30] ## this parameter is only used by model "federate_example"
     
-  - name: use_manager_privileged_group_by
+  - name: use_admin_privileged_group_by
     user_attributes:
-      role: manager
+      access_level: admin
     parameters:
-      group_by: trans                     ## this parameter exists for all datasets
+      group_by: trans
