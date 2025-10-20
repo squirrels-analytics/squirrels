@@ -39,22 +39,6 @@ def group_by_options():
     ]
 
 
-## Example of creating NumberParameter with options
-@p.NumberParameter.create_with_options(
-    name="limit", label="Max Number of Rows", 
-    description="Maximum number of rows to return", 
-    parent_name="group_by"
-)
-def limit_options():
-    return [
-        po.NumberParameterOption(
-            min_value=0, max_value=1000, 
-            increment=10, default_value=1000, 
-            parent_option_ids="trans"
-        )
-    ]
-
-
 ## Example of creating DateParameter
 @p.DateParameter.create_from_source(
     name="start_date", label="Start Date", 

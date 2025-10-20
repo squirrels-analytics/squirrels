@@ -34,8 +34,4 @@ def main(sqrl: args.ModelArgs) -> pl.LazyFrame | pl.DataFrame | pd.DataFrame:
     df = df.select(*order_by_cols, "total_amount") \
         .sort(order_by_cols, descending=True)
 
-    if "limit" in sqrl.ctx:
-        limit: int = sqrl.ctx["limit"]
-        df = df.limit(limit)
-
     return df

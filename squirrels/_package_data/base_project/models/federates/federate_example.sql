@@ -17,9 +17,3 @@ WHERE {{ date_and_amount_filters(use_from_range=true) }}
 GROUP BY {{ ctx.group_by_cols | join }}
 
 ORDER BY {{ ctx.order_by_cols_desc | join }}
-
-{%- if ctx.limit %}
-
-LIMIT {{ ctx.limit }}
-
-{%- endif %}

@@ -26,12 +26,6 @@ def main(ctx: dict[str, Any], sqrl: args.ContextArgs) -> None:
         ctx["order_by_cols_desc"] = list(x+" DESC" for x in ctx["order_by_cols"])
         ctx["column_to_alias_mapping"] = column_to_alias_mapping
     
-    if sqrl.param_exists("limit"):
-        limit_param = sqrl.prms["limit"]
-        assert isinstance(limit_param, p.NumberParameter)
-
-        ctx["limit"] = int(limit_param.get_selected_value())
-
     if sqrl.param_exists("start_date"):
         start_date_param = sqrl.prms["start_date"]
         assert isinstance(start_date_param, p.DateParameter)
