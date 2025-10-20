@@ -11,9 +11,9 @@ parameters:
           label: Transaction
           columns: ["id", "date", "category", "subcategory", "description"]   ## custom field
           aliases: ["_id", "date", "category", "subcategory", "description"]  ## custom field (any alias starting with "_" will not be selected - see context.py for implementation)
-          is_default: false                               ## optional, default, exists for SingleSelect or MultiSelect options only
+          is_default: false                               ## optional, shown is default - exists for SingleSelect or MultiSelect options only
           user_groups: ["admin"]                          ## optional, default is empty list
-          parent_option_ids: []                           ## optional, default, exists for all parameter options
+          parent_option_ids: []                           ## optional, shown is default - exists for all parameter options
         - id: day
           label: Day
           columns: [date]
@@ -31,7 +31,7 @@ parameters:
           label: Subcategory
           columns: [category, subcategory]
           user_groups: ["admin", "member", "guest"]
-      parent_name: null                                   ## optional, default, exists for all parameter types
+      parent_name: null                                   ## optional, shown is default - exists for all parameter types
   
   - type: NumberParameter
     factory: CreateWithOptions
@@ -92,14 +92,14 @@ parameters:
         table_or_query: seed_categories
         id_col: category_id
         options_col: category
-        source: seeds                                     ## optional, default is "connection", must be "connection", "seeds", or "vdl", exists for data_source of any parameters
-        order_by_col: null                                ## optional, default, exists for data_source of SingleSelect and MultiSelect
-        is_default_col: null                              ## optional, default, exists for data_source of SingleSelect and MultiSelect
-        custom_cols: {}                                   ## optional, default, exists for data_source of SingleSelect and MultiSelect
-        include_all: true                                 ## optional, default, exists for data_source of MultiSelect only
-        order_matters: false                              ## optional, default, exists for data_source of MultiSelect only
-        user_group_col: null                              ## optional, default, exists for data_source of any parameters
-        connection_name: default                          ## optional, default, exists for data_source of any parameters
+        source: seeds                                     ## optional, default is "connection" - must be one of "connection", "seeds", or "vdl" - exists for data_source of any parameters
+        order_by_col: null                                ## optional, shown is default - exists for data_source of SingleSelect and MultiSelect
+        is_default_col: null                              ## optional, shown is default - exists for data_source of SingleSelect and MultiSelect
+        custom_cols: {}                                   ## optional, shown is default - exists for data_source of SingleSelect and MultiSelect
+        include_all: true                                 ## optional, shown is default - exists for data_source of MultiSelect only
+        order_matters: false                              ## optional, shown is default - exists for data_source of MultiSelect only
+        user_group_col: null                              ## optional, shown is default - exists for data_source of any parameters
+        connection_name: default                          ## optional, shown is default - exists for data_source of any parameters
   
   - type: MultiSelectParameter
     factory: CreateFromSource
@@ -113,7 +113,7 @@ parameters:
         id_col: subcategory_id
         options_col: subcategory
         source: seeds
-        parent_id_col: category_id                        ## optional, default is null, exists for all parameter types
+        parent_id_col: category_id                        ## optional, default is null - exists for all parameter types
   
   - type: NumberParameter
     factory: CreateWithOptions
@@ -124,8 +124,8 @@ parameters:
       all_options:
         - min_value: 0
           max_value: 300
-          increment: 10                                   ## optional, default is 1, exists for Number and NumberRange options
-          default_value: null                             ## optional, default, exists for Number options only
+          increment: 10                                   ## optional, default is 1 - exists for Number and NumberRange options
+          default_value: null                             ## optional, shown is default - exists for Number options only
   
   - type: NumberParameter
     factory: CreateFromSource
@@ -139,7 +139,7 @@ parameters:
         max_value_col: max_value
         increment_col: increment                          ## optional, default is null
         default_value_col: max_value                      ## optional, default is null
-        id_col: null                                      ## optional, default, required for SingleSelect and MultiSelect, optional for others
+        id_col: null                                      ## optional, shown is default - required for SingleSelect and MultiSelect, optional for others
   
   - type: NumberRangeParameter
     factory: CreateWithOptions
@@ -150,7 +150,7 @@ parameters:
       all_options:
         - min_value: 0
           max_value: 300
-          default_lower_value: 0                          ## optional, default is null (or min_value), exists for NumRange options only
-          default_upper_value: 300                        ## optional, default is null (or max_value), exists for NumRange options only
+          default_lower_value: 0                          ## optional, default is null (or min_value) - exists for NumberRange options only
+          default_upper_value: 300                        ## optional, default is null (or max_value) - exists for NumberRange options only
 
 

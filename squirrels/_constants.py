@@ -62,6 +62,7 @@ LOGS_FILE = 'squirrels.log'
 
 DATABASE_FOLDER = 'assets'
 PACKAGES_FOLDER = 'sqrl_packages'
+PUBLIC_FOLDER = 'public'
 
 MACROS_FOLDER = 'macros'
 MACROS_FILE = 'macros_example.sql'

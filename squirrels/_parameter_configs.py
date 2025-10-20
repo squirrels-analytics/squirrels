@@ -547,6 +547,8 @@ class DataSourceParameterConfig(Generic[ParamConfigType], ParameterConfigBase):
         super().__init__(name, label, description=description, user_attribute=user_attribute, parent_name=parent_name)
         self.parameter_type = parameter_type
         if isinstance(data_source, dict):
+            if "source" in data_source:
+                data_source["source"] = d.SourceEnum(data_source["source"])
             data_source = parameter_type.DataSource(**data_source)
         self.data_source = data_source
         self.extra_args = extra_args
@@ -557,9 +559,9 @@ class DataSourceParameterConfig(Generic[ParamConfigType], ParameterConfigBase):
     def get_dataframe(self, default_conn_name: str, conn_set: ConnectionSet, seeds: Seeds, datalake_db_path: str = "") -> pl.DataFrame:
         datasource = self.data_source
         query = datasource._get_query()
-        if datasource._source == "seeds":
+        if datasource._source == d.SourceEnum.SEEDS:
             df = seeds.run_query(query)
-        elif datasource._source == "vdl":
+        elif datasource._source == d.SourceEnum.VDL:
             vdl_conn = u.create_duckdb_connection(datalake_db_path)
             try:
                 # Query the VDL database
@@ -569,9 +571,11 @@ class DataSourceParameterConfig(Generic[ParamConfigType], ParameterConfigBase):
             finally:
                 vdl_conn.close()
         else:  # source == "connection"
+            conn_name = None
             try:
                 conn_name = datasource._get_connection_name(default_conn_name)
                 df = conn_set.run_sql_query_from_conn_name(query, conn_name)
             except RuntimeError as e:
-                raise u.ConfigurationError(f'Error executing query for datasource parameter "{self.name}"') from e
+                ending = f' "{conn_name}"' if conn_name is not None else ""
+                raise u.ConfigurationError(f'Error executing query for datasource parameter "{self.name}" from connection{ending}') from e
         return df

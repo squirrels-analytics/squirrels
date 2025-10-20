@@ -2,6 +2,7 @@ from fastapi import FastAPI, Request, status
 from fastapi.responses import JSONResponse, HTMLResponse, RedirectResponse
 from fastapi.security import HTTPBearer
 from fastapi.templating import Jinja2Templates
+from fastapi.staticfiles import StaticFiles
 from starlette.middleware.base import BaseHTTPMiddleware
 from starlette.responses import Response as StarletteResponse
 from contextlib import asynccontextmanager
@@ -308,6 +309,13 @@ class ApiServer:
         self.dataset_routes.setup_routes(app, self.mcp, project_metadata_path, project_name, project_version, param_fields, get_parameters_definition)
         self.dashboard_routes.setup_routes(app, project_metadata_path, param_fields, get_parameters_definition)
         app.mount(project_metadata_path, self.mcp.streamable_http_app())
+    
+        # Mount static files from public directory if it exists
+        # This allows users to serve static assets (images, CSS, JS, etc.) from {project_path}/public/
+        public_dir = Path(self.project._filepath) / c.PUBLIC_FOLDER
+        if public_dir.exists() and public_dir.is_dir():
+            app.mount("/public", StaticFiles(directory=str(public_dir)), name="public")
+            self.logger.info(f"Mounted static files from: {public_dir}")
     
         # Add Root Path Redirection to Squirrels Studio
         full_hostname = f"http://{uvicorn_args.host}:{uvicorn_args.port}"

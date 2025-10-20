@@ -178,7 +178,11 @@ class TestNumberRangeParameterConfig:
 
 class TestDataSourceParameterConfig:
     def test_get_dataframe(self, simple_conn_set):
-        data_source = ds.SelectDataSource("SELECT DISTINCT col_id, col_val FROM seed_test ORDER BY col_id", "col_id", "col_val", source="seeds")
+        data_source = ds.SelectDataSource(
+            table_or_query="SELECT DISTINCT col_id, col_val FROM seed_test ORDER BY col_id", 
+            id_col="col_id", options_col="col_val", 
+            source=ds.SourceEnum.SEEDS
+        )
         ds_config = pc.DataSourceParameterConfig(pc.SingleSelectParameterConfig, "ds_test", "", data_source)
 
         input_df = pl.LazyFrame({

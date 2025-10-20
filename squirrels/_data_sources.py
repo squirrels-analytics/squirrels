@@ -1,9 +1,15 @@
 from __future__ import annotations
 from dataclasses import dataclass
+from enum import Enum
 import polars as pl, typing as t, abc
 
 from . import _parameter_configs as pc, _parameter_options as po
 from ._exceptions import ConfigurationError
+
+class SourceEnum(Enum):
+    CONNECTION = "connection"
+    SEEDS = "seeds"
+    VDL = "vdl"
 
 
 @dataclass
@@ -13,20 +19,18 @@ class DataSource(metaclass=abc.ABCMeta):
     """
     _table_or_query: str
     _id_col: str | None
-    _source: str
+    _source: SourceEnum
     _user_group_col: str | None
     _parent_id_col: str | None
     _connection: str | None
 
     @abc.abstractmethod
     def __init__(
-        self, table_or_query: str, *, id_col: str | None = None, source: str = "connection", user_group_col: str | None = None, 
-        parent_id_col: str | None = None, connection: str | None = None, **kwargs
+        self, table_or_query: str, *, id_col: str | None = None, source: SourceEnum = SourceEnum.CONNECTION, 
+        user_group_col: str | None = None, parent_id_col: str | None = None, connection: str | None = None, **kwargs
     ) -> None:
         self._table_or_query = table_or_query
         self._id_col = id_col
-        if source not in ("connection", "seeds", "vdl"):
-            raise ConfigurationError(f'Invalid source "{source}". Must be "connection", "seeds", or "vdl"')
         self._source = source
         self._user_group_col = user_group_col
         self._parent_id_col = parent_id_col
@@ -102,7 +106,7 @@ class _SelectionDataSource(DataSource):
     @abc.abstractmethod
     def __init__(
         self, table_or_query: str, id_col: str, options_col: str, *, order_by_col: str | None = None, 
-        is_default_col: str | None = None, custom_cols: dict[str, str] = {}, source: str = "connection", 
+        is_default_col: str | None = None, custom_cols: dict[str, str] = {}, source: SourceEnum = SourceEnum.CONNECTION, 
         user_group_col: str | None = None, parent_id_col: str | None = None, connection: str | None = None, 
         **kwargs
     ) -> None:
@@ -153,7 +157,7 @@ class SelectDataSource(_SelectionDataSource):
 
     def __init__(
             self, table_or_query: str, id_col: str, options_col: str, *, order_by_col: str | None = None, 
-            is_default_col: str | None = None, custom_cols: dict[str, str] = {}, source: str = "connection", 
+            is_default_col: str | None = None, custom_cols: dict[str, str] = {}, source: SourceEnum = SourceEnum.CONNECTION, 
             user_group_col: str | None = None, parent_id_col: str | None = None, connection: str | None = None, 
             **kwargs
         ) -> None:
@@ -179,7 +183,7 @@ class SelectDataSource(_SelectionDataSource):
 
     def _convert(self, ds_param: pc.DataSourceParameterConfig, df: pl.DataFrame) -> pc.SelectionParameterConfig:
         """
-        Method to convert the associated DataSourceParameter into a SingleSelectParameterConfig or MultiSelectParameterConfig
+        Method to convert the associated DataSourceParameterConfig into a SingleSelectParameterConfig or MultiSelectParameterConfig
 
         Arguments:
             ds_param: The parameter to convert
@@ -214,7 +218,7 @@ class DateDataSource(DataSource):
     def __init__(
         self, table_or_query: str, default_date_col: str, *, min_date_col: str | None = None, 
         max_date_col: str | None = None, date_format: str = '%Y-%m-%d', id_col: str | None = None, 
-        source: str = "connection", user_group_col: str | None = None, parent_id_col: str | None = None, 
+        source: SourceEnum = SourceEnum.CONNECTION, user_group_col: str | None = None, parent_id_col: str | None = None, 
         connection: str | None = None, **kwargs
     ) -> None:
         """
@@ -241,7 +245,7 @@ class DateDataSource(DataSource):
 
     def _convert(self, ds_param: pc.DataSourceParameterConfig, df: pl.DataFrame) -> pc.DateParameterConfig:
         """
-        Method to convert the associated DataSourceParameter into a DateParameterConfig
+        Method to convert the associated DataSourceParameterConfig into a DateParameterConfig
 
         Arguments:
             ds_param: The parameter to convert
@@ -283,7 +287,7 @@ class DateRangeDataSource(DataSource):
 
     def __init__(
         self, table_or_query: str, default_start_date_col: str, default_end_date_col: str, *, date_format: str = '%Y-%m-%d',
-        min_date_col: str | None = None, max_date_col: str | None = None, id_col: str | None = None, source: str = "connection", 
+        min_date_col: str | None = None, max_date_col: str | None = None, id_col: str | None = None, source: SourceEnum = SourceEnum.CONNECTION, 
         user_group_col: str | None = None, parent_id_col: str | None = None, connection: str | None = None, **kwargs
     ) -> None:
         """
@@ -312,7 +316,7 @@ class DateRangeDataSource(DataSource):
 
     def _convert(self, ds_param: pc.DataSourceParameterConfig, df: pl.DataFrame) -> pc.DateRangeParameterConfig:
         """
-        Method to convert the associated DataSourceParameter into a DateRangeParameterConfig
+        Method to convert the associated DataSourceParameterConfig into a DateRangeParameterConfig
 
         Arguments:
             ds_param: The parameter to convert
@@ -356,7 +360,7 @@ class _NumericDataSource(DataSource):
     @abc.abstractmethod
     def __init__(
         self, table_or_query: str, min_value_col: str, max_value_col: str, *, increment_col: str | None = None, 
-        id_col: str | None = None, source: str = "connection", user_group_col: str | None = None, 
+        id_col: str | None = None, source: SourceEnum = SourceEnum.CONNECTION, user_group_col: str | None = None, 
         parent_id_col: str | None = None, connection: str | None = None, **kwargs
     ) -> None:
         super().__init__(
@@ -377,7 +381,7 @@ class NumberDataSource(_NumericDataSource):
 
     def __init__(
         self, table_or_query: str, min_value_col: str, max_value_col: str, *, increment_col: str | None = None,
-        default_value_col: str | None = None, id_col: str | None = None, source: str = "connection", 
+        default_value_col: str | None = None, id_col: str | None = None, source: SourceEnum = SourceEnum.CONNECTION, 
         user_group_col: str | None = None, parent_id_col: str | None = None, connection: str | None = None, **kwargs
     ) -> None:
         """
@@ -403,7 +407,7 @@ class NumberDataSource(_NumericDataSource):
 
     def _convert(self, ds_param: pc.DataSourceParameterConfig, df: pl.DataFrame) -> pc.NumberParameterConfig:
         """
-        Method to convert the associated DataSourceParameter into a NumberParameterConfig
+        Method to convert the associated DataSourceParameterConfig into a NumberParameterConfig
 
         Arguments:
             ds_param: The parameter to convert
@@ -445,7 +449,7 @@ class NumberRangeDataSource(_NumericDataSource):
     def __init__(
         self, table_or_query: str, min_value_col: str, max_value_col: str, *, increment_col: str | None = None,
         default_lower_value_col: str | None = None, default_upper_value_col: str | None = None, id_col: str | None = None, 
-        source: str = "connection", user_group_col: str | None = None, parent_id_col: str | None = None, 
+        source: SourceEnum = SourceEnum.CONNECTION, user_group_col: str | None = None, parent_id_col: str | None = None, 
         connection: str | None = None, **kwargs
     ) -> None:
         """
@@ -473,7 +477,7 @@ class NumberRangeDataSource(_NumericDataSource):
 
     def _convert(self, ds_param: pc.DataSourceParameterConfig, df: pl.DataFrame) -> pc.NumberRangeParameterConfig:
         """
-        Method to convert the associated DataSourceParameter into a NumberRangeParameterConfig
+        Method to convert the associated DataSourceParameterConfig into a NumberRangeParameterConfig
 
         Arguments:
             ds_param: The parameter to convert
@@ -513,7 +517,7 @@ class TextDataSource(DataSource):
     _default_text_col: str
 
     def __init__(
-        self, table_or_query: str, default_text_col: str, *, id_col: str | None = None, source: str = "connection", 
+        self, table_or_query: str, default_text_col: str, *, id_col: str | None = None, source: SourceEnum = SourceEnum.CONNECTION, 
         user_group_col: str | None = None, parent_id_col: str | None = None, connection: str | None = None,
         **kwargs
     ) -> None:
@@ -537,7 +541,7 @@ class TextDataSource(DataSource):
 
     def _convert(self, ds_param: pc.DataSourceParameterConfig, df: pl.DataFrame) -> pc.TextParameterConfig:
         """
-        Method to convert the associated DataSourceParameter into a TextParameterConfig
+        Method to convert the associated DataSourceParameterConfig into a TextParameterConfig
 
         Arguments:
             ds_param: The parameter to convert

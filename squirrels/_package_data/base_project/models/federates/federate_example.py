@@ -28,7 +28,7 @@ def main(sqrl: args.ModelArgs) -> pl.LazyFrame | pl.DataFrame | pd.DataFrame:
     df = df.group_by(dimension_cols).agg(
         pl.sum("amount").cast(pl.Decimal(precision=15, scale=2)).alias("total_amount")
     )
-    df = df.rename(sqrl.ctx["rename_dict"])
+    df = df.rename(sqrl.ctx["column_to_alias_mapping"])
 
     order_by_cols: list[str] = sqrl.ctx["order_by_cols"]
     df = df.select(*order_by_cols, "total_amount") \

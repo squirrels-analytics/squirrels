@@ -18,11 +18,13 @@ def main(ctx: dict[str, Any], sqrl: args.ContextArgs) -> None:
         aliases = group_by_param.get_selected("aliases", default_field="columns")
         assert isinstance(columns, list) and isinstance(aliases, list) and len(columns) == len(aliases)
 
+        column_to_alias_mapping = {x: y for x, y in zip(columns, aliases) if not y.startswith("_")}
+
         ctx["group_by_cols"] = columns
-        ctx["rename_dict"] = {x: y for x, y in zip(columns, aliases) if not y.startswith("_")}
-        ctx["select_dim_cols"] = list(x+" as "+y for x, y in ctx["rename_dict"].items())
-        ctx["order_by_cols"] = list(ctx["rename_dict"].values())
+        ctx["select_dim_cols"] = list(x+" as "+y for x, y in column_to_alias_mapping.items())
+        ctx["order_by_cols"] = list(column_to_alias_mapping.values())
         ctx["order_by_cols_desc"] = list(x+" DESC" for x in ctx["order_by_cols"])
+        ctx["column_to_alias_mapping"] = column_to_alias_mapping
     
     if sqrl.param_exists("limit"):
         limit_param = sqrl.prms["limit"]
