@@ -31,20 +31,20 @@ class DataManagementRoutes(RouteBase):
         self.query_models_cache = TTLCache(maxsize=dataset_results_cache_size, ttl=dataset_results_cache_ttl*60)
         
     async def _query_models_helper(
-        self, sql_query: str, user: BaseUser | None, selections: tuple[tuple[str, Any], ...], configurables: tuple[tuple[str, str], ...]
+        self, sql_query: str, user: BaseUser, selections: tuple[tuple[str, Any], ...], configurables: tuple[tuple[str, str], ...]
     ) -> DatasetResult:
         """Helper to query models"""
         cfg_filtered = {k: v for k, v in dict(configurables).items() if k in self.manifest_cfg.configurables}
-        return await self.project.query_models(sql_query, selections=dict(selections), user=user, configurables=cfg_filtered)
+        return await self.project.query_models(sql_query, user=user, selections=dict(selections), configurables=cfg_filtered)
 
     async def _query_models_cachable(
-        self, sql_query: str, user: BaseUser | None, selections: tuple[tuple[str, Any], ...], configurables: tuple[tuple[str, str], ...]
+        self, sql_query: str, user: BaseUser, selections: tuple[tuple[str, Any], ...], configurables: tuple[tuple[str, str], ...]
     ) -> DatasetResult:
         """Cachable version of query models helper"""
         return await self.do_cachable_action(self.query_models_cache, self._query_models_helper, sql_query, user, selections, configurables)
 
     async def _query_models_definition(
-        self, user: BaseUser | None, all_request_params: dict, params: dict, *, headers: dict[str, str]
+        self, user: BaseUser, all_request_params: dict, params: dict, *, headers: dict[str, str]
     ) -> rm.DatasetResultModel:
         """Query models definition"""
         self._validate_request_params(all_request_params, params)
@@ -68,7 +68,7 @@ class DataManagementRoutes(RouteBase):
         return rm.DatasetResultModel(**result.to_json(orientation, limit, offset)) 
     
     async def _get_compiled_model_definition(
-        self, model_name: str, user: BaseUser | None, all_request_params: dict, params: dict, *, headers: dict[str, str]
+        self, model_name: str, user: BaseUser, all_request_params: dict, params: dict, *, headers: dict[str, str]
     ) -> rm.CompiledQueryModel:
         """Get compiled model definition"""
         normalized_model_name = u.normalize_name(model_name)
@@ -81,7 +81,7 @@ class DataManagementRoutes(RouteBase):
         selections = self.get_selections_as_immutable(params, uncached_keys={"x_verify_params"})
         configurables = self.get_configurables_from_headers(headers)
         cfg_filtered = {k: v for k, v in dict(configurables).items() if k in self.manifest_cfg.configurables}
-        return await self.project.get_compiled_model_query(normalized_model_name, selections=dict(selections), user=user, configurables=cfg_filtered)
+        return await self.project.get_compiled_model_query(normalized_model_name, user=user, selections=dict(selections), configurables=cfg_filtered)
         
     def setup_routes(self, app: FastAPI, project_metadata_path: str, param_fields: dict) -> None:
         """Setup data management routes"""
@@ -89,11 +89,11 @@ class DataManagementRoutes(RouteBase):
         # Build project endpoint
         build_path = project_metadata_path + '/build'
         
-        @app.post(build_path, tags=["Data Management"], summary="Build or update the virtual data environment for the project")
+        @app.post(build_path, tags=["Data Management"], summary="Build or update the Virtual Data Lake (VDL) for the project")
         async def build(user=Depends(self.get_current_user)): # type: ignore
             if not self.authenticator.can_user_access_scope(user, PermissionScope.PRIVATE):
-                raise InvalidInputError(403, "unauthorized_access_to_build_model", f"User '{user}' does not have permission to build the virtual data environment")
-            await self.project.build(stage_file=True)
+                raise InvalidInputError(403, "unauthorized_access_to_build_model", f"User '{user}' does not have permission to build the virtual data lake (VDL)")
+            await self.project.build()
             return Response(status_code=status.HTTP_200_OK)
         
         # Query result endpoints

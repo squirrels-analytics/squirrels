@@ -110,8 +110,10 @@ class TestDateParameterConfig:
         with pytest.raises(InvalidInputError) as exc_info:
             date_config_with_parent.with_selection("01-01-2023", user, None)
         assert exc_info.value.error == "invalid_parameter_selection"
-        with pytest.raises(ConfigurationError):
-            date_config_with_parent.with_selection("2023-01-01", None, None)
+
+        guest_user = User(username="", access_level="guest")
+        date_param =date_config_with_parent.with_selection("2023-01-01", guest_user, None)
+        assert date_param.is_enabled() is False
 
 
 class TestDateRangeParameterConfig:
@@ -176,7 +178,11 @@ class TestNumberRangeParameterConfig:
 
 class TestDataSourceParameterConfig:
     def test_get_dataframe(self, simple_conn_set):
-        data_source = ds.SelectDataSource("SELECT DISTINCT col_id, col_val FROM seed_test ORDER BY col_id", "col_id", "col_val", from_seeds=True)
+        data_source = ds.SelectDataSource(
+            table_or_query="SELECT DISTINCT col_id, col_val FROM seed_test ORDER BY col_id", 
+            id_col="col_id", options_col="col_val", 
+            source=ds.SourceEnum.SEEDS
+        )
         ds_config = pc.DataSourceParameterConfig(pc.SingleSelectParameterConfig, "ds_test", "", data_source)
 
         input_df = pl.LazyFrame({

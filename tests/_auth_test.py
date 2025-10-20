@@ -58,7 +58,7 @@ def test_initialize_db(auth: Authenticator[User]):
     assert len(users) == 1
     admin = users[0]
     assert admin.username == "admin"
-    assert admin.is_admin == True
+    assert admin.access_level == "admin"
 
 def test_add_and_get_user(auth: Authenticator[User], test_user_data):
     # Add a new user
@@ -70,7 +70,7 @@ def test_add_and_get_user(auth: Authenticator[User], test_user_data):
     assert user.email == "test@example.com"
     assert user.role == RoleEnum.MODERATOR
     assert user.age == 25
-    assert user.is_admin == False
+    assert user.access_level == "member"
 
     # Try getting user with wrong password
     with pytest.raises(InvalidInputError) as exc_info:
@@ -136,6 +136,8 @@ def test_access_tokens(auth: Authenticator[User], test_user_data):
     assert str(tokens[0].username) == "tokenuser"
 
 def test_permission_scopes(auth: Authenticator[User], test_user_data):
+    guest_user = User(username="", access_level="guest")
+
     # Add a regular user
     auth.add_user("regular", test_user_data)
     regular_user = auth.get_user("regular", "password123")
@@ -144,9 +146,9 @@ def test_permission_scopes(auth: Authenticator[User], test_user_data):
     admin_user = auth.get_user("admin", "admin_password")
 
     # Test permission scopes
-    assert auth.can_user_access_scope(None, PermissionScope.PUBLIC) == True
-    assert auth.can_user_access_scope(None, PermissionScope.PROTECTED) == False
-    assert auth.can_user_access_scope(None, PermissionScope.PRIVATE) == False
+    assert auth.can_user_access_scope(guest_user, PermissionScope.PUBLIC) == True
+    assert auth.can_user_access_scope(guest_user, PermissionScope.PROTECTED) == False
+    assert auth.can_user_access_scope(guest_user, PermissionScope.PRIVATE) == False
 
     assert auth.can_user_access_scope(regular_user, PermissionScope.PUBLIC) == True
     assert auth.can_user_access_scope(regular_user, PermissionScope.PROTECTED) == True

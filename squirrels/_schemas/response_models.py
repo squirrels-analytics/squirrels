@@ -99,6 +99,14 @@ parameters_path_description = "The API path to the parameters for the dataset / 
 metadata_path_description = "The API path to the metadata (i.e., description and schema) for the dataset"
 result_path_description = "The API path to the results for the dataset / dashboard"
 
+class ConfigurableDefaultModel(BaseModel):
+    name: str
+    default: str
+
+class ConfigurableItemModel(ConfigurableDefaultModel):
+    label: str
+    description: str
+
 class ColumnModel(BaseModel):
     name: Annotated[str, Field(examples=["mycol"], description="Name of column")]
     type: Annotated[str, Field(examples=["string", "integer", "boolean", "datetime"], description='Column type (such as "string", "integer", "boolean", "datetime", etc.)')]
@@ -118,11 +126,12 @@ class DatasetItemModel(BaseModel):
     name: Annotated[str, Field(examples=["mydataset"], description=name_description)]
     label: Annotated[str, Field(examples=["My Dataset"], description=label_description)]
     description: Annotated[str, Field(examples=[""], description=description_description)]
+    configurables: Annotated[list[ConfigurableDefaultModel], Field(default_factory=list, description="The list of configurables with their default values")]
     parameters: Annotated[list[str], Field(examples=["myparam1", "myparam2"], description="The list of parameter names used by the dataset. If the list is empty, the dataset does not accept any parameters.")]
     data_schema: Annotated[SchemaWithConditionModel, Field(alias="schema", description="JSON object describing the schema of the dataset")]
     parameters_path: Annotated[str, Field(examples=["/squirrels/v0/myproject/v1/dataset/mydataset/parameters"], description=parameters_path_description)]
     result_path: Annotated[str, Field(examples=["/squirrels/v0/myproject/v1/dataset/mydataset"], description=result_path_description)]
-
+    
 class DashboardItemModel(ParametersModel):
     name: Annotated[str, Field(examples=["mydashboard"], description=name_description)]
     label: Annotated[str, Field(examples=["My Dashboard"], description=label_description)]
@@ -154,12 +163,6 @@ class LineageRelation(BaseModel):
     type: Literal["buildtime", "runtime"]
     source: LineageNode
     target: LineageNode
-
-class ConfigurableItemModel(BaseModel):
-    name: str
-    label: str
-    default: str
-    description: str
 
 class CatalogModelForTool(BaseModel):
     parameters: Annotated[ParametersListType, Field(description="The list of all parameters in the project. It is possible that not all parameters are used by a dataset.")]

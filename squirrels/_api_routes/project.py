@@ -35,7 +35,7 @@ class ProjectRoutes(RouteBase):
 
     async def _get_parameters_helper(
         self, parameters_tuple: tuple[str, ...] | None, entity_type: str, entity_name: str, entity_scope: PermissionScope,
-        user: BaseUser | None, selections: tuple[tuple[str, Any], ...]
+        user: BaseUser, selections: tuple[tuple[str, Any], ...]
     ) -> ParameterSet:
         """Helper for getting parameters"""
         selections_dict = dict(selections)
@@ -59,7 +59,7 @@ class ProjectRoutes(RouteBase):
 
     async def _get_parameters_cachable(
         self, parameters_tuple: tuple[str, ...] | None, entity_type: str, entity_name: str, entity_scope: PermissionScope,
-        user: BaseUser | None, selections: tuple[tuple[str, Any], ...]
+        user: BaseUser, selections: tuple[tuple[str, Any], ...]
     ) -> ParameterSet:
         """Cachable version of parameters helper"""
         return await self.do_cachable_action(
@@ -85,7 +85,7 @@ class ProjectRoutes(RouteBase):
         # Data catalog endpoint
         data_catalog_path = project_metadata_path + '/data-catalog'
         
-        async def get_data_catalog0(user: BaseUser | None) -> rm.CatalogModel:
+        async def get_data_catalog0(user: BaseUser) -> rm.CatalogModel:
             parameters = self.param_cfg_set.apply_selections(None, {}, user)
             parameters_model = parameters.to_api_response_model0()
             full_parameters_list = [p.name for p in parameters_model.parameters]
@@ -96,10 +96,22 @@ class ProjectRoutes(RouteBase):
                     name_normalized = u.normalize_name_for_api(name)
                     metadata = self.project.dataset_metadata(name).to_json()
                     parameters = config.parameters if config.parameters is not None else full_parameters_list
+                    
+                    # Build dataset-specific configurables list
+                    if user.access_level == "admin":
+                        dataset_configurables_defaults = self.manifest_cfg.get_default_configurables(name)
+                        dataset_configurables_list = [
+                            rm.ConfigurableDefaultModel(name=name, default=default)
+                            for name, default in dataset_configurables_defaults.items()
+                        ]
+                    else:
+                        dataset_configurables_list = []
+                    
                     dataset_items.append(rm.DatasetItemModel(
                         name=name, label=config.label, 
                         description=config.description,
                         schema=metadata["schema"], # type: ignore
+                        configurables=dataset_configurables_list,
                         parameters=parameters,
                         parameters_path=f"{project_metadata_path}/dataset/{name_normalized}/parameters",
                         result_path=f"{project_metadata_path}/dataset/{name_normalized}"
@@ -126,8 +138,8 @@ class ProjectRoutes(RouteBase):
                         result_path=f"{project_metadata_path}/dashboard/{name_normalized}"
                     ))
             
-            if user and user.is_admin:
-                compiled_dag = await self.project._get_compiled_dag(user=user)
+            if user.access_level == "admin":
+                compiled_dag = await self.project._get_compiled_dag(user)
                 connections_items = self.project._get_all_connections()
                 data_models = self.project._get_all_data_models(compiled_dag)
                 lineage_items = self.project._get_all_data_lineage(compiled_dag)
@@ -152,16 +164,21 @@ class ProjectRoutes(RouteBase):
             )
         
         @app.get(data_catalog_path, tags=["Project Metadata"], summary="Get catalog of datasets and dashboards available for user")
-        async def get_data_catalog(request: Request, user: BaseUser | None = Depends(self.get_current_user)) -> rm.CatalogModel:
+        async def get_data_catalog(request: Request, user: BaseUser = Depends(self.get_current_user)) -> rm.CatalogModel:
             """
             Get catalog of datasets and dashboards available for the authenticated user.
             
             For admin users, this endpoint will also return detailed information about all models and their lineage in the project.
             """
+            start = time.time()
+
             # If authentication is required, require user to be authenticated to access catalog
-            if self.manifest_cfg.authentication.enforcement == AuthenticationEnforcement.REQUIRED and user is None:
+            if self.manifest_cfg.authentication.enforcement == AuthenticationEnforcement.REQUIRED and user.access_level == "guest":
                 raise InvalidInputError(401, "user_required", "Authentication is required to access the data catalog")
-            return await get_data_catalog0(user)
+            data_catalog = await get_data_catalog0(user)
+            
+            self.log_activity_time("GET REQUEST for DATA CATALOG", start, request)
+            return data_catalog
         
         @mcp.tool(
             name=f"get_data_catalog", 
@@ -188,7 +205,7 @@ class ProjectRoutes(RouteBase):
 
         async def get_parameters_definition(
             parameters_list: list[str] | None, entity_type: str, entity_name: str, entity_scope: PermissionScope,
-            user, all_request_params: dict, params: dict
+            user: BaseUser, all_request_params: dict, params: dict
         ) -> rm.ParametersModel:
             self._validate_request_params(all_request_params, params)
 

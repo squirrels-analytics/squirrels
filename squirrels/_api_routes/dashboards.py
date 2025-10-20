@@ -30,27 +30,27 @@ class DashboardRoutes(RouteBase):
         self.dashboard_results_cache = TTLCache(maxsize=dashboard_results_cache_size, ttl=dashboard_results_cache_ttl*60)
         
     async def _get_dashboard_results_helper(
-        self, dashboard: str, user: BaseUser | None, selections: tuple[tuple[str, Any], ...], configurables: tuple[tuple[str, str], ...]
+        self, dashboard: str, user: BaseUser, selections: tuple[tuple[str, Any], ...], configurables: tuple[tuple[str, str], ...]
     ) -> Dashboard:
         """Helper to get dashboard results"""
         cfg_filtered = {k: v for k, v in dict(configurables).items() if k in self.manifest_cfg.configurables}
-        return await self.project.dashboard(dashboard, selections=dict(selections), user=user, configurables=cfg_filtered)
+        return await self.project.dashboard(dashboard, user, selections=dict(selections), configurables=cfg_filtered)
     
     async def _get_dashboard_results_cachable(
-        self, dashboard: str, user: BaseUser | None, selections: tuple[tuple[str, Any], ...], configurables: tuple[tuple[str, str], ...]
+        self, dashboard: str, user: BaseUser, selections: tuple[tuple[str, Any], ...], configurables: tuple[tuple[str, str], ...]
     ) -> Dashboard:
         """Cachable version of dashboard results helper"""
         return await self.do_cachable_action(self.dashboard_results_cache, self._get_dashboard_results_helper, dashboard, user, selections, configurables)
     
     async def _get_dashboard_results_definition(
-        self, dashboard_name: str, user: BaseUser | None, all_request_params: dict, params: dict, headers: dict[str, str]
+        self, dashboard_name: str, user: BaseUser, all_request_params: dict, params: dict, headers: dict[str, str]
     ) -> Response:
         """Get dashboard results definition"""
         self._validate_request_params(all_request_params, params)
         
         get_dashboard_function = self._get_dashboard_results_helper if self.no_cache else self._get_dashboard_results_cachable
         selections = self.get_selections_as_immutable(params, uncached_keys={"x_verify_params"})
-        configurables = self.get_configurables_from_headers(headers)
+        configurables = self.get_configurables_from_headers(headers) if user.access_level == "admin" else tuple[tuple[str, str], ...]()
         dashboard_obj = await get_dashboard_function(dashboard_name, user, selections, configurables)
         
         if dashboard_obj._format == c.PNG:

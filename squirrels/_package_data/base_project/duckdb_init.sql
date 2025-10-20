@@ -1,4 +1,5 @@
 -- SQL statements that run at the start of every DuckDB session
+-- If the VDL catalog path is provided, the project will ATTACH it as 'vdl' (READ_ONLY)
 
 -- Example:
 

@@ -104,13 +104,10 @@ class ParameterConfigsSet:
         self.__validate_param_relationships()
     
     def apply_selections(
-        self, dataset_params: Optional[Sequence[str]], selections: dict[str, Any], user: BaseUser | None, *, parent_param: str | None = None
+        self, dataset_params: Optional[Sequence[str]], selections: dict[str, Any], user: BaseUser, *, parent_param: str | None = None
     ) -> ParameterSet:
         if dataset_params is None:
-            if user is None:
-                dataset_params = [k for k, v in self._data.items() if v.user_attribute is None]
-            else:
-                dataset_params = list(self._data.keys())
+            dataset_params = list(self._data.keys())
         
         parameters_by_name: dict[str, p.Parameter] = {}
         params_to_process = [parent_param] if parent_param else dataset_params
@@ -158,11 +155,11 @@ class ParameterConfigsSetIO:
     
     @classmethod
     def _get_df_dict_from_data_sources(
-        cls, param_configs_set: ParameterConfigsSet, default_conn_name: str, seeds: Seeds, conn_set: ConnectionSet
+        cls, param_configs_set: ParameterConfigsSet, default_conn_name: str, seeds: Seeds, conn_set: ConnectionSet, datalake_db_path: str
     ) -> dict[str, pl.DataFrame]:
         
         def get_dataframe(ds_param_config: pc.DataSourceParameterConfig) -> tuple[str, pl.DataFrame]:
-            return ds_param_config.name, ds_param_config.get_dataframe(default_conn_name, conn_set, seeds)
+            return ds_param_config.name, ds_param_config.get_dataframe(default_conn_name, conn_set, seeds, datalake_db_path)
         
         ds_param_configs = param_configs_set._get_all_ds_param_configs()
         with concurrent.futures.ThreadPoolExecutor() as executor:
@@ -179,7 +176,8 @@ class ParameterConfigsSetIO:
     
     @classmethod
     def load_from_file(
-        cls, logger: u.Logger, base_path: str, manifest_cfg: ManifestConfig, seeds: Seeds, conn_set: ConnectionSet, param_args: ParametersArgs
+        cls, logger: u.Logger, base_path: str, manifest_cfg: ManifestConfig, seeds: Seeds, conn_set: ConnectionSet, param_args: ParametersArgs, 
+        datalake_db_path: str
     ) -> ParameterConfigsSet:
         start = time.time()
         param_configs_set = ParameterConfigsSet()
@@ -199,7 +197,7 @@ class ParameterConfigsSetIO:
                 param_configs_set.add(param_config)
         
         default_conn_name = manifest_cfg.env_vars.get(c.SQRL_CONNECTIONS_DEFAULT_NAME_USED, "default")
-        df_dict = cls._get_df_dict_from_data_sources(param_configs_set, default_conn_name, seeds, conn_set)
+        df_dict = cls._get_df_dict_from_data_sources(param_configs_set, default_conn_name, seeds, conn_set, datalake_db_path)
         param_configs_set._post_process_params(df_dict)
         
         logger.log_activity_time("loading parameters", start)

@@ -121,6 +121,25 @@ class TestDatasetConfig:
     def test_invalid_dataset(self):
         with pytest.raises(ValueError):
             m.DatasetConfig(name="my_dataset", scope="not_valid") # type: ignore
+    
+    @pytest.fixture(scope="class")
+    def dataset_config_with_configurables(self) -> m.DatasetConfig:
+        data = {
+            "name": "my_dataset",
+            "configurables": [
+                {"name": "config1", "default": "value1"},
+                {"name": "config2", "default": 123}
+            ]
+        }
+        return m.DatasetConfig(**data)
+    
+    def test_dataset_configurables_missing_required_fields(self):
+        """Test that name and default are required fields"""
+        with pytest.raises(ValidationError):
+            m.DatasetConfig(name="my_dataset", configurables=[{"name": "config1"}])
+        
+        with pytest.raises(ValidationError):
+            m.DatasetConfig(name="my_dataset", configurables=[{"default": "value"}])
 
 
 class TestTestSetsConfig:
@@ -138,38 +157,6 @@ class TestTestSetsConfig:
     def test_sets_config3(self) -> m.TestSetsConfig:
         data = {"name": "test_set3", "user_attributes": {}}
         return m.TestSetsConfig(**data)
-
-    @pytest.mark.parametrize("fixture,expected", [
-        ("test_sets_config1", False),
-        ("test_sets_config2", True),
-        ("test_sets_config3", True),
-    ])
-    def test_is_authenticated(self, fixture: str, expected: bool, request: pytest.FixtureRequest):
-        test_sets: m.TestSetsConfig = request.getfixturevalue(fixture)
-        assert test_sets.is_authenticated == expected
-
-
-class TestManifestConfig:
-    @pytest.fixture(scope="class")
-    def manifest_config1(self) -> m.ManifestConfig:
-        selection_test_sets = {
-            "test_set1": m.TestSetsConfig(name="test_set1"),
-            "test_set2": m.TestSetsConfig(name="test_set2", datasets=["modelA"]),
-            "test_set3": m.TestSetsConfig(name="test_set3", datasets=["modelB"]),
-        }
-        manifest_cfg = m.ManifestConfig(
-            project_variables=m.ProjectVarsConfig(name="", major_version=0),
-            selection_test_sets=selection_test_sets
-        )
-        return manifest_cfg
-
-
-    @pytest.mark.parametrize("fixture,dataset,expected", [
-        ("manifest_config1", "modelA", ["test_set1", "test_set2"]),
-    ])
-    def test_get_applicable_test_sets(self, fixture: str, dataset: str, expected: list[str], request: pytest.FixtureRequest):
-        manifest_config1: m.ManifestConfig = request.getfixturevalue(fixture)
-        assert manifest_config1.get_applicable_test_sets(dataset) == expected
 
 
 class TestConnectionProperties:
@@ -220,10 +207,10 @@ class TestConnectionProperties:
         assert conn.dialect == expected
 
     @pytest.mark.parametrize("fixture,expected", [
-        ("sqlite_sqlalchemy_conn", "path/to/db.sqlite"),
-        ("postgres_sqlalchemy_conn", "dbname=mydb user=user password=pass host=localhost port=5432"),
-        ("sqlite_connectorx_conn", "/path/to/db.sqlite"),
-        ("postgres_connectorx_conn", "dbname=mydb user=user password=pass host=localhost port=5432")
+        ("sqlite_sqlalchemy_conn", "sqlite:path/to/db.sqlite"),
+        ("postgres_sqlalchemy_conn", "postgres:dbname=mydb user=user password=pass host=localhost port=5432"),
+        ("sqlite_connectorx_conn", "sqlite:/path/to/db.sqlite"),
+        ("postgres_connectorx_conn", "postgres:dbname=mydb user=user password=pass host=localhost port=5432")
     ])
     def test_attach_uri_for_duckdb(self, fixture: str, expected: str, request: pytest.FixtureRequest):
         conn: m.ConnectionProperties = request.getfixturevalue(fixture)
@@ -235,3 +222,56 @@ class TestConnectionProperties:
             uri="oracle://user:pass@localhost:1521/mydb"
         )
         assert conn.attach_uri_for_duckdb is None
+
+
+class TestManifestConfigurables:
+    @pytest.fixture(scope="class")
+    def manifest_with_configurables(self) -> m.ManifestConfig:
+        data = {
+            "project_variables": {"name": "test_proj", "major_version": 1},
+            "configurables": {
+                "config1": {"name": "config1", "label": "Config 1", "default": "default1", "description": "First config"},
+                "config2": {"name": "config2", "label": "Config 2", "default": "default2", "description": "Second config"}
+            },
+            "datasets": {
+                "dataset1": {
+                    "name": "dataset1",
+                    "configurables": [
+                        {"name": "config1", "default": "dataset1_value"}
+                    ]
+                },
+                "dataset2": {
+                    "name": "dataset2"
+                }
+            }
+        }
+        return m.ManifestConfig(**data)
+    
+    def test_get_default_configurables_no_dataset(self, manifest_with_configurables: m.ManifestConfig):
+        defaults = manifest_with_configurables.get_default_configurables()
+        assert defaults == {"config1": "default1", "config2": "default2"}
+    
+    def test_get_default_configurables_with_dataset_override(self, manifest_with_configurables: m.ManifestConfig):
+        defaults = manifest_with_configurables.get_default_configurables("dataset1")
+        assert defaults == {"config1": "dataset1_value", "config2": "default2"}
+    
+    def test_get_default_configurables_with_dataset_no_override(self, manifest_with_configurables: m.ManifestConfig):
+        defaults = manifest_with_configurables.get_default_configurables("dataset2")
+        assert defaults == {"config1": "default1", "config2": "default2"}
+    
+    def test_invalid_dataset_configurable(self):
+        with pytest.raises(ValueError, match='references configurable "invalid_config"'):
+            m.ManifestConfig(
+                project_variables={"name": "test_proj", "major_version": 1},
+                configurables={
+                    "config1": {"name": "config1", "label": "Config 1", "default": "default1", "description": "First config"}
+                },
+                datasets={
+                    "dataset1": {
+                        "name": "dataset1",
+                        "configurables": [
+                            {"name": "invalid_config", "default": "value"}
+                        ]
+                    }
+                }
+            )

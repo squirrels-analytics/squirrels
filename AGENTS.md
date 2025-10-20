@@ -10,7 +10,7 @@ Instructions and guardrails for AI coding agents working with this repository. A
 - Docs: https://squirrels-analytics.github.io/
 - Key features:
   - Configure datasets and parameters to expose REST APIs for analytics.
-  - Compile and build a DuckDB-backed virtual data environment.
+  - Compile and build the Virtual Data Lake (VDL).
   - Jinja SQL and Python model support; multi-source federation.
   - Auth, dashboards, seeding, and macros support.
 
@@ -49,7 +49,7 @@ Confirm CLI:
 
 ### High-level architecture
 - Core package is `squirrels/`, exposing a CLI and FastAPI server to run analytics APIs powered by DuckDB and/or Python dataframes (Polars/Pandas).
-- Projects created by the initializer contain configuration, models, dashboards, and assets, which are compiled/built into a DuckDB-backed virtual environment and exposed via REST routes.
+- Projects created by the initializer contain configuration, models, dashboards, and assets, which are compiled/built into a Virtual Data Lake (VDL) and exposed via REST routes.
 
 ### Important modules (library internals)
 - `_command_line.py`: CLI entry; defines commands: `init`, `get-file`, `deps`, `compile`, `build`, `duckdb`, `run`.
@@ -87,9 +87,8 @@ When you run `sqrl init <name>` (or `--curr-dir`), the initializer creates a pro
 - `macros/`: Jinja SQL macros used by models
 - `seeds/`: CSVs and seed configs to load lookup/reference data
 - `assets/`: Sample databases (e.g., SQLite) and any static assets
-- `target/`: Outputs (compiled SQL, DuckDB venv, logs)
+- `target/`: Outputs (compiled SQL, logs)
   - `compile/`: Rendered SQL files from `sqrl compile`
-  - `venv.duckdb`: DuckDB file built by `sqrl build`
   - `duckdb_init.sql`: Initialization SQL used by `sqrl duckdb`
 
 ### Model types and execution
@@ -99,7 +98,7 @@ When you run `sqrl init <name>` (or `--curr-dir`), the initializer creates a pro
 
 ### Build and compile lifecycle
 - `sqrl compile`: Render SQL into `target/compile/` without executing. Useful for debugging SQL and verifying parameter expansion.
-- `sqrl build`: Execute models to create/update the DuckDB venv (`target/venv.duckdb`), optionally `--full-refresh` to rebuild from scratch. Seeds, static builds, and necessary views are created.
+- `sqrl build`: Execute models to create/update the Virtual Data Lake (VDL) (usually stored using DuckLake), optionally `--full-refresh` to rebuild from scratch. Seeds, static builds, and necessary views are created.
 - `sqrl run`: Optionally `--build` first, then start the API server and serve routes.
 - `sqrl duckdb` / `--ui`: Open DuckDB shell/UI against the DuckDB venv with project init SQL loaded if present.
 

@@ -1,9 +1,15 @@
 from __future__ import annotations
 from dataclasses import dataclass
+from enum import Enum
 import polars as pl, typing as t, abc
 
 from . import _parameter_configs as pc, _parameter_options as po
 from ._exceptions import ConfigurationError
+
+class SourceEnum(Enum):
+    CONNECTION = "connection"
+    SEEDS = "seeds"
+    VDL = "vdl"
 
 
 @dataclass
@@ -13,19 +19,19 @@ class DataSource(metaclass=abc.ABCMeta):
     """
     _table_or_query: str
     _id_col: str | None
-    _is_from_seeds: bool
+    _source: SourceEnum
     _user_group_col: str | None
     _parent_id_col: str | None
     _connection: str | None
 
     @abc.abstractmethod
     def __init__(
-        self, table_or_query: str, *, id_col: str | None = None, from_seeds: bool = False, user_group_col: str | None = None, 
-        parent_id_col: str | None = None, connection: str | None = None, **kwargs
+        self, table_or_query: str, *, id_col: str | None = None, source: SourceEnum = SourceEnum.CONNECTION, 
+        user_group_col: str | None = None, parent_id_col: str | None = None, connection: str | None = None, **kwargs
     ) -> None:
         self._table_or_query = table_or_query
         self._id_col = id_col
-        self._is_from_seeds = from_seeds
+        self._source = source
         self._user_group_col = user_group_col
         self._parent_id_col = parent_id_col
         self._connection = connection
@@ -100,12 +106,12 @@ class _SelectionDataSource(DataSource):
     @abc.abstractmethod
     def __init__(
         self, table_or_query: str, id_col: str, options_col: str, *, order_by_col: str | None = None, 
-        is_default_col: str | None = None, custom_cols: dict[str, str] = {}, from_seeds: bool = False, 
+        is_default_col: str | None = None, custom_cols: dict[str, str] = {}, source: SourceEnum = SourceEnum.CONNECTION, 
         user_group_col: str | None = None, parent_id_col: str | None = None, connection: str | None = None, 
         **kwargs
     ) -> None:
         super().__init__(
-            table_or_query, id_col=id_col, from_seeds=from_seeds, user_group_col=user_group_col, parent_id_col=parent_id_col, 
+            table_or_query, id_col=id_col, source=source, user_group_col=user_group_col, parent_id_col=parent_id_col, 
             connection=connection
         )
         self._options_col = options_col
@@ -151,7 +157,7 @@ class SelectDataSource(_SelectionDataSource):
 
     def __init__(
             self, table_or_query: str, id_col: str, options_col: str, *, order_by_col: str | None = None, 
-            is_default_col: str | None = None, custom_cols: dict[str, str] = {}, from_seeds: bool = False, 
+            is_default_col: str | None = None, custom_cols: dict[str, str] = {}, source: SourceEnum = SourceEnum.CONNECTION, 
             user_group_col: str | None = None, parent_id_col: str | None = None, connection: str | None = None, 
             **kwargs
         ) -> None:
@@ -165,19 +171,19 @@ class SelectDataSource(_SelectionDataSource):
             order_by_col: The column name to order the options by. Orders by the id_col instead if this is None
             is_default_col: The column name that indicates which options are the default
             custom_cols: Dictionary of attribute to column name for custom fields for the SelectParameterOption
-            from_seeds: Boolean for whether this datasource is created from seeds
+            source: The source to fetch data from. Must be "connection", "seeds", or "vdl". Defaults to "connection"
             user_group_col: The column name of the user group that the user is in for this option to be valid
             parent_id_col: The column name of the parent option id that must be selected for this option to be valid
             connection: Name of the connection to use defined in connections.py
         """
         super().__init__(
             table_or_query, id_col, options_col, order_by_col=order_by_col, is_default_col=is_default_col, custom_cols=custom_cols,
-            from_seeds=from_seeds, user_group_col=user_group_col, parent_id_col=parent_id_col, connection=connection
+            source=source, user_group_col=user_group_col, parent_id_col=parent_id_col, connection=connection
         )
 
     def _convert(self, ds_param: pc.DataSourceParameterConfig, df: pl.DataFrame) -> pc.SelectionParameterConfig:
         """
-        Method to convert the associated DataSourceParameter into a SingleSelectParameterConfig or MultiSelectParameterConfig
+        Method to convert the associated DataSourceParameterConfig into a SingleSelectParameterConfig or MultiSelectParameterConfig
 
         Arguments:
             ds_param: The parameter to convert
@@ -212,7 +218,7 @@ class DateDataSource(DataSource):
     def __init__(
         self, table_or_query: str, default_date_col: str, *, min_date_col: str | None = None, 
         max_date_col: str | None = None, date_format: str = '%Y-%m-%d', id_col: str | None = None, 
-        from_seeds: bool = False, user_group_col: str | None = None, parent_id_col: str | None = None, 
+        source: SourceEnum = SourceEnum.CONNECTION, user_group_col: str | None = None, parent_id_col: str | None = None, 
         connection: str | None = None, **kwargs
     ) -> None:
         """
@@ -223,13 +229,13 @@ class DateDataSource(DataSource):
             default_date_col: The column name of the default date
             date_format: The format of the default date(s). Defaults to '%Y-%m-%d'
             id_col: The column name of the id
-            from_seeds: Boolean for whether this datasource is created from seeds
+            source: The source to fetch data from. Must be "connection", "seeds", or "vdl". Defaults to "connection"
             user_group_col: The column name of the user group that the user is in for this option to be valid
             parent_id_col: The column name of the parent option id that the default date belongs to
             connection: Name of the connection to use defined in connections.py
         """
         super().__init__(
-            table_or_query, id_col=id_col, from_seeds=from_seeds, user_group_col=user_group_col, parent_id_col=parent_id_col, 
+            table_or_query, id_col=id_col, source=source, user_group_col=user_group_col, parent_id_col=parent_id_col, 
             connection=connection
         )
         self._default_date_col = default_date_col
@@ -239,7 +245,7 @@ class DateDataSource(DataSource):
 
     def _convert(self, ds_param: pc.DataSourceParameterConfig, df: pl.DataFrame) -> pc.DateParameterConfig:
         """
-        Method to convert the associated DataSourceParameter into a DateParameterConfig
+        Method to convert the associated DataSourceParameterConfig into a DateParameterConfig
 
         Arguments:
             ds_param: The parameter to convert
@@ -281,7 +287,7 @@ class DateRangeDataSource(DataSource):
 
     def __init__(
         self, table_or_query: str, default_start_date_col: str, default_end_date_col: str, *, date_format: str = '%Y-%m-%d',
-        min_date_col: str | None = None, max_date_col: str | None = None, id_col: str | None = None, from_seeds: bool = False, 
+        min_date_col: str | None = None, max_date_col: str | None = None, id_col: str | None = None, source: SourceEnum = SourceEnum.CONNECTION, 
         user_group_col: str | None = None, parent_id_col: str | None = None, connection: str | None = None, **kwargs
     ) -> None:
         """
@@ -293,13 +299,13 @@ class DateRangeDataSource(DataSource):
             default_end_date_col: The column name of the default end date
             date_format: The format of the default date(s). Defaults to '%Y-%m-%d'
             id_col: The column name of the id
-            from_seeds: Boolean for whether this datasource is created from seeds
+            source: The source to fetch data from. Must be "connection", "seeds", or "vdl". Defaults to "connection"
             user_group_col: The column name of the user group that the user is in for this option to be valid
             parent_id_col: The column name of the parent option id that the default date belongs to
             connection: Name of the connection to use defined in connections.py
         """
         super().__init__(
-            table_or_query, id_col=id_col, from_seeds=from_seeds, user_group_col=user_group_col, parent_id_col=parent_id_col, 
+            table_or_query, id_col=id_col, source=source, user_group_col=user_group_col, parent_id_col=parent_id_col, 
             connection=connection
         )
         self._default_start_date_col = default_start_date_col
@@ -310,7 +316,7 @@ class DateRangeDataSource(DataSource):
 
     def _convert(self, ds_param: pc.DataSourceParameterConfig, df: pl.DataFrame) -> pc.DateRangeParameterConfig:
         """
-        Method to convert the associated DataSourceParameter into a DateRangeParameterConfig
+        Method to convert the associated DataSourceParameterConfig into a DateRangeParameterConfig
 
         Arguments:
             ds_param: The parameter to convert
@@ -354,11 +360,11 @@ class _NumericDataSource(DataSource):
     @abc.abstractmethod
     def __init__(
         self, table_or_query: str, min_value_col: str, max_value_col: str, *, increment_col: str | None = None, 
-        id_col: str | None = None, from_seeds: bool = False, user_group_col: str | None = None, 
+        id_col: str | None = None, source: SourceEnum = SourceEnum.CONNECTION, user_group_col: str | None = None, 
         parent_id_col: str | None = None, connection: str | None = None, **kwargs
     ) -> None:
         super().__init__(
-            table_or_query, id_col=id_col, from_seeds=from_seeds, user_group_col=user_group_col, parent_id_col=parent_id_col, 
+            table_or_query, id_col=id_col, source=source, user_group_col=user_group_col, parent_id_col=parent_id_col, 
             connection=connection
         )
         self._min_value_col = min_value_col
@@ -375,7 +381,7 @@ class NumberDataSource(_NumericDataSource):
 
     def __init__(
         self, table_or_query: str, min_value_col: str, max_value_col: str, *, increment_col: str | None = None,
-        default_value_col: str | None = None, id_col: str | None = None, from_seeds: bool = False, 
+        default_value_col: str | None = None, id_col: str | None = None, source: SourceEnum = SourceEnum.CONNECTION, 
         user_group_col: str | None = None, parent_id_col: str | None = None, connection: str | None = None, **kwargs
     ) -> None:
         """
@@ -388,20 +394,20 @@ class NumberDataSource(_NumericDataSource):
             increment_col: The column name of the increment value. Defaults to column of 1's if None
             default_value_col: The column name of the default value. Defaults to min_value_col if None
             id_col: The column name of the id
-            from_seeds: Boolean for whether this datasource is created from seeds
+            source: The source to fetch data from. Must be "connection", "seeds", or "vdl". Defaults to "connection"
             user_group_col: The column name of the user group that the user is in for this option to be valid
             parent_id_col: The column name of the parent option id that the default value belongs to
             connection: Name of the connection to use defined in connections.py
         """
         super().__init__(
-            table_or_query, min_value_col, max_value_col, increment_col=increment_col, id_col=id_col, from_seeds=from_seeds,
+            table_or_query, min_value_col, max_value_col, increment_col=increment_col, id_col=id_col, source=source,
             user_group_col=user_group_col, parent_id_col=parent_id_col, connection=connection
         )
         self._default_value_col = default_value_col
 
     def _convert(self, ds_param: pc.DataSourceParameterConfig, df: pl.DataFrame) -> pc.NumberParameterConfig:
         """
-        Method to convert the associated DataSourceParameter into a NumberParameterConfig
+        Method to convert the associated DataSourceParameterConfig into a NumberParameterConfig
 
         Arguments:
             ds_param: The parameter to convert
@@ -443,7 +449,7 @@ class NumberRangeDataSource(_NumericDataSource):
     def __init__(
         self, table_or_query: str, min_value_col: str, max_value_col: str, *, increment_col: str | None = None,
         default_lower_value_col: str | None = None, default_upper_value_col: str | None = None, id_col: str | None = None, 
-        from_seeds: bool = False, user_group_col: str | None = None, parent_id_col: str | None = None, 
+        source: SourceEnum = SourceEnum.CONNECTION, user_group_col: str | None = None, parent_id_col: str | None = None, 
         connection: str | None = None, **kwargs
     ) -> None:
         """
@@ -457,13 +463,13 @@ class NumberRangeDataSource(_NumericDataSource):
             default_lower_value_col: The column name of the default lower value. Defaults to min_value_col if None
             default_upper_value_col: The column name of the default upper value. Defaults to max_value_col if None
             id_col: The column name of the id
-            from_seeds: Boolean for whether this datasource is created from seeds
+            source: The source to fetch data from. Must be "connection", "seeds", or "vdl". Defaults to "connection"
             user_group_col: The column name of the user group that the user is in for this option to be valid
             parent_id_col: The column name of the parent option id that the default value belongs to
             connection: Name of the connection to use defined in connections.py
         """
         super().__init__(
-            table_or_query, min_value_col, max_value_col, increment_col=increment_col, id_col=id_col, from_seeds=from_seeds, 
+            table_or_query, min_value_col, max_value_col, increment_col=increment_col, id_col=id_col, source=source, 
             user_group_col=user_group_col, parent_id_col=parent_id_col, connection=connection
         )
         self._default_lower_value_col = default_lower_value_col
@@ -471,7 +477,7 @@ class NumberRangeDataSource(_NumericDataSource):
 
     def _convert(self, ds_param: pc.DataSourceParameterConfig, df: pl.DataFrame) -> pc.NumberRangeParameterConfig:
         """
-        Method to convert the associated DataSourceParameter into a NumberRangeParameterConfig
+        Method to convert the associated DataSourceParameterConfig into a NumberRangeParameterConfig
 
         Arguments:
             ds_param: The parameter to convert
@@ -511,7 +517,7 @@ class TextDataSource(DataSource):
     _default_text_col: str
 
     def __init__(
-        self, table_or_query: str, default_text_col: str, *, id_col: str | None = None, from_seeds: bool = False, 
+        self, table_or_query: str, default_text_col: str, *, id_col: str | None = None, source: SourceEnum = SourceEnum.CONNECTION, 
         user_group_col: str | None = None, parent_id_col: str | None = None, connection: str | None = None,
         **kwargs
     ) -> None:
@@ -522,20 +528,20 @@ class TextDataSource(DataSource):
             table_or_query: Either the name of the table to use, or a query to run
             default_text_col: The column name of the default text
             id_col: The column name of the id
-            from_seeds: Boolean for whether this datasource is created from seeds
+            source: The source to fetch data from. Must be "connection", "seeds", or "vdl". Defaults to "connection"
             user_group_col: The column name of the user group that the user is in for this option to be valid
             parent_id_col: The column name of the parent option id that the default date belongs to
             connection: Name of the connection to use defined in connections.py
         """
         super().__init__(
-            table_or_query, id_col=id_col, from_seeds=from_seeds, user_group_col=user_group_col, parent_id_col=parent_id_col, 
+            table_or_query, id_col=id_col, source=source, user_group_col=user_group_col, parent_id_col=parent_id_col, 
             connection=connection
         )
         self._default_text_col = default_text_col
 
     def _convert(self, ds_param: pc.DataSourceParameterConfig, df: pl.DataFrame) -> pc.TextParameterConfig:
         """
-        Method to convert the associated DataSourceParameter into a TextParameterConfig
+        Method to convert the associated DataSourceParameterConfig into a TextParameterConfig
 
         Arguments:
             ds_param: The parameter to convert

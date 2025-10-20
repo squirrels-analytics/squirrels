@@ -2,6 +2,7 @@ from fastapi import FastAPI, Request, status
 from fastapi.responses import JSONResponse, HTMLResponse, RedirectResponse
 from fastapi.security import HTTPBearer
 from fastapi.templating import Jinja2Templates
+from fastapi.staticfiles import StaticFiles
 from starlette.middleware.base import BaseHTTPMiddleware
 from starlette.responses import Response as StarletteResponse
 from contextlib import asynccontextmanager
@@ -11,7 +12,7 @@ from starlette.middleware.sessions import SessionMiddleware
 from mcp.server.fastmcp import FastMCP
 import io, time, mimetypes, traceback, uuid, asyncio, contextlib
 
-from . import _constants as c, _utils as u
+from . import _constants as c, _utils as u, _parameter_sets as ps
 from ._exceptions import InvalidInputError, ConfigurationError, FileExecutionError
 from ._version import __version__, sq_major_version
 from ._project import SquirrelsProject
@@ -110,37 +111,63 @@ class ApiServer:
         self.data_management_routes = DataManagementRoutes(get_bearer_token, project, no_cache)
     
     
-    async def _monitor_for_staging_file(self) -> None:
-        """Background task that monitors for staging file and renames it when present"""
-        duckdb_venv_path = self.project._duckdb_venv_path
-        staging_file = Path(duckdb_venv_path + ".stg")
-        target_file = Path(duckdb_venv_path)
-                
+    async def _refresh_datasource_params(self) -> None:
+        """
+        Background task to periodically refresh datasource parameter options.
+        Runs every N minutes as configured by SQRL_PARAMETERS__DATASOURCE_REFRESH_MINUTES (default: 60).
+        """
+        refresh_minutes_str = self.env_vars.get(c.SQRL_PARAMETERS_DATASOURCE_REFRESH_MINUTES, "60")
+        try:
+            refresh_minutes = int(refresh_minutes_str)
+            if refresh_minutes <= 0:
+                self.logger.info(f"The value of {c.SQRL_PARAMETERS_DATASOURCE_REFRESH_MINUTES} is: {refresh_minutes_str} minutes")
+                self.logger.info(f"Datasource parameter refresh is disabled since the refresh interval is not positive.")
+                return
+        except ValueError:
+            self.logger.warning(f"Invalid value for {c.SQRL_PARAMETERS_DATASOURCE_REFRESH_MINUTES}: {refresh_minutes_str}. Must be an integer. Disabling datasource parameter refresh.")
+            return
+        
+        refresh_seconds = refresh_minutes * 60
+        self.logger.info(f"Starting datasource parameter refresh background task (every {refresh_minutes} minutes)")
+        
         while True:
             try:
-                if staging_file.exists():
-                    try:
-                        staging_file.replace(target_file)
-                        self.logger.info("Successfully renamed staging database to virtual environment database")
-                    except OSError:
-                        # Silently continue if file cannot be renamed (will retry next iteration)
-                        pass
+                await asyncio.sleep(refresh_seconds)
+                self.logger.info("Refreshing datasource parameter options...")
                 
+                # Fetch fresh dataframes from datasources in a thread pool to avoid blocking
+                loop = asyncio.get_running_loop()
+                default_conn_name = self.manifest_cfg.env_vars.get(c.SQRL_CONNECTIONS_DEFAULT_NAME_USED, "default")
+                df_dict = await loop.run_in_executor(
+                    None,
+                    ps.ParameterConfigsSetIO._get_df_dict_from_data_sources,
+                    self.param_cfg_set,
+                    default_conn_name,
+                    self.seeds,
+                    self.conn_set,
+                    self.project._datalake_db_path
+                )
+                
+                # Re-convert datasource parameters with fresh data
+                self.param_cfg_set._post_process_params(df_dict)
+                
+                self.logger.info("Successfully refreshed datasource parameter options")
+            except asyncio.CancelledError:
+                self.logger.info("Datasource parameter refresh task cancelled")
+                break
             except Exception as e:
-                # Log any unexpected errors but keep running
-                self.logger.error(f"Error in monitoring {c.DUCKDB_VENV_FILE + '.stg'}: {str(e)}")
-            
-            await asyncio.sleep(1)  # Check every second
+                self.logger.error(f"Error refreshing datasource parameter options: {e}", exc_info=True)
+                # Continue the loop even if there's an error
     
     @asynccontextmanager
     async def _run_background_tasks(self, app: FastAPI):
-        task = asyncio.create_task(self._monitor_for_staging_file())
+        refresh_datasource_task = asyncio.create_task(self._refresh_datasource_params())
         
         async with contextlib.AsyncExitStack() as stack:
             await stack.enter_async_context(self.mcp.session_manager.run())
             yield
         
-        task.cancel()
+        refresh_datasource_task.cancel()
 
 
     def _get_tags_metadata(self) -> list[dict]:
@@ -263,7 +290,7 @@ class ApiServer:
             err_msg = buffer.getvalue()
             if err_msg:
                 self.logger.error(err_msg)
-                print(err_msg)
+                # print(err_msg)
             return response
 
         # Configure CORS with smart credential handling
@@ -282,6 +309,13 @@ class ApiServer:
         self.dataset_routes.setup_routes(app, self.mcp, project_metadata_path, project_name, project_version, param_fields, get_parameters_definition)
         self.dashboard_routes.setup_routes(app, project_metadata_path, param_fields, get_parameters_definition)
         app.mount(project_metadata_path, self.mcp.streamable_http_app())
+    
+        # Mount static files from public directory if it exists
+        # This allows users to serve static assets (images, CSS, JS, etc.) from {project_path}/public/
+        public_dir = Path(self.project._filepath) / c.PUBLIC_FOLDER
+        if public_dir.exists() and public_dir.is_dir():
+            app.mount("/public", StaticFiles(directory=str(public_dir)), name="public")
+            self.logger.info(f"Mounted static files from: {public_dir}")
     
         # Add Root Path Redirection to Squirrels Studio
         full_hostname = f"http://{uvicorn_args.host}:{uvicorn_args.port}"
@@ -303,6 +337,8 @@ class ApiServer:
         async def redirect_to_studio():
             return RedirectResponse(url=squirrels_studio_path)
 
+        self.logger.log_activity_time("creating app server", start)
+
         # Run the API Server
         import uvicorn
         
@@ -313,5 +349,4 @@ class ApiServer:
         print(f"- MCP Server URL: {full_hostname}{project_metadata_path}/mcp")
         print()
         
-        self.logger.log_activity_time("creating app server", start)
         uvicorn.run(app, host=uvicorn_args.host, port=uvicorn_args.port, proxy_headers=True, forwarded_allow_ips="*")
