@@ -79,6 +79,9 @@ class ProjectRoutes(RouteBase):
                 version=project_version,
                 label=self.manifest_cfg.project_variables.label,
                 description=self.manifest_cfg.project_variables.description,
+                redoc_path=project_metadata_path + "/redoc",
+                swagger_docs_path=project_metadata_path + "/docs",
+                mcp_server_path=project_metadata_path + "/mcp",
                 squirrels_version=__version__
             )
         

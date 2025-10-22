@@ -55,7 +55,7 @@ class OAuth2Routes(RouteBase):
         """Setup all OAuth2 routes"""
 
         auth_path = squirrels_version_path + "/auth"
-        router_path = auth_path + "/oauth2"
+        router_path = "/oauth2"
         router = APIRouter(prefix=router_path)
         
         # Authorization dependency for client management

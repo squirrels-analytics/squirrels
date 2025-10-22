@@ -23,7 +23,9 @@ from ._api_routes.project import ProjectRoutes
 from ._api_routes.datasets import DatasetRoutes
 from ._api_routes.dashboards import DashboardRoutes
 from ._api_routes.data_management import DataManagementRoutes
-from ._api_routes.oauth2 import OAuth2Routes
+
+# # Disabled for now, a 'bring your own OAuth2 server' approach will be provided in the future
+# from ._api_routes.oauth2 import OAuth2Routes 
 
 mimetypes.add_type('application/javascript', '.js')
 
@@ -103,7 +105,7 @@ class ApiServer:
 
         # Initialize route modules
         get_bearer_token = HTTPBearer(auto_error=False)
-        self.oauth2_routes = OAuth2Routes(get_bearer_token, project, no_cache)
+        # self.oauth2_routes = OAuth2Routes(get_bearer_token, project, no_cache)
         self.auth_routes = AuthRoutes(get_bearer_token, project, no_cache)
         self.project_routes = ProjectRoutes(get_bearer_token, project, no_cache)
         self.dataset_routes = DatasetRoutes(get_bearer_token, project, no_cache)
@@ -203,10 +205,10 @@ class ApiServer:
                 "name": "User Management",
                 "description": "Manage users and their attributes",
             },
-            {
-                "name": "OAuth2",
-                "description": "Authorize and get token using the OAuth2 protocol",
-            },
+            # {
+            #     "name": "OAuth2",
+            #     "description": "Authorize and get token using the OAuth2 protocol",
+            # },
         ])
         return tags_metadata
     
@@ -221,10 +223,11 @@ class ApiServer:
         start = time.time()
         
         squirrels_version_path = f'/api/squirrels/v{sq_major_version}'
-        project_name = u.normalize_name_for_api(self.manifest_cfg.project_variables.name)
+        project_name = self.manifest_cfg.project_variables.name
+        project_name_for_api = u.normalize_name_for_api(project_name)
         project_label = self.manifest_cfg.project_variables.label
         project_version = f"v{self.manifest_cfg.project_variables.major_version}"
-        project_metadata_path = squirrels_version_path + f"/project/{project_name}/{project_version}"
+        project_metadata_path = squirrels_version_path + f"/project/{project_name_for_api}/{project_version}"
         
         param_fields = self.param_cfg_set.get_all_api_field_info()
 
@@ -303,7 +306,7 @@ class ApiServer:
         app.add_middleware(SmartCORSMiddleware, allowed_credential_origins=allowed_credential_origins, configurables_as_headers=configurables_as_headers)
         
         # Setup route modules
-        self.oauth2_routes.setup_routes(app, squirrels_version_path)
+        # self.oauth2_routes.setup_routes(app, squirrels_version_path)
         self.auth_routes.setup_routes(app, squirrels_version_path)
         get_parameters_definition = self.project_routes.setup_routes(app, self.mcp, project_metadata_path, project_name, project_version, project_label, param_fields)
         self.data_management_routes.setup_routes(app, project_metadata_path, param_fields)
@@ -320,7 +323,7 @@ class ApiServer:
     
         # Add Root Path Redirection to Squirrels Studio
         full_hostname = f"http://{uvicorn_args.host}:{uvicorn_args.port}"
-        squirrels_studio_path = f"/project/{project_name}/{project_version}/studio"
+        squirrels_studio_path = f"/project/{project_name_for_api}/{project_version}/studio"
         templates = Jinja2Templates(directory=str(Path(__file__).parent / "_package_data" / "templates"))
 
         @app.get(squirrels_studio_path, include_in_schema=False)
@@ -329,7 +332,7 @@ class ApiServer:
             sqrl_studio_base_url = self.env_vars.get(c.SQRL_STUDIO_BASE_URL, default_studio_path)
             context = {
                 "sqrl_studio_base_url": sqrl_studio_base_url,
-                "project_name": project_name,
+                "project_name": project_name_for_api,
                 "project_version": project_version,
             }
             return HTMLResponse(content=templates.get_template("squirrels_studio.html").render(context))
