@@ -230,7 +230,15 @@ class DatasetRoutes(RouteBase):
             headers = self.get_headers_from_tool_ctx(ctx)
             user = self.get_user_from_tool_headers(headers)
             dataset_name = u.normalize_name(dataset)
-            params: dict = json.loads(parameters)
+            
+            try:
+                params = json.loads(parameters)
+            except json.JSONDecodeError:
+                params = None # error handled below
+            
+            if not isinstance(params, dict):
+                raise InvalidInputError(400, "invalid_parameters", f"The 'parameters' argument must be a JSON object.")
+            
             params.update({
                 "x_orientation": "rows",
                 "x_sql_query": sql_query,

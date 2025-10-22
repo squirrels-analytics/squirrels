@@ -57,13 +57,19 @@ class ParameterConfigBase(metaclass=ABCMeta):
     parent_name: str | None = field(default=None, kw_only=True)
 
     def _get_user_group(self, user: AbstractUser) -> Any:
-        if self.user_attribute is not None:
-            # Support nested access like "custom_fields.organization"
-            if "." in self.user_attribute:
-                parts = self.user_attribute.split(".", 1)
-                obj = getattr(user, parts[0])
-                return getattr(obj, parts[1])
-            return getattr(user, self.user_attribute)
+        if self.user_attribute is None:
+            return None
+        
+        final_object = user
+        attribute = self.user_attribute
+        try:
+            if "." in attribute:
+                parts = attribute.split(".", 1)
+                final_object = getattr(final_object, parts[0])
+                attribute = parts[1]
+            return getattr(final_object, attribute)
+        except AttributeError:
+            raise u.ConfigurationError(f"User attribute '{self.user_attribute}' is not valid")
         
     def copy(self):
         """
