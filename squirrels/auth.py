@@ -1,1 +1,2 @@
-from ._auth import BaseUser, ProviderConfigs, provider
+from ._schemas.auth_models import CustomUserFields, RegisteredUser
+from ._auth import ProviderConfigs, provider

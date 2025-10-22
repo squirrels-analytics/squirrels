@@ -2,7 +2,7 @@ from typing import Callable, Any, Coroutine
 import polars as pl
 
 from .init_time_args import ParametersArgs, BuildModelArgs
-from .._auth import BaseUser
+from .._schemas.auth_models import AbstractUser
 from .._parameters import Parameter, TextValue
 
 
@@ -10,7 +10,7 @@ class ContextArgs(ParametersArgs):
 
     def __init__(
         self, param_args: ParametersArgs, 
-        user: BaseUser, 
+        user: AbstractUser, 
         prms: dict[str, Parameter],
         configurables: dict[str, str]
     ):

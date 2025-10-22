@@ -1,6 +1,6 @@
 project_variables:
   name: sample
-  label: Sample Project - Expenses
+  label: "Sample Expenses"
   description: This is a sample squirrels project for analyzing expense transactions
   major_version: 1
 
@@ -55,7 +55,7 @@ selection_test_sets:
       date_range: [2024-02-01,2024-11-30] ## this parameter is only used by model "federate_example"
     
   - name: use_admin_privileged_group_by
-    user_attributes:
+    user:
       access_level: admin
     parameters:
       group_by: trans

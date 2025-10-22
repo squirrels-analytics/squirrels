@@ -12,14 +12,14 @@ from dataclasses import asdict
 from cachetools import TTLCache
 from textwrap import dedent
 
-import time
+import time, json
 
 from .. import _constants as c, _utils as u
 from .._schemas import response_models as rm
 from .._exceptions import ConfigurationError, InvalidInputError
 from .._dataset_types import DatasetResult
 from .._schemas.query_param_models import get_query_models_for_parameters, get_query_models_for_dataset
-from .._auth import BaseUser
+from .._schemas.auth_models import AbstractUser
 from .base import RouteBase
 
 
@@ -38,7 +38,7 @@ class DatasetRoutes(RouteBase):
         self.max_rows_for_ai = int(self.env_vars.get(c.SQRL_DATASETS_MAX_ROWS_FOR_AI, 100))
         
     async def _get_dataset_results_helper(
-        self, dataset: str, user: BaseUser, selections: tuple[tuple[str, Any], ...], configurables: tuple[tuple[str, str], ...]
+        self, dataset: str, user: AbstractUser, selections: tuple[tuple[str, Any], ...], configurables: tuple[tuple[str, str], ...]
     ) -> DatasetResult:
         """Helper to get dataset results"""
         # Only pass configurables that are defined in manifest
@@ -46,13 +46,13 @@ class DatasetRoutes(RouteBase):
         return await self.project.dataset(dataset, user=user, selections=dict(selections), configurables=cfg_filtered)
 
     async def _get_dataset_results_cachable(
-        self, dataset: str, user: BaseUser, selections: tuple[tuple[str, Any], ...], configurables: tuple[tuple[str, str], ...]
+        self, dataset: str, user: AbstractUser, selections: tuple[tuple[str, Any], ...], configurables: tuple[tuple[str, str], ...]
     ) -> DatasetResult:
         """Cachable version of dataset results helper"""
         return await self.do_cachable_action(self.dataset_results_cache, self._get_dataset_results_helper, dataset, user, selections, configurables)
     
     async def _get_dataset_results_definition(
-        self, dataset_name: str, user: BaseUser, all_request_params: dict, params: dict, headers: dict[str, str]
+        self, dataset_name: str, user: AbstractUser, all_request_params: dict, params: dict, headers: dict[str, str]
     ) -> rm.DatasetResultModel:
         """Get dataset results definition"""
         self._validate_request_params(all_request_params, params)
@@ -80,7 +80,7 @@ class DatasetRoutes(RouteBase):
         return rm.DatasetResultModel(**result.to_json(orientation, limit, offset)) 
     
     def setup_routes(
-        self, app: FastAPI, mcp: FastMCP, project_metadata_path: str, project_name: str, project_version: str, 
+        self, app: FastAPI, mcp: FastMCP, project_metadata_path: str, project_name: str, project_label: str, 
         param_fields: dict, get_parameters_definition: Callable[..., Coroutine[Any, Any, rm.ParametersModel]]
     ) -> None:
         """Setup dataset routes"""
@@ -99,7 +99,7 @@ class DatasetRoutes(RouteBase):
                         f"\n  {all_params}"
                     )
         
-        async def get_dataset_parameters_updates(dataset_name: str, user: BaseUser, all_request_params: dict, params: dict):
+        async def get_dataset_parameters_updates(dataset_name: str, user: AbstractUser, all_request_params: dict, params: dict):
             parameters_list = self.manifest_cfg.datasets[dataset_name].parameters
             scope = self.manifest_cfg.datasets[dataset_name].scope
             result = await get_parameters_definition(
@@ -167,11 +167,12 @@ class DatasetRoutes(RouteBase):
         # Setup MCP tools
 
         @mcp.tool(
-            name=f"get_dataset_parameters",
+            name=f"get_dataset_parameters_from_{project_name}",
+            title=f"Get Dataset Parameters Updates (Project: {project_label})",
             description=dedent(f"""
             Use this tool to get updates for dataset parameters in the Squirrels project "{project_name}" when a selection is to be made on a parameter with "trigger_refresh" as true.
 
-            For example, suppose there are two parameters, "country" and "city", and the user selects "United States" for "country". If "country" has the "trigger_refresh" field as true, then this tool will be called to get the updates for other parameters such as "city".
+            For example, suppose there are two parameters, "country" and "city", and the user selects "United States" for "country". If "country" has the "trigger_refresh" field as true, then this tool should be called to get the updates for other parameters such as "city".
 
             Do not use this tool on parameters whose "trigger_refresh" field is false!
             """).strip()
@@ -192,7 +193,8 @@ class DatasetRoutes(RouteBase):
             return await get_dataset_parameters_updates(dataset_name, user, payload, payload)
         
         @mcp.tool(
-            name=f"get_dataset_results",
+            name=f"get_dataset_results_from_{project_name}",
+            title=f"Get Dataset Results (Project: {project_label})",
             description=dedent(f"""
             Use this tool to get the dataset results as a JSON object for a dataset in the Squirrels project "{project_name}".
             - Use the "offset" and "limit" arguments to limit the number of rows you require
@@ -202,8 +204,8 @@ class DatasetRoutes(RouteBase):
         async def get_dataset_results_tool(
             ctx: Context,
             dataset: str = Field(description="The name of the dataset to get results for"),
-            parameters: dict[str, Any] = Field(description=dedent("""
-            Key-value pairs for parameter name and selected value. The selected value to provide depends on the parameter widget type:
+            parameters: str = Field(description=dedent("""
+            A JSON object (as string) containing key-value pairs for parameter name and selected value. The selected value to provide depends on the parameter widget type:
             - For single select, use a string for the ID of the selected value
             - For multi select, use an array of strings for the IDs of the selected values
             - For date, use a string like "YYYY-MM-DD"
@@ -228,13 +230,21 @@ class DatasetRoutes(RouteBase):
             headers = self.get_headers_from_tool_ctx(ctx)
             user = self.get_user_from_tool_headers(headers)
             dataset_name = u.normalize_name(dataset)
-            params = {
-                **parameters,
+            
+            try:
+                params = json.loads(parameters)
+            except json.JSONDecodeError:
+                params = None # error handled below
+            
+            if not isinstance(params, dict):
+                raise InvalidInputError(400, "invalid_parameters", f"The 'parameters' argument must be a JSON object.")
+            
+            params.update({
                 "x_orientation": "rows",
                 "x_sql_query": sql_query,
                 "x_offset": offset,
                 "x_limit": limit
-            }
+            })
             result = await self._get_dataset_results_definition(dataset_name, user, params, params, headers)
             return result
         

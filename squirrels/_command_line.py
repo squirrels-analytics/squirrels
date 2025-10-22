@@ -141,7 +141,7 @@ def main():
     elif args.command is None:
         print(f'Command is missing. Enter "squirrels -h" for help.')
     else:
-        project = SquirrelsProject(log_level=args.log_level, log_format=args.log_format, log_to_file=args.log_to_file)
+        project = SquirrelsProject(load_dotenv_globally=True, log_level=args.log_level, log_format=args.log_format, log_to_file=args.log_to_file)
         try:
             if args.command == c.DEPS_CMD:
                 PackageLoaderIO.load_packages(project._logger, project._manifest_cfg, reload=True)

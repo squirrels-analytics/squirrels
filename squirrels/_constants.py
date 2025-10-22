@@ -101,8 +101,6 @@ SEED_SUBCATEGORY_FILE_STEM = 'seed_subcategories'
 
 # Test sets
 DEFAULT_TEST_SET_NAME = 'default'
-USER_ATTRIBUTES_SECTION = 'user_attributes'
-PARAMETERS_SECTION = 'parameters'
 
 # Init Command Choices
 SQL_FILE_TYPE = 'sql'

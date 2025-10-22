@@ -10,7 +10,7 @@ from ._arguments.init_time_args import ParametersArgs
 from ._manifest import ParametersConfig, ManifestConfig
 from ._connection_set import ConnectionSet
 from ._seeds import Seeds
-from ._auth import BaseUser
+from ._schemas.auth_models import AbstractUser
 
 
 @dataclass
@@ -104,7 +104,7 @@ class ParameterConfigsSet:
         self.__validate_param_relationships()
     
     def apply_selections(
-        self, dataset_params: Optional[Sequence[str]], selections: dict[str, Any], user: BaseUser, *, parent_param: str | None = None
+        self, dataset_params: Optional[Sequence[str]], selections: dict[str, Any], user: AbstractUser, *, parent_param: str | None = None
     ) -> ParameterSet:
         if dataset_params is None:
             dataset_params = list(self._data.keys())

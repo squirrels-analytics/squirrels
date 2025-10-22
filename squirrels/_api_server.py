@@ -222,6 +222,7 @@ class ApiServer:
         
         squirrels_version_path = f'/api/squirrels/v{sq_major_version}'
         project_name = u.normalize_name_for_api(self.manifest_cfg.project_variables.name)
+        project_label = self.manifest_cfg.project_variables.label
         project_version = f"v{self.manifest_cfg.project_variables.major_version}"
         project_metadata_path = squirrels_version_path + f"/project/{project_name}/{project_version}"
         
@@ -230,7 +231,7 @@ class ApiServer:
         tags_metadata = self._get_tags_metadata()
         
         app = FastAPI(
-            title=f"Squirrels APIs for '{self.manifest_cfg.project_variables.label}'", openapi_tags=tags_metadata,
+            title=f"Squirrels APIs for '{project_label}'", openapi_tags=tags_metadata,
             description="For specifying parameter selections to dataset APIs, you can choose between using query parameters with the GET method or using request body with the POST method",
             lifespan=self._run_background_tasks,
             openapi_url=project_metadata_path+"/openapi.json",
@@ -304,9 +305,9 @@ class ApiServer:
         # Setup route modules
         self.oauth2_routes.setup_routes(app, squirrels_version_path)
         self.auth_routes.setup_routes(app, squirrels_version_path)
-        get_parameters_definition = self.project_routes.setup_routes(app, self.mcp, project_metadata_path, project_name, project_version, param_fields)
+        get_parameters_definition = self.project_routes.setup_routes(app, self.mcp, project_metadata_path, project_name, project_version, project_label, param_fields)
         self.data_management_routes.setup_routes(app, project_metadata_path, param_fields)
-        self.dataset_routes.setup_routes(app, self.mcp, project_metadata_path, project_name, project_version, param_fields, get_parameters_definition)
+        self.dataset_routes.setup_routes(app, self.mcp, project_metadata_path, project_name, project_label, param_fields, get_parameters_definition)
         self.dashboard_routes.setup_routes(app, project_metadata_path, param_fields, get_parameters_definition)
         app.mount(project_metadata_path, self.mcp.streamable_http_app())
     

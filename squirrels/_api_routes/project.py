@@ -18,7 +18,7 @@ from .._exceptions import ConfigurationError, InvalidInputError
 from .._manifest import PermissionScope, AuthenticationEnforcement
 from .._version import __version__
 from .._schemas.query_param_models import get_query_models_for_parameters
-from .._auth import BaseUser
+from .._schemas.auth_models import AbstractUser
 from .base import RouteBase
 
 
@@ -35,7 +35,7 @@ class ProjectRoutes(RouteBase):
 
     async def _get_parameters_helper(
         self, parameters_tuple: tuple[str, ...] | None, entity_type: str, entity_name: str, entity_scope: PermissionScope,
-        user: BaseUser, selections: tuple[tuple[str, Any], ...]
+        user: AbstractUser, selections: tuple[tuple[str, Any], ...]
     ) -> ParameterSet:
         """Helper for getting parameters"""
         selections_dict = dict(selections)
@@ -59,7 +59,7 @@ class ProjectRoutes(RouteBase):
 
     async def _get_parameters_cachable(
         self, parameters_tuple: tuple[str, ...] | None, entity_type: str, entity_name: str, entity_scope: PermissionScope,
-        user: BaseUser, selections: tuple[tuple[str, Any], ...]
+        user: AbstractUser, selections: tuple[tuple[str, Any], ...]
     ) -> ParameterSet:
         """Cachable version of parameters helper"""
         return await self.do_cachable_action(
@@ -67,7 +67,7 @@ class ProjectRoutes(RouteBase):
         )
         
     def setup_routes(
-        self, app: FastAPI, mcp: FastMCP, project_metadata_path: str, project_name: str, project_version: str, param_fields: dict
+        self, app: FastAPI, mcp: FastMCP, project_metadata_path: str, project_name: str, project_version: str, project_label: str, param_fields: dict
     ):
         """Setup project metadata routes"""
         
@@ -85,7 +85,7 @@ class ProjectRoutes(RouteBase):
         # Data catalog endpoint
         data_catalog_path = project_metadata_path + '/data-catalog'
         
-        async def get_data_catalog0(user: BaseUser) -> rm.CatalogModel:
+        async def get_data_catalog0(user: AbstractUser) -> rm.CatalogModel:
             parameters = self.param_cfg_set.apply_selections(None, {}, user)
             parameters_model = parameters.to_api_response_model0()
             full_parameters_list = [p.name for p in parameters_model.parameters]
@@ -164,7 +164,7 @@ class ProjectRoutes(RouteBase):
             )
         
         @app.get(data_catalog_path, tags=["Project Metadata"], summary="Get catalog of datasets and dashboards available for user")
-        async def get_data_catalog(request: Request, user: BaseUser = Depends(self.get_current_user)) -> rm.CatalogModel:
+        async def get_data_catalog(request: Request, user: AbstractUser = Depends(self.get_current_user)) -> rm.CatalogModel:
             """
             Get catalog of datasets and dashboards available for the authenticated user.
             
@@ -181,7 +181,8 @@ class ProjectRoutes(RouteBase):
             return data_catalog
         
         @mcp.tool(
-            name=f"get_data_catalog", 
+            name=f"get_data_catalog_from_{project_name}", 
+            title=f"Get Data Catalog (Project: {project_label})",
             description=dedent(f"""
             Use this tool to get the details of all datasets and parameters you can access in the Squirrels project '{project_name}'.
             
@@ -205,7 +206,7 @@ class ProjectRoutes(RouteBase):
 
         async def get_parameters_definition(
             parameters_list: list[str] | None, entity_type: str, entity_name: str, entity_scope: PermissionScope,
-            user: BaseUser, all_request_params: dict, params: dict
+            user: AbstractUser, all_request_params: dict, params: dict
         ) -> rm.ParametersModel:
             self._validate_request_params(all_request_params, params)
 

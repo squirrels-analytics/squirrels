@@ -13,12 +13,12 @@ class TestProjectVarsConfig:
     
     @pytest.fixture(scope="class")
     def proj_vars2(self):
-        data = {"name": "my_name", "label": "my_label", "major_version": 1}
+        data = {"name": "my_name", "label": "My Label", "major_version": 1}
         return m.ProjectVarsConfig(**data)
     
     @pytest.mark.parametrize("fixture,expected", [
-        ("proj_vars1", "my_name"),
-        ("proj_vars2", "my_label")
+        ("proj_vars1", "My Name"),
+        ("proj_vars2", "My Label")
     ])
     def test_proj_vars_label(self, fixture: str, expected: str, request: pytest.FixtureRequest):
         proj_vars: m.ProjectVarsConfig = request.getfixturevalue(fixture)
@@ -150,12 +150,12 @@ class TestTestSetsConfig:
 
     @pytest.fixture(scope="class")
     def test_sets_config2(self) -> m.TestSetsConfig:
-        data = {"name": "test_set2", "user_attributes": {"role": "manager"}}
+        data = {"name": "test_set2", "user": {"custom_fields": {"role": "manager"}}}
         return m.TestSetsConfig(**data)
 
     @pytest.fixture(scope="class")
     def test_sets_config3(self) -> m.TestSetsConfig:
-        data = {"name": "test_set3", "user_attributes": {}}
+        data = {"name": "test_set3", "user": {}}
         return m.TestSetsConfig(**data)
 
 
