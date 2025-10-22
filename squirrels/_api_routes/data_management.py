@@ -12,7 +12,7 @@ import time
 from .. import _constants as c, _utils as u
 from .._schemas import response_models as rm
 from .._exceptions import InvalidInputError
-from .._auth import BaseUser
+from .._schemas.auth_models import AbstractUser
 from .._manifest import PermissionScope
 from .._dataset_types import DatasetResult
 from .._schemas.query_param_models import get_query_models_for_querying_models, get_query_models_for_compiled_models
@@ -31,20 +31,20 @@ class DataManagementRoutes(RouteBase):
         self.query_models_cache = TTLCache(maxsize=dataset_results_cache_size, ttl=dataset_results_cache_ttl*60)
         
     async def _query_models_helper(
-        self, sql_query: str, user: BaseUser, selections: tuple[tuple[str, Any], ...], configurables: tuple[tuple[str, str], ...]
+        self, sql_query: str, user: AbstractUser, selections: tuple[tuple[str, Any], ...], configurables: tuple[tuple[str, str], ...]
     ) -> DatasetResult:
         """Helper to query models"""
         cfg_filtered = {k: v for k, v in dict(configurables).items() if k in self.manifest_cfg.configurables}
         return await self.project.query_models(sql_query, user=user, selections=dict(selections), configurables=cfg_filtered)
 
     async def _query_models_cachable(
-        self, sql_query: str, user: BaseUser, selections: tuple[tuple[str, Any], ...], configurables: tuple[tuple[str, str], ...]
+        self, sql_query: str, user: AbstractUser, selections: tuple[tuple[str, Any], ...], configurables: tuple[tuple[str, str], ...]
     ) -> DatasetResult:
         """Cachable version of query models helper"""
         return await self.do_cachable_action(self.query_models_cache, self._query_models_helper, sql_query, user, selections, configurables)
 
     async def _query_models_definition(
-        self, user: BaseUser, all_request_params: dict, params: dict, *, headers: dict[str, str]
+        self, user: AbstractUser, all_request_params: dict, params: dict, *, headers: dict[str, str]
     ) -> rm.DatasetResultModel:
         """Query models definition"""
         self._validate_request_params(all_request_params, params)
@@ -68,7 +68,7 @@ class DataManagementRoutes(RouteBase):
         return rm.DatasetResultModel(**result.to_json(orientation, limit, offset)) 
     
     async def _get_compiled_model_definition(
-        self, model_name: str, user: BaseUser, all_request_params: dict, params: dict, *, headers: dict[str, str]
+        self, model_name: str, user: AbstractUser, all_request_params: dict, params: dict, *, headers: dict[str, str]
     ) -> rm.CompiledQueryModel:
         """Get compiled model definition"""
         normalized_model_name = u.normalize_name(model_name)

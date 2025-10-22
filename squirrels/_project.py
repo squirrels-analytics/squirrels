@@ -1,9 +1,10 @@
-from dotenv import dotenv_values
+from dotenv import dotenv_values, load_dotenv
 from pathlib import Path
 import asyncio, typing as t, functools as ft, shutil, json, os
 import sqlglot, sqlglot.expressions, duckdb, polars as pl
 
-from ._auth import Authenticator, BaseUser, AuthProviderArgs, ProviderFunctionType
+from ._auth import Authenticator, AuthProviderArgs, ProviderFunctionType
+from ._schemas.auth_models import CustomUserFields, AbstractUser, GuestUser, RegisteredUser
 from ._schemas import response_models as rm
 from ._model_builder import ModelBuilder
 from ._exceptions import InvalidInputError, ConfigurationError
@@ -21,7 +22,10 @@ class SquirrelsProject:
     Initiate an instance of this class to interact with a Squirrels project through Python code. For example this can be handy to experiment with the datasets produced by Squirrels in a Jupyter notebook.
     """
     
-    def __init__(self, *, filepath: str = ".", log_to_file: bool = False, log_level: str | None = None, log_format: str | None = None) -> None:
+    def __init__(
+        self, *, filepath: str = ".", load_dotenv_globally: bool = False,
+        log_to_file: bool = False, log_level: str | None = None, log_format: str | None = None,
+    ) -> None:
         """
         Constructor for SquirrelsProject class. Loads the file contents of the Squirrels project into memory as member fields.
 
@@ -32,6 +36,7 @@ class SquirrelsProject:
             log_format: The format of the log records. Options are "text" and "json". Default is from SQRL_LOGGING__LOG_FORMAT environment variable or "text".
         """
         self._filepath = filepath
+        self._load_dotenv_globally = load_dotenv_globally
         self._logger = self._get_logger(filepath, log_to_file, log_level, log_format)
         self._ensure_virtual_datalake_exists(filepath)
     
@@ -82,7 +87,10 @@ class SquirrelsProject:
         dotenv_files = [c.DOTENV_FILE, c.DOTENV_LOCAL_FILE]
         dotenv_vars = {}
         for file in dotenv_files:
-            dotenv_vars.update({k: v for k, v in dotenv_values(f"{self._filepath}/{file}").items() if v is not None})
+            full_path = u.Path(self._filepath, file)
+            if self._load_dotenv_globally:
+                load_dotenv(full_path)
+            dotenv_vars.update({k: v for k, v in dotenv_values(full_path).items() if v is not None})
         return {**os.environ, **dotenv_vars}
     
     @ft.cached_property
@@ -132,18 +140,19 @@ class SquirrelsProject:
         return cs.ConnectionSetIO.load_from_file(self._logger, self._filepath, self._manifest_cfg, self._conn_args)
     
     @ft.cached_property
-    def _user_cls_and_provider_functions(self) -> tuple[type[BaseUser], list[ProviderFunctionType]]:
+    def _custom_user_fields_cls_and_provider_functions(self) -> tuple[type[CustomUserFields], list[ProviderFunctionType]]:
         user_module_path = u.Path(self._filepath, c.PYCONFIGS_FOLDER, c.USER_FILE)
         user_module = PyModule(user_module_path)
         
-        User = user_module.get_func_or_class("User", default_attr=BaseUser)  # adds to Authenticator.providers as side effect
+        # Load CustomUserFields class (adds to Authenticator.providers as side effect)
+        CustomUserFieldsCls = user_module.get_func_or_class("CustomUserFields", default_attr=CustomUserFields)
         provider_functions = Authenticator.providers
         Authenticator.providers = []
         
-        if not issubclass(User, BaseUser):
-            raise ConfigurationError(f"User class in '{c.USER_FILE}' must inherit from BaseUser")
+        if not issubclass(CustomUserFieldsCls, CustomUserFields):
+            raise ConfigurationError(f"CustomUserFields class in '{c.USER_FILE}' must inherit from CustomUserFields")
         
-        return User, provider_functions
+        return CustomUserFieldsCls, provider_functions
     
     @ft.cached_property
     def _auth_args(self) -> AuthProviderArgs:
@@ -151,18 +160,20 @@ class SquirrelsProject:
         return AuthProviderArgs(conn_args.project_path, conn_args.proj_vars, conn_args.env_vars)
     
     @ft.cached_property
-    def _auth(self) -> Authenticator[BaseUser]:
-        User, provider_functions = self._user_cls_and_provider_functions
-        external_only = self._manifest_cfg.authentication.type == mf.AuthenticationType.EXTERNAL
-        return Authenticator(self._logger, self._filepath, self._auth_args, provider_functions, user_cls=User, external_only=external_only)
+    def _auth(self) -> Authenticator:
+        CustomUserFieldsCls, provider_functions = self._custom_user_fields_cls_and_provider_functions
+        external_only = (self._manifest_cfg.authentication.type == mf.AuthenticationType.EXTERNAL)
+        return Authenticator(self._logger, self._filepath, self._auth_args, provider_functions, custom_user_fields_cls=CustomUserFieldsCls, external_only=external_only)
     
     @ft.cached_property
-    def _guest_user(self) -> BaseUser:
-        return self._auth.User(username="", access_level="guest")
+    def _guest_user(self) -> AbstractUser:
+        custom_fields = self._auth.CustomUserFields()
+        return GuestUser(username="", custom_fields=custom_fields)
 
     @ft.cached_property
-    def _admin_user(self) -> BaseUser:
-        return self._auth.User(username="", access_level="admin")
+    def _admin_user(self) -> AbstractUser:
+        custom_fields = self._auth.CustomUserFields()
+        return RegisteredUser(username="", access_level="admin", custom_fields=custom_fields)
     
     @ft.cached_property
     def _param_args(self) -> ps.ParametersArgs:
@@ -312,7 +323,7 @@ class SquirrelsProject:
         return dag
     
     async def _get_compiled_dag(
-        self, user: BaseUser, *, sql_query: str | None = None, selections: dict[str, t.Any] = {}, configurables: dict[str, str] = {}, 
+        self, user: AbstractUser, *, sql_query: str | None = None, selections: dict[str, t.Any] = {}, configurables: dict[str, str] = {}, 
         always_python_df: bool = False
     ) -> m.DAG:
         dag = self._generate_dag_with_fake_target(sql_query, always_python_df=always_python_df)
@@ -465,8 +476,13 @@ class SquirrelsProject:
 
                 # Build user and selections from test set config if present
                 ts_conf = self._manifest_cfg.selection_test_sets.get(ts_name, self._manifest_cfg.get_default_test_set())
-                user_attributes = { "username": "", "access_level": "guest", **ts_conf.user_attributes }
-                user = self._auth.User(**user_attributes)
+                # Separate base fields from custom fields
+                access_level = ts_conf.user.access_level
+                custom_fields = self._auth.CustomUserFields(**ts_conf.user.custom_fields)
+                if access_level == "guest":
+                    user = GuestUser(username="", custom_fields=custom_fields)
+                else:
+                    user = RegisteredUser(username="", access_level=access_level, custom_fields=custom_fields)
 
                 # Generate DAG across all models. When runquery=True, force models to produce Python dataframes so CSVs can be written.
                 dag = await self._get_compiled_dag(
@@ -529,7 +545,7 @@ class SquirrelsProject:
             print(border)
             print()
 
-    def _permission_error(self, user: BaseUser, data_type: str, data_name: str, scope: str) -> InvalidInputError:
+    def _permission_error(self, user: AbstractUser, data_type: str, data_name: str, scope: str) -> InvalidInputError:
         return InvalidInputError(403, f"unauthorized_access_to_{data_type}", f"User '{user}' does not have permission to access {scope} {data_type}: {data_name}")
     
     def seed(self, name: str) -> pl.LazyFrame:
@@ -566,7 +582,7 @@ class SquirrelsProject:
         )
     
     async def dataset(
-        self, name: str, *, selections: dict[str, t.Any] = {}, user: BaseUser | None = None, require_auth: bool = True,
+        self, name: str, *, selections: dict[str, t.Any] = {}, user: AbstractUser | None = None, require_auth: bool = True,
         configurables: dict[str, str] = {}
     ) -> dr.DatasetResult:
         """
@@ -599,7 +615,7 @@ class SquirrelsProject:
         )
     
     async def dashboard(
-        self, name: str, *, selections: dict[str, t.Any] = {}, user: BaseUser | None = None, dashboard_type: t.Type[T] = d.PngDashboard,
+        self, name: str, *, selections: dict[str, t.Any] = {}, user: AbstractUser | None = None, dashboard_type: t.Type[T] = d.PngDashboard,
         configurables: dict[str, str] = {}
     ) -> T:
         """
@@ -635,7 +651,7 @@ class SquirrelsProject:
             raise KeyError(f"No dashboard file found for: {name}")
     
     async def query_models(
-        self, sql_query: str, *, user: BaseUser | None = None, selections: dict[str, t.Any] = {}, configurables: dict[str, str] = {}
+        self, sql_query: str, *, user: AbstractUser | None = None, selections: dict[str, t.Any] = {}, configurables: dict[str, str] = {}
     ) -> dr.DatasetResult:
         if user is None:
             user = self._guest_user
@@ -649,7 +665,7 @@ class SquirrelsProject:
         )
 
     async def get_compiled_model_query(
-        self, model_name: str, *, user: BaseUser | None = None, selections: dict[str, t.Any] = {}, configurables: dict[str, str] = {}
+        self, model_name: str, *, user: AbstractUser | None = None, selections: dict[str, t.Any] = {}, configurables: dict[str, str] = {}
     ) -> rm.CompiledQueryModel:
         """
         Compile the specified data model and return its language and compiled definition.

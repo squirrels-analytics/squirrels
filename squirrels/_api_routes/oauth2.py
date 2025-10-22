@@ -6,7 +6,7 @@ from typing import Annotated, cast
 from .base import RouteBase
 from .._schemas.auth_models import (
     ClientRegistrationRequest, ClientUpdateRequest, ClientRegistrationResponse, ClientDetailsResponse, ClientUpdateResponse, 
-    TokenResponse, OAuthServerMetadata
+    TokenResponse, OAuthServerMetadata, AbstractUser
 )
 from .._exceptions import InvalidInputError
 from .. import _utils as u
@@ -58,10 +58,6 @@ class OAuth2Routes(RouteBase):
         router_path = auth_path + "/oauth2"
         router = APIRouter(prefix=router_path)
         
-        # Create user models
-        class UserInfoModel(self.UserInfoModel):
-            username: str
-
         # Authorization dependency for client management
         get_client_token = HTTPBearer(auto_error=False)
         
@@ -150,7 +146,7 @@ class OAuth2Routes(RouteBase):
             state: str | None = Query(default=None, description="State parameter for CSRF protection"),
             code_challenge: str = Query(..., description="PKCE code challenge (required)"),
             code_challenge_method: str = Query(default="S256", description="PKCE code challenge method"),
-            user: UserInfoModel = Depends(self.get_current_user)
+            user: AbstractUser = Depends(self.get_current_user)
         ):
             """OAuth 2.1 authorization endpoint for initiating authorization code flow"""
             

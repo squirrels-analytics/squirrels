@@ -1,11 +1,11 @@
 from functools import cached_property
-from typing import Any
+from typing import Literal, Any
 from urllib.parse import urlparse
 from sqlalchemy import Engine, create_engine
 from typing_extensions import Self
 from enum import Enum
 from pydantic import BaseModel, Field, field_validator, model_validator, ValidationInfo, ValidationError
-import yaml, time
+import yaml, time, re
 
 from . import _constants as c, _utils as u
 
@@ -16,10 +16,17 @@ class ProjectVarsConfig(BaseModel, extra="allow"):
     description: str = ""
     major_version: int
 
+    @field_validator("name")
+    @classmethod
+    def validate_name(cls, v: str) -> str:
+        if not re.fullmatch(r"[A-Za-z0-9_-]+", v):
+            raise ValueError("Project name must only contain alphanumeric characters, underscores, and dashes.")
+        return v
+
     @model_validator(mode="after")
     def finalize_label(self) -> Self:
         if self.label == "":
-            self.label = self.name
+            self.label = u.to_title_case(self.name)
         return self
 
 
@@ -198,8 +205,12 @@ class DatasetConfig(AnalyticsOutputConfig):
         return self
 
 
+class TestSetsUserConfig(BaseModel):
+    access_level: Literal["admin", "member", "guest"] = "guest"
+    custom_fields: dict[str, Any] = Field(default_factory=dict)
+
 class TestSetsConfig(_ConfigWithNameBaseModel):
-    user_attributes: dict[str, Any] = Field(default_factory=dict)
+    user: TestSetsUserConfig = Field(default_factory=TestSetsUserConfig)
     parameters: dict[str, Any] = Field(default_factory=dict)
     configurables: dict[str, Any] = Field(default_factory=dict)
 

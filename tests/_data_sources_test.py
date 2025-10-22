@@ -76,7 +76,7 @@ class TestSelectDataSource:
         df = pl.DataFrame(data).sort(by='test_id')
 
         ds_param = pc.DataSourceParameterConfig(
-            pc.SingleSelectParameterConfig, 'test_param', 'Test Parameter', data_source_with_user, user_attribute='organization'
+            pc.SingleSelectParameterConfig, 'test_param', 'Test Parameter', data_source_with_user, user_attribute='custom_fields.organization'
         )
         param3: pc.SingleSelectParameterConfig = ds_param.convert(df)
         param_options = (
@@ -84,7 +84,7 @@ class TestSelectDataSource:
             po.SelectParameterOption('1', 'one', test_field='wonder', is_default=True, user_groups=['org2']),
             po.SelectParameterOption('2', 'two', test_field='tutor', is_default=True, user_groups=['org2'])
         )
-        expected = pc.SingleSelectParameterConfig('test_param', 'Test Parameter', param_options, user_attribute='organization')
+        expected = pc.SingleSelectParameterConfig('test_param', 'Test Parameter', param_options, user_attribute='custom_fields.organization')
         assert param3 == expected
     
     def test_invalid_column_names(self, data_source: d.SelectDataSource):

@@ -1,42 +1,35 @@
-from typing import Callable
+from typing import Callable, Any
 from datetime import datetime, timedelta, timezone
-from enum import Enum
 from functools import cached_property
 from jwt.exceptions import InvalidTokenError
 from passlib.context import CryptContext
 from pydantic import ValidationError
-from pydantic_core import PydanticUndefined
 from sqlalchemy import create_engine, Engine, func, inspect, text, ForeignKey
-from sqlalchemy import Column, String, Integer, Float, Boolean
 from sqlalchemy.orm import declarative_base, sessionmaker, Mapped, mapped_column
-import jwt, types, typing as _t, uuid, secrets, json
+import jwt, uuid, secrets, json
 
 from ._manifest import PermissionScope
 from ._py_module import PyModule
 from ._exceptions import InvalidInputError, ConfigurationError
 from ._arguments.init_time_args import AuthProviderArgs
 from ._schemas.auth_models import (
-    BaseUser, ApiKey, UserField, AuthProvider, ProviderConfigs, ClientRegistrationRequest, ClientUpdateRequest,
-    ClientDetailsResponse, ClientRegistrationResponse, ClientUpdateResponse, TokenResponse
+    CustomUserFields, AbstractUser, GuestUser, RegisteredUser, ApiKey, UserField, AuthProvider, ProviderConfigs, 
+    ClientRegistrationRequest, ClientUpdateRequest, ClientDetailsResponse, ClientRegistrationResponse, 
+    ClientUpdateResponse, TokenResponse
 )
 from . import _utils as u, _constants as c
 
 pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
 
-reserved_fields = ["username", "access_level"]
-disallowed_fields = ["password", "password_hash", "created_at", "token_id", "exp"]
-
-User = _t.TypeVar('User', bound=BaseUser)
-
 ProviderFunctionType = Callable[[AuthProviderArgs], AuthProvider]
 
 
-class Authenticator(_t.Generic[User]):
+class Authenticator:
     providers: list[ProviderFunctionType] = []  # static variable to stage providers
 
     def __init__(
         self, logger: u.Logger, base_path: str, auth_args: AuthProviderArgs, provider_functions: list[ProviderFunctionType], 
-        user_cls: type[User], *, sa_engine: Engine | None = None, external_only: bool = False
+        custom_user_fields_cls: type[CustomUserFields], *, sa_engine: Engine | None = None, external_only: bool = False
     ):
         self.logger = logger
         self.env_vars = auth_args.env_vars
@@ -46,13 +39,14 @@ class Authenticator(_t.Generic[User]):
         # Create a new declarative base for this instance
         self.Base = declarative_base()
         
-        # Define DbBaseUser class for this instance
-        class DbBaseUser(self.Base):
+        # Define DbUser class for this instance
+        class DbUser(self.Base):
             __tablename__ = 'users'
             __table_args__ = {'extend_existing': True}
             username: Mapped[str] = mapped_column(primary_key=True)
             access_level: Mapped[str] = mapped_column(nullable=False, default="member")
             password_hash: Mapped[str] = mapped_column(nullable=False)
+            custom_fields: Mapped[str] = mapped_column(nullable=False, default="{}")
             created_at: Mapped[datetime] = mapped_column(nullable=False, server_default=func.now())
         
         # Define DbApiKey class for this instance
@@ -125,14 +119,13 @@ class Authenticator(_t.Generic[User]):
             def __repr__(self):
                 return f"<DbOAuthToken(token_id='{self.token_id}', client_id='{self.client_id}', username='{self.username}')>"
         
-        self.DbBaseUser = DbBaseUser
         self.DbApiKey = DbApiKey
         self.DbOAuthClient = DbOAuthClient
         self.DbAuthorizationCode = DbAuthorizationCode
         self.DbOAuthToken = DbOAuthToken
         
-        self.User = user_cls
-        self.DbUser: type[DbBaseUser] = self._initialize_db_user_model(self.User)
+        self.CustomUserFields = custom_user_fields_cls
+        self.DbUser = DbUser
 
         self.auth_providers = [provider_function(auth_args) for provider_function in provider_functions]
         
@@ -154,72 +147,21 @@ class Authenticator(_t.Generic[User]):
 
         self.Session = sessionmaker(bind=self.engine)
 
-        self._initialize_db(self.User, self.DbUser, self.engine, self.Session)
+        self._initialize_db()
     
-    def _convert_db_user_to_user(self, db_user) -> User:
-        """Convert a database user to a User object"""
-        # user_data = {k: v for k, v in db_user.__dict__.items() if not k.startswith('_')}
-        return self.User.model_validate(db_user)
+    def _convert_db_user_to_user(self, db_user) -> RegisteredUser:
+        """Convert a database user to an AbstractUser object"""
+        # Deserialize custom_fields JSON and merge with defaults
+        custom_fields_json = json.loads(db_user.custom_fields) if db_user.custom_fields else {}
+        custom_fields = self.CustomUserFields(**custom_fields_json)
+        
+        return RegisteredUser(
+            username=db_user.username, 
+            access_level=db_user.access_level,
+            custom_fields=custom_fields
+        )
     
-    def _get_user_model(self, base_path: str) -> type[BaseUser]:
-        user_module_path = u.Path(base_path, c.PYCONFIGS_FOLDER, c.USER_FILE)
-        user_module = PyModule(user_module_path)
-        User = user_module.get_func_or_class("User", default_attr=BaseUser)
-        if not issubclass(User, BaseUser):
-            raise ConfigurationError(f"User class in '{c.USER_FILE}' must inherit from BaseUser")
-        return User
-
-    def _initialize_db_user_model(self, *args) -> type:
-        """Get the user model with any custom attributes defined in user.py"""
-        attrs = {}
-
-        # Iterate over all fields in the User model
-        for field_name, field in self.User.model_fields.items():
-            if field_name in reserved_fields:
-                continue
-            if field_name in disallowed_fields:
-                raise ConfigurationError(f"Field name '{field_name}' is disallowed in the User model and cannot be used")
-            
-            field_type = field.annotation
-            if _t.get_origin(field_type) in (_t.Union, types.UnionType):
-                field_type = _t.get_args(field_type)[0]
-                nullable = True
-            else:
-                nullable = False
-    
-            if _t.get_origin(field_type) == _t.Literal:
-                field_type = str
-
-            # Map Python types and default values to SQLAlchemy columns
-            default_value = field.default
-            if default_value is PydanticUndefined:
-                raise ConfigurationError(f"No default value found for field '{field_name}' in User model")
-            elif not nullable and default_value is None:
-                raise ConfigurationError(f"Default value for non-nullable field '{field_name}' was set as None in User model")
-            elif default_value is not None and type(default_value) is not field_type:
-                raise ConfigurationError(f"Default value for field '{field_name}' does not match field type in User model")
-            
-            if field_type == str:
-                col_type = String
-            elif field_type == int:
-                col_type = Integer
-            elif field_type == float:
-                col_type = Float
-            elif field_type == bool:
-                col_type = Boolean
-            elif isinstance(field_type, type) and issubclass(field_type, Enum):
-                col_type = String
-                default_value = default_value.value
-            else:
-                continue
-
-            attrs[field_name] = Column(col_type, nullable=nullable, default=default_value) # type: ignore
-
-        # Create the sqlalchemy model class
-        DbUser = type('DbUser', (self.DbBaseUser,), attrs)
-        return DbUser
-
-    def _initialize_db(self, *args): # TODO: Use logger instead of print
+    def _initialize_db(self): # TODO: Use logger instead of print
         session = self.Session()
         try:
             # Get existing columns in the database
@@ -227,8 +169,7 @@ class Authenticator(_t.Generic[User]):
             existing_columns = {col['name'] for col in inspector.get_columns('users')}
 
             # Get all columns defined in the model
-            dropped_columns = set(self.User.dropped_columns())
-            model_columns = set(self.DbUser.__table__.columns.keys()) - dropped_columns
+            model_columns = set(self.DbUser.__table__.columns.keys())
 
             # Find columns that are in the model but not in the database
             new_columns = model_columns - existing_columns
@@ -251,24 +192,6 @@ class Authenticator(_t.Generic[User]):
                     session.execute(text(alter_stmt))
                 
                 session.commit()
-            
-            # Determine columns to drop
-            columns_to_drop = dropped_columns.intersection(existing_columns)
-            if columns_to_drop:
-                drop_columns_msg = f"Dropping columns from database: {columns_to_drop}"
-                print("NOTE -", drop_columns_msg)
-                self.logger.info(drop_columns_msg)
-                
-                for col_name in columns_to_drop:
-                    session.execute(text(f"ALTER TABLE users DROP COLUMN {col_name}"))
-                
-                session.commit()
-
-            # Find columns that are in the database but not in the model
-            extra_db_columns = existing_columns - columns_to_drop - model_columns
-            if extra_db_columns:
-                self.logger.warning(f"The following database columns are not in the User model: {extra_db_columns}\n"
-                    "If you want to drop these columns, please use the `dropped_columns` class method of the User model.")
 
             # Get admin password from environment variable if exists
             admin_password = self.env_vars.get(c.SQRL_SECRET_ADMIN_PASSWORD)
@@ -291,7 +214,7 @@ class Authenticator(_t.Generic[User]):
     @cached_property
     def user_fields(self) -> list[UserField]:
         """
-        Get the fields of the User model as a list of dictionaries
+        Get the fields of the CustomUserFields model as a list of dictionaries
         
         Each dictionary contains the following keys:
         - name: The name of the field
@@ -300,11 +223,15 @@ class Authenticator(_t.Generic[User]):
         - enum: The possible values of the field (or None if not applicable)
         - default: The default value of the field (or None if field is required)
         """
-        schema = self.User.model_json_schema()
-
-        fields = []
+        # Add the base fields
+        fields = [
+            UserField(name="username", type="string", nullable=False, enum=None, default=None),
+            UserField(name="access_level", type="string", nullable=False, enum=["admin", "member"], default="member")
+        ]
         
-        properties: dict[str, dict[str, _t.Any]] = schema.get("properties", {})
+        # Add custom fields
+        schema = self.CustomUserFields.model_json_schema()
+        properties: dict[str, dict[str, Any]] = schema.get("properties", {})
         for field_name, field_schema in properties.items():
             if choices := field_schema.get("anyOf"):
                 field_type = choices[0]["type"]
@@ -321,13 +248,25 @@ class Authenticator(_t.Generic[User]):
     def add_user(self, username: str, user_fields: dict, *, update_user: bool = False) -> None:
         session = self.Session()
 
-        # Validate the user data
+        # Separate custom fields from base fields
+        access_level = user_fields.get('access_level', 'member')
+        password = user_fields.get('password')
+        
+        # Validate access level - cannot add/update users with guest access level
+        if access_level == "guest":
+            raise InvalidInputError(400, "invalid_access_level", "Cannot create or update users with 'guest' access level")
+        
+        # Extract custom fields (everything except username, access_level, password)
+        custom_fields_dict = {k: v for k, v in user_fields.items() if k not in ['username', 'access_level', 'password']}
+        
+        # Validate the custom fields
         try:
-            user_data = self.User(**user_fields, username=username).model_dump(mode='json')
+            custom_fields = self.CustomUserFields(**custom_fields_dict)
+            custom_fields_json = json.dumps(custom_fields.model_dump(mode='json'))
         except ValidationError as e:
             raise InvalidInputError(400, "invalid_user_data", f"Invalid user field '{e.errors()[0]['loc'][0]}': {e.errors()[0]['msg']}")
 
-        # Add a new user
+        # Add or update user
         try:
             # Check if the user already exists
             existing_user = session.get(self.DbUser, username)
@@ -335,24 +274,27 @@ class Authenticator(_t.Generic[User]):
                 if not update_user:
                     raise InvalidInputError(400, "username_already_exists", f"User '{username}' already exists")
                 
-                access_level = user_data.get('access_level', 'member')
                 if username == c.ADMIN_USERNAME and access_level != "admin":
                     raise InvalidInputError(403, "admin_cannot_be_non_admin", "Setting the admin user to non-admin is not permitted")
                 
-                new_user = self.DbUser(password_hash=existing_user.password_hash, **user_data)
-                session.delete(existing_user)
+                # Update existing user
+                existing_user.access_level = access_level
+                existing_user.custom_fields = custom_fields_json
             else:
                 if update_user:
                     raise InvalidInputError(404, "no_user_found_for_username", f"No user found for username: {username}")
                 
-                password = user_fields.get('password')
                 if password is None:
                     raise InvalidInputError(400, "missing_password", f"Missing required field 'password' when adding a new user")
+                
                 password_hash = pwd_context.hash(password)
-                new_user = self.DbUser(password_hash=password_hash, **user_data)
-            
-            # Add the user to the session
-            session.add(new_user)
+                new_user = self.DbUser(
+                    username=username,
+                    access_level=access_level,
+                    password_hash=password_hash,
+                    custom_fields=custom_fields_json
+                )
+                session.add(new_user)
             
             # Commit the transaction
             session.commit()
@@ -360,7 +302,7 @@ class Authenticator(_t.Generic[User]):
         finally:
             session.close()
     
-    def create_or_get_user_from_provider(self, provider_name: str, user_info: dict) -> User:
+    def create_or_get_user_from_provider(self, provider_name: str, user_info: dict) -> RegisteredUser:
         provider = next((p for p in self.auth_providers if p.name == provider_name), None)
         if provider is None:
             raise InvalidInputError(404, "auth_provider_not_found", f"Provider '{provider_name}' not found")
@@ -368,21 +310,30 @@ class Authenticator(_t.Generic[User]):
         user = provider.provider_configs.get_user(user_info)
         session = self.Session()
         try:
-            db_user = session.get(self.DbUser, user.username)
-            if db_user is None:
-                # Create new user
-                user_data = user.model_dump()
-                password_hash = ""  # No hash makes it impossible to login with username and password
-                db_user = self.DbUser(password_hash=password_hash, **user_data)
+            # Convert user to database user
+            custom_fields_json = user.custom_fields.model_dump_json()
+            db_user = self.DbUser(
+                username=user.username,
+                access_level=user.access_level,
+                password_hash="",  # No hash makes it impossible to login with username and password
+                custom_fields=custom_fields_json
+            )
+
+            existing_db_user = session.get(self.DbUser, user.username)
+            if existing_db_user is None:
                 session.add(db_user)
-                session.commit()
+            else:
+                existing_db_user.access_level = user.access_level
+                existing_db_user.custom_fields = custom_fields_json
         
+            session.commit()
+
             return self._convert_db_user_to_user(db_user)
         
         finally:
             session.close()
 
-    def get_user(self, username: str, password: str) -> User:
+    def get_user(self, username: str, password: str) -> RegisteredUser:
         session = self.Session()
         try:
             # Query for user by username
@@ -426,7 +377,7 @@ class Authenticator(_t.Generic[User]):
         finally:
             session.close()
 
-    def get_all_users(self) -> list:
+    def get_all_users(self) -> list[RegisteredUser]:
         session = self.Session()
         try:
             db_users = session.query(self.DbUser).all()
@@ -434,7 +385,7 @@ class Authenticator(_t.Generic[User]):
         finally:
             session.close()
     
-    def create_access_token(self, user: User, expiry_minutes: int | None, *, title: str | None = None) -> tuple[str, datetime]:
+    def create_access_token(self, user: AbstractUser, expiry_minutes: int | None, *, title: str | None = None) -> tuple[str, datetime]:
         """
         Creates an API key if title is provided. Otherwise, creates a JWT token.
         """
@@ -460,7 +411,7 @@ class Authenticator(_t.Generic[User]):
         
         return token_id, expire_at
     
-    def get_user_from_token(self, token: str | None) -> User | None:
+    def get_user_from_token(self, token: str | None) -> RegisteredUser | None:
         """
         Get a user from an access token (JWT, or API key if token starts with 'sqrl-')
         """
@@ -496,7 +447,7 @@ class Authenticator(_t.Generic[User]):
         finally:
             session.close()
         
-        return user # type: ignore
+        return user
     
     def get_all_api_keys(self, username: str) -> list[ApiKey]:
         """
@@ -533,7 +484,7 @@ class Authenticator(_t.Generic[User]):
         finally:
             session.close()
 
-    def can_user_access_scope(self, user: User, scope: PermissionScope) -> bool:
+    def can_user_access_scope(self, user: AbstractUser, scope: PermissionScope) -> bool:
         if user.access_level == "guest":
             user_level = PermissionScope.PUBLIC
         elif user.access_level == "admin":

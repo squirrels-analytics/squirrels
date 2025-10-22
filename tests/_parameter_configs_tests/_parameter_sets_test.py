@@ -2,13 +2,14 @@ from collections import OrderedDict
 import pytest, polars as pl
 
 from squirrels import _data_sources as d, _parameter_options as po, _parameter_sets as ps, _parameters as p, _parameter_configs as pc
-from squirrels import _utils as u, _auth as a
+from squirrels import _utils as u
+from squirrels._schemas.auth_models import AbstractUser
 
-from tests._parameter_configs_tests.conftest import User
+from tests._parameter_configs_tests.conftest import create_test_user
 
 @pytest.fixture(scope="module")
-def user() -> User:
-    return User(username="user1", organization="org3")
+def user() -> AbstractUser:
+    return create_test_user(organization="org3")
 
 
 def add_param(data: dict[str, p.Parameter], param: p.Parameter):
@@ -215,7 +216,7 @@ def test_invalid_overlapping_parent_options_within_user_group():
 
 
 def test_apply_selections1(
-    user: a.BaseUser, param_configs_set1: ps.ParameterConfigsSet, parameter_set0: ps.ParameterSet, parameter_set1: ps.ParameterSet
+    user: AbstractUser, param_configs_set1: ps.ParameterConfigsSet, parameter_set0: ps.ParameterSet, parameter_set1: ps.ParameterSet
 ):
     selections = {"single_select_with_ms_parent": "ss1"}
 
@@ -227,7 +228,7 @@ def test_apply_selections1(
 
 
 def test_apply_selections2(
-    user: a.BaseUser, param_configs_set2: ps.ParameterConfigsSet, parameter_set2: ps.ParameterSet
+    user: AbstractUser, param_configs_set2: ps.ParameterConfigsSet, parameter_set2: ps.ParameterSet
 ):
     dataset_parms = ["date_param_with_parent", "single_select_with_ms_parent", "multi_select_basic"]
     selections = {

@@ -1,7 +1,6 @@
-from typing import Sequence, Optional, Union, TypeVar, Callable, Any, Iterable, Literal
+from typing import Sequence, Optional, Union, TypeVar, Callable, Any, Iterable
 from datetime import datetime
 from pathlib import Path
-from functools import lru_cache
 import os, time, logging, json, duckdb, polars as pl, yaml
 import jinja2 as j2, jinja2.nodes as j2_nodes
 import sqlglot, sqlglot.expressions, asyncio, hashlib, inspect, base64
@@ -397,3 +396,9 @@ def validate_pkce_challenge(code_verifier: str, code_challenge: str) -> bool:
 def get_scheme(hostname: str | None) -> str:
     """Get the scheme of the request"""
     return "http" if hostname in ("localhost", "127.0.0.1") else "https"
+
+
+def to_title_case(input_str: str) -> str:
+    """Convert a string to title case"""
+    spaced_str = input_str.replace('_', ' ').replace('-', ' ')
+    return spaced_str.title()

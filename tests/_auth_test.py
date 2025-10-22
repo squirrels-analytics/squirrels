@@ -3,22 +3,22 @@ from sqlalchemy import create_engine
 from enum import Enum
 from passlib.context import CryptContext
 
-from squirrels._auth import Authenticator, BaseUser, AuthProviderArgs
+from squirrels._auth import Authenticator, AuthProviderArgs
+from squirrels._schemas.auth_models import CustomUserFields, ClientRegistrationRequest, ClientUpdateRequest, GuestUser
 from squirrels._manifest import PermissionScope
 from squirrels._exceptions import InvalidInputError
-from squirrels._schemas.auth_models import ClientRegistrationRequest, ClientUpdateRequest
 from squirrels import _utils as u, _constants as c
 
 # Fast password context for testing (much faster than production bcrypt)
 test_pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto", bcrypt__rounds=4)
 
-# Test User model with custom fields
+# Test CustomUserFields model with custom fields
 class RoleEnum(str, Enum):
     USER = "user"
     MODERATOR = "moderator"
     ADMIN = "admin"
 
-class User(BaseUser):
+class TestCustomUserFields(CustomUserFields):
     email: str = ""
     role: RoleEnum = RoleEnum.USER
     age: int = 18
@@ -38,7 +38,7 @@ def auth(env_vars, monkeypatch):
     engine = create_engine("sqlite:///:memory:?check_same_thread=False")
     logger = u.Logger("")
     auth_args = AuthProviderArgs(project_path=".", _proj_vars={}, _env_vars=env_vars)
-    auth_instance = Authenticator(logger, ".", auth_args, provider_functions=[], user_cls=User, sa_engine=engine)
+    auth_instance = Authenticator(logger, ".", auth_args, provider_functions=[], custom_user_fields_cls=TestCustomUserFields, sa_engine=engine)
     yield auth_instance
     auth_instance.close()
 
@@ -52,7 +52,7 @@ def test_user_data():
         "age": 25
     }
 
-def test_initialize_db(auth: Authenticator[User]):
+def test_initialize_db(auth: Authenticator):
     # Check if admin user was created
     users = auth.get_all_users()
     assert len(users) == 1
@@ -60,16 +60,16 @@ def test_initialize_db(auth: Authenticator[User]):
     assert admin.username == "admin"
     assert admin.access_level == "admin"
 
-def test_add_and_get_user(auth: Authenticator[User], test_user_data):
+def test_add_and_get_user(auth: Authenticator, test_user_data):
     # Add a new user
     auth.add_user("testuser", test_user_data)
 
     # Get the user with correct password
     user = auth.get_user("testuser", "password123")
     assert user.username == "testuser"
-    assert user.email == "test@example.com"
-    assert user.role == RoleEnum.MODERATOR
-    assert user.age == 25
+    assert user.custom_fields.email == "test@example.com"
+    assert user.custom_fields.role == RoleEnum.MODERATOR
+    assert user.custom_fields.age == 25
     assert user.access_level == "member"
 
     # Try getting user with wrong password
@@ -77,7 +77,7 @@ def test_add_and_get_user(auth: Authenticator[User], test_user_data):
         auth.get_user("testuser", "wrongpassword")
     assert exc_info.value.error == "incorrect_username_or_password"
 
-def test_change_password(auth: Authenticator[User]):
+def test_change_password(auth: Authenticator):
     # Add a user first
     auth.add_user("pwduser", {
         "password": "oldpassword",
@@ -96,7 +96,7 @@ def test_change_password(auth: Authenticator[User]):
     user = auth.get_user("pwduser", "newpassword")
     assert user.username == "pwduser"
 
-def test_delete_user(auth: Authenticator[User]):
+def test_delete_user(auth: Authenticator):
     # Add a user
     auth.add_user("deleteuser", {
         "password": "password123",
@@ -114,7 +114,7 @@ def test_delete_user(auth: Authenticator[User]):
     users_after = auth.get_all_users()
     assert not any(u.username == "deleteuser" for u in users_after)
 
-def test_access_tokens(auth: Authenticator[User], test_user_data):
+def test_access_tokens(auth: Authenticator, test_user_data):
     # Add a user
     auth.add_user("tokenuser", test_user_data)
 
@@ -135,8 +135,8 @@ def test_access_tokens(auth: Authenticator[User], test_user_data):
     assert str(tokens[0].title) == "Test Token"
     assert str(tokens[0].username) == "tokenuser"
 
-def test_permission_scopes(auth: Authenticator[User], test_user_data):
-    guest_user = User(username="", access_level="guest")
+def test_permission_scopes(auth: Authenticator, test_user_data):
+    guest_user = GuestUser(username="", custom_fields=CustomUserFields())
 
     # Add a regular user
     auth.add_user("regular", test_user_data)
@@ -158,7 +158,7 @@ def test_permission_scopes(auth: Authenticator[User], test_user_data):
     assert auth.can_user_access_scope(admin_user, PermissionScope.PROTECTED) == True
     assert auth.can_user_access_scope(admin_user, PermissionScope.PRIVATE) == True
 
-def test_expired_token(auth: Authenticator[User], test_user_data):
+def test_expired_token(auth: Authenticator, test_user_data):
     # Add a user
     auth.add_user("expireduser", test_user_data)
 
@@ -196,7 +196,7 @@ def invalid_redirect_client_request():
         scope="read"
     )
 
-def test_register_oauth_client_basic(auth: Authenticator[User], sample_client_request):
+def test_register_oauth_client_basic(auth: Authenticator, sample_client_request):
     """Test basic OAuth client registration"""
     client_management_path = "/api/oauth/client/{client_id}"
     
@@ -216,7 +216,7 @@ def test_register_oauth_client_basic(auth: Authenticator[User], sample_client_re
     assert len(response.registration_access_token) > 0
     assert response.registration_client_uri == f"/api/oauth/client/{response.client_id}"
 
-def test_register_oauth_client_invalid_redirect_uris(auth: Authenticator[User], invalid_redirect_client_request):
+def test_register_oauth_client_invalid_redirect_uris(auth: Authenticator, invalid_redirect_client_request):
     """Test OAuth client registration with invalid redirect URIs"""
     
     # Should raise InvalidInputError for invalid redirect URIs
@@ -226,7 +226,7 @@ def test_register_oauth_client_invalid_redirect_uris(auth: Authenticator[User], 
     assert exc_info.value.status_code == 400
     assert exc_info.value.error == "invalid_redirect_uri"
 
-def test_get_oauth_client_details(auth: Authenticator[User], sample_client_request):
+def test_get_oauth_client_details(auth: Authenticator, sample_client_request):
     """Test retrieving OAuth client details"""
     
     # Register a client first
@@ -249,7 +249,7 @@ def test_get_oauth_client_details(auth: Authenticator[User], sample_client_reque
     assert not hasattr(client_details, 'client_secret')
     assert not hasattr(client_details, 'registration_access_token')
 
-def test_get_oauth_client_details_nonexistent(auth: Authenticator[User]):
+def test_get_oauth_client_details_nonexistent(auth: Authenticator):
     """Test retrieving details for non-existent client"""
     
     with pytest.raises(InvalidInputError) as exc_info:
@@ -258,7 +258,7 @@ def test_get_oauth_client_details_nonexistent(auth: Authenticator[User]):
     assert exc_info.value.status_code == 404
     assert exc_info.value.error == "invalid_client_id"
 
-def test_validate_client_credentials(auth: Authenticator[User], sample_client_request):
+def test_validate_client_credentials(auth: Authenticator, sample_client_request):
     """Test OAuth client credential validation"""
     
     # Register a client
@@ -276,7 +276,7 @@ def test_validate_client_credentials(auth: Authenticator[User], sample_client_re
     is_valid = auth.validate_client_credentials(response.client_id, "invalid_secret")
     assert not is_valid
 
-def test_validate_redirect_uri(auth: Authenticator[User], sample_client_request):
+def test_validate_redirect_uri(auth: Authenticator, sample_client_request):
     """Test redirect URI validation for registered client"""
     
     # Register a client
@@ -292,7 +292,7 @@ def test_validate_redirect_uri(auth: Authenticator[User], sample_client_request)
     # Invalid client_id should return False
     assert not auth.validate_redirect_uri("invalid_id", "https://example.com/callback")
 
-def test_validate_registration_access_token(auth: Authenticator[User], sample_client_request):
+def test_validate_registration_access_token(auth: Authenticator, sample_client_request):
     """Test registration access token validation"""
     
     # Register a client with management enabled
@@ -308,7 +308,7 @@ def test_validate_registration_access_token(auth: Authenticator[User], sample_cl
     # Invalid client_id should return False
     assert not auth.validate_registration_access_token("invalid_id", response.registration_access_token)
 
-def test_update_oauth_client_with_token_rotation(auth: Authenticator[User], sample_client_request):
+def test_update_oauth_client_with_token_rotation(auth: Authenticator, sample_client_request):
     """Test OAuth client update with registration token rotation"""
     
     # Register a client
@@ -340,7 +340,7 @@ def test_update_oauth_client_with_token_rotation(auth: Authenticator[User], samp
     # New token should be valid
     assert auth.validate_registration_access_token(response.client_id, update_response.registration_access_token)
 
-def test_update_oauth_client_invalid_redirect_uris(auth: Authenticator[User], sample_client_request):
+def test_update_oauth_client_invalid_redirect_uris(auth: Authenticator, sample_client_request):
     """Test OAuth client update with invalid redirect URIs"""
     
     # Register a client
@@ -355,7 +355,7 @@ def test_update_oauth_client_invalid_redirect_uris(auth: Authenticator[User], sa
     assert exc_info.value.status_code == 400
     assert exc_info.value.error == "invalid_redirect_uri"
 
-def test_update_oauth_client_nonexistent(auth: Authenticator[User]):
+def test_update_oauth_client_nonexistent(auth: Authenticator):
     """Test updating non-existent OAuth client"""
     
     with pytest.raises(InvalidInputError) as exc_info:
@@ -366,7 +366,7 @@ def test_update_oauth_client_nonexistent(auth: Authenticator[User]):
     assert exc_info.value.status_code == 404
     assert exc_info.value.error == "invalid_client_id"
 
-def test_revoke_oauth_client(auth: Authenticator[User], sample_client_request):
+def test_revoke_oauth_client(auth: Authenticator, sample_client_request):
     """Test OAuth client revocation"""
     
     # Register a client
@@ -390,7 +390,7 @@ def test_revoke_oauth_client(auth: Authenticator[User], sample_client_request):
     # Client credentials should no longer be valid
     assert not auth.validate_client_credentials(response.client_id, response.client_secret)
 
-def test_revoke_oauth_client_nonexistent(auth: Authenticator[User]):
+def test_revoke_oauth_client_nonexistent(auth: Authenticator):
     """Test revoking non-existent OAuth client"""
     
     with pytest.raises(InvalidInputError) as exc_info:
@@ -399,7 +399,7 @@ def test_revoke_oauth_client_nonexistent(auth: Authenticator[User]):
     assert exc_info.value.status_code == 404
     assert exc_info.value.error == "client_not_found"
 
-def test_validate_redirect_uri_format(auth: Authenticator[User]):
+def test_validate_redirect_uri_format(auth: Authenticator):
     """Test redirect URI format validation"""
     
     # Valid HTTPS URIs
@@ -424,7 +424,7 @@ def test_validate_redirect_uri_format(auth: Authenticator[User]):
     assert not auth._validate_redirect_uri_format("invalid-scheme")
     assert not auth._validate_redirect_uri_format("")
 
-def test_oauth_client_end_to_end(auth: Authenticator[User], sample_client_request):
+def test_oauth_client_end_to_end(auth: Authenticator, sample_client_request):
     """Test complete OAuth client lifecycle"""
     
     # 1. Register client
@@ -464,7 +464,7 @@ def test_oauth_client_end_to_end(auth: Authenticator[User], sample_client_reques
     assert exc_info.value.error == "invalid_client_id"
 
 
-def test_revoke_oauth_token_basic(auth: Authenticator[User], sample_client_request):
+def test_revoke_oauth_token_basic(auth: Authenticator, sample_client_request):
     """Test basic OAuth token revocation"""
     
     # Register a client and user
@@ -506,7 +506,7 @@ def test_revoke_oauth_token_basic(auth: Authenticator[User], sample_client_reque
     assert exc_info.value.error == "invalid_grant"
 
 
-def test_revoke_oauth_token_invalid_client(auth: Authenticator[User]):
+def test_revoke_oauth_token_invalid_client(auth: Authenticator):
     """Test revoking token with invalid client credentials"""
     
     with pytest.raises(InvalidInputError) as exc_info:
@@ -516,7 +516,7 @@ def test_revoke_oauth_token_invalid_client(auth: Authenticator[User]):
     assert exc_info.value.error == "invalid_client"
 
 
-def test_revoke_oauth_token_nonexistent_token(auth: Authenticator[User], sample_client_request):
+def test_revoke_oauth_token_nonexistent_token(auth: Authenticator, sample_client_request):
     """Test revoking non-existent token (should succeed per OAuth spec)"""
     
     # Register a client
@@ -526,7 +526,7 @@ def test_revoke_oauth_token_nonexistent_token(auth: Authenticator[User], sample_
     auth.revoke_oauth_token(registration.client_id, "nonexistent_token", "refresh_token")
 
 
-def test_refresh_token_after_revocation(auth: Authenticator[User], sample_client_request):
+def test_refresh_token_after_revocation(auth: Authenticator, sample_client_request):
     """Test that refresh token flow properly handles token revocation"""
     
     # Register a client and user

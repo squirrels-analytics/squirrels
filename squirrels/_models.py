@@ -11,7 +11,7 @@ from . import _constants as c, _utils as u, _py_module as pm, _model_queries as 
 from ._schemas import response_models as rm
 from ._exceptions import FileExecutionError, InvalidInputError
 from ._arguments.run_time_args import ContextArgs, ModelArgs, BuildModelArgs
-from ._auth import BaseUser
+from ._auth import AbstractUser
 from ._connection_set import ConnectionsArgs, ConnectionSet, ConnectionProperties
 from ._manifest import DatasetConfig, ConnectionTypeEnum
 from ._parameter_sets import ParameterConfigsSet, ParametersArgs, ParameterSet
@@ -914,7 +914,7 @@ class DAG:
                 model.compile_for_build(conn_args, static_models)
 
     def apply_selections(
-        self, param_cfg_set: ParameterConfigsSet, user: BaseUser, selections: dict[str, str]
+        self, param_cfg_set: ParameterConfigsSet, user: AbstractUser, selections: dict[str, str]
     ) -> None:
         start = time.time()
         dataset_params = self.dataset.parameters if self.dataset else None
@@ -924,7 +924,7 @@ class DAG:
         self.logger.log_activity_time("applying selections" + msg_extension, start)
     
     def _compile_context(
-        self, param_args: ParametersArgs, context_func: ContextFunc, user: BaseUser, configurables: dict[str, str]
+        self, param_args: ParametersArgs, context_func: ContextFunc, user: AbstractUser, configurables: dict[str, str]
     ) -> tuple[dict[str, Any], ContextArgs]:
         start = time.time()
         context = {}
@@ -977,7 +977,7 @@ class DAG:
             conn.close()
     
     async def execute(
-        self, param_args: ParametersArgs, param_cfg_set: ParameterConfigsSet, context_func: ContextFunc, user: BaseUser, selections: dict[str, str], 
+        self, param_args: ParametersArgs, param_cfg_set: ParameterConfigsSet, context_func: ContextFunc, user: AbstractUser, selections: dict[str, str], 
         *, runquery: bool = True, recurse: bool = True, configurables: dict[str, str] = {}
     ) -> None:
         recurse = (recurse or runquery)

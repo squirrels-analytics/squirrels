@@ -3,20 +3,35 @@ from datetime import datetime
 from pydantic import BaseModel, ConfigDict, Field, field_serializer
 
 
-class BaseUser(BaseModel):
+class CustomUserFields(BaseModel):
+    """
+    Extend this class to add custom user fields.
+    - Only the following types are supported: [str, int, float, bool, typing.Literal]
+    - Add "| None" after the type to make it nullable. 
+    - Always set a default value for the column (use None if default is null).
+    """
+    pass
+
+
+class AbstractUser(BaseModel):
     model_config = ConfigDict(from_attributes=True)
     username: str
-    access_level: Literal["admin", "member", "guest"] = "member"
-    
-    @classmethod
-    def dropped_columns(cls):
-        return []
+    access_level: Literal["admin", "member", "guest"]
+    custom_fields: CustomUserFields
     
     def __hash__(self):
         return hash(self.username)
     
     def __str__(self):
         return self.username
+
+
+class GuestUser(AbstractUser):
+    access_level: Literal["guest"] = "guest"
+
+
+class RegisteredUser(AbstractUser):
+    access_level: Literal["admin", "member"] = "member"
 
 
 class ApiKey(BaseModel):
@@ -43,9 +58,14 @@ class UserField(BaseModel):
 class ProviderConfigs(BaseModel):
     client_id: str
     client_secret: str
-    server_metadata_url: str
+    server_url: str
+    server_metadata_path: str = Field(default="/.well-known/openid-configuration")
     client_kwargs: dict = Field(default_factory=dict)
-    get_user: Callable[[dict], BaseUser]
+    get_user: Callable[[dict], RegisteredUser]
+
+    @property
+    def server_metadata_url(self) -> str:
+        return f"{self.server_url}{self.server_metadata_path}"
 
 
 class AuthProvider(BaseModel):

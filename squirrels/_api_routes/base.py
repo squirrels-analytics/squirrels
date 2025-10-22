@@ -1,12 +1,12 @@
 """
 Base utilities and dependencies for API routes
 """
-from typing import Any, Mapping, TypeVar, Callable, Coroutine
+from typing import Any, Mapping, TypeVar, Callable, Coroutine, Literal
 from fastapi import Request, Response, Depends
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 from fastapi.templating import Jinja2Templates
 from cachetools import TTLCache
-from pydantic import BaseModel, create_model
+from pydantic import BaseModel, create_model, Field
 from mcp.server.fastmcp import Context
 from pathlib import Path
 from datetime import datetime, timezone
@@ -14,6 +14,7 @@ from datetime import datetime, timezone
 from .. import _utils as u, _constants as c
 from .._exceptions import InvalidInputError, ConfigurationError
 from .._project import SquirrelsProject
+from .._schemas.auth_models import GuestUser, RegisteredUser
 
 T = TypeVar('T')
 
@@ -34,21 +35,19 @@ class RouteBase:
         template_dir = Path(__file__).parent.parent / "_package_data" / "templates"
         self.templates = Jinja2Templates(directory=str(template_dir))
     
-        # Create user models
-        fields_without_username = {
-            k: (v.annotation, v.default) 
-            for k, v in self.authenticator.User.model_fields.items() 
-            if k != "username"
-        }
-        self.UserModel = create_model("UserModel", __base__=BaseModel, **fields_without_username) # type: ignore
-        self.UserInfoModel = create_model("UserInfoModel", __base__=self.UserModel, username=str)
-
-        class UserInfoModel(self.UserInfoModel):
-            username: str
-
-            def __hash__(self):
-                return hash(self.username)
+        # # Create user models with flattened custom fields
+        # # Get all custom field definitions from CustomUserFields
+        # custom_field_annotations = {}
+        # for field_name, field_info in self.authenticator.CustomUserFields.model_fields.items():
+        #     custom_field_annotations[field_name] = (field_info.annotation, Field(default=field_info.default))
         
+        # self.UserModel = create_model(
+        #     "UserModel", 
+        #     __base__=BaseModel,
+        #     access_level=(Literal["admin", "member"], Field(...)),
+        #     **custom_field_annotations
+        # )
+
         # Authorization dependency for current user
         def get_token_from_session(request: Request) -> str | None:
             expiry = request.session.get("access_token_expiry")
@@ -62,16 +61,18 @@ class RouteBase:
         
         async def get_current_user(
             request: Request, response: Response, auth: HTTPAuthorizationCredentials = Depends(get_bearer_token)
-        ) -> UserInfoModel:
+        ) -> GuestUser | RegisteredUser:
             token = auth.credentials if auth and auth.scheme == "Bearer" else None
-            final_token = token if token else get_token_from_session(request)
+            access_token = token if token else get_token_from_session(request)
+            api_key = request.headers.get("x-api-key")
+            final_token = api_key if api_key else access_token
             
             user = self.authenticator.get_user_from_token(final_token)
             if user is None:
                 user = self.project._guest_user
             
             response.headers["Applied-Username"] = user.username
-            return UserInfoModel(**user.model_dump(mode='json'))
+            return user
 
         self.get_current_user = get_current_user
         

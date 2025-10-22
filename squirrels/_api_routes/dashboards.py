@@ -14,7 +14,7 @@ from .._schemas import response_models as rm
 from .._exceptions import ConfigurationError
 from .._dashboards import Dashboard
 from .._schemas.query_param_models import get_query_models_for_parameters, get_query_models_for_dashboard
-from .._auth import BaseUser
+from .._schemas.auth_models import AbstractUser
 from .base import RouteBase
 
 
@@ -30,20 +30,20 @@ class DashboardRoutes(RouteBase):
         self.dashboard_results_cache = TTLCache(maxsize=dashboard_results_cache_size, ttl=dashboard_results_cache_ttl*60)
         
     async def _get_dashboard_results_helper(
-        self, dashboard: str, user: BaseUser, selections: tuple[tuple[str, Any], ...], configurables: tuple[tuple[str, str], ...]
+        self, dashboard: str, user: AbstractUser, selections: tuple[tuple[str, Any], ...], configurables: tuple[tuple[str, str], ...]
     ) -> Dashboard:
         """Helper to get dashboard results"""
         cfg_filtered = {k: v for k, v in dict(configurables).items() if k in self.manifest_cfg.configurables}
         return await self.project.dashboard(dashboard, user, selections=dict(selections), configurables=cfg_filtered)
     
     async def _get_dashboard_results_cachable(
-        self, dashboard: str, user: BaseUser, selections: tuple[tuple[str, Any], ...], configurables: tuple[tuple[str, str], ...]
+        self, dashboard: str, user: AbstractUser, selections: tuple[tuple[str, Any], ...], configurables: tuple[tuple[str, str], ...]
     ) -> Dashboard:
         """Cachable version of dashboard results helper"""
         return await self.do_cachable_action(self.dashboard_results_cache, self._get_dashboard_results_helper, dashboard, user, selections, configurables)
     
     async def _get_dashboard_results_definition(
-        self, dashboard_name: str, user: BaseUser, all_request_params: dict, params: dict, headers: dict[str, str]
+        self, dashboard_name: str, user: AbstractUser, all_request_params: dict, params: dict, headers: dict[str, str]
     ) -> Response:
         """Get dashboard results definition"""
         self._validate_request_params(all_request_params, params)

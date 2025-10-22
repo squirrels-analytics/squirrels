@@ -1,10 +1,14 @@
 import pytest
 
 from squirrels import _parameter_configs as pc, _parameter_options as po, _parameters as p
-from squirrels import _auth as a
+from squirrels._schemas.auth_models import CustomUserFields, GuestUser
 
-class User(a.BaseUser):
+class TestCustomUserFields(CustomUserFields):
     organization: str = ""
+
+def create_test_user(organization: str = ""):
+    custom_fields = TestCustomUserFields(organization=organization)
+    return GuestUser(username="test", custom_fields=custom_fields)
 
 
 @pytest.fixture(scope="module")
@@ -15,7 +19,7 @@ def ms_config_basic() -> pc.MultiSelectParameterConfig:
         po.SelectParameterOption('ms2', 'Multi Option 3', is_default=False, user_groups=["org2", "org3"]), 
         po.SelectParameterOption('ms3', 'Multi Option 4', is_default=True, user_groups=["org1"])
     )
-    return pc.MultiSelectParameterConfig("multi_select_basic", "Multi Select Basic", param_options, user_attribute="organization")
+    return pc.MultiSelectParameterConfig("multi_select_basic", "Multi Select Basic", param_options, user_attribute="custom_fields.organization")
 
 
 @pytest.fixture(scope="module")
@@ -83,8 +87,10 @@ def date_config_with_parent() -> pc.DateParameterConfig:
         po.DateParameterOption('2023-02-01', user_groups=['org1', 'org3'], parent_option_ids=['ss1', 'ss2']),
         po.DateParameterOption('2023-03-01', user_groups=['org1'], parent_option_ids=['ss3'])
     ]
-    return pc.DateParameterConfig("date_param_with_parent", "Date With Parent", param_options, user_attribute="organization",
-                                  parent_name="single_select_with_ms_parent")
+    return pc.DateParameterConfig(
+        "date_param_with_parent", "Date With Parent", param_options, 
+        user_attribute="custom_fields.organization", parent_name="single_select_with_ms_parent"
+    )
 
 
 @pytest.fixture(scope="module")
@@ -108,4 +114,4 @@ def num_range_config() -> pc.NumberRangeParameterConfig:
         po.NumberRangeParameterOption(0, 5, user_groups="org0"),
         po.NumberRangeParameterOption("10.5", "15.3", increment="0.4", user_groups="org1")
     ]
-    return pc.NumberRangeParameterConfig("num_range_param", "Number Range Param", param_options, user_attribute="organization")
+    return pc.NumberRangeParameterConfig("num_range_param", "Number Range Param", param_options, user_attribute="custom_fields.organization")
