@@ -315,16 +315,13 @@ class Authenticator:
             db_user = self.DbUser(
                 username=user.username,
                 access_level=user.access_level,
-                password_hash="",  # No hash makes it impossible to login with username and password
+                password_hash="",  # By omitting password_hash, it becomes impossible to login with username and password (OAuth only)
                 custom_fields=custom_fields_json
             )
 
-            existing_db_user = session.get(self.DbUser, user.username)
+            existing_db_user = session.get(self.DbUser, db_user.username)
             if existing_db_user is None:
                 session.add(db_user)
-            else:
-                existing_db_user.access_level = user.access_level
-                existing_db_user.custom_fields = custom_fields_json
         
             session.commit()
 
