@@ -47,7 +47,7 @@ class DataManagementRoutes(RouteBase):
         self, user: AbstractUser, all_request_params: dict, params: dict, *, headers: dict[str, str]
     ) -> rm.DatasetResultModel:
         """Query models definition"""
-        self._validate_request_params(all_request_params, params)
+        self._validate_request_params(all_request_params, params, headers)
 
         if not self.authenticator.can_user_access_scope(user, PermissionScope.PRIVATE):
             raise InvalidInputError(403, "unauthorized_access_to_query_models", f"User '{user}' does not have permission to query data models")
@@ -62,7 +62,8 @@ class DataManagementRoutes(RouteBase):
         configurables = self.get_configurables_from_headers(headers)
         result = await query_models_function(sql_query, user, selections, configurables)
         
-        orientation = params.get("x_orientation", "records")
+        orientation_header = headers.get("x-orientation")
+        orientation = str(orientation_header).lower() if orientation_header is not None else params.get("x_orientation", "records")
         limit = params.get("x_limit", 1000)
         offset = params.get("x_offset", 0)
         return rm.DatasetResultModel(**result.to_json(orientation, limit, offset)) 
@@ -72,7 +73,7 @@ class DataManagementRoutes(RouteBase):
     ) -> rm.CompiledQueryModel:
         """Get compiled model definition"""
         normalized_model_name = u.normalize_name(model_name)
-        self._validate_request_params(all_request_params, params)
+        self._validate_request_params(all_request_params, params, headers)
 
         # Internal users only
         if not self.authenticator.can_user_access_scope(user, PermissionScope.PRIVATE):

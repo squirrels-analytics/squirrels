@@ -243,7 +243,7 @@ class ManifestConfig(BaseModel):
         if isinstance(values, list):
             values_as_dict = {}
             for obj in values:
-                name = obj["name"]
+                name = u.normalize_name(obj["name"])
                 if name in values_as_dict:
                     raise ValueError(f'In the {info.field_name} section, the name "{name}" was specified multiple times')
                 values_as_dict[name] = obj

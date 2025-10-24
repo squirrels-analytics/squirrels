@@ -45,7 +45,7 @@ class SquirrelsProject:
         # CLI arguments take precedence over environment variables
         log_level = log_level if log_level is not None else env_vars.get(c.SQRL_LOGGING_LOG_LEVEL, "INFO")
         log_format = log_format if log_format is not None else env_vars.get(c.SQRL_LOGGING_LOG_FORMAT, "text")
-        log_to_file = log_to_file or (env_vars.get(c.SQRL_LOGGING_LOG_TO_FILE, "false").lower() == "true")
+        log_to_file = log_to_file or u.to_bool(env_vars.get(c.SQRL_LOGGING_LOG_TO_FILE, "false"))
         log_file_size_mb = int(env_vars.get(c.SQRL_LOGGING_LOG_FILE_SIZE_MB, 50))
         log_file_backup_count = int(env_vars.get(c.SQRL_LOGGING_LOG_FILE_BACKUP_COUNT, 1))
         return l.get_logger(filepath, log_to_file, log_level, log_format, log_file_size_mb, log_file_backup_count)

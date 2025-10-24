@@ -38,9 +38,11 @@ class SmartCORSMiddleware(BaseHTTPMiddleware):
     
     def __init__(self, app, allowed_credential_origins: list[str], configurables_as_headers: list[str]):
         super().__init__(app)
-        # Origins that are allowed to send credentials (cookies, auth headers)
+
+        allowed_predefined_headers = ["Authorization", "Content-Type", "x-api-key", "x-orientation", "x-verify-params"]
+        
         self.allowed_credential_origins = allowed_credential_origins
-        self.allowed_request_headers = ",".join(["Authorization", "Content-Type"] + configurables_as_headers)
+        self.allowed_request_headers = ",".join(allowed_predefined_headers + configurables_as_headers)
     
     async def dispatch(self, request: Request, call_next):
         origin = request.headers.get("origin")
