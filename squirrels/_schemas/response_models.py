@@ -211,7 +211,10 @@ class ProjectModel(BaseModel):
     version: Annotated[str, Field(examples=["v1"])]
     label: Annotated[str, Field(examples=["My Project"])]
     description: Annotated[str, Field(examples=["My project description"])]
+    elevated_access_level: Annotated[Literal["admin", "member", "guest"], Field(
+        examples=["admin"], description="The access level required to access elevated features (such as configurables and data lineage)"
+    )]
     redoc_path: Annotated[str, Field(examples=["/squirrels/v0/project/myproject/v1/redoc"])]
-    swagger_docs_path: Annotated[str, Field(examples=["/squirrels/v0/project/myproject/v1/docs"])]
+    swagger_path: Annotated[str, Field(examples=["/squirrels/v0/project/myproject/v1/docs"])]
     mcp_server_path: Annotated[str, Field(examples=["/squirrels/v0/project/myproject/v1/mcp"])]
     squirrels_version: Annotated[str, Field(examples=["0.1.0"])]

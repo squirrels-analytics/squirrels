@@ -70,6 +70,10 @@ class ProjectRoutes(RouteBase):
         self, app: FastAPI, mcp: FastMCP, project_metadata_path: str, project_name: str, project_version: str, project_label: str, param_fields: dict
     ):
         """Setup project metadata routes"""
+
+        elevated_access_level = self.project._elevated_access_level
+        if elevated_access_level != "admin":
+            self.logger.warning(f"{c.SQRL_PERMISSIONS_ELEVATED_ACCESS_LEVEL} has been set to a non-admin access level. For security reasons, DO NOT expose the APIs for this app publicly!")
         
         # Project metadata endpoint
         @app.get(project_metadata_path, tags=["Project Metadata"], response_class=JSONResponse)
@@ -79,8 +83,9 @@ class ProjectRoutes(RouteBase):
                 version=project_version,
                 label=self.manifest_cfg.project_variables.label,
                 description=self.manifest_cfg.project_variables.description,
+                elevated_access_level=elevated_access_level,
                 redoc_path=project_metadata_path + "/redoc",
-                swagger_docs_path=project_metadata_path + "/docs",
+                swagger_path=project_metadata_path + "/docs",
                 mcp_server_path=project_metadata_path + "/mcp",
                 squirrels_version=__version__
             )
@@ -92,6 +97,7 @@ class ProjectRoutes(RouteBase):
             parameters = self.param_cfg_set.apply_selections(None, {}, user)
             parameters_model = parameters.to_api_response_model0()
             full_parameters_list = [p.name for p in parameters_model.parameters]
+            user_has_elevated_privileges = u.user_has_elevated_privileges(user.access_level, elevated_access_level)
 
             dataset_items: list[rm.DatasetItemModel] = []
             for name, config in self.manifest_cfg.datasets.items():
@@ -101,7 +107,7 @@ class ProjectRoutes(RouteBase):
                     parameters = config.parameters if config.parameters is not None else full_parameters_list
                     
                     # Build dataset-specific configurables list
-                    if user.access_level == "admin":
+                    if user_has_elevated_privileges:
                         dataset_configurables_defaults = self.manifest_cfg.get_default_configurables(name)
                         dataset_configurables_list = [
                             rm.ConfigurableDefaultModel(name=name, default=default)
@@ -141,7 +147,7 @@ class ProjectRoutes(RouteBase):
                         result_path=f"{project_metadata_path}/dashboard/{name_for_api}"
                     ))
             
-            if user.access_level == "admin":
+            if user_has_elevated_privileges:
                 compiled_dag = await self.project._get_compiled_dag(user)
                 connections_items = self.project._get_all_connections()
                 data_models = self.project._get_all_data_models(compiled_dag)

@@ -424,8 +424,8 @@ def access_level_order(access_level: ACCESS_LEVEL) -> int:
     """Convert an access level to a rank"""
     return { "admin": 1, "member": 2, "guest": 3 }.get(access_level.lower(), 1)
 
-def user_has_access_privilege(user_access_level: ACCESS_LEVEL, min_access_level: ACCESS_LEVEL) -> bool:
+def user_has_elevated_privileges(user_access_level: ACCESS_LEVEL, required_access_level: ACCESS_LEVEL) -> bool:
     """Check if a user has privilege to access a resource"""
     user_access_level_rank = access_level_order(user_access_level)
-    required_access_level_rank = access_level_order(min_access_level)
+    required_access_level_rank = access_level_order(required_access_level)
     return user_access_level_rank <= required_access_level_rank

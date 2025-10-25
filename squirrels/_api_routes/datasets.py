@@ -61,13 +61,8 @@ class DatasetRoutes(RouteBase):
         uncached_keys = {"x_verify_params", "x_orientation", "x_sql_query", "x_limit", "x_offset"}
         selections = self.get_selections_as_immutable(params, uncached_keys)
         
-        required_level = self.env_vars.get(c.SQRL_CONFIGURABLES_REQUIRED_ACCESS_LEVEL, "admin")
-        if required_level.lower() != "admin":
-            self.logger.warning(f"{c.SQRL_CONFIGURABLES_REQUIRED_ACCESS_LEVEL} has been set to a non-admin access level. For security reasons, do not expose the REST APIs to the public!")
-        
-        user_has_config_privileges = u.user_has_access_privilege(user.access_level, required_level)
-        configurables = self.get_configurables_from_headers(headers) if user_has_config_privileges else tuple()
-        
+        user_has_elevated_privileges = u.user_has_elevated_privileges(user.access_level, self.project._elevated_access_level)
+        configurables = self.get_configurables_from_headers(headers) if user_has_elevated_privileges else tuple()
         result = await get_dataset_function(dataset_name, user, selections, configurables)
         
         # Apply optional final SQL transformation before select/limit/offset

@@ -51,12 +51,8 @@ class DashboardRoutes(RouteBase):
         get_dashboard_function = self._get_dashboard_results_helper if self.no_cache else self._get_dashboard_results_cachable
         selections = self.get_selections_as_immutable(params, uncached_keys={"x_verify_params"})
         
-        required_level = self.env_vars.get(c.SQRL_CONFIGURABLES_REQUIRED_ACCESS_LEVEL, "admin")
-        if required_level.lower() != "admin":
-            self.logger.warning(f"{c.SQRL_CONFIGURABLES_REQUIRED_ACCESS_LEVEL} has been set to a non-admin access level. For security reasons, do not expose the REST APIs to the public!")
-        
-        user_has_config_privileges = u.user_has_access_privilege(user.access_level, required_level)
-        configurables = self.get_configurables_from_headers(headers) if user_has_config_privileges else tuple()
+        user_has_elevated_privileges = u.user_has_elevated_privileges(user.access_level, self.project._elevated_access_level)
+        configurables = self.get_configurables_from_headers(headers) if user_has_elevated_privileges else tuple()
         dashboard_obj = await get_dashboard_function(dashboard_name, user, selections, configurables)
         
         if dashboard_obj._format == c.PNG:
