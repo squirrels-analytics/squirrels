@@ -1,4 +1,4 @@
-from typing import Sequence, Optional, Union, TypeVar, Callable, Any, Iterable
+from typing import Sequence, Optional, Union, TypeVar, Callable, Iterable, Literal, Any
 from datetime import datetime
 from pathlib import Path
 import os, time, logging, json, duckdb, polars as pl, yaml
@@ -402,3 +402,30 @@ def to_title_case(input_str: str) -> str:
     """Convert a string to title case"""
     spaced_str = input_str.replace('_', ' ').replace('-', ' ')
     return spaced_str.title()
+
+
+def to_bool(val: object) -> bool:
+    """Convert common truthy/falsey representations to a boolean.
+
+    Accepted truthy values (case-insensitive): "1", "true", "t", "yes", "y", "on".
+    All other values are considered falsey. None is falsey.
+    """
+    if isinstance(val, bool):
+        return val
+    if val is None:
+        return False
+    s = str(val).strip().lower()
+    return s in ("1", "true", "t", "yes", "y", "on")
+
+
+ACCESS_LEVEL = Literal["admin", "member", "guest"]
+
+def get_access_level_rank(access_level: ACCESS_LEVEL) -> int:
+    """Get the rank of an access level. Lower ranks have more privileges."""
+    return { "admin": 1, "member": 2, "guest": 3 }.get(access_level.lower(), 1)
+
+def user_has_elevated_privileges(user_access_level: ACCESS_LEVEL, required_access_level: ACCESS_LEVEL) -> bool:
+    """Check if a user has privilege to access a resource"""
+    user_access_level_rank = get_access_level_rank(user_access_level)
+    required_access_level_rank = get_access_level_rank(required_access_level)
+    return user_access_level_rank <= required_access_level_rank

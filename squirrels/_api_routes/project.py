@@ -70,6 +70,10 @@ class ProjectRoutes(RouteBase):
         self, app: FastAPI, mcp: FastMCP, project_metadata_path: str, project_name: str, project_version: str, project_label: str, param_fields: dict
     ):
         """Setup project metadata routes"""
+
+        elevated_access_level = self.project._elevated_access_level
+        if elevated_access_level != "admin":
+            self.logger.warning(f"{c.SQRL_PERMISSIONS_ELEVATED_ACCESS_LEVEL} has been set to a non-admin access level. For security reasons, DO NOT expose the APIs for this app publicly!")
         
         # Project metadata endpoint
         @app.get(project_metadata_path, tags=["Project Metadata"], response_class=JSONResponse)
@@ -79,8 +83,9 @@ class ProjectRoutes(RouteBase):
                 version=project_version,
                 label=self.manifest_cfg.project_variables.label,
                 description=self.manifest_cfg.project_variables.description,
+                elevated_access_level=elevated_access_level,
                 redoc_path=project_metadata_path + "/redoc",
-                swagger_docs_path=project_metadata_path + "/docs",
+                swagger_path=project_metadata_path + "/docs",
                 mcp_server_path=project_metadata_path + "/mcp",
                 squirrels_version=__version__
             )
@@ -92,16 +97,17 @@ class ProjectRoutes(RouteBase):
             parameters = self.param_cfg_set.apply_selections(None, {}, user)
             parameters_model = parameters.to_api_response_model0()
             full_parameters_list = [p.name for p in parameters_model.parameters]
+            user_has_elevated_privileges = u.user_has_elevated_privileges(user.access_level, elevated_access_level)
 
             dataset_items: list[rm.DatasetItemModel] = []
             for name, config in self.manifest_cfg.datasets.items():
                 if self.authenticator.can_user_access_scope(user, config.scope):
-                    name_normalized = u.normalize_name_for_api(name)
+                    name_for_api = u.normalize_name_for_api(name)
                     metadata = self.project.dataset_metadata(name).to_json()
                     parameters = config.parameters if config.parameters is not None else full_parameters_list
                     
                     # Build dataset-specific configurables list
-                    if user.access_level == "admin":
+                    if user_has_elevated_privileges:
                         dataset_configurables_defaults = self.manifest_cfg.get_default_configurables(name)
                         dataset_configurables_list = [
                             rm.ConfigurableDefaultModel(name=name, default=default)
@@ -116,15 +122,15 @@ class ProjectRoutes(RouteBase):
                         schema=metadata["schema"], # type: ignore
                         configurables=dataset_configurables_list,
                         parameters=parameters,
-                        parameters_path=f"{project_metadata_path}/dataset/{name_normalized}/parameters",
-                        result_path=f"{project_metadata_path}/dataset/{name_normalized}"
+                        parameters_path=f"{project_metadata_path}/dataset/{name_for_api}/parameters",
+                        result_path=f"{project_metadata_path}/dataset/{name_for_api}"
                     ))
             
             dashboard_items: list[rm.DashboardItemModel] = []
             for name, dashboard in self.project._dashboards.items():
                 config = dashboard.config
                 if self.authenticator.can_user_access_scope(user, config.scope):
-                    name_normalized = u.normalize_name_for_api(name)
+                    name_for_api = u.normalize_name_for_api(name)
 
                     try:
                         dashboard_format = self.project._dashboards[name].get_dashboard_format()
@@ -137,11 +143,11 @@ class ProjectRoutes(RouteBase):
                         description=config.description, 
                         result_format=dashboard_format,
                         parameters=parameters,
-                        parameters_path=f"{project_metadata_path}/dashboard/{name_normalized}/parameters",
-                        result_path=f"{project_metadata_path}/dashboard/{name_normalized}"
+                        parameters_path=f"{project_metadata_path}/dashboard/{name_for_api}/parameters",
+                        result_path=f"{project_metadata_path}/dashboard/{name_for_api}"
                     ))
             
-            if user.access_level == "admin":
+            if user_has_elevated_privileges:
                 compiled_dag = await self.project._get_compiled_dag(user)
                 connections_items = self.project._get_all_connections()
                 data_models = self.project._get_all_data_models(compiled_dag)
@@ -209,9 +215,9 @@ class ProjectRoutes(RouteBase):
 
         async def get_parameters_definition(
             parameters_list: list[str] | None, entity_type: str, entity_name: str, entity_scope: PermissionScope,
-            user: AbstractUser, all_request_params: dict, params: dict
+            user: AbstractUser, all_request_params: dict, params: dict, *, headers: dict[str, str]
         ) -> rm.ParametersModel:
-            self._validate_request_params(all_request_params, params)
+            self._validate_request_params(all_request_params, params, headers)
 
             get_parameters_function = self._get_parameters_helper if self.no_cache else self._get_parameters_cachable
             selections = self.get_selections_as_immutable(params, uncached_keys={"x_verify_params"})
@@ -225,7 +231,7 @@ class ProjectRoutes(RouteBase):
         ) -> rm.ParametersModel:
             start = time.time()
             result = await get_parameters_definition(
-                None, "project", "", PermissionScope.PUBLIC, user, dict(request.query_params), asdict(params)
+                None, "project", "", PermissionScope.PUBLIC, user, dict(request.query_params), asdict(params), headers=dict(request.headers)
             )
             self.log_activity_time("GET REQUEST for PROJECT PARAMETERS", start, request)
             return result
@@ -237,7 +243,7 @@ class ProjectRoutes(RouteBase):
             start = time.time()
             payload: dict = await request.json()
             result = await get_parameters_definition(
-                None, "project", "", PermissionScope.PUBLIC, user, payload, params.model_dump()
+                None, "project", "", PermissionScope.PUBLIC, user, payload, params.model_dump(), headers=dict(request.headers)
             )
             self.log_activity_time("POST REQUEST for PROJECT PARAMETERS", start, request)
             return result

@@ -71,12 +71,17 @@ class RouteBase:
                 "depend on the selected option 'country'. If a parameter has 'trigger_refresh' as true, provide the parameter " \
                 "selection to this endpoint whenever it changes to refresh the parameter options of children parameters."
         
-    def _validate_request_params(self, all_request_params: Mapping, params: Mapping) -> None:
-        """Validate request parameters"""
-        if params.get("x_verify_params", False):
-            invalid_params = [
-                param for param in all_request_params if param not in params
-            ]
+    def _validate_request_params(self, all_request_params: Mapping, params: Mapping, headers: Mapping[str, str]) -> None:
+        """Validate request parameters
+        
+        When header 'x-verify-params' is set to a truthy value, ensure that all provided
+        query/body parameters are part of the parsed params model. Falls back to legacy
+        query param 'x_verify_params' for backward compatibility.
+        """
+        header_val = headers.get("x-verify-params")
+        verify_params = u.to_bool(header_val) or u.to_bool(params.get("x_verify_params", False))
+        if verify_params:
+            invalid_params = [param for param in all_request_params if param not in params]
             if invalid_params:
                 raise InvalidInputError(400, "invalid_query_parameters", f"Invalid query parameters: {', '.join(invalid_params)}")
     
@@ -129,8 +134,7 @@ class RouteBase:
     def get_headers_from_tool_ctx(self, tool_ctx: Context) -> dict[str, str]:
         request = tool_ctx.request_context.request
         assert request is not None and hasattr(request, "headers")
-        headers: dict[str, str] = request.headers
-        return headers
+        return dict(request.headers)
 
     def get_configurables_from_headers(self, headers: Mapping[str, str]) -> tuple[tuple[str, str], ...]:
         """Extract configurables from request headers with prefix 'x-config-'."""

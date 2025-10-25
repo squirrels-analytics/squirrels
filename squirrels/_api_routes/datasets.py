@@ -55,12 +55,14 @@ class DatasetRoutes(RouteBase):
         self, dataset_name: str, user: AbstractUser, all_request_params: dict, params: dict, headers: dict[str, str]
     ) -> rm.DatasetResultModel:
         """Get dataset results definition"""
-        self._validate_request_params(all_request_params, params)
+        self._validate_request_params(all_request_params, params, headers)
 
         get_dataset_function = self._get_dataset_results_helper if self.no_cache else self._get_dataset_results_cachable
         uncached_keys = {"x_verify_params", "x_orientation", "x_sql_query", "x_limit", "x_offset"}
         selections = self.get_selections_as_immutable(params, uncached_keys)
-        configurables = self.get_configurables_from_headers(headers) if user.access_level == "admin" else tuple[tuple[str, str], ...]()
+        
+        user_has_elevated_privileges = u.user_has_elevated_privileges(user.access_level, self.project._elevated_access_level)
+        configurables = self.get_configurables_from_headers(headers) if user_has_elevated_privileges else tuple()
         result = await get_dataset_function(dataset_name, user, selections, configurables)
         
         # Apply optional final SQL transformation before select/limit/offset
@@ -74,7 +76,8 @@ class DatasetRoutes(RouteBase):
             transformed = transformed.drop("_row_num", strict=False).with_row_index("_row_num", offset=1)
             result = DatasetResult(target_model_config=result.target_model_config, df=transformed)
         
-        orientation = params.get("x_orientation", "records")
+        orientation_header = headers.get("x-orientation")
+        orientation = str(orientation_header).lower() if orientation_header is not None else params.get("x_orientation", "records")
         limit = params.get("x_limit", 1000)
         offset = params.get("x_offset", 0)
         return rm.DatasetResultModel(**result.to_json(orientation, limit, offset)) 
@@ -99,19 +102,19 @@ class DatasetRoutes(RouteBase):
                         f"\n  {all_params}"
                     )
         
-        async def get_dataset_parameters_updates(dataset_name: str, user: AbstractUser, all_request_params: dict, params: dict):
+        async def get_dataset_parameters_updates(dataset_name: str, user: AbstractUser, all_request_params: dict, params: dict, headers: dict[str, str]):
             parameters_list = self.manifest_cfg.datasets[dataset_name].parameters
             scope = self.manifest_cfg.datasets[dataset_name].scope
             result = await get_parameters_definition(
-                parameters_list, "dataset", dataset_name, scope, user, all_request_params, params
+                parameters_list, "dataset", dataset_name, scope, user, all_request_params, params, headers=headers
             )
             return result
 
         # Dataset parameters and results APIs
         for dataset_name, dataset_config in self.manifest_cfg.datasets.items():
-            dataset_normalized = u.normalize_name_for_api(dataset_name)
-            curr_parameters_path = dataset_parameters_path.format(dataset=dataset_normalized)
-            curr_results_path = dataset_results_path.format(dataset=dataset_normalized)
+            dataset_name_for_api = u.normalize_name_for_api(dataset_name)
+            curr_parameters_path = dataset_parameters_path.format(dataset=dataset_name_for_api)
+            curr_results_path = dataset_results_path.format(dataset=dataset_name_for_api)
 
             validate_parameters_list(dataset_config.parameters, "Dataset", dataset_name)
 
@@ -124,7 +127,7 @@ class DatasetRoutes(RouteBase):
             ) -> rm.ParametersModel:
                 start = time.time()
                 curr_dataset_name = self.get_name_from_path_section(request, -2)
-                result = await get_dataset_parameters_updates(curr_dataset_name, user, dict(request.query_params), asdict(params))
+                result = await get_dataset_parameters_updates(curr_dataset_name, user, dict(request.query_params), asdict(params), dict(request.headers))
                 self.log_activity_time("GET REQUEST for PARAMETERS", start, request)
                 return result
 
@@ -135,7 +138,7 @@ class DatasetRoutes(RouteBase):
                 start = time.time()
                 curr_dataset_name = self.get_name_from_path_section(request, -2)
                 payload: dict = await request.json()
-                result = await get_dataset_parameters_updates(curr_dataset_name, user, payload, params.model_dump())
+                result = await get_dataset_parameters_updates(curr_dataset_name, user, payload, params.model_dump(), dict(request.headers))
                 self.log_activity_time("POST REQUEST for PARAMETERS", start, request)
                 return result
             
@@ -190,7 +193,7 @@ class DatasetRoutes(RouteBase):
                 "x_parent_param": parameter_name,
                 parameter_name: selected_ids
             }
-            return await get_dataset_parameters_updates(dataset_name, user, payload, payload)
+            return await get_dataset_parameters_updates(dataset_name, user, payload, payload, headers)
         
         @mcp.tool(
             name=f"get_dataset_results_from_{project_name}",
@@ -240,11 +243,15 @@ class DatasetRoutes(RouteBase):
                 raise InvalidInputError(400, "invalid_parameters", f"The 'parameters' argument must be a JSON object.")
             
             params.update({
-                "x_orientation": "rows",
                 "x_sql_query": sql_query,
                 "x_offset": offset,
                 "x_limit": limit
             })
+
+            # Set default orientation as rows if not provided
+            if "x-orientation" not in headers:
+                headers["x-orientation"] = "rows"
+            
             result = await self._get_dataset_results_definition(dataset_name, user, params, params, headers)
             return result
         

@@ -37,7 +37,7 @@ class SeedsIO:
     @classmethod
     def load_files(cls, logger: u.Logger, base_path: str, env_vars: dict[str, str]) -> Seeds:
         start = time.time()
-        infer_schema_setting: bool = (env_vars.get(c.SQRL_SEEDS_INFER_SCHEMA, "true").lower() == "true")
+        infer_schema_setting: bool = u.to_bool(env_vars.get(c.SQRL_SEEDS_INFER_SCHEMA, "true"))
         na_values_setting: list[str] = json.loads(env_vars.get(c.SQRL_SEEDS_NA_VALUES, "[]"))
         
         seeds_dict = {}

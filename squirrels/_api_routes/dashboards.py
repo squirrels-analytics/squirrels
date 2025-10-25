@@ -46,11 +46,13 @@ class DashboardRoutes(RouteBase):
         self, dashboard_name: str, user: AbstractUser, all_request_params: dict, params: dict, headers: dict[str, str]
     ) -> Response:
         """Get dashboard results definition"""
-        self._validate_request_params(all_request_params, params)
+        self._validate_request_params(all_request_params, params, headers)
         
         get_dashboard_function = self._get_dashboard_results_helper if self.no_cache else self._get_dashboard_results_cachable
         selections = self.get_selections_as_immutable(params, uncached_keys={"x_verify_params"})
-        configurables = self.get_configurables_from_headers(headers) if user.access_level == "admin" else tuple[tuple[str, str], ...]()
+        
+        user_has_elevated_privileges = u.user_has_elevated_privileges(user.access_level, self.project._elevated_access_level)
+        configurables = self.get_configurables_from_headers(headers) if user_has_elevated_privileges else tuple()
         dashboard_obj = await get_dashboard_function(dashboard_name, user, selections, configurables)
         
         if dashboard_obj._format == c.PNG:
@@ -83,9 +85,9 @@ class DashboardRoutes(RouteBase):
         
         # Dashboard parameters and results APIs
         for dashboard_name, dashboard in self.project._dashboards.items():
-            dashboard_normalized = u.normalize_name_for_api(dashboard_name)
-            curr_parameters_path = dashboard_parameters_path.format(dashboard=dashboard_normalized)
-            curr_results_path = dashboard_results_path.format(dashboard=dashboard_normalized)
+            dashboard_name_for_api = u.normalize_name_for_api(dashboard_name)
+            curr_parameters_path = dashboard_parameters_path.format(dashboard=dashboard_name_for_api)
+            curr_results_path = dashboard_results_path.format(dashboard=dashboard_name_for_api)
 
             validate_parameters_list(dashboard.config.parameters, "Dashboard", dashboard_name)
             
@@ -101,7 +103,7 @@ class DashboardRoutes(RouteBase):
                 parameters_list = self.project._dashboards[curr_dashboard_name].config.parameters    
                 scope = self.project._dashboards[curr_dashboard_name].config.scope
                 result = await get_parameters_definition(
-                    parameters_list, "dashboard", curr_dashboard_name, scope, user, dict(request.query_params), asdict(params)
+                    parameters_list, "dashboard", curr_dashboard_name, scope, user, dict(request.query_params), asdict(params), headers=dict(request.headers)
                 )
                 self.log_activity_time("GET REQUEST for PARAMETERS", start, request)
                 return result
@@ -116,7 +118,7 @@ class DashboardRoutes(RouteBase):
                 scope = self.project._dashboards[curr_dashboard_name].config.scope
                 payload: dict = await request.json()
                 result = await get_parameters_definition(
-                    parameters_list, "dashboard", curr_dashboard_name, scope, user, payload, params.model_dump()
+                    parameters_list, "dashboard", curr_dashboard_name, scope, user, payload, params.model_dump(), headers=dict(request.headers)
                 )
                 self.log_activity_time("POST REQUEST for PARAMETERS", start, request)
                 return result

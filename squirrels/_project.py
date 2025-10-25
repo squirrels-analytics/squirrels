@@ -45,7 +45,7 @@ class SquirrelsProject:
         # CLI arguments take precedence over environment variables
         log_level = log_level if log_level is not None else env_vars.get(c.SQRL_LOGGING_LOG_LEVEL, "INFO")
         log_format = log_format if log_format is not None else env_vars.get(c.SQRL_LOGGING_LOG_FORMAT, "text")
-        log_to_file = log_to_file or (env_vars.get(c.SQRL_LOGGING_LOG_TO_FILE, "false").lower() == "true")
+        log_to_file = log_to_file or u.to_bool(env_vars.get(c.SQRL_LOGGING_LOG_TO_FILE, "false"))
         log_file_size_mb = int(env_vars.get(c.SQRL_LOGGING_LOG_FILE_SIZE_MB, 50))
         log_file_backup_count = int(env_vars.get(c.SQRL_LOGGING_LOG_FILE_BACKUP_COUNT, 1))
         return l.get_logger(filepath, log_to_file, log_level, log_format, log_file_size_mb, log_file_backup_count)
@@ -92,6 +92,15 @@ class SquirrelsProject:
                 load_dotenv(full_path)
             dotenv_vars.update({k: v for k, v in dotenv_values(full_path).items() if v is not None})
         return {**os.environ, **dotenv_vars}
+
+    @ft.cached_property
+    def _elevated_access_level(self) -> u.ACCESS_LEVEL:
+        elevated_access_level = self._env_vars.get(c.SQRL_PERMISSIONS_ELEVATED_ACCESS_LEVEL, "admin").lower()
+
+        if elevated_access_level not in ["admin", "member", "guest"]:
+            raise u.ConfigurationError(f"{c.SQRL_PERMISSIONS_ELEVATED_ACCESS_LEVEL} has been set to an invalid access level: {elevated_access_level}")
+        
+        return elevated_access_level
     
     @ft.cached_property
     def _datalake_db_path(self) -> str:
