@@ -215,7 +215,7 @@ class ProjectRoutes(RouteBase):
 
         async def get_parameters_definition(
             parameters_list: list[str] | None, entity_type: str, entity_name: str, entity_scope: PermissionScope,
-            user: AbstractUser, all_request_params: dict, params: dict, *, headers: dict[str, str] | None = None
+            user: AbstractUser, all_request_params: dict, params: dict, *, headers: dict[str, str]
         ) -> rm.ParametersModel:
             self._validate_request_params(all_request_params, params, headers)
 

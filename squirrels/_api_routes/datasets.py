@@ -102,7 +102,7 @@ class DatasetRoutes(RouteBase):
                         f"\n  {all_params}"
                     )
         
-        async def get_dataset_parameters_updates(dataset_name: str, user: AbstractUser, all_request_params: dict, params: dict, *, headers: dict[str, str]):
+        async def get_dataset_parameters_updates(dataset_name: str, user: AbstractUser, all_request_params: dict, params: dict, headers: dict[str, str]):
             parameters_list = self.manifest_cfg.datasets[dataset_name].parameters
             scope = self.manifest_cfg.datasets[dataset_name].scope
             result = await get_parameters_definition(
@@ -127,7 +127,7 @@ class DatasetRoutes(RouteBase):
             ) -> rm.ParametersModel:
                 start = time.time()
                 curr_dataset_name = self.get_name_from_path_section(request, -2)
-                result = await get_dataset_parameters_updates(curr_dataset_name, user, dict(request.query_params), asdict(params), headers=dict(request.headers))
+                result = await get_dataset_parameters_updates(curr_dataset_name, user, dict(request.query_params), asdict(params), dict(request.headers))
                 self.log_activity_time("GET REQUEST for PARAMETERS", start, request)
                 return result
 
@@ -138,7 +138,7 @@ class DatasetRoutes(RouteBase):
                 start = time.time()
                 curr_dataset_name = self.get_name_from_path_section(request, -2)
                 payload: dict = await request.json()
-                result = await get_dataset_parameters_updates(curr_dataset_name, user, payload, params.model_dump(), headers=dict(request.headers))
+                result = await get_dataset_parameters_updates(curr_dataset_name, user, payload, params.model_dump(), dict(request.headers))
                 self.log_activity_time("POST REQUEST for PARAMETERS", start, request)
                 return result
             
@@ -193,7 +193,7 @@ class DatasetRoutes(RouteBase):
                 "x_parent_param": parameter_name,
                 parameter_name: selected_ids
             }
-            return await get_dataset_parameters_updates(dataset_name, user, payload, payload)
+            return await get_dataset_parameters_updates(dataset_name, user, payload, payload, headers)
         
         @mcp.tool(
             name=f"get_dataset_results_from_{project_name}",
