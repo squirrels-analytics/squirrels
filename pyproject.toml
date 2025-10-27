@@ -1,6 +1,6 @@
 [project]
 name = "squirrels"
-version = "0.5.1.dev0"
+version = "0.6.0.dev0"
 description = "Squirrels - API Framework for Data Analytics"
 authors = [{ name = "Tim Huang", email = "tim.yuting@hotmail.com" }]
 requires-python = "~=3.10"
