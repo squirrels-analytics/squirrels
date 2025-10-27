@@ -13,7 +13,6 @@ from .. import _constants as c, _utils as u
 from .._schemas import response_models as rm
 from .._exceptions import InvalidInputError
 from .._schemas.auth_models import AbstractUser
-from .._manifest import PermissionScope
 from .._dataset_types import DatasetResult
 from .._schemas.query_param_models import get_query_models_for_querying_models, get_query_models_for_compiled_models
 from .base import RouteBase
@@ -49,7 +48,7 @@ class DataManagementRoutes(RouteBase):
         """Query models definition"""
         self._validate_request_params(all_request_params, params, headers)
 
-        if not self.authenticator.can_user_access_scope(user, PermissionScope.PRIVATE):
+        if not u.user_has_elevated_privileges(user.access_level, self.project._elevated_access_level):
             raise InvalidInputError(403, "unauthorized_access_to_query_models", f"User '{user}' does not have permission to query data models")
         
         sql_query = params.get("x_sql_query")
@@ -76,7 +75,7 @@ class DataManagementRoutes(RouteBase):
         self._validate_request_params(all_request_params, params, headers)
 
         # Internal users only
-        if not self.authenticator.can_user_access_scope(user, PermissionScope.PRIVATE):
+        if not u.user_has_elevated_privileges(user.access_level, self.project._elevated_access_level):
             raise InvalidInputError(403, "unauthorized_access_to_compile_model", f"User '{user}' does not have permission to fetch compiled SQL")
         
         selections = self.get_selections_as_immutable(params, uncached_keys={"x_verify_params"})
@@ -92,7 +91,7 @@ class DataManagementRoutes(RouteBase):
         
         @app.post(build_path, tags=["Data Management"], summary="Build or update the Virtual Data Lake (VDL) for the project")
         async def build(user=Depends(self.get_current_user)): # type: ignore
-            if not self.authenticator.can_user_access_scope(user, PermissionScope.PRIVATE):
+            if not u.user_has_elevated_privileges(user.access_level, self.project._elevated_access_level):
                 raise InvalidInputError(403, "unauthorized_access_to_build_model", f"User '{user}' does not have permission to build the virtual data lake (VDL)")
             await self.project.build()
             return Response(status_code=status.HTTP_200_OK)
