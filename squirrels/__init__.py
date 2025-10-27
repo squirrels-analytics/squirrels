@@ -17,3 +17,5 @@ from .dashboards import *
 from .types import *
 
 from ._project import SquirrelsProject
+
+__all__ = ["SquirrelsProject"]

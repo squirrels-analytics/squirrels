@@ -90,7 +90,9 @@ class ConnectionSetIO:
         connections: dict[str, ConnectionProperties | Any] = {}
         
         for config in manifest_cfg.connections.values():
-            connections[config.name] = ConnectionProperties(label=config.label, type=config.type, uri=config.uri)
+            connections[config.name] = ConnectionProperties(
+                label=config.label, type=config.type, uri=config.uri, sa_create_engine_args=config.sa_create_engine_args
+            )
 
         pm.run_pyconfig_main(base_path, c.CONNECTIONS_FILE, {"connections": connections, "sqrl": conn_args})
 
