@@ -106,7 +106,7 @@ class DataManagementRoutes(RouteBase):
         ) -> rm.DatasetResultModel:
             start = time.time()
             result = await self._query_models_definition(user, dict(request.query_params), asdict(params), headers=dict(request.headers))
-            self.log_activity_time("GET REQUEST for QUERY MODELS", start, request)
+            self.logger.log_activity_time("GET REQUEST for QUERY MODELS", start)
             return result
         
         @app.post(query_models_path, tags=["Data Management"], response_class=JSONResponse)
@@ -116,7 +116,7 @@ class DataManagementRoutes(RouteBase):
             start = time.time()
             payload: dict = await request.json()
             result = await self._query_models_definition(user, payload, params.model_dump(), headers=dict(request.headers))
-            self.log_activity_time("POST REQUEST for QUERY MODELS", start, request)
+            self.logger.log_activity_time("POST REQUEST for QUERY MODELS", start)
             return result
 
         # Compiled models endpoints - TODO: remove duplication
@@ -129,7 +129,9 @@ class DataManagementRoutes(RouteBase):
         ) -> rm.CompiledQueryModel:
             start = time.time()
             result = await self._get_compiled_model_definition(model_name, user, dict(request.query_params), asdict(params), headers=dict(request.headers))
-            self.log_activity_time("GET REQUEST for GET COMPILED MODEL", start, request)
+            self.logger.log_activity_time(
+                "GET REQUEST for GET COMPILED MODEL", start, additional_data={"model_name": model_name}
+            )
             return result
 
         @app.post(compiled_models_path, tags=["Data Management"], response_class=JSONResponse, summary="Get compiled definition for a model")
@@ -139,6 +141,8 @@ class DataManagementRoutes(RouteBase):
             start = time.time()
             payload: dict = await request.json()
             result = await self._get_compiled_model_definition(model_name, user, payload, params.model_dump(), headers=dict(request.headers))
-            self.log_activity_time("POST REQUEST for GET COMPILED MODEL", start, request)
+            self.logger.log_activity_time(
+                "POST REQUEST for GET COMPILED MODEL", start, additional_data={"model_name": model_name}
+            )
             return result
     

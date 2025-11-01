@@ -28,6 +28,21 @@ Here are a few of the things that Squirrels can do:
 - Define User model (in `user.py`) and authorize privacy scope per dataset (in `squirrels.yml`). The user's attributes can even be used in your query logic!
 - Serve dataset metadata and results to AI agents via MCP (Model Context Protocol)
 
+## Quick Start
+
+In a new virtual environment, install `squirrels`. Then, in your project directory, activate the virtual environment and run the following commands:
+
+```bash
+sqrl new --use-defaults --curr-dir
+sqrl build
+```
+
+To run the API server, simply run:
+
+```bash
+sqrl run
+```
+
 ## License
 
 Squirrels is released under the Apache 2.0 license.

@@ -20,7 +20,7 @@ columns:
   - name: description
     type: string
     condition: parameter 'group_by' (Group By) is 'trans' (Transaction)
-    description: The description of the transaction
+    description: The description of the transaction (masked for non-manager users)
     category: dimension
     depends_on:
       - build_example.description

@@ -1,12 +1,11 @@
 """
 Base utilities and dependencies for API routes
 """
-from typing import Any, Mapping, TypeVar, Callable, Coroutine, Literal
+from typing import Any, Mapping, TypeVar, Callable, Coroutine
 from fastapi import Request, Response, Depends
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 from fastapi.templating import Jinja2Templates
 from cachetools import TTLCache
-from pydantic import BaseModel, create_model, Field
 from mcp.server.fastmcp import Context
 from pathlib import Path
 from datetime import datetime, timezone
@@ -108,14 +107,6 @@ class RouteBase:
             cache[cache_key] = result
         return result
     
-    def _get_request_id(self, request: Request) -> str:
-        """Get request ID from headers"""
-        return request.headers.get("x-request-id", "")
-    
-    def log_activity_time(self, activity: str, start_time: float, request: Request) -> None:
-        """Log activity time"""
-        self.logger.log_activity_time(activity, start_time, request_id=self._get_request_id(request))
-
     def get_name_from_path_section(self, request: Request, section: int) -> str:
         """Extract name from request path section"""
         url_path: str = request.scope['route'].path
@@ -140,13 +131,28 @@ class RouteBase:
         """Extract configurables from request headers with prefix 'x-config-'."""
         prefix = "x-config-"
         cfg_pairs: list[tuple[str, str]] = []
+        seen_configurables: dict[str, str] = {}  # normalized_name -> header_name
+        
         for key, value in headers.items():
             key_lower = str(key).lower()
             if key_lower.startswith(prefix):
-                cfg_name = key_lower[len(prefix):]
-                cfg_pairs.append((u.normalize_name(cfg_name), str(value)))
+                cfg_name_raw = key_lower[len(prefix):]
+                cfg_name_normalized = u.normalize_name(cfg_name_raw)  # Convert to underscore convention
+                
+                # Check if we've already seen this configurable (with different header format)
+                if cfg_name_normalized in seen_configurables:
+                    existing_header = seen_configurables[cfg_name_normalized]
+                    raise InvalidInputError(
+                        400, "duplicate_configurable_header",
+                        f"Only one header format is allowed for configurable '{cfg_name_normalized}'. "
+                        f"Both '{existing_header}' and '{key_lower}' were provided."
+                    )
+                
+                seen_configurables[cfg_name_normalized] = key_lower
+                cfg_pairs.append((cfg_name_normalized, str(value)))
         
-        self.logger.info(f"Configurables specified: {[k for k, _ in cfg_pairs]}")
+        configurables = [k for k, _ in cfg_pairs]
+        self.logger.info(f"Configurables specified: {configurables}", data={"configurables_specified": configurables})
         return tuple(cfg_pairs)
     
     def get_user_from_tool_headers(self, headers: dict[str, str]):

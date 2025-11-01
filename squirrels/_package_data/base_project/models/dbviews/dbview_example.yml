@@ -1,26 +1,32 @@
 description: |
-  This is an example of a database view model. It finds the total amount spent by month.
+  This is an example of a database view model. It shows transaction details including date, amount, and description.
+  Description is masked for non-manager users.
 
   Parameters are available to filter the date and amount of the transactions.
 
-connection: default        # optional - if not provided, will use default connection specified in the SQRL_CONNECTIONS__DEFAULT_NAME_USED setting
+connection: default         # optional - if not provided, will use default connection specified in the SQRL_CONNECTIONS__DEFAULT_NAME_USED setting
 
-translate_to_duckdb: true  # optional - default is false - if true, then the model will be translated to duckdb for supported dialects
+translate_to_duckdb: false  # optional - default is false - if true, then the model will be translated to duckdb for supported dialects (SQLite, PostgreSQL, MySQL)
 
-depends_on:                # optional - the "source" macro also adds to this set
+depends_on:                 # optional - Squirrels is able to derive this from the "source" macro in the SQL file
   - src_transactions
 
 columns:
-  - name: month
-    type: string
-    description: The months for which the amount is aggregated by, in descending order
-    category: dimension
+  - name: date
     depends_on:
       - src_transactions.date
+    pass_through: true
   
-  - name: total_amount
+  - name: amount
     type: float
-    description: The total amount spent by month
+    description: The amount of the transaction, formatted to 2 decimal places
     category: measure
     depends_on:
       - src_transactions.amount
+      
+  - name: description
+    type: string
+    description: The description of the transaction (masked for non-manager users)
+    category: dimension
+    depends_on:
+      - src_transactions.description

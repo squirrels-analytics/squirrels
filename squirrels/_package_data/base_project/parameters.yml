@@ -33,20 +33,6 @@ parameters:
           user_groups: ["admin", "member", "guest"]
       parent_name: null                                   ## optional, shown is default - exists for all parameter types
   
-  - type: NumberParameter
-    factory: CreateWithOptions
-    arguments:
-      name: limit
-      label: Max Number of Rows
-      description: Maximum number of rows to return
-      parent_name: group_by
-      all_options:
-        - min_value: 0
-          max_value: 1000
-          increment: 10
-          default_value: 1000
-          parent_option_ids: trans
-  
   - type: DateParameter
     factory: CreateFromSource
     arguments:

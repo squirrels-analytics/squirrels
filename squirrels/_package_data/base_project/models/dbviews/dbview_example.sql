@@ -1,7 +1,12 @@
 {#- SQLite dialect (based on connection used) -#}
 
-SELECT STRFTIME('%Y-%m', date) AS month
-    , printf('%.2f', SUM(amount)) as total_amount
+SELECT 
+    date,
+    printf('%.2f', amount) as amount,
+    CASE 
+        WHEN '{{ user.custom_fields.role }}' = 'manager' THEN description
+        ELSE '***MASKED***'
+    END as description
 
 FROM {{ source("src_transactions") }}
 

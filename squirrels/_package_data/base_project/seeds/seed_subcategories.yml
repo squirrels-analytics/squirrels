@@ -1,7 +1,7 @@
 description: |
   Lookup table for the subcategory IDs and names of transactions.
 
-cast_column_types: true  # optional, default is false - setting SQRL_SEEDS__INFER_SCHEMA is ignored for this seed if this is set to true
+cast_column_types: true  # optional, default is false - if set to true, then SQRL_SEEDS__INFER_SCHEMA is ignored for this seed
 
 columns:
   - name: subcategory_id

@@ -425,16 +425,16 @@ class SquirrelsProject:
 
         models_dict = self._get_models_dict(always_python_df=False)
 
-        model_to_compile = None
         if selected_model is not None:
-            normalized = u.normalize_name(selected_model)
-            model_to_compile = models_dict.get(normalized)
-            if model_to_compile is None:
+            selected_model = u.normalize_name(selected_model)
+            if selected_model not in models_dict:
                 print(f"No such model found: {selected_model}")
                 return
-            if not isinstance(model_to_compile, m.QueryModel):
+            if not isinstance(models_dict[selected_model], m.QueryModel):
                 print(f"Model '{selected_model}' is not a query model. Nothing to do.")
                 return
+        
+        model_to_compile = None
 
         # Buildtime compilation
         if not runtime_only:
@@ -460,7 +460,8 @@ class SquirrelsProject:
                     print(f"The build model '{model.name}' is in Python. Compilation for Python is not supported yet.")
 
             static_models = self._get_static_models()
-            if model_to_compile is not None:
+            if selected_model is not None:
+                model_to_compile = models_dict[selected_model]
                 write_buildtime_model(model_to_compile, static_models)
             else:
                 coros = [asyncio.to_thread(write_buildtime_model, m, static_models) for m in static_models.values()]
@@ -534,18 +535,18 @@ class SquirrelsProject:
                         print(f"Successfully created CSV for {model_type} model: {model.name}")
 
                 # If selected_model is provided for runtime, only emit that model's outputs
-                if model_to_compile is not None:
+                if selected_model is not None:
+                    model_to_compile = dag.models_dict[selected_model]
                     write_runtime_model(model_to_compile)
                 else:
-                    models_to_compile = dag.models_dict.values()
-                    coros = [asyncio.to_thread(write_runtime_model, model) for model in models_to_compile]
+                    coros = [asyncio.to_thread(write_runtime_model, model) for model in dag.models_dict.values()]
                     await u.asyncio_gather(coros)
 
                 print(underlines)
                 print()
 
         print(f"All compilations complete! See the '{c.TARGET_FOLDER}/{c.COMPILE_FOLDER}/' folder for results.")
-        if model_to_compile and isinstance(model_to_compile.compiled_query, mq.SqlModelQuery):
+        if model_to_compile and isinstance(model_to_compile, m.QueryModel) and isinstance(model_to_compile.compiled_query, mq.SqlModelQuery):
             print()
             print(border)
             print(f"Compiled SQL query for model '{model_to_compile.name}':")

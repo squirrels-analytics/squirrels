@@ -12,7 +12,7 @@ class CustomUserFields(auth.CustomUserFields):
     Example:
         organization: str | None = None
     """
-    role: Literal["manager", "employee"] = "employee"
+    role: Literal["manager", "staff", "customer"] = "staff"
 
 
 # @auth.provider(name="google", label="Google", icon="https://www.google.com/favicon.ico")
@@ -24,7 +24,7 @@ def google_auth_provider(sqrl: args.AuthProviderArgs) -> auth.ProviderConfigs:
     https://support.google.com/googleapi/answer/6158849?hl=en
     """
     def get_sqrl_user(claims: dict) -> auth.RegisteredUser:
-        custom_fields = CustomUserFields(role="employee")
+        custom_fields = CustomUserFields(role="customer")
         return auth.RegisteredUser(
             username=claims["email"],
             access_level="member",
