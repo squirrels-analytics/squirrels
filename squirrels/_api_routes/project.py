@@ -186,7 +186,7 @@ class ProjectRoutes(RouteBase):
                 raise InvalidInputError(401, "user_required", "Authentication is required to access the data catalog")
             data_catalog = await get_data_catalog0(user)
             
-            self.log_activity_time("GET REQUEST for DATA CATALOG", start, request)
+            self.logger.log_activity_time("GET REQUEST for DATA CATALOG", start)
             return data_catalog
         
         @mcp.tool(
@@ -233,7 +233,7 @@ class ProjectRoutes(RouteBase):
             result = await get_parameters_definition(
                 None, "project", "", PermissionScope.PUBLIC, user, dict(request.query_params), asdict(params), headers=dict(request.headers)
             )
-            self.log_activity_time("GET REQUEST for PROJECT PARAMETERS", start, request)
+            self.logger.log_activity_time("GET REQUEST for PROJECT PARAMETERS", start)
             return result
 
         @app.post(project_level_parameters_path, tags=["Project Metadata"], description=parameters_description)
@@ -245,7 +245,7 @@ class ProjectRoutes(RouteBase):
             result = await get_parameters_definition(
                 None, "project", "", PermissionScope.PUBLIC, user, payload, params.model_dump(), headers=dict(request.headers)
             )
-            self.log_activity_time("POST REQUEST for PROJECT PARAMETERS", start, request)
+            self.logger.log_activity_time("POST REQUEST for PROJECT PARAMETERS", start)
             return result
         
         return get_parameters_definition

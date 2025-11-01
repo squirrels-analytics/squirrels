@@ -175,7 +175,6 @@ class Authenticator:
             new_columns = model_columns - existing_columns
             if new_columns:
                 add_columns_msg = f"Adding columns to database: {new_columns}"
-                print("NOTE -", add_columns_msg)
                 self.logger.info(add_columns_msg)
                 
                 for col_name in new_columns:
@@ -395,7 +394,7 @@ class Authenticator:
         if title is not None:
             session = self.Session()
             try:
-                token_id = "sqrl-" + uuid.uuid4().hex
+                token_id = "sqrl-" + secrets.token_urlsafe(16)
                 hashed_key = u.hash_string(token_id, salt=self.secret_key)
                 api_key = self.DbApiKey(hashed_key=hashed_key, title=title, username=user.username, created_at=created_at, expires_at=expire_at)
                 session.add(api_key)

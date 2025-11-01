@@ -1,6 +1,6 @@
-label: Dashboard Example
+label: Expense Dashboard
 
-description: This is an example dashboard
+description: This is a dashboard showing the total expense amounts by month as a line chart and by subcategory as a pie chart
 
 scope: protected
 
@@ -12,11 +12,11 @@ parameters:
 
 depends_on:
   - name: dataset_example_month
-    dataset: federate_dataset_example
+    dataset: grouped_expenses
     fixed_parameters:
       - group_by: month (Month)
   
   - name: dataset_example_subcategory
-    dataset: federate_dataset_example
+    dataset: grouped_expenses
     fixed_parameters:
       - group_by: subcat (Subcategory)

@@ -87,7 +87,7 @@ class DataModel(metaclass=ABCMeta):
             raise u.ConfigurationError(f'Failed to load duckdb table or view "{self.name}" to python dataframe') from e
     
     def _run_sql_query_on_connection(self, connection_name: str, query: str, placeholders: dict = {}) -> pl.DataFrame:
-        self.logger.info(f"Running sql query on connection '{connection_name}': {query}")
+        self.logger.debug(f"Running SQL query on connection '{connection_name}':\n{query}")
         return self.conn_set.run_sql_query_from_conn_name(query, connection_name, placeholders)
     
     async def _trigger(self, conn: duckdb.DuckDBPyConnection, placeholders: dict = {}) -> None:
@@ -181,12 +181,19 @@ class StaticModel(DataModel):
             local_conn.close()
     
     async def run_model(self, conn: duckdb.DuckDBPyConnection, placeholders: dict = {}) -> None:
-        start = time.time()
-
         if (self.needs_python_df or self.is_target) and self.result is None:
+            start = time.time()
+
             self.result = await asyncio.to_thread(self._get_result, conn)
-        
-        self.logger.log_activity_time(f"loading static model '{self.name}'", start)
+            
+            self.logger.log_activity_time(
+                f"loading {self.model_type.value} model '{self.name}' into memory", start, 
+                additional_data={
+                    "activity": "loading static data model into memory",
+                    "model_name": self.name, 
+                    "model_type": self.model_type.value
+                }
+            )
 
         await super().run_model(conn, placeholders)
 
@@ -231,7 +238,14 @@ class Seed(StaticModel):
         self._create_table_from_df(conn, self.result) # without threading
 
         print(f"[{u.get_current_time()}] ✅ FINISHED: seed model '{self.name}'")
-        self.logger.log_activity_time(f"building seed model '{self.name}' into VDL", start)
+        self.logger.log_activity_time(
+            f"building seed model '{self.name}' into VDL", start, 
+            additional_data={
+                "activity": "building data model into VDL", 
+                "model_name": self.name, 
+                "model_type": self.model_type.value
+            }
+        )
 
         await super().build_model(conn, full_refresh)
 
@@ -337,7 +351,14 @@ class SourceModel(StaticModel):
             self._build_source_model(conn, full_refresh) # without threading
             
             print(f"[{u.get_current_time()}] ✅ FINISHED: source model '{self.name}'")
-            self.logger.log_activity_time(f"building source model '{self.name}' into VDL", start)
+            self.logger.log_activity_time(
+                f"building source model '{self.name}' into VDL", start, 
+                additional_data={
+                    "activity": "building data model into VDL", 
+                    "model_name": self.name, 
+                    "model_type": self.model_type.value
+                }
+            )
 
         await super().build_model(conn, full_refresh)
         
@@ -552,7 +573,14 @@ class DbviewModel(QueryModel):
         kwargs = self._get_compile_sql_model_args(ctx, ctx_args, models_dict)
         self.compiled_query = self._compile_sql_model(kwargs)
         
-        self.logger.log_activity_time(f"compiling dbview model '{self.name}'", start)
+        self.logger.log_activity_time(
+            f"compiling dbview model '{self.name}'", start, 
+            additional_data={
+                "activity": "compiling data model", 
+                "model_name": self.name, 
+                "model_type": self.model_type.value
+            }
+        )
     
     async def _run_sql_model(self, conn: duckdb.DuckDBPyConnection, placeholders: dict = {}) -> None:
         assert self.compiled_query is not None
@@ -588,7 +616,14 @@ class DbviewModel(QueryModel):
         
         await self._run_sql_model(conn, placeholders)
         
-        self.logger.log_activity_time(f"running dbview model '{self.name}'", start)
+        self.logger.log_activity_time(
+            f"running dbview model '{self.name}'", start, 
+            additional_data={
+                "activity": "running data model", 
+                "model_name": self.name, 
+                "model_type": self.model_type.value
+            }
+        )
         
         await super().run_model(conn, placeholders)
     
@@ -673,7 +708,14 @@ class FederateModel(QueryModel):
         else:
             raise NotImplementedError(f"Query type not supported: {self.query_file.__class__.__name__}")
         
-        self.logger.log_activity_time(f"compiling federate model '{self.name}'", start)
+        self.logger.log_activity_time(
+            f"compiling federate model '{self.name}'", start, 
+            additional_data={
+                "activity": "compiling data model", 
+                "model_name": self.name, 
+                "model_type": self.model_type.value
+            }
+        )
         
         if not recurse:
             return 
@@ -735,7 +777,14 @@ class FederateModel(QueryModel):
         else:
             raise NotImplementedError(f"Query type not supported: {self.query_file.__class__.__name__}")
         
-        self.logger.log_activity_time(f"running federate model '{self.name}'", start)
+        self.logger.log_activity_time(
+            f"running federate model '{self.name}'", start, 
+            additional_data={
+                "activity": "running data model", 
+                "model_name": self.name, 
+                "model_type": self.model_type.value
+            }
+        )
         
         await super().run_model(conn, placeholders)
     
@@ -823,7 +872,14 @@ class BuildModel(StaticModel, QueryModel):
         else:
             raise NotImplementedError(f"Query type not supported: {self.query_file.__class__.__name__}")
         
-        self.logger.log_activity_time(f"compiling build model '{self.name}'", start)
+        self.logger.log_activity_time(
+            f"compiling build model '{self.name}'", start, 
+            additional_data={
+                "activity": "compiling data model", 
+                "model_name": self.name, 
+                "model_type": self.model_type.value
+            }
+        )
         
         dependencies = self.model_config.depends_on
         self.wait_count_for_build = len(dependencies)
@@ -889,7 +945,14 @@ class BuildModel(StaticModel, QueryModel):
             raise NotImplementedError(f"Query type not supported: {self.query_file.__class__.__name__}")
         
         print(f"[{u.get_current_time()}] ✅ FINISHED: build model '{self.name}'")
-        self.logger.log_activity_time(f"building static build model '{self.name}'", start)
+        self.logger.log_activity_time(
+            f"building static build model '{self.name}' into VDL", start, 
+            additional_data={
+                "activity": "building data model into VDL", 
+                "model_name": self.name, 
+                "model_type": self.model_type.value
+            }
+        )
         
         await super().build_model(conn, full_refresh)
 
@@ -908,7 +971,9 @@ class DAG:
         return f" for dataset '{self.dataset.name}'" if self.dataset else ""
     
     def compile_build_models(self, conn_args: ConnectionsArgs) -> None:
-        static_models: dict[str, StaticModel] = {k: v for k, v in self.models_dict.items() if isinstance(v, StaticModel)}
+        static_models: dict[str, StaticModel] = {
+            k: v for k, v in self.models_dict.items() if isinstance(v, StaticModel)
+        }
         for model in static_models.values():
             if isinstance(model, BuildModel):
                 model.compile_for_build(conn_args, static_models)
@@ -917,26 +982,39 @@ class DAG:
         self, param_cfg_set: ParameterConfigsSet, user: AbstractUser, selections: dict[str, str]
     ) -> None:
         start = time.time()
+        
         dataset_params = self.dataset.parameters if self.dataset else None
         parameter_set = param_cfg_set.apply_selections(dataset_params, selections, user)
         self.parameter_set = parameter_set
         msg_extension = self._get_msg_extension()
-        self.logger.log_activity_time("applying selections" + msg_extension, start)
+
+        dataset_name = self.dataset.name if self.dataset else None
+        self.logger.log_activity_time(
+            "applying selections" + msg_extension, start, 
+            additional_data={"activity": "applying selections", "dataset_name": dataset_name}
+        )
     
     def _compile_context(
         self, param_args: ParametersArgs, context_func: ContextFunc, user: AbstractUser, configurables: dict[str, str]
     ) -> tuple[dict[str, Any], ContextArgs]:
         start = time.time()
+
         context = {}
         assert isinstance(self.parameter_set, ParameterSet)
         prms = self.parameter_set.get_parameters_as_dict()
         args = ContextArgs(param_args, user, prms, configurables)
         msg_extension = self._get_msg_extension()
+        
         try:
             context_func(context, args)
         except Exception as e:
             raise FileExecutionError(f'Failed to run {c.CONTEXT_FILE}' + msg_extension, e) from e
-        self.logger.log_activity_time("running context.py" + msg_extension, start)
+        
+        dataset_name = self.dataset.name if self.dataset else None
+        self.logger.log_activity_time(
+            "running context.py" + msg_extension, start, 
+            additional_data={"activity": "running context.py", "dataset_name": dataset_name}
+        )
         return context, args
     
     def _compile_models(self, context: dict[str, Any], ctx_args: ContextArgs, recurse: bool) -> None:
@@ -947,7 +1025,7 @@ class DAG:
         terminal_nodes = self.target_model.get_terminal_nodes(set())
         for model in self.models_dict.values():
             model.confirmed_no_cycles = False
-        self.logger.log_activity_time(f"validating no cycles in model dependencies", start)
+        self.logger.log_activity_time("validating no cycles in model dependencies", start)
         return terminal_nodes
 
     def _attach_connections_with_type_duckdb(self, conn: duckdb.DuckDBPyConnection) -> None:

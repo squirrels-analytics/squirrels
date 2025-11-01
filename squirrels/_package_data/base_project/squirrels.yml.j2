@@ -21,9 +21,9 @@ packages: []
 
 
 datasets:
-  - name: dbview_dataset_example          ## model name uses same name unless "model" field is specified
-    label: Example Dataset from DBView Model
-    description: Aggregated expense transactions by month using dbview_example model
+  - name: expense_transactions           ## model name uses same name unless "model" field is specified
+    label: Expense Transactions - DBView Example
+    description: All expense transactions
     model: dbview_example 
     scope: private                        ## optional - one of 'public' (default), 'protected', or 'private'
     parameters:                           ## optional - if not specified, then all parameters are used
@@ -32,8 +32,8 @@ datasets:
       - min_filter
       - max_filter
   
-  - name: federate_dataset_example
-    label: Example Dataset from Federate Model
+  - name: grouped_expenses
+    label: Grouped Expenses - Federate Example
     description: Aggregated expense transactions by custom dimension using federate_example model
     model: federate_example 
     scope: public                         ## using an auth.py file is suggested for protected or private datasets

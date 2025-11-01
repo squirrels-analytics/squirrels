@@ -30,11 +30,16 @@ Here are a few of the things that Squirrels can do:
 
 ## Quick Start
 
-In a new virtual environment, install `squirrels`. Then, in your project directory, run the following commands:
+In a new virtual environment, install `squirrels`. Then, in your project directory, activate the virtual environment and run the following commands:
 
 ```bash
 sqrl new --use-defaults --curr-dir
 sqrl build
+```
+
+To run the API server, simply run:
+
+```bash
 sqrl run
 ```
 

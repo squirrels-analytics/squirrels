@@ -34,7 +34,7 @@ class DashboardRoutes(RouteBase):
     ) -> Dashboard:
         """Helper to get dashboard results"""
         cfg_filtered = {k: v for k, v in dict(configurables).items() if k in self.manifest_cfg.configurables}
-        return await self.project.dashboard(dashboard, user, selections=dict(selections), configurables=cfg_filtered)
+        return await self.project.dashboard(dashboard, user=user, selections=dict(selections), configurables=cfg_filtered)
     
     async def _get_dashboard_results_cachable(
         self, dashboard: str, user: AbstractUser, selections: tuple[tuple[str, Any], ...], configurables: tuple[tuple[str, str], ...]
@@ -105,7 +105,9 @@ class DashboardRoutes(RouteBase):
                 result = await get_parameters_definition(
                     parameters_list, "dashboard", curr_dashboard_name, scope, user, dict(request.query_params), asdict(params), headers=dict(request.headers)
                 )
-                self.log_activity_time("GET REQUEST for PARAMETERS", start, request)
+                self.logger.log_activity_time(
+                    "GET REQUEST for PARAMETERS", start, additional_data={"dashboard_name": curr_dashboard_name}
+                )
                 return result
 
             @app.post(curr_parameters_path, tags=[f"Dashboard '{dashboard_name}'"], description=self._parameters_description, response_class=JSONResponse)
@@ -120,7 +122,9 @@ class DashboardRoutes(RouteBase):
                 result = await get_parameters_definition(
                     parameters_list, "dashboard", curr_dashboard_name, scope, user, payload, params.model_dump(), headers=dict(request.headers)
                 )
-                self.log_activity_time("POST REQUEST for PARAMETERS", start, request)
+                self.logger.log_activity_time(
+                    "POST REQUEST for PARAMETERS", start, additional_data={"dashboard_name": curr_dashboard_name}
+                )
                 return result
             
             @app.get(curr_results_path, tags=[f"Dashboard '{dashboard_name}'"], description=dashboard.config.description, response_class=Response)
@@ -132,7 +136,9 @@ class DashboardRoutes(RouteBase):
                 result = await self._get_dashboard_results_definition(
                     curr_dashboard_name, user, dict(request.query_params), asdict(params), headers=dict(request.headers)
                 )
-                self.log_activity_time("GET REQUEST for DASHBOARD RESULTS", start, request)
+                self.logger.log_activity_time(
+                    "GET REQUEST for DASHBOARD RESULTS", start, additional_data={"dashboard_name": curr_dashboard_name}
+                )
                 return result
 
             @app.post(curr_results_path, tags=[f"Dashboard '{dashboard_name}'"], description=dashboard.config.description, response_class=Response)
@@ -145,6 +151,8 @@ class DashboardRoutes(RouteBase):
                 result = await self._get_dashboard_results_definition(
                     curr_dashboard_name, user, payload, params.model_dump(), headers=dict(request.headers)
                 )
-                self.log_activity_time("POST REQUEST for DASHBOARD RESULTS", start, request)
+                self.logger.log_activity_time(
+                    "POST REQUEST for DASHBOARD RESULTS", start, additional_data={"dashboard_name": curr_dashboard_name}
+                )
                 return result
     
