@@ -4,6 +4,7 @@ from uuid import uuid4
 import logging as l, json
 
 from . import _constants as c, _utils as u
+from ._request_context import get_request_id
 
 
 class _BaseFormatter(l.Formatter):
@@ -19,6 +20,11 @@ class _BaseFormatter(l.Formatter):
         
         # Format the message
         formatted = super().format(record)
+        
+        # Append request ID if available
+        request_id = get_request_id()
+        request_id_str = f" [req_id: {request_id}]" if request_id else ""
+        formatted = formatted.format(request_id=request_id_str)
         
         # Restore original levelname
         record.levelname = original_levelname
@@ -57,15 +63,12 @@ class _PlainFormatter(_BaseFormatter):
 class _CustomJsonFormatter(l.Formatter):
     def format(self, record: l.LogRecord) -> str:
         super().format(record)
+        request_id = get_request_id()
         info = {
             "timestamp": self.formatTime(record),
-            "project_id": record.name,
             "level": record.levelname,
             "message": record.getMessage(),
-            "thread": record.thread,
-            "thread_name": record.threadName,
-            "process": record.process,
-            **record.__dict__.get("info", {})
+            "request_id": request_id,
         }
         output = {
             "data": record.__dict__.get("data", {}),
@@ -77,8 +80,7 @@ class _CustomJsonFormatter(l.Formatter):
 def get_logger(
     base_path: str, log_to_file: bool, log_level: str, log_format: str, log_file_size_mb: int, log_file_backup_count: int
 ) -> u.Logger:
-    logger = u.Logger(name=uuid4().hex)
-    logger.setLevel(log_level.upper())
+    logger = u.Logger(name=uuid4().hex, level=log_level.upper())
 
     # Determine the formatter based on log_format
     if log_format.lower() == "json":
@@ -86,7 +88,7 @@ def get_logger(
         file_formatter = _CustomJsonFormatter()
     elif log_format.lower() == "text":
         # Use colored formatter for stdout, plain formatter with colon for file
-        format_string = "%(levelname)s [%(asctime)s] %(message)s"
+        format_string = "%(levelname)s [%(asctime)s]{request_id} %(message)s"
         stdout_formatter = _ColoredFormatter(format_string, datefmt="%Y-%m-%d %H:%M:%S")
         file_formatter = _PlainFormatter(format_string, datefmt="%Y-%m-%d %H:%M:%S")
     else:

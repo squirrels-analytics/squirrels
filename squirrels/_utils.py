@@ -33,12 +33,20 @@ sqrl_dtypes_to_polars_dtypes: dict[str, type[pl.DataType]] = {sqrl_type: k for k
 ## Other utility classes
 
 class Logger(logging.Logger):
-    def log_activity_time(self, activity: str, start_timestamp: float, *, request_id: str | None = None) -> None:
+    def info(self, msg: str, *, data: dict[str, Any] = {}, **kwargs) -> None:
+        super().info(msg, extra={"data": data}, **kwargs)
+
+    def log_activity_time(self, activity: str, start_timestamp: float, *, additional_data: dict[str, Any] = {}) -> None:
         end_timestamp = time.time()
         time_taken = round((end_timestamp-start_timestamp) * 10**3, 3)
-        data = { "activity": activity, "start_timestamp": start_timestamp, "end_timestamp": end_timestamp, "time_taken_ms": time_taken }
-        info = { "request_id": request_id } if request_id else {}
-        self.info(f'Time taken for "{activity}": {time_taken}ms', extra={"data": data, "info": info})
+        data = {
+            "activity": activity,
+            "start_timestamp": start_timestamp, 
+            "end_timestamp": end_timestamp, 
+            "time_taken_ms": time_taken,
+            **additional_data
+        }
+        self.info(f'Time taken for "{activity}": {time_taken}ms', data=data)
 
 
 class EnvironmentWithMacros(j2.Environment):
@@ -208,6 +216,8 @@ def _read_duckdb_init_sql(
         if datalake_db_path:
             attach_stmt = f"ATTACH '{datalake_db_path}' AS vdl (READ_ONLY);"
             init_contents.append(attach_stmt)
+            use_stmt = f"USE vdl;"
+            init_contents.append(use_stmt)
                 
         init_sql = "\n\n".join(init_contents).strip()
         return init_sql
@@ -307,7 +317,7 @@ def run_duckdb_stmt(
         redacted_stmt = redacted_stmt.replace(value, "[REDACTED]")
     
     for_model_name = f" for model '{model_name}'" if model_name is not None else ""
-    logger.debug(f"Running SQL statement{for_model_name}:\n{redacted_stmt}", extra={"data": {"params": params}})
+    logger.debug(f"Running SQL statement{for_model_name}:\n{redacted_stmt}")
     try:
         return duckdb_conn.execute(stmt, params)
     except duckdb.ParserException as e:

@@ -10,5 +10,9 @@ def main(connections: dict[str, cn.ConnectionProperties | Any], sqrl: args.Conne
     conn_str: str = sqrl.env_vars["SQLITE_URI"].format(project_path=sqrl.project_path)
 
     ## Assigning names to connection engines
-    connections["default"] = cn.ConnectionProperties(label="SQLite Expenses Database", type=cn.ConnectionTypeEnum.SQLALCHEMY, uri=conn_str)
+    connections["default"] = cn.ConnectionProperties(
+        label="SQLite Expenses Database", 
+        type=cn.ConnectionTypeEnum.SQLALCHEMY, 
+        uri=conn_str
+    )
     

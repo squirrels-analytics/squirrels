@@ -16,6 +16,7 @@ from . import _constants as c, _utils as u, _parameter_sets as ps
 from ._exceptions import InvalidInputError, ConfigurationError, FileExecutionError
 from ._version import __version__, sq_major_version
 from ._project import SquirrelsProject
+from ._request_context import set_request_id
 
 # Import route modules
 from ._api_routes.auth import AuthRoutes
@@ -247,29 +248,30 @@ class ApiServer:
         app.add_middleware(SessionMiddleware, secret_key=self.env_vars.get(c.SQRL_SECRET_KEY, ""), max_age=None, same_site="none", https_only=True)
 
         async def _log_request_run(request: Request) -> None:
-            headers = dict(request.scope["headers"])
-            request_id = uuid.uuid4().hex
-            headers[b"x-request-id"] = request_id.encode()
-            request.scope["headers"] = list(headers.items())
-
             try:
                 body = await request.json()
             except Exception:
-                body = None
+                body = None  # Non-JSON payloads may contain sensitive information, so we don't log them
+
+            partial_headers: dict[str, str] = {}
+            for header in request.headers.keys():
+                if header.startswith("x-") and header not in ["x-api-key"]:
+                    partial_headers[header] = request.headers[header]
             
-            headers_dict = dict(request.headers)
             path, params = request.url.path, dict(request.query_params)
             path_with_params = f"{path}?{request.query_params}" if len(params) > 0 else path
-            data = {"request_method": request.method, "request_path": path, "request_params": params, "request_headers": headers_dict, "request_body": body}
-            info = {"request_id": request_id}
-            self.logger.info(f'Running request: {request.method} {path_with_params}', extra={"data": data, "info": info})
+            data = {"request_method": request.method, "request_path": path, "request_params": params, "request_body": body, "partial_headers": partial_headers}
+            self.logger.info(f'Running request: {request.method} {path_with_params}', data=data)
 
         @app.middleware("http")
         async def catch_exceptions_middleware(request: Request, call_next):
+            # Generate and set request ID for this request
+            request_id = set_request_id()
+            
             buffer = io.StringIO()
             try:
                 await _log_request_run(request)
-                return await call_next(request)
+                response = await call_next(request)
             except InvalidInputError as exc:
                 message = str(exc)
                 self.logger.error(message)
@@ -296,14 +298,22 @@ class ApiServer:
             err_msg = buffer.getvalue()
             if err_msg:
                 self.logger.error(err_msg)
-                # print(err_msg)
+            
+            # Add request ID to response header
+            response.headers["X-Request-ID"] = request_id
+            
             return response
 
         # Configure CORS with smart credential handling
         # Get allowed origins for credentials from environment variable
         credential_origins_env = self.env_vars.get(c.SQRL_AUTH_CREDENTIAL_ORIGINS, "https://squirrels-analytics.github.io")
         allowed_credential_origins = [origin.strip() for origin in credential_origins_env.split(",") if origin.strip()]
-        configurables_as_headers = [f"x-config-{u.normalize_name_for_api(name)}" for name in self.manifest_cfg.configurables.keys()]
+        
+        # Allow both underscore and dash versions of configurable headers
+        configurables_as_headers = []
+        for name in self.manifest_cfg.configurables.keys():
+            configurables_as_headers.append(f"x-config-{name}")  # underscore version
+            configurables_as_headers.append(f"x-config-{u.normalize_name_for_api(name)}")  # dash version
         
         app.add_middleware(SmartCORSMiddleware, allowed_credential_origins=allowed_credential_origins, configurables_as_headers=configurables_as_headers)
         
@@ -349,7 +359,7 @@ class ApiServer:
         import uvicorn
         
         print("\nWelcome to the Squirrels Data Application!\n")
-        print(f"- Application UI: {full_hostname}{squirrels_studio_path}")
+        print(f"- Application UI (Squirrels Studio): {full_hostname}{squirrels_studio_path}")
         print(f"- API Docs (with ReDoc): {full_hostname}{project_metadata_path}/redoc")
         print(f"- API Docs (with Swagger UI): {full_hostname}{project_metadata_path}/docs")
         print(f"- MCP Server URL: {full_hostname}{project_metadata_path}/mcp")

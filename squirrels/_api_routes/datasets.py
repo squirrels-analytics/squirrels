@@ -128,7 +128,9 @@ class DatasetRoutes(RouteBase):
                 start = time.time()
                 curr_dataset_name = self.get_name_from_path_section(request, -2)
                 result = await get_dataset_parameters_updates(curr_dataset_name, user, dict(request.query_params), asdict(params), dict(request.headers))
-                self.log_activity_time("GET REQUEST for PARAMETERS", start, request)
+                self.logger.log_activity_time(
+                    "GET REQUEST for PARAMETERS", start, additional_data={"dataset_name": curr_dataset_name}
+                )
                 return result
 
             @app.post(curr_parameters_path, tags=[f"Dataset '{dataset_name}'"], description=self._parameters_description, response_class=JSONResponse)
@@ -139,7 +141,9 @@ class DatasetRoutes(RouteBase):
                 curr_dataset_name = self.get_name_from_path_section(request, -2)
                 payload: dict = await request.json()
                 result = await get_dataset_parameters_updates(curr_dataset_name, user, payload, params.model_dump(), dict(request.headers))
-                self.log_activity_time("POST REQUEST for PARAMETERS", start, request)
+                self.logger.log_activity_time(
+                    "POST REQUEST for PARAMETERS", start, additional_data={"dataset_name": curr_dataset_name}
+                )
                 return result
             
             @app.get(curr_results_path, tags=[f"Dataset '{dataset_name}'"], description=dataset_config.description, response_class=JSONResponse)
@@ -151,7 +155,9 @@ class DatasetRoutes(RouteBase):
                 result = await self._get_dataset_results_definition(
                     curr_dataset_name, user, dict(request.query_params), asdict(params), headers=dict(request.headers)
                 )
-                self.log_activity_time("GET REQUEST for DATASET RESULTS", start, request)
+                self.logger.log_activity_time(
+                    "GET REQUEST for DATASET RESULTS", start, additional_data={"dataset_name": curr_dataset_name}
+                )
                 return result
             
             @app.post(curr_results_path, tags=[f"Dataset '{dataset_name}'"], description=dataset_config.description, response_class=JSONResponse)
@@ -164,7 +170,9 @@ class DatasetRoutes(RouteBase):
                 result = await self._get_dataset_results_definition(
                     curr_dataset_name, user, payload, params.model_dump(), headers=dict(request.headers)
                 )
-                self.log_activity_time("POST REQUEST for DATASET RESULTS", start, request)
+                self.logger.log_activity_time(
+                    "POST REQUEST for DATASET RESULTS", start, additional_data={"dataset_name": curr_dataset_name}
+                )
                 return result
     
         # Setup MCP tools
