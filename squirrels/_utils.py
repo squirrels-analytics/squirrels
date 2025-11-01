@@ -317,7 +317,7 @@ def run_duckdb_stmt(
         redacted_stmt = redacted_stmt.replace(value, "[REDACTED]")
     
     for_model_name = f" for model '{model_name}'" if model_name is not None else ""
-    logger.debug(f"Running SQL statement{for_model_name}:\n{redacted_stmt}", data={"params": params})
+    logger.debug(f"Running SQL statement{for_model_name}:\n{redacted_stmt}")
     try:
         return duckdb_conn.execute(stmt, params)
     except duckdb.ParserException as e:
