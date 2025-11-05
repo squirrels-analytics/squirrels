@@ -67,7 +67,8 @@ class ProjectRoutes(RouteBase):
         )
         
     def setup_routes(
-        self, app: FastAPI, mcp: FastMCP, project_metadata_path: str, project_name: str, project_version: str, project_label: str, param_fields: dict
+        self, app: FastAPI, mcp: FastMCP, project_metadata_path: str, project_name_version_path: str, 
+        project_name: str, project_version: str, project_label: str, param_fields: dict
     ):
         """Setup project metadata routes"""
 
@@ -84,9 +85,10 @@ class ProjectRoutes(RouteBase):
                 label=self.manifest_cfg.project_variables.label,
                 description=self.manifest_cfg.project_variables.description,
                 elevated_access_level=elevated_access_level,
-                redoc_path=project_metadata_path + "/redoc",
-                swagger_path=project_metadata_path + "/docs",
-                mcp_server_path=project_metadata_path + "/mcp",
+                redoc_path=project_name_version_path + "/redoc",
+                swagger_path=project_name_version_path + "/docs",
+                openapi_path=project_name_version_path + "/openapi.json",
+                mcp_server_path=[project_name_version_path + "/mcp", "/mcp"],
                 squirrels_version=__version__
             )
         
