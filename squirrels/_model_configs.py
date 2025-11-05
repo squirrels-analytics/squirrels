@@ -66,7 +66,7 @@ class DbviewModelConfig(ConnectionInterface, QueryModelConfig):
 
 
 class FederateModelConfig(QueryModelConfig):
-    eager: bool = Field(default=False, description="Whether the model should be materialized for SQL models")
+    eager: bool = Field(default=False, description="Whether the model should always be materialized in memory for SQL models")
 
     def get_sql_for_create(self, model_name: str, select_query: str) -> str:
         materialization = "TABLE" if self.eager else "VIEW"

@@ -129,16 +129,16 @@ class DatasetItemModel(BaseModel):
     configurables: Annotated[list[ConfigurableDefaultModel], Field(default_factory=list, description="The list of configurables with their default values")]
     parameters: Annotated[list[str], Field(examples=["myparam1", "myparam2"], description="The list of parameter names used by the dataset. If the list is empty, the dataset does not accept any parameters.")]
     data_schema: Annotated[SchemaWithConditionModel, Field(alias="schema", description="JSON object describing the schema of the dataset")]
-    parameters_path: Annotated[str, Field(examples=["/squirrels/v0/myproject/v1/dataset/mydataset/parameters"], description=parameters_path_description)]
-    result_path: Annotated[str, Field(examples=["/squirrels/v0/myproject/v1/dataset/mydataset"], description=result_path_description)]
+    parameters_path: Annotated[str, Field(examples=["/api/squirrels/v0/myproject/v1/dataset/mydataset/parameters"], description=parameters_path_description)]
+    result_path: Annotated[str, Field(examples=["/api/squirrels/v0/myproject/v1/dataset/mydataset"], description=result_path_description)]
     
 class DashboardItemModel(ParametersModel):
     name: Annotated[str, Field(examples=["mydashboard"], description=name_description)]
     label: Annotated[str, Field(examples=["My Dashboard"], description=label_description)]
     description: Annotated[str, Field(examples=[""], description=description_description)]
     parameters: Annotated[list[str], Field(examples=["myparam1", "myparam2"], description="The list of parameter names used by the dashboard")]
-    parameters_path: Annotated[str, Field(examples=["/squirrels/v0/myproject/v1/dashboard/mydashboard/parameters"], description=parameters_path_description)]
-    result_path: Annotated[str, Field(examples=["/squirrels/v0/myproject/v1/dashboard/mydashboard"], description=result_path_description)]
+    parameters_path: Annotated[str, Field(examples=["/api/squirrels/v0/myproject/v1/dashboard/mydashboard/parameters"], description=parameters_path_description)]
+    result_path: Annotated[str, Field(examples=["/api/squirrels/v0/myproject/v1/dashboard/mydashboard"], description=result_path_description)]
     result_format: Annotated[str, Field(examples=["png", "html"], description="The format of the dashboard's result API response (one of 'png' or 'html')")]
 
 ModelConfigType = mc.ModelConfig | s.Source | mc.SeedConfig | mc.BuildModelConfig | mc.DbviewModelConfig | mc.FederateModelConfig
@@ -204,7 +204,7 @@ class CompiledQueryModel(BaseModel):
 
 class ProjectVersionModel(BaseModel):
     major_version: Annotated[int, Field(examples=[1])]
-    data_catalog_path: Annotated[str, Field(examples=["/squirrels/v0/project/myproject/v1/data-catalog"])]
+    data_catalog_path: Annotated[str, Field(examples=["/api/squirrels/v0/project/myproject/v1/data-catalog"])]
 
 class ProjectModel(BaseModel):
     name: Annotated[str, Field(examples=["myproject"])]
@@ -214,7 +214,8 @@ class ProjectModel(BaseModel):
     elevated_access_level: Annotated[Literal["admin", "member", "guest"], Field(
         examples=["admin"], description="The access level required to access elevated features (such as configurables and data lineage)"
     )]
-    redoc_path: Annotated[str, Field(examples=["/squirrels/v0/project/myproject/v1/redoc"])]
-    swagger_path: Annotated[str, Field(examples=["/squirrels/v0/project/myproject/v1/docs"])]
-    mcp_server_path: Annotated[str, Field(examples=["/squirrels/v0/project/myproject/v1/mcp"])]
+    redoc_path: Annotated[str, Field(examples=["/project/myproject/v1/redoc"])]
+    swagger_path: Annotated[str, Field(examples=["/project/myproject/v1/docs"])]
+    openapi_path: Annotated[str, Field(examples=["/project/myproject/v1/openapi.json"])]
+    mcp_server_path: Annotated[list[str], Field(examples=[["/project/myproject/v1/mcp", "/mcp"]])]
     squirrels_version: Annotated[str, Field(examples=["0.1.0"])]
