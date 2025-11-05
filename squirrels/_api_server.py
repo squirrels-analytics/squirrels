@@ -230,19 +230,24 @@ class ApiServer:
         project_name_for_api = u.normalize_name_for_api(project_name)
         project_label = self.manifest_cfg.project_variables.label
         project_version = f"v{self.manifest_cfg.project_variables.major_version}"
-        project_metadata_path = squirrels_version_path + f"/project/{project_name_for_api}/{project_version}"
+        project_name_version_path = f"/project/{project_name_for_api}/{project_version}"
+        project_metadata_path = squirrels_version_path + project_name_version_path
         
         param_fields = self.param_cfg_set.get_all_api_field_info()
 
         tags_metadata = self._get_tags_metadata()
         
+        openapi_url = project_name_version_path+"/openapi.json"
+        docs_url = project_name_version_path+"/docs"
+        redoc_url = project_name_version_path+"/redoc"
+
         app = FastAPI(
             title=f"Squirrels APIs for '{project_label}'", openapi_tags=tags_metadata,
             description="For specifying parameter selections to dataset APIs, you can choose between using query parameters with the GET method or using request body with the POST method",
             lifespan=self._run_background_tasks,
-            openapi_url=project_metadata_path+"/openapi.json",
-            docs_url=project_metadata_path+"/docs",
-            redoc_url=project_metadata_path+"/redoc"
+            openapi_url=openapi_url,
+            docs_url=docs_url,
+            redoc_url=redoc_url
         )
 
         app.add_middleware(SessionMiddleware, secret_key=self.env_vars.get(c.SQRL_SECRET_KEY, ""), max_age=None, same_site="none", https_only=True)
@@ -320,12 +325,13 @@ class ApiServer:
         # Setup route modules
         # self.oauth2_routes.setup_routes(app, squirrels_version_path)
         self.auth_routes.setup_routes(app, squirrels_version_path)
-        get_parameters_definition = self.project_routes.setup_routes(app, self.mcp, project_metadata_path, project_name, project_version, project_label, param_fields)
+        get_parameters_definition = self.project_routes.setup_routes(
+            app, self.mcp, project_metadata_path, project_name_version_path, project_name, project_version, project_label, param_fields
+        )
         self.data_management_routes.setup_routes(app, project_metadata_path, param_fields)
         self.dataset_routes.setup_routes(app, self.mcp, project_metadata_path, project_name, project_label, param_fields, get_parameters_definition)
         self.dashboard_routes.setup_routes(app, project_metadata_path, param_fields, get_parameters_definition)
-        app.mount(project_metadata_path, self.mcp.streamable_http_app())
-    
+
         # Mount static files from public directory if it exists
         # This allows users to serve static assets (images, CSS, JS, etc.) from {project_path}/public/
         public_dir = Path(self.project._filepath) / c.PUBLIC_FOLDER
@@ -335,7 +341,7 @@ class ApiServer:
     
         # Add Root Path Redirection to Squirrels Studio
         full_hostname = f"http://{uvicorn_args.host}:{uvicorn_args.port}"
-        squirrels_studio_path = f"/project/{project_name_for_api}/{project_version}/studio"
+        squirrels_studio_path = f"{project_name_version_path}/studio"
         templates = Jinja2Templates(directory=str(Path(__file__).parent / "_package_data" / "templates"))
 
         @app.get(squirrels_studio_path, include_in_schema=False)
@@ -353,6 +359,12 @@ class ApiServer:
         async def redirect_to_studio():
             return RedirectResponse(url=squirrels_studio_path)
 
+        # Mount MCP server
+        mcp_app = self.mcp.streamable_http_app()
+        app.mount(project_name_version_path, mcp_app)
+        app.mount("/", mcp_app)
+        app.mount(project_metadata_path, mcp_app) # For backwards compatibility
+    
         self.logger.log_activity_time("creating app server", start)
 
         # Run the API Server
@@ -360,9 +372,13 @@ class ApiServer:
         
         print("\nWelcome to the Squirrels Data Application!\n")
         print(f"- Application UI (Squirrels Studio): {full_hostname}{squirrels_studio_path}")
-        print(f"- API Docs (with ReDoc): {full_hostname}{project_metadata_path}/redoc")
-        print(f"- API Docs (with Swagger UI): {full_hostname}{project_metadata_path}/docs")
-        print(f"- MCP Server URL: {full_hostname}{project_metadata_path}/mcp")
+        print(f"- MCP Server URL (Pick one):")
+        print(f"  - Option 1: {full_hostname}{project_name_version_path}/mcp")
+        print(f"  - Option 2: {full_hostname}/mcp")
+        print("\nAPI Docs with OpenAPI Specification:\n")
+        print(f"- ReDoc UI: {full_hostname}{redoc_url}")
+        print(f"- Swagger UI: {full_hostname}{docs_url}")
+        print(f"- Specification: {full_hostname}{openapi_url}")
         print()
         
         uvicorn.run(app, host=uvicorn_args.host, port=uvicorn_args.port, proxy_headers=True, forwarded_allow_ips="*")
