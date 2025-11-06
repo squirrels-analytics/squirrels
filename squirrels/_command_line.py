@@ -62,11 +62,20 @@ def main():
         subparser: ArgumentParser = subparsers.add_parser(cmd, description=help_text, help=help_text, add_help=False, parents=[parent_parser])
         return subparser
 
-    init_parser = add_subparser(subparsers, c.INIT_CMD, 'Create a new squirrels project')
+    new_parser = add_subparser(subparsers, c.NEW_CMD, 'Create a new squirrels project')
     
-    init_parser.add_argument('name', nargs='?', type=str, help='The name of the project folder to create. Ignored if --curr-dir is used')
-    init_parser.add_argument('--curr-dir', action='store_true', help='Create the project in the current directory')
-    init_parser.add_argument('--use-defaults', action='store_true', help='Use default values for unspecified options (except project folder name) instead of prompting for input')
+    new_parser.add_argument('name', nargs='?', type=str, help='The name of the project folder to create. Ignored if --curr-dir is used')
+    new_parser.add_argument('--curr-dir', action='store_true', help='Create the project in the current directory')
+    new_parser.add_argument('--use-defaults', action='store_true', help='Use default values for unspecified options (except project folder name) instead of prompting for input')
+    new_parser.add_argument('--connections', type=str, choices=c.CONF_FORMAT_CHOICES, help=f'Configure database connections as yaml (default) or python')
+    new_parser.add_argument('--parameters', type=str, choices=c.CONF_FORMAT_CHOICES, help=f'Configure parameters as python (default) or yaml')
+    new_parser.add_argument('--build', type=str, choices=c.FILE_TYPE_CHOICES, help='Create build model as sql (default) or python file')
+    new_parser.add_argument('--federate', type=str, choices=c.FILE_TYPE_CHOICES, help='Create federated model as sql (default) or python file')
+    new_parser.add_argument('--dashboard', type=str, choices=['y', 'n'], help=f'Include (y) or exclude (n, default) a sample dashboard file')
+    new_parser.add_argument('--admin-password', type=str, help='The password for the admin user. If --use-defaults is used, then a random password is generated')
+
+    init_parser = add_subparser(subparsers, c.INIT_CMD, 'Create a new squirrels project in the current directory (alias for "new --curr-dir")')
+    init_parser.add_argument('--use-defaults', action='store_true', help='Use default values for unspecified options instead of prompting for input')
     init_parser.add_argument('--connections', type=str, choices=c.CONF_FORMAT_CHOICES, help=f'Configure database connections as yaml (default) or python')
     init_parser.add_argument('--parameters', type=str, choices=c.CONF_FORMAT_CHOICES, help=f'Configure parameters as python (default) or yaml')
     init_parser.add_argument('--build', type=str, choices=c.FILE_TYPE_CHOICES, help='Create build model as sql (default) or python file')
@@ -134,8 +143,10 @@ def main():
     
     if args.version:
         print(__version__)
-    elif args.command == c.INIT_CMD:
+    elif args.command == c.NEW_CMD:
         Initializer(project_name=args.name, use_curr_dir=args.curr_dir).init_project(args)
+    elif args.command == c.INIT_CMD:
+        Initializer(project_name=None, use_curr_dir=True).init_project(args)
     elif args.command == c.GET_FILE_CMD:
         Initializer().get_file(args)
     elif args.command is None:
