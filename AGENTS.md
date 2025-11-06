@@ -70,8 +70,9 @@ Confirm CLI:
 - `_initializer.py`: Scaffolds a new project and sample files; also provides `get-file` assets.
 - `_package_data/`: Base templates and sample assets copied by the initializer.
 
-### Typical generated project structure (per `sqrl init`)
-When you run `sqrl init <name>` (or `--curr-dir`), the initializer creates a project directory with:
+### Typical generated project structure
+
+When you run `sqrl new <name>` (or `--curr-dir`), the initializer creates a project directory with:
 - `squirrels.yml`: Main manifest configuring datasets, routes, privacy scopes, and dashboards.
 - `pyconfigs/`
   - `connections.py` or `connections.yml`: Database connections (SQLAlchemy URLs or native connectors)
@@ -90,6 +91,8 @@ When you run `sqrl init <name>` (or `--curr-dir`), the initializer creates a pro
 - `target/`: Outputs (compiled SQL, logs)
   - `compile/`: Rendered SQL files from `sqrl compile`
   - `duckdb_init.sql`: Initialization SQL used by `sqrl duckdb`
+
+Alternatively, you can run `sqrl init` as an alias for `sqrl new --curr-dir`.
 
 ### Model types and execution
 - SQL models (Jinja-templated): Compiled into concrete SQL using project parameters and context.

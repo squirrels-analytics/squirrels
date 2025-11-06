@@ -372,7 +372,7 @@ class ApiServer:
         
         print("\nWelcome to the Squirrels Data Application!\n")
         print(f"- Application UI (Squirrels Studio): {full_hostname}{squirrels_studio_path}")
-        print(f"- MCP Server URL (Pick one):")
+        print(f"- MCP Server URL (pick one):")
         print(f"  - Option 1: {full_hostname}{project_name_version_path}/mcp")
         print(f"  - Option 2: {full_hostname}/mcp")
         print("\nAPI Docs with OpenAPI Specification:\n")

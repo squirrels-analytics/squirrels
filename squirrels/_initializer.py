@@ -123,7 +123,7 @@ class Initializer:
         CONNECTIONS, PARAMETERS, BUILD, FEDERATE, DASHBOARD, ADMIN_PASSWORD = options
 
         # Add project name prompt if not provided
-        if self.project_name is None and not args.curr_dir:
+        if self.project_name is None and not self.use_curr_dir:
             questions = [
                 inquirer.Text('project_name', message="What is your project folder name? (leave blank to create in current directory)")
             ]

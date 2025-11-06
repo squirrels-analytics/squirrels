@@ -1,5 +1,6 @@
 # Squirrels CLI commands
-INIT_CMD = 'new'
+NEW_CMD = 'new'
+INIT_CMD = 'init'
 GET_FILE_CMD = 'get-file'
 DEPS_CMD = 'deps'
 BUILD_CMD = 'build'
