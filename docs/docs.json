@@ -1,0 +1,96 @@
+{
+  "$schema": "https://mintlify.com/docs.json",
+  "theme": "mint",
+  "name": "Squirrels Docs",
+  "css": [
+    "/styles.css"
+  ],
+  "colors": {
+    "primary": "#B85707",
+    "light": "#EF9750",
+    "dark": "#9B4907"
+  },
+  "favicon": "/images/logo/main.svg",
+  "navigation": {
+    "tabs": [
+      {
+        "tab": "Home",
+        "pages": [
+          "index"
+        ]
+      },
+      {
+        "tab": "Developer Guide",
+        "groups": [
+          {
+            "group": "Getting started",
+            "pages": [
+              "start/index",
+              "start/quickstart",
+              "start/tutorial"
+            ]
+          }
+        ]
+      },
+      {
+        "tab": "CLI Reference",
+        "pages": [
+          "cli/tba"
+        ]
+      },
+      {
+        "tab": "Python Reference",
+        "pages": [
+          "python/tba"
+        ]
+      },
+      {
+        "tab": "REST APIs",
+        "pages": [
+          "rest/tba"
+        ]
+      },
+      {
+        "tab": "Release Notes",
+        "pages": [
+          "release/tba"
+        ]
+      }
+    ]
+  },
+  "logo": {
+    "light": "/images/logo/light.svg",
+    "dark": "/images/logo/dark.svg"
+  },
+  "navbar": {
+    "links": [
+      {
+        "label": "Support",
+        "href": "mailto:support@pysquirrels.com"
+      }
+    ],
+    "primary": {
+      "type": "button",
+      "label": "GitHub",
+      "href": "https://github.com/squirrels-analytics/squirrels"
+    }
+  },
+  "contextual": {
+    "options": [
+     "copy",
+     "view",
+     "chatgpt",
+     "claude",
+     "perplexity",
+     "mcp",
+     "cursor",
+     "vscode"
+   ]
+  },
+  "footer": {
+    "socials": {
+      "github": "https://github.com/squirrels-analytics/squirrels",
+      "linkedin": "https://linkedin.com/company/squirrels-analytics"
+    }
+  }
+}

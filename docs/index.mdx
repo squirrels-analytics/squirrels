@@ -1,0 +1,147 @@
+---
+title: "Home"
+description: "Build powerful dataset APIs with Squirrels"
+mode: "custom"
+---
+
+<div className="home-page"
+  style={{
+    maxWidth: "1000px",
+    margin: "0 auto",
+    padding: "0 24px 80px",
+  }}
+>
+
+  <div className="home-hero">
+    <div className="home-hero-left">
+      <h1 className="home-title">Squirrels</h1>
+
+      <p className="home-description">
+        The modern API framework for data analytics.
+      </p>
+      <br/>
+      <p>
+        Comes with built-in MCP server. Use it to provide AI agents with data analytics capabilities on your data.
+      </p>
+      
+      <a href="/start/quickstart" className="home-get-started-btn">
+        Get Started
+      </a>
+    </div>
+
+    <div className="home-hero-right">
+      <div className="home-terminal">
+        <div className="home-terminal-header">
+          <span className="home-terminal-dot home-terminal-dot--red"></span>
+          <span className="home-terminal-dot home-terminal-dot--yellow"></span>
+          <span className="home-terminal-dot home-terminal-dot--green"></span>
+          <span className="home-terminal-title">Terminal</span>
+        </div>
+        <pre className="home-code"><code className="language-bash">
+          <span className="comment"># Start from an empty folder</span>
+          <br />
+          <span className="command">cd my-squirrels-project</span>
+          <br /><br />
+          <span className="comment"># Initialize a new project</span>
+          <br />
+          <span className="command">pip install squirrels</span>
+          <br />
+          <span className="command">{"sqrl init --use-defaults"}</span>
+          <br />
+          <span className="command">sqrl build</span>
+          <br /><br />
+          <span className="comment"># Run the API server</span>
+          <br />
+          <span className="command">sqrl run</span>
+        </code></pre>
+      </div>
+    </div>
+  </div>
+  
+  <h2 className="home-section-title">Getting Started</h2>
+
+  <CardGroup cols={3}>
+    <Card
+      title="Introduction"
+      icon="book-open"
+      href="/start/index"
+    >
+      Learn about Squirrels features and capabilities.
+    </Card>
+
+    <Card
+      title="Quickstart"
+      icon="rocket"
+      href="/start/quickstart"
+    >
+      Make your first Squirrels project in minutes.
+    </Card>
+
+    <Card
+      title="Complete the Tutorial"
+      icon="graduation-cap"
+      href="/start/tutorial"
+    >
+      Follow a step-by-step guide to build your first custom application.
+    </Card>
+  </CardGroup>
+  
+  {/*
+  <h2 className="home-section-title">Core Features</h2>
+
+  <CardGroup cols={3}>
+    <Card
+      title="Data Models"
+      icon="diagram-project"
+      href="/docs/data-models"
+    >
+      Create SQL and Python models that reference each other for flexible data transformations.
+    </Card>
+
+    <Card
+      title="Parameters"
+      icon="sliders"
+      href="/docs/parameters"
+    >
+      Build interactive datasets with dynamic user inputs and selections.
+    </Card>
+
+    <Card
+      title="Authentication & Security"
+      icon="lock"
+      href="/docs/auth"
+    >
+      Implement user management, access controls, and dataset permissions.
+    </Card>
+  </CardGroup>
+
+  <h2 className="home-section-title">API & Integration</h2>
+
+  <CardGroup cols={3}>
+    <Card
+      title="Model Context Protocol (MCP)"
+      icon="robot"
+      href="/docs/mcp"
+    >
+      Serve datasets to AI agents using the built-in MCP server.
+    </Card>
+
+    <Card
+      title="REST API Reference"
+      icon="code"
+      href="/api/reference"
+    >
+      Explore the auto-generated REST endpoints for any Squirrels project.
+    </Card>
+
+    <Card
+      title="CLI Commands"
+      icon="terminal"
+      href="/docs/cli"
+    >
+      Master the sqrl command-line tool for building and running projects.
+    </Card>
+  </CardGroup>
+  */}
+
+</div>
