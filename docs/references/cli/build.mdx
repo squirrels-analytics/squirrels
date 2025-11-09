@@ -1,0 +1,38 @@
+---
+title: "sqrl build"
+description: "Build the Virtual Data Lake (VDL) for the project"
+---
+
+The `build` command executes buildtime models and seeds to create or update the project's Virtual Data Lake (VDL).
+
+## Usage
+
+```bash wrap
+sqrl build [options]
+```
+
+## Options
+
+In addition to the [global options](/references/cli/index#global-options), this command supports the following options:
+
+| Option | Description |
+|--------|-------------|
+| `-f`, `--full-refresh` | Drop all tables before building |
+| `-s`, `--select MODEL_NAME` | Build a single static model instead of all |
+
+## Examples
+
+Build all models:
+```bash
+sqrl build
+```
+
+Build from scratch:
+```bash
+sqrl build --full-refresh
+```
+
+Build a single static model:
+```bash
+sqrl build --select build_example
+```

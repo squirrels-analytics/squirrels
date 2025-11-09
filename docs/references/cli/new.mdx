@@ -1,0 +1,69 @@
+---
+title: "sqrl new"
+description: "Create a new Squirrels project"
+---
+
+The `new` command creates a new Squirrels project with a basic structure and sample files.
+
+## Usage
+
+```bash wrap
+sqrl new {name} [options]
+```
+
+## Positional arguments
+
+| Argument | Description |
+|----------|-------------|
+| `name` | The name of the project folder to create. Optional (and ignored) if `--curr-dir` is used |
+
+## Options
+
+In addition to the [global options](/references/cli/index#global-options), this command supports the following options:
+
+| Option | Description |
+|--------|-------------|
+| `--curr-dir` | Create the project in the current directory |
+| `--use-defaults` | Use default values for unspecified options (except project folder `name`) instead of prompting for input |
+| `--connections {yml,py}` | Configure database connections as yaml (default) or python |
+| `--parameters {py,yml}` | Configure parameters as python (default) or yaml |
+| `--build {sql,py}` | Create build model as sql (default) or python file |
+| `--federate {sql,py}` | Create federated model as sql (default) or python file |
+| `--dashboard {y,n}` | Include (y) or exclude (n, default) a sample dashboard file |
+| `--admin-password ADMIN_PASSWORD` | The password for the admin user. By default, a random password is generated |
+
+## Examples
+
+Create a new project folder named "my-project" and answer input prompts for setup:
+```bash
+sqrl new my-project
+```
+
+Create a project in the current directory (the following are equivalent):
+```bash
+sqrl new --curr-dir
+```
+
+```bash
+sqrl new .
+```
+
+```bash
+sqrl init
+```
+
+Create a new project folder named "my-project" with Python-based parameters and SQL-based build model:
+```bash
+sqrl new my-project --parameters py --build sql
+```
+
+Create a project folder named "my-project" using default settings instead of prompting for input:
+```bash
+sqrl new my-project --use-defaults
+```
+
+## Notes
+
+- If no options are specified, the command will prompt for input
+- The `--use-defaults` option can be used to skip all prompts
+- The generated `.env` file contains sensitive information and should not be committed to version control
