@@ -86,3 +86,5 @@ From the root of the git repo, the source code can be found in the `squirrels` f
 To understand what a specific Squirrels command is doing, start from the `_command_line.py` file as your entry point.
 
 The library version is maintained in both the `pyproject.toml` and the `squirrels/_version.py` files.
+
+### 

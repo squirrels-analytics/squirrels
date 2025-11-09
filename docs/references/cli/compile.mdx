@@ -1,0 +1,65 @@
+---
+title: "sqrl compile"
+description: "Render SQL into target/compile (optionally run runtime models)"
+---
+
+The `compile` command renders model SQL into `./target/compile/`. It can also run runtime models to generate CSV outputs when requested.
+
+## Usage
+
+```bash wrap
+sqrl compile [options]
+```
+
+## Options
+
+In addition to the [global options](/references/cli/index#global-options), this command supports the following options:
+
+| Option | Description |
+|--------|-------------|
+| `-y`, `--yes` | Disable prompts and assume defaults for unspecified settings |
+| `-c`, `--clear` | Clear the `target/compile/` folder before compiling |
+| `--buildtime-only` | Compile only buildtime models (mutually exclusive with `--runtime-only`) |
+| `--runtime-only` | Compile only runtime models (mutually exclusive with `--buildtime-only`) |
+| `-t TEST_SET`, `--test-set TEST_SET` | Selection test set to use (runtime models only) |
+| `-T`, `--all-test-sets` | Compile for all selection test sets (runtime models only) |
+| `-s MODEL_NAME`, `--select MODEL_NAME` | Compile a single model instead of all models |
+| `-r`, `--runquery` | Run runtime models and write CSV outputs (not applicable to buildtime models) |
+
+## Examples
+
+Compile all models with prompts:
+```bash
+sqrl compile
+```
+
+Compile non-interactively and clear previous outputs:
+```bash
+sqrl compile -y --clear
+```
+
+Compile only runtime models for the `default` test set:
+```bash
+sqrl compile --runtime-only --test-set default
+```
+
+Compile runtime models for all test sets:
+```bash
+sqrl compile --runtime-only --all-test-sets
+```
+
+Compile a single model:
+```bash
+sqrl compile --select build_example
+```
+
+Run runtime models and write CSV outputs:
+```bash
+sqrl compile --runtime-only --runquery
+```
+
+## Notes
+
+- If `--yes` is not provided, the command may prompt for settings interactively
+- `--runquery`, `--test-set`, and `--all-test-sets` apply only to runtime models
+- `--buildtime-only` and `--runtime-only` are mutually exclusive

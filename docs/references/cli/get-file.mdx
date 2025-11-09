@@ -1,0 +1,81 @@
+---
+title: "sqrl get-file"
+description: "Copy sample files and assets into your project"
+---
+
+The `get-file` command copies a sample file or asset into your project. If a file with the same name already exists, a timestamp suffix is added to avoid overwriting.
+
+## Usage
+
+```bash wrap
+sqrl get-file {file_name} [options]
+```
+
+## Positional arguments
+
+| Argument | Description |
+|----------|-------------|
+| `file_name` | The sample file or asset to copy (see supported values below) |
+
+## Supported file_name values
+
+| file_name | Description |
+|-----------|-------------|
+| `.env` | Create sample `.env` and `.env.example` files |
+| `.gitignore` | Creates a sample `.gitignore` |
+| `squirrels.yml` | Creates a sample project manifest |
+| `user.py` | Creates a sample user model file |
+| `connections.py` | Creates a sample connections file (python) |
+| `parameters.py` | Creates a sample parameters file (python) |
+| `context.py` | Creates a sample context helpers file |
+| `macros_example.sql` | Creates sample Jinja SQL macros |
+| `sources.yml` | Creates sample model source definitions |
+| `build_example` | Creates a sample build (static) model file |
+| `dbview_example` | Creates a sample dbview (runtime SQL) model file |
+| `federate_example` | Creates a sample federate (runtime) model file |
+| `dashboard_example` | Creates a sample dashboard file |
+| `expenses.db` | Creates a sample SQLite database (expenses) |
+| `weather.db` | Creates a sample SQLite database (weather) |
+| `seed_categories` | Creates sample CSV and YAML files for categories seed |
+| `seed_subcategories` | Creates sample CSV and YAML files for subcategories seed |
+
+## Options by file
+
+Some `file_name` values accept additional options which are all optional:
+
+- `squirrels.yml`
+  - `--no-connections`: Exclude the connections section
+  - `--parameters`: Include the parameters section
+  - `--dashboards`: Include the dashboards section
+
+- `build_example`
+  - `--format {sql,py}`: Create model as SQL (default) or Python file
+
+- `federate_example`
+  - `--format {sql,py}`: Create model as SQL (default) or Python file
+
+## Examples
+
+Copy sample environment files:
+```bash
+sqrl get-file .env
+```
+
+Copy a sample manifest including parameters and dashboards sections:
+```bash
+sqrl get-file squirrels.yml --parameters --dashboards
+```
+
+Copy a sample build model as Python:
+```bash
+sqrl get-file build_example --format py
+```
+
+Copy the expenses sample database:
+```bash
+sqrl get-file expenses.db
+```
+
+## Notes
+
+- Existing files are not overwritten; a timestamp is appended to the copied filename if needed

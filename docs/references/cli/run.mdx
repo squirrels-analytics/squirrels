@@ -1,0 +1,51 @@
+---
+title: "sqrl run"
+description: "Start the API server for your project"
+---
+
+The `run` command starts the API server that serves your datasets, dashboards, and routes.
+
+## Usage
+
+```bash wrap
+sqrl run [options]
+```
+
+## Options
+
+In addition to the [global options](/references/cli/index#global-options), this command supports the following options:
+
+| Option | Description |
+|--------|-------------|
+| `--build` | Build the VDL first (without full refresh) before starting the server |
+| `--no-cache` | Do not cache any API results |
+| `--host HOST` | Host interface to bind to (default: `127.0.0.1`) |
+| `--port PORT` | Port to bind to (default: `4465`) |
+
+## Examples
+
+Start the server:
+```bash
+sqrl run
+```
+
+Build first, then start:
+```bash
+sqrl run --build
+```
+
+Run on all interfaces and a custom port:
+```bash
+sqrl run --host 0.0.0.0 --port 8080
+```
+
+## Notes
+
+- The `--build` option can be useful for deployment processes. Outside of deployment, avoid using it if there are no changes to the sources, seeds, or build models.
+- Use the following [environment variable settings](/references/environment-variables) to control the caching behavior.
+  - `SQRL_PARAMETERS__CACHE_SIZE`
+  - `SQRL_PARAMETERS__CACHE_TTL_MINUTES`
+  - `SQRL_DATASETS__CACHE_SIZE`
+  - `SQRL_DATASETS__CACHE_TTL_MINUTES`
+  - `SQRL_DASHBOARDS__CACHE_SIZE`
+  - `SQRL_DASHBOARDS__CACHE_TTL_MINUTES`

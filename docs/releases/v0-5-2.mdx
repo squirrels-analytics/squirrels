@@ -1,0 +1,38 @@
+---
+title: "Changes in v0.5.2"
+description: "Released on November 7th, 2025"
+---
+
+import Intro from '/snippets/releases/intro1.mdx';
+
+<Intro/>
+
+The following are fixes and new features for [v0.5.2].
+
+## Fixes
+
+- The API paths for API documentation should not begin with `/api/squirrels/v0`. The following are the new paths where this prefix has been removed:
+  - Swagger UI: `/project/[project_name]/[version]/docs`
+  - ReDoc UI: `/project/[project_name]/[version]/redoc`
+  - OpenAPI Specification: `/project/[project_name]/[version]/openapi.json`
+
+## New features
+
+- The following paths were added for the MCP server.
+  - `/project/[project_name]/[version]/mcp`
+  - `/mcp`
+
+<Note>
+
+The existing path `/api/squirrels/v0/project/[project_name]/[version]/mcp` is kept for backwards compatibility.
+
+</Note>
+
+- A new CLI command `sqrl init` was added as an alias for `sqrl new --curr-dir`.
+
+## More info
+
+For more details, see the [GitHub release notes for v0.5.2][v0.5.2].
+
+
+[v0.5.2]: https://github.com/squirrels-analytics/squirrels/releases/tag/v0.5.2

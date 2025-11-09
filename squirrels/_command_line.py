@@ -38,7 +38,7 @@ def _run_duckdb_cli(project: SquirrelsProject, ui: bool):
     try:
         subprocess.run(command, check=True)
     except FileNotFoundError:
-        print("DuckDB CLI not found. Please install it from: https://duckdb.org/docs/installation/")
+        print("DuckDB CLI not found. Please install it from: https://duckdb.org/install")
     except subprocess.CalledProcessError:
         pass # ignore errors that occured on duckdb shell commands
 
@@ -72,7 +72,7 @@ def main():
     new_parser.add_argument('--build', type=str, choices=c.FILE_TYPE_CHOICES, help='Create build model as sql (default) or python file')
     new_parser.add_argument('--federate', type=str, choices=c.FILE_TYPE_CHOICES, help='Create federated model as sql (default) or python file')
     new_parser.add_argument('--dashboard', type=str, choices=['y', 'n'], help=f'Include (y) or exclude (n, default) a sample dashboard file')
-    new_parser.add_argument('--admin-password', type=str, help='The password for the admin user. If --use-defaults is used, then a random password is generated')
+    new_parser.add_argument('--admin-password', type=str, help='The password for the admin user. By default, a random password is generated')
 
     init_parser = add_subparser(subparsers, c.INIT_CMD, 'Create a new squirrels project in the current directory (alias for "new --curr-dir")')
     init_parser.add_argument('--use-defaults', action='store_true', help='Use default values for unspecified options instead of prompting for input')
@@ -81,7 +81,7 @@ def main():
     init_parser.add_argument('--build', type=str, choices=c.FILE_TYPE_CHOICES, help='Create build model as sql (default) or python file')
     init_parser.add_argument('--federate', type=str, choices=c.FILE_TYPE_CHOICES, help='Create federated model as sql (default) or python file')
     init_parser.add_argument('--dashboard', type=str, choices=['y', 'n'], help=f'Include (y) or exclude (n, default) a sample dashboard file')
-    init_parser.add_argument('--admin-password', type=str, help='The password for the admin user. If --use-defaults is used, then a random password is generated')
+    init_parser.add_argument('--admin-password', type=str, help='The password for the admin user. By default, a random password is generated')
 
     def with_file_format_options(parser: ArgumentParser):
         help_text = "Create model as sql (default) or python file"
@@ -91,26 +91,26 @@ def main():
     get_file_help_text = "Get a sample file for the squirrels project. If the file name already exists, it will be suffixed with a timestamp."
     get_file_parser = add_subparser(subparsers, c.GET_FILE_CMD, get_file_help_text)
     get_file_subparsers = get_file_parser.add_subparsers(title='file_name', dest='file_name')
-    add_subparser(get_file_subparsers, c.DOTENV_FILE, f'Get sample {c.DOTENV_FILE} and {c.DOTENV_FILE}.example files')
-    add_subparser(get_file_subparsers, c.GITIGNORE_FILE, f'Get a sample {c.GITIGNORE_FILE} file')
-    manifest_parser = add_subparser(get_file_subparsers, c.MANIFEST_FILE, f'Get a sample {c.MANIFEST_FILE} file')
+    add_subparser(get_file_subparsers, c.DOTENV_FILE, f'Creates sample {c.DOTENV_FILE} and {c.DOTENV_FILE}.example files')
+    add_subparser(get_file_subparsers, c.GITIGNORE_FILE, f'Creates a sample {c.GITIGNORE_FILE} file')
+    manifest_parser = add_subparser(get_file_subparsers, c.MANIFEST_FILE, f'Creates a sample {c.MANIFEST_FILE} file')
     manifest_parser.add_argument("--no-connections", action='store_true', help=f'Exclude the connections section')
     manifest_parser.add_argument("--parameters", action='store_true', help=f'Include the parameters section')
     manifest_parser.add_argument("--dashboards", action='store_true', help=f'Include the dashboards section')
-    add_subparser(get_file_subparsers, c.USER_FILE, f'Get a sample {c.USER_FILE} file')
-    add_subparser(get_file_subparsers, c.CONNECTIONS_FILE, f'Get a sample {c.CONNECTIONS_FILE} file')
-    add_subparser(get_file_subparsers, c.PARAMETERS_FILE, f'Get a sample {c.PARAMETERS_FILE} file')
-    add_subparser(get_file_subparsers, c.CONTEXT_FILE, f'Get a sample {c.CONTEXT_FILE} file')
-    add_subparser(get_file_subparsers, c.MACROS_FILE, f'Get a sample {c.MACROS_FILE} file')
-    add_subparser(get_file_subparsers, c.SOURCES_FILE, f'Get a sample {c.SOURCES_FILE} file')
-    with_file_format_options(add_subparser(get_file_subparsers, c.BUILD_FILE_STEM, f'Get a sample build model file'))
-    add_subparser(get_file_subparsers, c.DBVIEW_FILE_STEM, f'Get a sample dbview model file')
-    with_file_format_options(add_subparser(get_file_subparsers, c.FEDERATE_FILE_STEM, f'Get a sample federate model file'))
-    add_subparser(get_file_subparsers, c.DASHBOARD_FILE_STEM, f'Get a sample dashboard file')
-    add_subparser(get_file_subparsers, c.EXPENSES_DB, f'Get the sample SQLite database on expenses')
-    add_subparser(get_file_subparsers, c.WEATHER_DB, f'Get the sample SQLite database on weather')
-    add_subparser(get_file_subparsers, c.SEED_CATEGORY_FILE_STEM, f'Get the sample seed files for categories lookup')
-    add_subparser(get_file_subparsers, c.SEED_SUBCATEGORY_FILE_STEM, f'Get the sample seed files for subcategories lookup')
+    add_subparser(get_file_subparsers, c.USER_FILE, f'Creates a sample {c.USER_FILE} file')
+    add_subparser(get_file_subparsers, c.CONNECTIONS_FILE, f'Creates a sample {c.CONNECTIONS_FILE} file')
+    add_subparser(get_file_subparsers, c.PARAMETERS_FILE, f'Creates a sample {c.PARAMETERS_FILE} file')
+    add_subparser(get_file_subparsers, c.CONTEXT_FILE, f'Creates a sample {c.CONTEXT_FILE} file')
+    add_subparser(get_file_subparsers, c.MACROS_FILE, f'Creates a sample {c.MACROS_FILE} file')
+    add_subparser(get_file_subparsers, c.SOURCES_FILE, f'Creates a sample {c.SOURCES_FILE} file')
+    with_file_format_options(add_subparser(get_file_subparsers, c.BUILD_FILE_STEM, f'Creates a sample build model file'))
+    add_subparser(get_file_subparsers, c.DBVIEW_FILE_STEM, f'Creates a sample dbview model file')
+    with_file_format_options(add_subparser(get_file_subparsers, c.FEDERATE_FILE_STEM, f'Creates a sample federate model file'))
+    add_subparser(get_file_subparsers, c.DASHBOARD_FILE_STEM, f'Creates a sample dashboard file')
+    add_subparser(get_file_subparsers, c.EXPENSES_DB, f'Creates the sample SQLite database on expenses')
+    add_subparser(get_file_subparsers, c.WEATHER_DB, f'Creates the sample SQLite database on weather')
+    add_subparser(get_file_subparsers, c.SEED_CATEGORY_FILE_STEM, f'Creates the sample seed files for categories lookup')
+    add_subparser(get_file_subparsers, c.SEED_SUBCATEGORY_FILE_STEM, f'Creates the sample seed files for subcategories lookup')
     
     deps_parser = add_subparser(subparsers, c.DEPS_CMD, f'Load all packages specified in {c.MANIFEST_FILE} (from git)')
 

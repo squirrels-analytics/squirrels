@@ -1,0 +1,53 @@
+---
+title: "General information"
+description: "Understand available CLI commands and the global CLI options"
+---
+
+Squirrels provides a command-line interface (CLI) for managing, testing, and running your project. The CLI is accessed through the `sqrl` command.
+
+## Usage format
+
+```bash wrap
+sqrl [command] [positional-arguments] [options]
+```
+
+## Available commands
+
+| Command | Description |
+|---------|-------------|
+| [new](/references/cli/new) | Create a new squirrels project |
+| [init](/references/cli/init) | Create a new squirrels project in the current directory |
+| [get-file](/references/cli/get-file) | Get a sample file for the squirrels project |
+| [deps](/references/cli/deps) | Load all packages specified in squirrels.yml |
+| [build](/references/cli/build) | Build the virtual data environment |
+| [compile](/references/cli/compile) | Create rendered SQL files |
+| [run](/references/cli/run) | Run the API server |
+| [duckdb](/references/cli/duckdb) | Run the duckdb command line tool |
+
+## Global options
+
+All commands support the following common options:
+
+| Option | Description |
+|--------|-------------|
+| `-h` or `--help` | Show help message of the command and exit |
+| `--log-level {DEBUG,INFO,WARNING}` | Level of logging to use. Default is from SQRL_LOGGING__LOG_LEVEL environment variable or INFO. |
+| `--log-format {text,json}` | Format of the log records. Default is from SQRL_LOGGING__LOG_FORMAT environment variable or text. |
+| `--log-to-file` | Enable logging to file(s) in the "logs/" folder with rotation and retention policies. |
+
+## Getting help
+
+To see help for any command, use the `-h` or `--help` option:
+
+```bash
+sqrl -h  # Show general help
+sqrl <command> -h  # Show help for specific command
+```
+
+## Check the version
+
+To check the version of squirrels, use `sqrl --version` or `sqrl -V`:
+
+```bash
+sqrl --version
+``` 
