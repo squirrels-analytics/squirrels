@@ -1,0 +1,38 @@
+---
+title: "sqrl duckdb"
+description: "Open DuckDB CLI (optionally with UI) initialized for the project"
+---
+
+The `duckdb` command launches the DuckDB command-line tool.
+
+## Usage
+
+```bash wrap
+sqrl duckdb [options]
+```
+
+## Options
+
+In addition to the [global options](/references/cli/index#global-options), this command supports:
+
+| Option | Description |
+|--------|-------------|
+| `--ui` | Launch the local DuckDB UI |
+
+## Examples
+
+Open DuckDB CLI:
+```bash
+sqrl duckdb
+```
+
+Open the local DuckDB UI:
+```bash
+sqrl duckdb --ui
+```
+
+## Notes
+
+- Exit the DuckDB CLI with `.exit`
+- If a `duckdb_init.sql` file exists, it will be written to `target/duckdb_init.sql` (with additional DuckDB commands) and loaded.
+- The DuckDB CLI must be installed for this command to work. If the DuckDB CLI is not installed, install it from `https://duckdb.org/install`

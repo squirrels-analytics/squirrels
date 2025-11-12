@@ -1,0 +1,117 @@
+---
+title: "Home"
+description: "Build powerful dataset APIs with Squirrels"
+mode: "custom"
+---
+
+<div className="home-page"
+  style={{
+    maxWidth: "1000px",
+    margin: "0 auto",
+    padding: "0 24px 80px",
+  }}
+>
+
+  <div className="home-hero">
+    <div className="home-hero-left">
+      <h1 className="home-title">Squirrels</h1>
+
+      <p className="home-description">
+        The modern API framework for data analytics.
+      </p>
+      <br/>
+      <p>
+        Comes with built-in MCP server. Use it to provide AI agents with data analytics capabilities on your data.
+      </p>
+      
+      <a href="/quickstart" className="home-get-started-btn">
+        Get started
+      </a>
+    </div>
+
+    <div className="home-hero-right">
+      <div className="home-terminal">
+        <div className="home-terminal-header">
+          <span className="home-terminal-dot home-terminal-dot--red"></span>
+          <span className="home-terminal-dot home-terminal-dot--yellow"></span>
+          <span className="home-terminal-dot home-terminal-dot--green"></span>
+          <span className="home-terminal-title">Terminal</span>
+        </div>
+        <pre className="home-code"><code className="language-bash">
+          <span className="comment"># Start from an empty folder</span>
+          <br />
+          <span className="command">cd my-squirrels-project</span>
+          <br /><br />
+          <span className="comment"># Initialize a new project</span>
+          <br />
+          <span className="command">pip install squirrels</span>
+          <br />
+          <span className="command">{"sqrl init --use-defaults"}</span>
+          <br />
+          <span className="command">sqrl build</span>
+          <br /><br />
+          <span className="comment"># Run the API server</span>
+          <br />
+          <span className="command">sqrl run</span>
+        </code></pre>
+      </div>
+    </div>
+  </div>
+  
+  <h2 className="home-section-title">Getting started</h2>
+
+  <CardGroup cols={3}>
+    <Card
+      title="Introduction"
+      icon="book-open"
+      href="/intro"
+    >
+      Learn about Squirrels features and capabilities.
+    </Card>
+
+    <Card
+      title="Quickstart"
+      icon="rocket"
+      href="/quickstart"
+    >
+      Make your first Squirrels project in minutes.
+    </Card>
+
+    <Card
+      title="Complete the Tutorial"
+      icon="graduation-cap"
+      href="/tutorial"
+    >
+      Follow a step-by-step guide to build your first custom application.
+    </Card>
+  </CardGroup>
+  
+  <h2 className="home-section-title">Documentation context for AI</h2>
+
+  <CardGroup cols={3}>
+    <Card
+      title="MCP Server URL for Docs"
+      icon="server"
+      href="/mcp"
+    >
+      MCP server to search the latest documentation on Squirrels.
+    </Card>
+
+    <Card
+      title="llms.txt"
+      icon="file-text"
+      href="/llms.txt"
+    >
+      LLM-optimized documentation index.
+    </Card>
+
+    <Card
+      title="llms-full.txt"
+      icon="file-text"
+      href="/llms-full.txt"
+    >
+      Complete LLM-optimized documentation.
+    </Card>
+  </CardGroup>
+  
+</div>

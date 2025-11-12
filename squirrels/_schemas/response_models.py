@@ -164,11 +164,11 @@ class LineageRelation(BaseModel):
     source: LineageNode
     target: LineageNode
 
-class CatalogModelForTool(BaseModel):
+class CatalogModelForMcp(BaseModel):
     parameters: Annotated[ParametersListType, Field(description="The list of all parameters in the project. It is possible that not all parameters are used by a dataset.")]
     datasets: Annotated[list[DatasetItemModel], Field(description="The list of accessible datasets")]
     
-class CatalogModel(CatalogModelForTool):
+class CatalogModel(CatalogModelForMcp):
     dashboards: Annotated[list[DashboardItemModel], Field(description="The list of accessible dashboards")]
     connections: Annotated[list[ConnectionItemModel], Field(description="The list of connections in the project (only provided for admin users)")]
     models: Annotated[list[DataModelItem], Field(description="The list of data models in the project (only provided for admin users)")]

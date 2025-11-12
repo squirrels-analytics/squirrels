@@ -1,0 +1,25 @@
+---
+title: "AuthProviderArgs"
+tag: "class"
+description: "Arguments for the auth provider decorator function"
+---
+
+`AuthProviderArgs` is the class type of the optional `sqrl` argument for the auth provider function, which runs at server startup time.
+
+See reference for the [provider](/references/python/auth/provider) decorator function for more information.
+
+The class can be imported from the `squirrels.arguments` or `squirrels` module.
+
+## Properties
+
+<ResponseField name="project_path" type="str">
+  Path to the Squirrels project directory.
+</ResponseField>
+
+<ResponseField name="proj_vars" type="dict[str, Any]">
+  A copy of project variables as a dictionary.
+</ResponseField>
+
+<ResponseField name="env_vars" type="dict[str, str]">
+  A copy of environment variables as a dictionary.
+</ResponseField>

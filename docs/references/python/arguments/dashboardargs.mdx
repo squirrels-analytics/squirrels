@@ -1,0 +1,43 @@
+---
+title: "DashboardArgs"
+tag: "class"
+description: "Arguments for dashboard generation functions"
+---
+
+`DashboardArgs` is the class type of the `sqrl` argument for dashboard functions (i.e. the main function in dashboard files in the `dashboards/` folder), which runs when an API request is made to the dashboard.
+
+The class can be imported from the `squirrels.arguments` or `squirrels` module.
+
+## Properties
+
+<ResponseField name="project_path" type="str">
+  Path to the Squirrels project directory.
+</ResponseField>
+
+<ResponseField name="proj_vars" type="dict[str, Any]">
+  A copy of project variables as a dictionary.
+</ResponseField>
+
+<ResponseField name="env_vars" type="dict[str, str]">
+  A copy of environment variables as a dictionary.
+</ResponseField>
+
+## Methods
+
+### dataset()
+
+Async method to get a dataset as a polars DataFrame given the dataset name.
+
+<Expandable title="arguments (positional)" defaultOpen>
+  <ResponseField name="name" type="string" required>
+    The dataset name.
+  </ResponseField>
+</Expandable>
+
+<Expandable title="arguments (keyword)" defaultOpen>
+  <ResponseField name="fixed_parameters" type="dict[str, Any]" default={{}}>
+    Parameters to set for this dataset.
+  </ResponseField>
+</Expandable>
+
+<ResponseField name="returns" type="polars.DataFrame">A polars DataFrame of the dataset result.</ResponseField>

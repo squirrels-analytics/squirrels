@@ -1,0 +1,50 @@
+---
+title: "provider"
+tag: "function"
+description: "Decorator to register an authentication provider"
+---
+
+Decorator function to register an OAuth authentication provider.
+
+The decorated function must:
+- accept an argument `sqrl` of type [AuthProviderArgs](/references/python/arguments/AuthProviderArgs) 
+- return a [ProviderConfigs](/references/python/auth/ProviderConfigs) object
+
+## Arguments
+
+<ResponseField name="name" type="str" required>
+  The name of the provider (must be unique, e.g., 'google')
+</ResponseField>
+
+<ResponseField name="label" type="str" required>
+  The display label of the provider (e.g., 'Google')
+</ResponseField>
+
+<ResponseField name="icon" type="str" required>
+  The URL of the icon for the provider
+</ResponseField>
+
+## Example
+
+```python
+from squirrels.auth import (
+  provider, ProviderConfigs, AuthProviderArgs, RegisteredUser
+)
+
+@provider(
+  name="google", label="Google", 
+  icon="https://www.google.com/favicon.ico"
+)
+def google_provider(sqrl: AuthProviderArgs) -> ProviderConfigs:
+    def get_user(user_info: dict) -> RegisteredUser:
+        # Convert OAuth user info to RegisteredUser
+        pass
+    
+    return ProviderConfigs(
+        client_id=sqrl.env_vars["GOOGLE_CLIENT_ID"],
+        client_secret=sqrl.env_vars["GOOGLE_CLIENT_SECRET"],
+        server_url="https://accounts.google.com",
+        get_user=get_user
+    )
+```
+
