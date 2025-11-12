@@ -1,0 +1,24 @@
+---
+title: "ParametersArgs"
+tag: "class"
+description: "Arguments for parameter configuration"
+---
+
+`ParametersArgs` is the class type of the `sqrl` argument for the parameters configuration function (i.e. the `main` function in the `pyconfigs/parameters.py` file), which runs at server startup time.
+
+The class can be imported from the `squirrels.arguments` or `squirrels` module.
+
+## Properties
+
+<ResponseField name="project_path" type="str">
+  Path to the Squirrels project directory.
+</ResponseField>
+
+<ResponseField name="proj_vars" type="dict[str, Any]">
+  A copy of project variables as a dictionary.
+</ResponseField>
+
+<ResponseField name="env_vars" type="dict[str, str]">
+  A copy of environment variables as a dictionary.
+</ResponseField>
+

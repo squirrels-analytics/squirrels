@@ -1,0 +1,28 @@
+---
+title: "PngDashboard"
+tag: "class"
+description: "Dashboard in PNG format"
+---
+
+Instantiate a Dashboard in PNG format from a matplotlib figure or bytes.
+
+## Constructor
+
+### Arguments
+
+<ResponseField name="content" type="matplotlib.figure.Figure | io.BytesIO | bytes" required>
+  The content of the dashboard as a matplotlib figure or bytes
+</ResponseField>
+
+## Example
+
+```python
+from squirrels.dashboards import PngDashboard
+import matplotlib.pyplot as plt
+
+def my_dashboard(sqrl: DashboardArgs):
+    fig, ax = plt.subplots()
+    ax.plot([1, 2, 3], [1, 4, 9])
+    return PngDashboard(fig)
+```
+

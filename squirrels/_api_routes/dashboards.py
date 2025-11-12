@@ -15,7 +15,7 @@ from .._exceptions import ConfigurationError
 from .._dashboards import Dashboard
 from .._schemas.query_param_models import get_query_models_for_parameters, get_query_models_for_dashboard
 from .._schemas.auth_models import AbstractUser
-from .base import RouteBase
+from .base import RouteBase, XApiKeyHeader, XVerifyParamsHeader
 
 
 class DashboardRoutes(RouteBase):
@@ -96,7 +96,8 @@ class DashboardRoutes(RouteBase):
 
             @app.get(curr_parameters_path, tags=[f"Dashboard '{dashboard_name}'"], description=self._parameters_description, response_class=JSONResponse)
             async def get_dashboard_parameters(
-                request: Request, params: QueryModelForGetParams, user=Depends(self.get_current_user) # type: ignore
+                request: Request, params: QueryModelForGetParams, user=Depends(self.get_current_user), # type: ignore
+                x_api_key: str | None = XApiKeyHeader, x_verify_params: str | None = XVerifyParamsHeader
             ) -> rm.ParametersModel:
                 start = time.time()
                 curr_dashboard_name = self.get_name_from_path_section(request, -2)
@@ -112,7 +113,8 @@ class DashboardRoutes(RouteBase):
 
             @app.post(curr_parameters_path, tags=[f"Dashboard '{dashboard_name}'"], description=self._parameters_description, response_class=JSONResponse)
             async def get_dashboard_parameters_with_post(
-                request: Request, params: QueryModelForPostParams, user=Depends(self.get_current_user) # type: ignore
+                request: Request, params: QueryModelForPostParams, user=Depends(self.get_current_user), # type: ignore
+                x_api_key: str | None = XApiKeyHeader, x_verify_params: str | None = XVerifyParamsHeader
             ) -> rm.ParametersModel:
                 start = time.time()
                 curr_dashboard_name = self.get_name_from_path_section(request, -2)
@@ -129,7 +131,8 @@ class DashboardRoutes(RouteBase):
             
             @app.get(curr_results_path, tags=[f"Dashboard '{dashboard_name}'"], description=dashboard.config.description, response_class=Response)
             async def get_dashboard_results(
-                request: Request, params: QueryModelForGetDash, user=Depends(self.get_current_user) # type: ignore
+                request: Request, params: QueryModelForGetDash, user=Depends(self.get_current_user), # type: ignore
+                x_api_key: str | None = XApiKeyHeader, x_verify_params: str | None = XVerifyParamsHeader
             ) -> Response:
                 start = time.time()
                 curr_dashboard_name = self.get_name_from_path_section(request, -1)
@@ -143,7 +146,8 @@ class DashboardRoutes(RouteBase):
 
             @app.post(curr_results_path, tags=[f"Dashboard '{dashboard_name}'"], description=dashboard.config.description, response_class=Response)
             async def get_dashboard_results_with_post(
-                request: Request, params: QueryModelForPostDash, user=Depends(self.get_current_user) # type: ignore
+                request: Request, params: QueryModelForPostDash, user=Depends(self.get_current_user), # type: ignore
+                x_api_key: str | None = XApiKeyHeader, x_verify_params: str | None = XVerifyParamsHeader
             ) -> Response:
                 start = time.time()
                 curr_dashboard_name = self.get_name_from_path_section(request, -1)

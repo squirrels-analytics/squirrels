@@ -1,0 +1,81 @@
+---
+title: "MultiSelectParameter"
+tag: "class"
+description: "Multi-select parameter"
+---
+
+Class for multi-select parameter widgets allowing multiple selections.
+
+## Class Methods
+
+### CreateWithOptions
+
+Method for creating a parameter that may include user attribute or parent.
+
+**Arguments:**
+- `name` (str): The name of the parameter
+- `label` (str): The display label for the parameter
+- `all_options` (Sequence[SelectParameterOption | dict]): All options for this parameter
+- `description` (str): Explains the meaning of the parameter (default: "")
+- `user_attribute` (str | None): User attribute that cascades options (default: None)
+- `parent_name` (str | None): Name of parent parameter (default: None)
+
+**Returns:** `MultiSelectParameterConfig`
+
+### create_with_options
+
+Decorator for creating a parameter with options from a function.
+
+**Arguments:**
+- `name` (str): The name of the parameter
+- `label` (str): The display label for the parameter
+- `description` (str): Explains the meaning of the parameter (default: "")
+- `user_attribute` (str | None): User attribute that cascades options (default: None)
+- `parent_name` (str | None): Name of parent parameter (default: None)
+
+### CreateSimple
+
+Method for creating a parameter without user attributes or parent parameters.
+
+**Arguments:**
+- `name` (str): The name of the parameter
+- `label` (str): The display label for the parameter
+- `all_options` (Sequence[SelectParameterOption | dict]): All options for this parameter
+- `description` (str): Explains the meaning of the parameter (default: "")
+
+**Returns:** `MultiSelectParameterConfig`
+
+### create_simple
+
+Decorator for creating a simple parameter from a function.
+
+**Arguments:**
+- `name` (str): The name of the parameter
+- `label` (str): The display label for the parameter
+- `description` (str): Explains the meaning of the parameter (default: "")
+
+### CreateFromSource
+
+Method for creating a parameter from a DataSource.
+
+**Arguments:**
+- `name` (str): The name of the parameter
+- `label` (str): The display label for the parameter
+- `data_source` (SelectDataSource | dict): The lookup table to use
+- `description` (str): Explains the meaning of the parameter (default: "")
+- `user_attribute` (str | None): User attribute that cascades options (default: None)
+- `parent_name` (str | None): Name of parent parameter (default: None)
+
+**Returns:** `DataSourceParameterConfig`
+
+### create_from_source
+
+Decorator for creating a parameter from a DataSource function.
+
+**Arguments:**
+- `name` (str): The name of the parameter
+- `label` (str): The display label for the parameter
+- `description` (str): Explains the meaning of the parameter (default: "")
+- `user_attribute` (str | None): User attribute that cascades options (default: None)
+- `parent_name` (str | None): Name of parent parameter (default: None)
+

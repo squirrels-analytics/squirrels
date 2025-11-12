@@ -1,0 +1,216 @@
+{
+  "$schema": "https://mintlify.com/docs.json",
+  "theme": "mint",
+  "name": "Squirrels Docs",
+  "css": [
+    "/styles.css"
+  ],
+  "colors": {
+    "primary": "#B85707",
+    "light": "#EF9750",
+    "dark": "#9B4907"
+  },
+  "favicon": "/images/logo/main.svg",
+  "navigation": {
+    "tabs": [
+      {
+        "tab": "Home",
+        "pages": [
+          "index"
+        ]
+      },
+      {
+        "tab": "Documentation",
+        "groups": [
+          {
+            "group": "Get started",
+            "icon": "rocket",
+            "pages": [
+              "intro",
+              "quickstart",
+              "tutorial"
+            ]
+          }
+        ]
+      },
+      {
+        "tab": "Guides",
+        "groups": [
+          {
+            "group": "AI",
+            "icon": "robot",
+            "pages": [
+              "guides/mcp-clients"
+            ]
+          }
+        ]
+      },
+      {
+        "tab": "References",
+        "groups": [
+          {
+            "group": "CLI reference",
+            "icon": "terminal",
+            "pages": [
+              "references/cli/index",
+              "references/cli/new",
+              "references/cli/init",
+              "references/cli/get-file",
+              "references/cli/deps",
+              "references/cli/compile",
+              "references/cli/build",
+              "references/cli/duckdb",
+              "references/cli/run"
+            ]
+          },
+          {
+            "group": "Python reference",
+            "icon": "python",
+            "pages": [
+              "references/python/squirrelsproject",
+              {
+                "group": "arguments",
+                "tag": "module",
+                "pages": [
+                  "references/python/arguments/authproviderargs",
+                  "references/python/arguments/buildmodelargs",
+                  "references/python/arguments/connectionsargs",
+                  "references/python/arguments/contextargs",
+                  "references/python/arguments/dashboardargs",
+                  "references/python/arguments/modelargs",
+                  "references/python/arguments/parametersargs"
+                ]
+              },
+              {
+                "group": "auth",
+                "tag": "module",
+                "pages": [
+                  "references/python/auth/customuserfields",
+                  "references/python/auth/provider",
+                  "references/python/auth/providerconfigs",
+                  "references/python/auth/registereduser"
+                ]
+              },
+              {
+                "group": "connections",
+                "tag": "module",
+                "pages": [
+                  "references/python/connections/connectionproperties",
+                  "references/python/connections/connectiontypeenum"
+                ]
+              },
+              {
+                "group": "dashboards",
+                "tag": "module",
+                "pages": [
+                  "references/python/dashboards/pngdashboard",
+                  "references/python/dashboards/htmldashboard"
+                ]
+              },
+              {
+                "group": "data_sources",
+                "tag": "module",
+                "pages": [
+                  "references/python/data_sources/sourceenum",
+                  "references/python/data_sources/selectdatasource",
+                  "references/python/data_sources/datedatasource",
+                  "references/python/data_sources/daterangedatasource",
+                  "references/python/data_sources/numberdatasource",
+                  "references/python/data_sources/numberrangedatasource",
+                  "references/python/data_sources/textdatasource"
+                ]
+              },
+              {
+                "group": "parameter_options",
+                "tag": "module",
+                "pages": [
+                  "references/python/parameter_options/selectparameteroption",
+                  "references/python/parameter_options/dateparameteroption",
+                  "references/python/parameter_options/daterangeparameteroption",
+                  "references/python/parameter_options/numberparameteroption",
+                  "references/python/parameter_options/numberrangeparameteroption",
+                  "references/python/parameter_options/textparameteroption"
+                ]
+              },
+              {
+                "group": "parameters",
+                "tag": "module",
+                "pages": [
+                  "references/python/parameters/singleselectparameter",
+                  "references/python/parameters/multiselectparameter",
+                  "references/python/parameters/dateparameter",
+                  "references/python/parameters/daterangeparameter",
+                  "references/python/parameters/numberparameter",
+                  "references/python/parameters/numberrangeparameter",
+                  "references/python/parameters/textparameter"
+                ]
+              },
+              {
+                "group": "types",
+                "tag": "module",
+                "pages": [
+                  "references/python/types/datasource",
+                  "references/python/types/parameteroption",
+                  "references/python/types/parameter",
+                  "references/python/types/textvalue",
+                  "references/python/types/datasetmetadata",
+                  "references/python/types/datasetresult",
+                  "references/python/types/dashboard",
+                  "references/python/types/parameterconfigbase"
+                ]
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "tab": "Release Notes",
+        "groups": [
+          {
+            "group": "Versions 0.5.x",
+            "pages": [
+              "releases/v0-5-2",
+              "releases/v0-5-1",
+              "releases/v0-5-0"
+            ]
+          }
+        ]
+      }
+    ]
+  },
+  "logo": {
+    "light": "/images/logo/light.svg",
+    "dark": "/images/logo/dark.svg"
+  },
+  "navbar": {
+    "links": [
+      {
+        "label": "Support",
+        "href": "mailto:support@pysquirrels.com"
+      }
+    ],
+    "primary": {
+      "type": "button",
+      "label": "GitHub",
+      "href": "https://github.com/squirrels-analytics/squirrels"
+    }
+  },
+  "contextual": {
+    "options": [
+     "copy",
+     "view",
+     "chatgpt",
+     "claude",
+     "perplexity",
+     "mcp",
+     "cursor",
+     "vscode"
+   ]
+  },
+  "footer": {
+    "socials": {
+      "github": "https://github.com/squirrels-analytics/squirrels",
+      "linkedin": "https://linkedin.com/company/squirrels-analytics"
+    }
+  }
+}

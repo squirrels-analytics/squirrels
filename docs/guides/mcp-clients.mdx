@@ -1,0 +1,193 @@
+---
+title: "Connect MCP clients"
+description: "Learn how to connect MCP-supported AI tools (such as Claude Desktop, Claude Code, or Cursor) to your Squirrels project"
+---
+
+Every Squirrels project has an MCP server running at `/mcp` automatically. Thus, AI tools that support the Model Context Protocol can be used to ask questions about the datasets configured in a Squirrels project.
+
+To make it easy for anyone to follow along, we will use the following MCP server URL for a [mortgage analytics Squirrels project](https://mortgage-squirrels-example.duckdns.org/) that is publicly accessible.
+
+```text
+https://mortgage-squirrels-example.duckdns.org/mcp
+```
+
+You can replace this URL with the MCP server URL for your own Squirrels project when working with this guide (such as `http://localhost:4465/mcp`).
+
+## MCP clients
+
+Choose which AI tool you want to use to interact with your Squirrels project.
+
+<Tabs>
+  <Tab title="Claude Desktop">
+
+    **Prerequisites:**
+
+    - [Claude Desktop](https://claude.com/download) installed
+    - Node.js (>= v18.0.0) and npm: Download from [nodejs.org](https://nodejs.org/)
+    - A [Claude.ai](https://claude.ai) account (the free plan works!)
+
+    **Steps:**
+
+    1. Open **Claude Desktop**.
+    2. Click your name in the lower left corner, then click **Settings**.
+    3. Click **Developer** under "Desktop app".
+
+    ![Claude Desktop Settings](/images/claude-desktop/settings-developer.png)
+
+    4. Click the **Edit Config** button. This opens the file location of `claude_desktop_config.json`.
+    5. Open `claude_desktop_config.json` in a text editor, and paste in the following:
+
+    ```json
+    {
+      "mcpServers": {
+        "mortgage-analytics": {
+          "command": "npx",
+          "args": [
+            "-y", "mcp-remote", 
+            "https://mortgage-squirrels-example.duckdns.org/mcp"
+          ]
+        }
+      }
+    }
+    ```
+
+    6. **Save** the file and **exit Claude Desktop** (this is different than closing the window).
+      - To exit Claude Desktop on Windows, click the menu icon on the top left corner and then click File -> Exit
+
+    7. Open **Claude Desktop** again. You should now see the Squirrels project enabled by clicking the "search and tools" icon below the chat input.
+
+    ![Claude Desktop Tools Menu](/images/claude-desktop/tools-menu.png)
+
+    8. Ask questions about the datasets in the Squirrels project. See the section below for example prompts.
+
+  </Tab>
+
+  <Tab title="Claude Code">
+
+    **Prerequisites:**
+
+    - [Claude Code](https://code.claude.com/docs/en/overview) (CLI) installed
+    - Either:
+      - A [Claude.ai](https://claude.ai/) account with Pro plan or higher, or 
+      - A [Claude Console](https://console.anthropic.com/) account with a credit balance
+
+    **Steps:**
+
+    1. Add the MCP server to Claude Code with name "mortgage-analytics" and URL `https://mortgage-squirrels-example.duckdns.org/mcp`.
+
+    ```bash
+    claude mcp add --transport http mortgage-analytics https://mortgage-squirrels-example.duckdns.org/mcp
+    ```
+
+    2. Use the following commands to confirm details about the MCP server.
+
+    ```bash
+    # List all configured servers
+    claude mcp list
+
+    # Get details about the MCP server you just added
+    claude mcp get mortgage-analytics
+    ```
+
+    3. Start Claude Code by running `claude` in the terminal. You can check the server status by typing `/mcp` in the chat input.
+
+    ```bash
+    # Start Claude Code
+    claude
+
+    # Check server status (within Claude Code)
+    /mcp
+    ```
+
+    4. Ask questions about the datasets in the Squirrels project. See the section below for example prompts.
+
+  </Tab>
+
+  <Tab title="Cursor">
+
+    **Prerequisites:**
+
+    - [Cursor](https://cursor.com/download) (IDE) installed
+    - A [Cursor](https://cursor.com/) account
+
+    **Steps:**
+
+    1. Open **Cursor**.
+    2. Go to File -> Preferences -> **Cursor Settings**.
+    3. Click on **Tools & MCP** in the left panel.
+
+    ![Cursor MCP Settings](/images/cursor/settings-mcp.png)
+
+    4. Click the **Add Custom MCP** button. This should open a `mcp.json` file.
+    5. In the `mcp.json` file, paste the following and save.
+
+    ```json
+    {
+      "mcpServers": {
+        "mortgage-analytics": {
+          "url": "https://mortgage-squirrels-example.duckdns.org/mcp",
+          "headers": {}
+        }
+      }
+    }
+    ```
+
+    6. Press `Ctrl+I` to open the AI agent chat interface. Use `Ctrl+T` if you need to start a new chat.
+    7. Ask questions about the datasets in the Squirrels project. See the section below for example prompts.
+
+  </Tab>
+
+  <Tab title="VS Code / GitHub Copilot">
+
+    **Prerequisites:**
+
+    - [VS Code](https://code.visualstudio.com/) (IDE) installed
+    - VS Code extensions: [GitHub Copilot](https://marketplace.visualstudio.com/items?itemName=GitHub.copilot) and [GitHub Copilot Chat](https://marketplace.visualstudio.com/items?itemName=GitHub.copilot-chat) installed
+    - A [GitHub](https://github.com/) account
+
+    **Steps:**
+
+    1. Open **VS Code**.
+    2. Create a `.vscode` folder in your project's root directory if it doesn't exist.
+    3. Create and open the `mcp.json` file in the `.vscode` folder.
+    4. In the `mcp.json` file, paste the following and save.
+
+    ```json
+    {
+      "servers": {
+        "mortgage-analytics": {
+          "url": "https://mortgage-squirrels-example.duckdns.org/mcp",
+          "headers": {}
+        }
+      }
+    }
+    ```
+
+    5. Click **Start** on the MCP server.
+    6. Press `Ctrl+Shift+I` to open the AI agent chat interface. Use `Ctrl+N` if you need to start a new chat.
+    7. Ask questions about the datasets in the Squirrels project. See the section below for example prompts.
+
+  </Tab>
+</Tabs>
+
+## Example prompts
+
+The following are sample prompts that can be used for any Squirrels project when interacting with an AI chat agent:
+
+```text wrap
+What datasets do you have access to?
+```
+
+```text wrap
+What tools do you have access to?
+```
+
+The following are sample prompts specific to the mortgage analytics Squirrels project:
+
+```text wrap
+Suppose I have a 500K loan amount at 5% mortgage rate for 20 years remaining. What would be the monthly mortgage payment?
+```
+
+```text wrap
+Suppose I have a 500K loan amount at 5% mortgage rate for 20 years remaining. Should I pay off the full 500K now, or keep the mortgage and invest it in the stock market instead? Run 1000 simulation trials to answer.
+```

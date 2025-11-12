@@ -1,0 +1,65 @@
+---
+title: "Changes in v0.5.3"
+description: "November 14th, 2025"
+---
+
+import Intro from '/snippets/releases/intro1.mdx';
+
+<Intro/>
+
+The following are fixes and new features for [v0.5.3].
+
+## Fixes
+
+- The `x-api-key` header was not being respected for MCP requests. This has been fixed.
+
+## New features
+
+**MCP resource for data catalog**
+
+- A new MCP resource was added for the data catalog, which returns the same thing as the `get_data_catalog` tool
+- Supporting MCP clients can use this resource to automatically add the data catalog to the system prompt when starting a new conversation, without needing the AI agent to call the `get_data_catalog` tool
+- The resource has the following properties:
+  - uri: `sqrl://data-catalog`
+  - name: `data_catalog_from_[project_name]`
+  - title: `Data Catalog (Project: [project_label])`
+  - description: `Details of all datasets and parameters you can access in the Squirrels project '[project_name]'`
+
+**API headers documentation**
+
+- The API documentation was updated to include the `x-api-key`, `x-verify-params`, and `x-orientation` headers. The query and request body parameters for `x_verify_params` and `x_orientation` are deprecated.
+- The configurable headers were intentionally left out of the documentation given that they are meant for internal use only.
+
+**New welcome banner in terminal for API server**
+
+- The welcome banner in the terminal after running `sqrl run` now looks something like this:
+
+```
+══════════════════════════════════════════════════
+                            👋  WELCOME TO SQUIRRELS!
+══════════════════════════════════════════════════
+
+ 🖥️  Application UI
+  └─ Squirrels Studio: http://127.0.0.1:4465/project/sample-expenses/v1/studio
+     └─ (this redirects to studio: http://127.0.0.1:4465)
+
+ 🔌 MCP Server URLs
+  ├─ Option 1:         http://127.0.0.1:4465/project/sample-expenses/v1/mcp
+  └─ Option 2:         http://127.0.0.1:4465/mcp
+
+ 📖 API Documentation
+  ├─ Swagger UI:       http://127.0.0.1:4465/project/sample-expenses/v1/docs
+  ├─ ReDoc UI:         http://127.0.0.1:4465/project/sample-expenses/v1/redoc
+  └─ OpenAPI Spec:     http://127.0.0.1:4465/project/sample-expenses/v1/openapi.json
+
+──────────────────────────────────────────────────
+                   ✨ Server is running! Press CTRL+C to stop.
+──────────────────────────────────────────────────
+```
+
+## More info
+
+For more details, see the [GitHub release notes for v0.5.3][v0.5.3].
+
+
+[v0.5.3]: https://github.com/squirrels-analytics/squirrels/releases/tag/v0.5.3

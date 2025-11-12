@@ -1,0 +1,85 @@
+---
+title: "NumberRangeParameter"
+tag: "class"
+description: "Numeric range parameter"
+---
+
+Class for numeric range parameter widgets with lower and upper bounds.
+
+## Class Methods
+
+### CreateWithOptions
+
+Method for creating a parameter that may include user attribute or parent.
+
+**Arguments:**
+- `name` (str): The name of the parameter
+- `label` (str): The display label for the parameter
+- `all_options` (Sequence[NumberRangeParameterOption | dict]): All options for this parameter
+- `description` (str): Explains the meaning of the parameter (default: "")
+- `user_attribute` (str | None): User attribute that cascades options (default: None)
+- `parent_name` (str | None): Name of parent parameter (default: None)
+
+**Returns:** `NumberRangeParameterConfig`
+
+### create_with_options
+
+Decorator for creating a parameter with options from a function.
+
+**Arguments:**
+- `name` (str): The name of the parameter
+- `label` (str): The display label for the parameter
+- `description` (str): Explains the meaning of the parameter (default: "")
+- `user_attribute` (str | None): User attribute that cascades options (default: None)
+- `parent_name` (str | None): Name of parent parameter (default: None)
+
+### CreateSimple
+
+Method for creating a parameter without user attributes or parent parameters.
+
+**Arguments:**
+- `name` (str): The name of the parameter
+- `label` (str): The display label for the parameter
+- `default_lower_value` (Decimal | int | float | str): Default lower value
+- `default_upper_value` (Decimal | int | float | str): Default upper value
+- `min_value` (Decimal | int | float | str | None): Minimum value constraint (default: None)
+- `max_value` (Decimal | int | float | str | None): Maximum value constraint (default: None)
+- `increment` (Decimal | int | float | str | None): Increment/step value (default: None)
+- `description` (str): Explains the meaning of the parameter (default: "")
+
+**Returns:** `NumberRangeParameterConfig`
+
+### create_simple
+
+Decorator for creating a simple parameter from a function returning numeric constraints.
+
+**Arguments:**
+- `name` (str): The name of the parameter
+- `label` (str): The display label for the parameter
+- `description` (str): Explains the meaning of the parameter (default: "")
+
+### CreateFromSource
+
+Method for creating a parameter from a DataSource.
+
+**Arguments:**
+- `name` (str): The name of the parameter
+- `label` (str): The display label for the parameter
+- `data_source` (NumberRangeDataSource | dict): The lookup table to use
+- `description` (str): Explains the meaning of the parameter (default: "")
+- `user_attribute` (str | None): User attribute that cascades options (default: None)
+- `parent_name` (str | None): Name of parent parameter (default: None)
+
+**Returns:** `DataSourceParameterConfig`
+
+### create_from_source
+
+Decorator for creating a parameter from a DataSource function.
+
+**Arguments:**
+- `name` (str): The name of the parameter
+- `label` (str): The display label for the parameter
+- `description` (str): Explains the meaning of the parameter (default: "")
+- `user_attribute` (str | None): User attribute that cascades options (default: None)
+- `parent_name` (str | None): Name of parent parameter (default: None)
+

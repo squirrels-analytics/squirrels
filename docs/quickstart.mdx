@@ -1,0 +1,242 @@
+---
+title: "Quickstart"
+description: "Get started with Squirrels in minutes"
+---
+
+import { currMinorVersion } from '/snippets/variables.mdx';
+
+## Installing Squirrels
+
+Create an empty project directory (e.g. `squirrels-tutorial`) and open it with your favorite IDE. Also, open the terminal in the same directory.
+
+Then, follow the instructions below based on your preferred package manager. 
+
+If you are already familiar with using Python virtual environments, see "uv (concise)" or "pip (concise)". Otherwise, see "uv (for Python beginners)".
+
+<AccordionGroup>
+  <Accordion title="uv (for Python beginners)">
+  
+    **1. Install uv (if you don't have it yet):**
+      
+    Install uv by following the official [uv installation guide](https://docs.astral.sh/uv/getting-started/installation/).
+
+    Since uv installs Python versions for you, you do not need to install Python yourself.
+
+    **2. Initialize your project folder:**
+
+    ```bash
+    uv init -p 3.13
+    ```
+
+    This generates the files needed to sets up a Python project with Python 3.13 in the currect folder. If you wish to use a different Python version, note that only versions ≥ 3.10 are supported.
+
+    Feel free to delete the generated "main.py" file as that will not be needed.
+
+    **3. Add Squirrels to your project:**
+
+    ```bash
+    uv add squirrels
+    ```
+
+    This command adds Squirrels as a library dependency in `pyproject.toml`, installs Python if needed, creates the virtual environment, and installs Squirrels into the virtual environment.
+
+    <Info>
+
+      To create the virtual environment and install existing dependencies without adding new ones, you can simply run:
+
+      ```bash
+      uv sync
+      ```
+
+    </Info>
+
+    **4. Verify the installation:**
+
+    ```bash
+    uv run sqrl --version
+    ```
+
+    Commands typed after `uv run` are run within the virtual environment.
+
+    Ensure this displays a version that starts with {currMinorVersion}.
+
+    <Tip>
+
+      To avoid typing `uv run` before your commands, you can activate the virtual environment with one of the following commands based on your operating system.
+
+      <CodeGroup>
+        ```bash Windows
+        .venv\Scripts\activate
+        ```
+
+        ```bash macOS/Linux
+        source .venv/bin/activate
+        ```
+      </CodeGroup>
+
+      Then, you can run `sqrl --version` instead of `uv run sqrl --version`.
+
+    </Tip>
+
+    For the rest of this guide, we will omit the `uv run` part of any command that starts with `sqrl`.
+
+  </Accordion>
+
+  <Accordion title="uv (concise)">
+
+    Use Python ≥ 3.10 in a virtual environment. Run:
+
+    ```bash
+    uv add squirrels
+    ```
+
+    Verify the installation with:
+
+    ```bash
+    sqrl --version
+    ```
+
+    Ensure this displays a version that starts with {currMinorVersion}.
+
+    <Note>
+
+      As of November 4, 2025, Python 3.14 is still new, and some Squirrels dependencies may not support it. If installation fails with Python 3.14, try an earlier Python version.
+
+    </Note>
+
+  </Accordion>
+
+  <Accordion title="pip (concise)" defaultOpen="true">
+
+    Use Python ≥ 3.10 in a virtual environment. Run:
+
+    ```bash
+    pip install squirrels
+    ```
+
+    Verify the installation with:
+
+    ```bash
+    sqrl --version
+    ```
+
+    Ensure this displays a version that starts with {currMinorVersion}.
+
+    <Note>
+
+      As of November 4, 2025, Python 3.14 is still new, and some Squirrels dependencies may not support it. If installation fails with Python 3.14, try an earlier Python version.
+
+    </Note>
+
+  </Accordion>
+
+</AccordionGroup>
+
+## Create a new project
+
+Run the following to generate a working Squirrels project in the current folder.
+
+```bash
+sqrl init --use-defaults
+```
+
+<Info>
+
+  If you're an experienced Squirrels developer and wish to customize the files included in your Squirrels project, you may run this instead.
+
+  ```bash
+  sqrl init
+  ```
+
+  This provides input prompts for you to answer before the project is set up. Command line options can also be used in place of prompts. See the `sqrl init` command reference for more details.
+
+</Info>
+
+## Run the project
+
+First, pre-build any static data models that the Squirrels project rely on by running `sqrl build`.
+
+```bash
+sqrl build
+```
+
+This will create the static data models in a "local data lake" using [DuckLake](https://ducklake.select/). We call this the "virtual data lake" or "vdl".
+
+Next, open the `.env` file and set the `SQRL_SECRET__ADMIN_PASSWORD` environment variable to something of your choice. We will use this password to log in as the admin user later.
+
+Then, activate the API server by running `sqrl run`.
+
+```bash
+sqrl run
+```
+
+This should print something like the following in the terminal:
+
+```
+Welcome to the Squirrels Data Application!
+
+- Application UI (Squirrels Studio): http://127.0.0.1:4465/project/sample-expenses/v1/studio
+- MCP Server URL (pick one):
+  - Option 1: http://127.0.0.1:4465/project/sample-expenses/v1/mcp
+  - Option 2: http://127.0.0.1:4465/mcp
+
+API Docs with OpenAPI Specification:
+
+- ReDoc UI: http://127.0.0.1:4465/project/sample-expenses/v1/redoc
+- Swagger UI: http://127.0.0.1:4465/project/sample-expenses/v1/docs
+- Specification: http://127.0.0.1:4465/project/sample-expenses/v1/openapi.json
+
+INFO:     Started server process [36480]
+INFO:     Waiting for application startup.
+INFO:     Application startup complete.
+INFO:     Uvicorn running on http://127.0.0.1:4465 (Press CTRL+C to quit)
+```
+
+<Info>
+
+  You may open either of the "API Docs" links to navigate the APIs that are generated automatically for your Squirrels project. The API docs with Swagger allows you to test the APIs directly in the browser.
+
+  You can open the "Application UI" link to access Squirrels Studio and interact with it in various ways such as exploring available datasets / dashboards, querying data models, and exploring data lineage.
+
+  You must log in as an admin user to query data models and explore data lineage. Use the username "admin" and the admin password you set earlier to log in. To see the data lineage for example, change the "Explore" dropdown to "Data Lineage".
+
+  If you're logged in as an admin user, you can also add new users to your Squirrels project by clicking "Menu" > "Manage Users".
+
+  You can also logout and click "Explore as Guest" to interact with your Squirrels project as a guest user. You may notice that the datasets, parameters, and explorers you have access to are now different.
+
+</Info>
+
+<Tip>
+
+  You can also build the virtual data lake and run the API server in one command by running `sqrl run --build`.
+
+  Outside of deployment pipelines, avoid doing builds unnecessarily if there are no changes to the data models.
+
+</Tip>
+
+<Tip>
+
+  If you [install the DuckDB CLI](https://duckdb.org/docs/installation/), you can run `sqrl duckdb` to open a query console to explore the virtual data lake and run SQL queries in the terminal.
+
+  ```bash
+  sqrl duckdb
+  ```
+
+  In the query console, you can run `SHOW TABLES;` to see the tables in the database for instance.
+
+  If you have installed the DuckDB CLI but `sqrl duckdb` still complains that the DuckDB CLI cannot be found, try restarting your terminal or IDE before running the command again.
+
+  In addition to the CLI interface, you can run the following to explore the virtual data lake in a web browser:
+
+  ```bash
+  sqrl duckdb --ui
+  ```
+
+  The UI allows you to run queries in notebooks. Be sure to select "vdl" as the attached database to access tables in the virtual data lake.
+
+</Tip>
+
+## Next steps
+
+- Explore the codebase of the project to get a feel for the files and folders involved in a typical Squirrels project
+- Learn more about creating your own Squirrels project by following [this tutorial](/tutorial)

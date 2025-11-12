@@ -1,0 +1,157 @@
+/* Typography styles for Home page */
+.home-title {
+  text-align: left;
+  margin-top: 24px;
+  margin-bottom: 24px;
+  font-size: 3rem;
+  color: #555;
+}
+
+.dark .home-title {
+  color: #fff;
+}
+
+.home-section-title {
+  text-align: left;
+  margin-top: 48px;
+  margin-bottom: 24px;
+  font-size: 2rem;
+}
+
+.dark .home-section-title {
+  color: #eee;
+}
+
+.home-description {
+  text-align: left;
+  font-size: 1.25rem;
+  max-width: 700px;
+  margin-left: auto;
+  margin-right: auto;
+}
+
+.dark .home-description {
+  color: #ddd;
+}
+
+.card:not(:hover) {
+  border-color: #bbb;
+}
+
+/* Hero layout */
+.home-hero {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 24px;
+  margin-top: 24px;
+  align-items: start;
+}
+
+.home-hero-right pre {
+  margin: 0;
+}
+
+.home-terminal {
+  border: 1px solid #e5e7eb;
+  border-radius: 10px;
+  overflow: hidden;
+  background: #f8fafc;
+}
+
+.dark .home-terminal {
+  border-color: #374151;
+  background: #0b1222;
+}
+
+.home-terminal-header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  height: 34px;
+  padding: 0 10px;
+  background: #eef2f7;
+  border-bottom: 1px solid #e5e7eb;
+}
+
+.dark .home-terminal-header {
+  background: #555555;
+  border-bottom-color: #424242;
+}
+
+.home-terminal-dot {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  display: inline-block;
+}
+
+.home-terminal-dot--red { background: #ff5f56; }
+.home-terminal-dot--yellow { background: #ffbd2e; }
+.home-terminal-dot--green { background: #27c93f; }
+
+.home-terminal-title {
+  margin-left: auto;
+  font-size: 0.85rem;
+  color: #6b7280;
+}
+
+.dark .home-terminal-title {
+  color: #c7c7c7;
+}
+
+.home-code {
+  overflow: auto;
+  padding: 16px 20px;
+  background: #f5f7fa;
+  border: 1px solid #e5e7eb;
+  font-size: 0.95rem;
+  line-height: 1.6;
+}
+
+.dark .home-code {
+  background: #444444;
+  border-color: #424242;
+}
+
+/* Ensure the hero description respects left alignment and width */
+.home-hero-left .home-description {
+  margin-left: 0;
+  margin-right: 0;
+}
+
+.home-code .comment {
+  color: #6a9955;
+}
+
+.home-code .command {
+  color: #569cd6;
+  font-weight: bold;
+}
+
+/* Dollar sign styling */
+.home-code .command::before {
+  content: "$ ";
+  color: #888;
+  font-weight: normal;
+}
+
+/* Get Started button */
+.home-get-started-btn {
+  display: inline-block;
+  margin-top: 24px;
+  padding: 12px 32px;
+  background-color: #9B4907;
+  color: white;
+  text-decoration: none;
+  border-radius: 8px;
+  font-weight: 600;
+  font-size: 16px;
+  transition: background-color 0.2s;
+}
+
+/* Responsive design for smaller screens */
+@media (max-width: 650px) {
+  .home-hero {
+    grid-template-columns: 1fr;
+  }
+}

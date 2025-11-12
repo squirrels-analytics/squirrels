@@ -29,7 +29,7 @@ def _get_query_models_helper(widget_parameters: list[str] | None, predefined_par
 def get_query_models_for_parameters(widget_parameters: list[str] | None, param_fields: dict):
     """Generate query models for parameter endpoints"""
     predefined_params = [
-        APIParamFieldInfo("x_verify_params", bool, default=False, description="If true, the query parameters are verified to be valid for the dataset"),
+        APIParamFieldInfo("x_verify_params", bool, default=False, description="DEPRECATED: Use x-verify-params header instead"),
         APIParamFieldInfo("x_parent_param", str, description="The parameter name used for parameter updates. If not provided, then all parameters are retrieved"),
     ]
     return _get_query_models_helper(widget_parameters, predefined_params, param_fields)
@@ -38,8 +38,8 @@ def get_query_models_for_parameters(widget_parameters: list[str] | None, param_f
 def get_query_models_for_dataset(widget_parameters: list[str] | None, param_fields: dict):
     """Generate query models for dataset endpoints"""
     predefined_params = [
-        APIParamFieldInfo("x_verify_params", bool, default=False, description="If true, the query parameters are verified to be valid for the dataset"),
-        APIParamFieldInfo("x_orientation", str, default="records", description="The orientation of the data to return, one of: 'records', 'rows', or 'columns'"),
+        APIParamFieldInfo("x_verify_params", bool, default=False, description="DEPRECATED: Use x-verify-params header instead"),
+        APIParamFieldInfo("x_orientation", str, default="records", description="DEPRECATED: Use x-orientation header instead"),
         APIParamFieldInfo("x_sql_query", str, description="Optional DuckDB SQL to transform the final dataset. Use table name 'result' to reference the dataset."),
         APIParamFieldInfo("x_offset", int, default=0, description="The number of rows to skip before returning data (applied after data caching)"),
         APIParamFieldInfo("x_limit", int, default=1000, description="The maximum number of rows to return (applied after data caching and offset)"),
@@ -50,7 +50,7 @@ def get_query_models_for_dataset(widget_parameters: list[str] | None, param_fiel
 def get_query_models_for_dashboard(widget_parameters: list[str] | None, param_fields: dict):
     """Generate query models for dashboard endpoints"""
     predefined_params = [
-        APIParamFieldInfo("x_verify_params", bool, default=False, description="If true, the query parameters are verified to be valid for the dashboard"),
+        APIParamFieldInfo("x_verify_params", bool, default=False, description="DEPRECATED: Use x-verify-params header instead"),
     ]
     return _get_query_models_helper(widget_parameters, predefined_params, param_fields)
 
@@ -58,8 +58,8 @@ def get_query_models_for_dashboard(widget_parameters: list[str] | None, param_fi
 def get_query_models_for_querying_models(param_fields: dict):
     """Generate query models for querying data models"""
     predefined_params = [
-        APIParamFieldInfo("x_verify_params", bool, default=False, description="If true, the query parameters are verified to be valid"),
-        APIParamFieldInfo("x_orientation", str, default="records", description="The orientation of the data to return, one of: 'records', 'rows', or 'columns'"),
+        APIParamFieldInfo("x_verify_params", bool, default=False, description="DEPRECATED: Use x-verify-params header instead"),
+        APIParamFieldInfo("x_orientation", str, default="records", description="DEPRECATED: Use x-orientation header instead"),
         APIParamFieldInfo("x_offset", int, default=0, description="The number of rows to skip before returning data (applied after data caching)"),
         APIParamFieldInfo("x_limit", int, default=1000, description="The maximum number of rows to return (applied after data caching and offset)"),
         APIParamFieldInfo("x_sql_query", str, description="The SQL query to execute on the data models"),
@@ -70,6 +70,6 @@ def get_query_models_for_querying_models(param_fields: dict):
 def get_query_models_for_compiled_models(param_fields: dict):
     """Generate query models for fetching compiled model SQL"""
     predefined_params = [
-        APIParamFieldInfo("x_verify_params", bool, default=False, description="If true, the query parameters are verified to be valid for the model"),
+        APIParamFieldInfo("x_verify_params", bool, default=False, description="DEPRECATED: Use x-verify-params header instead"),
     ]
     return _get_query_models_helper(None, predefined_params, param_fields)

@@ -1,0 +1,49 @@
+---
+title: "sqrl init"
+description: "Initialize a new Squirrels project in the current directory"
+---
+
+The `init` command creates a new Squirrels project in the current directory. It is an alias for `sqrl new --curr-dir`.
+
+## Usage
+
+```bash wrap
+sqrl init [options]
+```
+
+## Options
+
+In addition to the [global options](/references/cli/index#global-options), this command supports the following options:
+
+| Option | Description |
+|--------|-------------|
+| `--use-defaults` | Use default values for unspecified options instead of prompting for input |
+| `--connections {yml,py}` | Configure database connections as yaml (default) or python |
+| `--parameters {py,yml}` | Configure parameters as python (default) or yaml |
+| `--build {sql,py}` | Create build model as sql (default) or python file |
+| `--federate {sql,py}` | Create federated model as sql (default) or python file |
+| `--dashboard {y,n}` | Include (y) or exclude (n, default) a sample dashboard file |
+| `--admin-password ADMIN_PASSWORD` | The password for the admin user. By default, a random password is generated |
+
+## Examples
+
+Initialize a project in the current directory, answering prompts:
+```bash
+sqrl init
+```
+
+Use default settings (skip all prompts):
+```bash
+sqrl init --use-defaults
+```
+
+Equivalent to:
+```bash
+sqrl new --curr-dir
+```
+
+## Notes
+
+- If no options are specified, the command will prompt for input
+- The `--use-defaults` option can be used to skip all prompts
+- The generated `.env` file contains sensitive information and should not be committed to version control

@@ -1,0 +1,52 @@
+---
+title: "SelectDataSource"
+tag: "class"
+description: "Lookup table for select parameter options"
+---
+
+Data source class for populating select parameter options from a database table or query.
+
+## Constructor
+
+### Arguments
+
+<ResponseField name="table_or_query" type="str" required>
+  Either the name of the table to use, or a query to run
+</ResponseField>
+
+<ResponseField name="id_col" type="str" required>
+  The column name of the id
+</ResponseField>
+
+<ResponseField name="options_col" type="str" required>
+  The column name of the options
+</ResponseField>
+
+<ResponseField name="order_by_col" type="str | None" default="None">
+  The column name to order the options by. Orders by id_col if None
+</ResponseField>
+
+<ResponseField name="is_default_col" type="str | None" default="None">
+  The column name that indicates which options are the default
+</ResponseField>
+
+<ResponseField name="custom_cols" type="dict[str, str]" default="{}">
+  Dictionary of attribute to column name for custom fields
+</ResponseField>
+
+<ResponseField name="source" type="SourceEnum" default="SourceEnum.CONNECTION">
+  The source to fetch data from
+</ResponseField>
+
+<ResponseField name="user_group_col" type="str | None" default="None">
+  The column name of the user group for option visibility
+</ResponseField>
+
+<ResponseField name="parent_id_col" type="str | None" default="None">
+  The column name of the parent option id for cascading
+</ResponseField>
+
+<ResponseField name="connection" type="str | None" default="None">
+  Name of the connection to use defined in connections.py
+</ResponseField>
+

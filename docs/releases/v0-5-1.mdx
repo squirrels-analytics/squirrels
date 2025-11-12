@@ -1,0 +1,31 @@
+---
+title: "Changes in v0.5.1"
+description: "Released on November 1st, 2025"
+---
+
+import Intro from '/snippets/releases/intro1.mdx';
+
+<Intro/>
+
+The following are fixes and new features for [v0.5.1].
+
+## Fixes
+
+- The SQRL_PERMISSIONS__ELEVATED_ACCESS_LEVEL environment variable was not being respected for data management APIs (e.g. querying models, viewing compiled queries, and building the virtual data lake). For instance, these functionality were admin only even when the environment variable was set to a different access level. This has been fixed.
+- An error occurred when calling dashboard APIs. This has been fixed.
+- The `--select` option for the `sqrl compile` command was not generating the compiled SQL file, and did not print to the terminal. This has been fixed.
+- When logging in JSON format, all request headers were logged. This was a mistake as headers certain headers are confidential and should not be logged. Starting in v0.5.1, this has been changed to only log the configurables.
+
+## New features
+
+- When configurables contain underscore characters, the underscore is replaced with a dash for the accepted request headers. Now, the original underscore version is also accepted.
+  - For example, if a configurable is named `my_configurable`, it is accepted as either `x-config-my_configurable` or `x-config-my-configurable` in the request headers (however, an error is raised if both are provided).
+  - Before this change, only the dash version (`x-config-my-configurable`) was accepted.
+- A unique request ID is generated for each HTTP request, and included in logging and response headers.
+
+## More info
+
+For more details, see the [GitHub release notes for v0.5.1][v0.5.1].
+
+
+[v0.5.1]: https://github.com/squirrels-analytics/squirrels/releases/tag/v0.5.1
