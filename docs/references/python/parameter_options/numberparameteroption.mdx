@@ -1,0 +1,36 @@
+---
+title: "NumberParameterOption"
+tag: "class"
+description: "Parameter option for number widgets"
+---
+
+Parameter option for number parameters.
+
+## Constructor
+
+### Arguments
+
+<ResponseField name="default_value" type="Decimal | int | float | str" required>
+  Default value for this option
+</ResponseField>
+
+<ResponseField name="min_value" type="Decimal | int | float | str | None" default="None">
+  Minimum value constraint
+</ResponseField>
+
+<ResponseField name="max_value" type="Decimal | int | float | str | None" default="None">
+  Maximum value constraint
+</ResponseField>
+
+<ResponseField name="increment" type="Decimal | int | float | str | None" default="None">
+  Increment/step value
+</ResponseField>
+
+<ResponseField name="user_groups" type="Iterable[Any] | str" default="frozenset()">
+  User groups this option is visible for
+</ResponseField>
+
+<ResponseField name="parent_option_ids" type="Iterable[str] | str" default="frozenset()">
+  Parent option ids that must be selected for this option to be visible
+</ResponseField>
+

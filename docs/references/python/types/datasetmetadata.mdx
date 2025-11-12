@@ -1,0 +1,25 @@
+---
+title: "DatasetMetadata"
+tag: "class"
+description: "Metadata about a dataset"
+---
+
+Class holding metadata about a dataset including schema information.
+
+## Attributes
+
+<ResponseField name="target_model_config" type="ModelConfig">
+  The model configuration for this dataset
+</ResponseField>
+
+## Methods
+
+### to_json
+
+Returns the metadata as a JSON-serializable dictionary.
+
+**Returns:** `dict`
+
+The returned dictionary includes:
+- `schema`: Schema information with field names, types, descriptions, and categories
+

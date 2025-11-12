@@ -1,0 +1,84 @@
+---
+title: "DateParameter"
+tag: "class"
+description: "Date picker parameter"
+---
+
+Class for date picker parameter widgets.
+
+## Class Methods
+
+### CreateWithOptions
+
+Method for creating a parameter that may include user attribute or parent.
+
+**Arguments:**
+- `name` (str): The name of the parameter
+- `label` (str): The display label for the parameter
+- `all_options` (Sequence[DateParameterOption | dict]): All options for this parameter
+- `description` (str): Explains the meaning of the parameter (default: "")
+- `user_attribute` (str | None): User attribute that cascades options (default: None)
+- `parent_name` (str | None): Name of parent parameter (default: None)
+
+**Returns:** `DateParameterConfig`
+
+### create_with_options
+
+Decorator for creating a parameter with options from a function.
+
+**Arguments:**
+- `name` (str): The name of the parameter
+- `label` (str): The display label for the parameter
+- `description` (str): Explains the meaning of the parameter (default: "")
+- `user_attribute` (str | None): User attribute that cascades options (default: None)
+- `parent_name` (str | None): Name of parent parameter (default: None)
+
+### CreateSimple
+
+Method for creating a parameter without user attributes or parent parameters.
+
+**Arguments:**
+- `name` (str): The name of the parameter
+- `label` (str): The display label for the parameter
+- `default_date` (str | date): Default date
+- `min_date` (str | date | None): Minimum date constraint (default: None)
+- `max_date` (str | date | None): Maximum date constraint (default: None)
+- `date_format` (str): Format of date string (default: "%Y-%m-%d")
+- `description` (str): Explains the meaning of the parameter (default: "")
+
+**Returns:** `DateParameterConfig`
+
+### create_simple
+
+Decorator for creating a simple parameter from a function returning date constraints.
+
+**Arguments:**
+- `name` (str): The name of the parameter
+- `label` (str): The display label for the parameter
+- `description` (str): Explains the meaning of the parameter (default: "")
+
+### CreateFromSource
+
+Method for creating a parameter from a DataSource.
+
+**Arguments:**
+- `name` (str): The name of the parameter
+- `label` (str): The display label for the parameter
+- `data_source` (DateDataSource | dict): The lookup table to use
+- `description` (str): Explains the meaning of the parameter (default: "")
+- `user_attribute` (str | None): User attribute that cascades options (default: None)
+- `parent_name` (str | None): Name of parent parameter (default: None)
+
+**Returns:** `DataSourceParameterConfig`
+
+### create_from_source
+
+Decorator for creating a parameter from a DataSource function.
+
+**Arguments:**
+- `name` (str): The name of the parameter
+- `label` (str): The display label for the parameter
+- `description` (str): Explains the meaning of the parameter (default: "")
+- `user_attribute` (str | None): User attribute that cascades options (default: None)
+- `parent_name` (str | None): Name of parent parameter (default: None)
+

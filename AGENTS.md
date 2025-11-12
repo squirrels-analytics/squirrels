@@ -7,7 +7,7 @@ Instructions and guardrails for AI coding agents working with this repository. A
 - Language: Python (requires Python ~=3.10)
 - Package: `squirrels` (API framework for dynamic data analytics)
 - CLI entry points: `squirrels`, `sqrl` -> `squirrels._command_line:main`
-- Docs: https://squirrels-analytics.github.io/
+- Docs: `docs/` folder (built with Mintlify)
 - Key features:
   - Configure datasets and parameters to expose REST APIs for analytics.
   - Compile and build the Virtual Data Lake (VDL).
@@ -15,7 +15,7 @@ Instructions and guardrails for AI coding agents working with this repository. A
   - Auth, dashboards, seeding, and macros support.
 
 ## Environment & setup
-- Python: 3.10.x required
+- Python: >= 3.10 required
 - Package manager: `uv` (Astral)
 - Install `uv`: https://docs.astral.sh/uv/getting-started/installation/
 
@@ -23,7 +23,8 @@ Setup commands:
 - Install dependencies and create venv:
   - `uv sync`
 - Activate venv:
-  - `.venv\Scripts\activate`
+  - `.venv\Scripts\activate` (Windows)
+  - `source .venv/bin/activate` (macOS/Linux)
 
 Confirm CLI:
 - `sqrl -h` (or `squirrels -h`)
@@ -37,6 +38,13 @@ Confirm CLI:
 - Maintain backward compatibility.
 - Always use Python type hints. Strict mode is preferred.
 
+## Documentation standards
+- "Squirrels" is always spelled with the first letter as capital.
+- Prefer lowercase with only the first letter capitalized for title and section headers. Although the first letter is generally capital, there are exceptions such as variable names and CLI commands. Outside of the first letter, names such as "Squirrels" and "Python" always have a capital first letter, even when used in the headers.
+- File names for mdx files must only contain lowercase and dashes (no exceptions).
+- Update `docs.json` when new pages are added or removed.
+- When creating or editing Python reference pages, use `docs/references/python/squirrelsproject.mdx` as the perfect example for styling and format.
+
 ## Contribution & change guidelines
 - When adding CLI options or routes, update:
   - Help text in `squirrels/_command_line.py`
@@ -49,6 +57,7 @@ Confirm CLI:
 
 ### High-level architecture
 - Core package is `squirrels/`, exposing a CLI and FastAPI server to run analytics APIs powered by DuckDB and/or Python dataframes (Polars/Pandas).
+- Documentation contents are in `docs/`, built with Mintlify.
 - Projects created by the initializer contain configuration, models, dashboards, and assets, which are compiled/built into a Virtual Data Lake (VDL) and exposed via REST routes.
 
 ### Important modules (library internals)

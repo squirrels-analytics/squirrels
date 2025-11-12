@@ -1,0 +1,50 @@
+---
+title: "ConnectionProperties"
+tag: "class"
+description: "Properties for database connections"
+---
+
+A class for holding the properties of a database connection.
+
+## Constructor
+
+### Arguments
+
+<ResponseField name="type" type="ConnectionTypeEnum" default="ConnectionTypeEnum.SQLALCHEMY">
+  The type of connection
+</ResponseField>
+
+<ResponseField name="uri" type="str" required>
+  The URI for the connection
+</ResponseField>
+
+<ResponseField name="label" type="str | None" default="None">
+  Optional label for the connection
+</ResponseField>
+
+<ResponseField name="sa_create_engine_args" type="dict[str, Any]" default="{}">
+  Additional arguments to pass to SQLAlchemy's create_engine
+</ResponseField>
+
+## Properties
+
+### engine
+
+Creates and caches a SQLAlchemy engine if the connection type is sqlalchemy.
+
+**Returns:** `Engine`
+
+**Raises:** `ValueError` if connection type doesn't support engine property
+
+### dialect
+
+Returns the SQL dialect of the connection.
+
+**Returns:** `str`
+
+### attach_uri_for_duckdb
+
+Returns the attachment URI for DuckDB connections.
+
+**Returns:** `str | None`
+

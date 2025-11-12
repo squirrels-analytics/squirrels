@@ -72,7 +72,7 @@ def main():
     new_parser.add_argument('--build', type=str, choices=c.FILE_TYPE_CHOICES, help='Create build model as sql (default) or python file')
     new_parser.add_argument('--federate', type=str, choices=c.FILE_TYPE_CHOICES, help='Create federated model as sql (default) or python file')
     new_parser.add_argument('--dashboard', type=str, choices=['y', 'n'], help=f'Include (y) or exclude (n, default) a sample dashboard file')
-    new_parser.add_argument('--admin-password', type=str, help='The password for the admin user. By default, a random password is generated')
+    new_parser.add_argument('--admin-password', type=str, help='The password for the admin user. If --use-defaults is used, then a random password is generated')
 
     init_parser = add_subparser(subparsers, c.INIT_CMD, 'Create a new squirrels project in the current directory (alias for "new --curr-dir")')
     init_parser.add_argument('--use-defaults', action='store_true', help='Use default values for unspecified options instead of prompting for input')

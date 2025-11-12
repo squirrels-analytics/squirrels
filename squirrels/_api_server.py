@@ -9,8 +9,8 @@ from contextlib import asynccontextmanager
 from argparse import Namespace
 from pathlib import Path
 from starlette.middleware.sessions import SessionMiddleware
-from mcp.server.fastmcp import FastMCP
-import io, time, mimetypes, traceback, uuid, asyncio, contextlib
+from fastmcp import FastMCP
+import io, time, mimetypes, traceback, asyncio
 
 from . import _constants as c, _utils as u, _parameter_sets as ps
 from ._exceptions import InvalidInputError, ConfigurationError, FileExecutionError
@@ -72,7 +72,7 @@ class SmartCORSMiddleware(BaseHTTPMiddleware):
                 # Allow all other origins but without credentials / cookies
                 response.headers["Access-Control-Allow-Origin"] = "*"
         else:
-            # No origin header (same-origin request or non-browser)
+            # No origin header (probably a non-browser request)
             response.headers["Access-Control-Allow-Origin"] = "*"
         
         return response
@@ -101,10 +101,8 @@ class ApiServer:
         self.context_func = project._context_func
         self.dashboards = project._dashboards
         
-        self.mcp = FastMCP(
-            name="Squirrels",
-            stateless_http=True
-        )
+        self.mcp = FastMCP(name="Squirrels")
+        self.mcp_app = self.mcp.http_app(path="/mcp", stateless_http=True)
 
         # Initialize route modules
         get_bearer_token = HTTPBearer(auto_error=False)
@@ -164,12 +162,12 @@ class ApiServer:
                 self.logger.error(f"Error refreshing datasource parameter options: {e}", exc_info=True)
                 # Continue the loop even if there's an error
     
+
     @asynccontextmanager
     async def _run_background_tasks(self, app: FastAPI):
         refresh_datasource_task = asyncio.create_task(self._refresh_datasource_params())
         
-        async with contextlib.AsyncExitStack() as stack:
-            await stack.enter_async_context(self.mcp.session_manager.run())
+        async with self.mcp_app.lifespan(app):
             yield
         
         refresh_datasource_task.cancel()
@@ -207,11 +205,7 @@ class ApiServer:
             {
                 "name": "User Management",
                 "description": "Manage users and their attributes",
-            },
-            # {
-            #     "name": "OAuth2",
-            #     "description": "Authorize and get token using the OAuth2 protocol",
-            # },
+            }
         ])
         return tags_metadata
     
@@ -360,25 +354,38 @@ class ApiServer:
             return RedirectResponse(url=squirrels_studio_path)
 
         # Mount MCP server
-        mcp_app = self.mcp.streamable_http_app()
-        app.mount(project_name_version_path, mcp_app)
-        app.mount("/", mcp_app)
-        app.mount(project_metadata_path, mcp_app) # For backwards compatibility
+        app.mount(project_name_version_path, self.mcp_app)
+        app.mount("/", self.mcp_app)
+        app.mount(project_metadata_path, self.mcp_app) # For backwards compatibility
     
         self.logger.log_activity_time("creating app server", start)
 
         # Run the API Server
         import uvicorn
         
-        print("\nWelcome to the Squirrels Data Application!\n")
-        print(f"- Application UI (Squirrels Studio): {full_hostname}{squirrels_studio_path}")
-        print(f"- MCP Server URL (pick one):")
-        print(f"  - Option 1: {full_hostname}{project_name_version_path}/mcp")
-        print(f"  - Option 2: {full_hostname}/mcp")
-        print("\nAPI Docs with OpenAPI Specification:\n")
-        print(f"- ReDoc UI: {full_hostname}{redoc_url}")
-        print(f"- Swagger UI: {full_hostname}{docs_url}")
-        print(f"- Specification: {full_hostname}{openapi_url}")
+        # Print welcome banner
+        banner_width = 80
+        print()
+        print("═" * banner_width)
+        print("👋  WELCOME TO SQUIRRELS!".center(banner_width))
+        print("═" * banner_width)
+        print()
+        print(" 🖥️  Application UI")
+        print(f"  └─ Squirrels Studio: {full_hostname}{squirrels_studio_path}")
+        print(f"     └─ (this redirects to studio: {full_hostname})")
+        print()
+        print(" 🔌 MCP Server URLs")
+        print(f"  ├─ Option 1:         {full_hostname}{project_name_version_path}/mcp")
+        print(f"  └─ Option 2:         {full_hostname}/mcp")
+        print()
+        print(" 📖 API Documentation")
+        print(f"  ├─ Swagger UI:       {full_hostname}{docs_url}")
+        print(f"  ├─ ReDoc UI:         {full_hostname}{redoc_url}")
+        print(f"  └─ OpenAPI Spec:     {full_hostname}{openapi_url}")
+        print()
+        print("─" * banner_width)
+        print("✨ Server is running! Press CTRL+C to stop.".center(banner_width))
+        print("─" * banner_width)
         print()
         
-        uvicorn.run(app, host=uvicorn_args.host, port=uvicorn_args.port, proxy_headers=True, forwarded_allow_ips="*")
+        uvicorn.run(app, host=uvicorn_args.host, port=uvicorn_args.port, proxy_headers=True, forwarded_allow_ips="*", ws="websockets-sansio")

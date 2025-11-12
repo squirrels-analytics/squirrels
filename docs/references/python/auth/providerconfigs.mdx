@@ -1,0 +1,40 @@
+---
+title: "ProviderConfigs"
+tag: "class"
+description: "Configuration for OAuth authentication providers"
+---
+
+Configuration class for setting up OAuth authentication providers.
+
+## Attributes
+
+<ResponseField name="client_id" type="str">
+  OAuth client ID
+</ResponseField>
+
+<ResponseField name="client_secret" type="str">
+  OAuth client secret
+</ResponseField>
+
+<ResponseField name="server_url" type="str">
+  URL of the OAuth server
+</ResponseField>
+
+<ResponseField name="server_metadata_path" type="str" default="/.well-known/openid-configuration">
+  Path to the OAuth server metadata
+</ResponseField>
+
+<ResponseField name="client_kwargs" type="dict" default="{}">
+  Additional keyword arguments for the OAuth client
+</ResponseField>
+
+<ResponseField name="get_user" type="Callable[[dict], RegisteredUser]">
+  Function to convert OAuth user info to RegisteredUser
+</ResponseField>
+
+## Properties
+
+### server_metadata_url
+
+Returns the full URL to the OAuth server metadata.
+

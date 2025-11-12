@@ -1,0 +1,28 @@
+---
+title: "CustomUserFields"
+tag: "class"
+description: "Base class for custom user fields"
+---
+
+Extend this class to add custom user fields to registered users.
+
+## Supported Types
+
+- `str` - String values
+- `int` - Integer values
+- `float` - Float values
+- `bool` - Boolean values
+- `typing.Literal` - Literal types
+
+Add `| None` after the type to make it nullable. Always set a default value for the column (use `None` if default is null).
+
+## Example
+
+```python
+from squirrels.auth import CustomUserFields
+
+class MyCustomUserFields(CustomUserFields):
+    department: str = "general"
+    employee_id: int | None = None
+```
+

@@ -2,11 +2,10 @@
 Base utilities and dependencies for API routes
 """
 from typing import Any, Mapping, TypeVar, Callable, Coroutine
-from fastapi import Request, Response, Depends
+from fastapi import Request, Response, Depends, Header
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 from fastapi.templating import Jinja2Templates
 from cachetools import TTLCache
-from mcp.server.fastmcp import Context
 from pathlib import Path
 from datetime import datetime, timezone
 
@@ -14,6 +13,11 @@ from .. import _utils as u, _constants as c
 from .._exceptions import InvalidInputError, ConfigurationError
 from .._project import SquirrelsProject
 from .._schemas.auth_models import GuestUser, RegisteredUser
+
+# Reusable Header dependencies to avoid duplication across routes
+XApiKeyHeader = Header(None, description="API key for authentication (alternative to Authorization header)")
+XVerifyParamsHeader = Header(None, description="When set to true, validates that query/body parameters are accepted by the endpoint")
+XOrientationHeader = Header(None, description="Controls the orientation of the result data. Options: 'records' (default), 'rows', 'columns'")
 
 T = TypeVar('T')
 
@@ -122,11 +126,6 @@ class RouteBase:
             raise ConfigurationError(f"Value for environment variable {c.SQRL_AUTH_TOKEN_EXPIRE_MINUTES} is not an integer, got: {expiry_mins}")
         return expiry_mins
     
-    def get_headers_from_tool_ctx(self, tool_ctx: Context) -> dict[str, str]:
-        request = tool_ctx.request_context.request
-        assert request is not None and hasattr(request, "headers")
-        return dict(request.headers)
-
     def get_configurables_from_headers(self, headers: Mapping[str, str]) -> tuple[tuple[str, str], ...]:
         """Extract configurables from request headers with prefix 'x-config-'."""
         prefix = "x-config-"
@@ -155,17 +154,21 @@ class RouteBase:
         self.logger.info(f"Configurables specified: {configurables}", data={"configurables_specified": configurables})
         return tuple(cfg_pairs)
     
-    def get_user_from_tool_headers(self, headers: dict[str, str]):
+    def get_user_from_mcp_headers(self, headers: dict[str, str]):
+        api_key = headers.get("x-api-key")
         authorization_header = headers.get('Authorization')
-        if authorization_header:
+
+        access_token = None
+        if api_key:
+            access_token = api_key
+        elif authorization_header:
             parts = authorization_header.split()
             if len(parts) == 2 and parts[0] == 'Bearer':
                 access_token = parts[1]
-                user = self.authenticator.get_user_from_token(access_token)
-                if user is None:
-                    return self.project._guest_user
-                return user
             else:
                 raise ValueError("Invalid Authorization header format")
-        else:
+
+        user = self.authenticator.get_user_from_token(access_token)
+        if user is None:
             return self.project._guest_user
+        return user

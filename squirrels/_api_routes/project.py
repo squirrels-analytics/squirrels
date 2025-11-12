@@ -5,7 +5,8 @@ from typing import Any
 from fastapi import FastAPI, Depends, Request
 from fastapi.responses import JSONResponse
 from fastapi.security import HTTPBearer
-from mcp.server.fastmcp import FastMCP, Context
+from fastmcp import FastMCP
+from fastmcp.server.dependencies import get_http_headers
 from dataclasses import asdict
 from cachetools import TTLCache
 from textwrap import dedent
@@ -19,7 +20,7 @@ from .._manifest import PermissionScope, AuthenticationEnforcement
 from .._version import __version__
 from .._schemas.query_param_models import get_query_models_for_parameters
 from .._schemas.auth_models import AbstractUser
-from .base import RouteBase
+from .base import RouteBase, XApiKeyHeader, XVerifyParamsHeader
 
 
 class ProjectRoutes(RouteBase):
@@ -175,7 +176,10 @@ class ProjectRoutes(RouteBase):
             )
         
         @app.get(data_catalog_path, tags=["Project Metadata"], summary="Get catalog of datasets and dashboards available for user")
-        async def get_data_catalog(request: Request, user: AbstractUser = Depends(self.get_current_user)) -> rm.CatalogModel:
+        async def get_data_catalog(
+            request: Request, user: AbstractUser = Depends(self.get_current_user),
+            x_api_key: str | None = XApiKeyHeader
+        ) -> rm.CatalogModel:
             """
             Get catalog of datasets and dashboards available for the authenticated user.
             
@@ -191,6 +195,12 @@ class ProjectRoutes(RouteBase):
             self.logger.log_activity_time("GET REQUEST for DATA CATALOG", start)
             return data_catalog
         
+        async def get_data_catalog_for_mcp() -> rm.CatalogModelForMcp:
+            headers = get_http_headers()
+            user = self.get_user_from_mcp_headers(headers)
+            data_catalog = await get_data_catalog0(user)
+            return rm.CatalogModelForMcp(parameters=data_catalog.parameters, datasets=data_catalog.datasets)
+        
         @mcp.tool(
             name=f"get_data_catalog_from_{project_name}", 
             title=f"Get Data Catalog (Project: {project_label})",
@@ -200,11 +210,17 @@ class ProjectRoutes(RouteBase):
             Unless the data catalog for this project has already been provided, use this tool at the start of each conversation.
             """).strip()
         )
-        async def get_data_catalog_tool(ctx: Context) -> rm.CatalogModelForTool:
-            headers = self.get_headers_from_tool_ctx(ctx)
-            user = self.get_user_from_tool_headers(headers)
-            data_catalog = await get_data_catalog0(user)
-            return rm.CatalogModelForTool(parameters=data_catalog.parameters, datasets=data_catalog.datasets)
+        async def get_data_catalog_tool() -> rm.CatalogModelForMcp:
+            return await get_data_catalog_for_mcp()
+        
+        @mcp.resource(
+            "sqrl://data-catalog",
+            name=f"data_catalog_from_{project_name}", 
+            title=f"Data Catalog (Project: {project_label})",
+            description=f"Details of all datasets and parameters you can access in the Squirrels project '{project_name}'."
+        )
+        async def data_catalog_resource() -> rm.CatalogModelForMcp:
+            return await get_data_catalog_for_mcp()
         
         # Project-level parameters endpoints
         project_level_parameters_path = project_metadata_path + '/parameters'
@@ -229,7 +245,8 @@ class ProjectRoutes(RouteBase):
 
         @app.get(project_level_parameters_path, tags=["Project Metadata"], description=parameters_description)
         async def get_project_parameters(
-            request: Request, params: QueryModelForGetProjectParams, user=Depends(self.get_current_user) # type: ignore
+            request: Request, params: QueryModelForGetProjectParams, user=Depends(self.get_current_user), # type: ignore
+            x_api_key: str | None = XApiKeyHeader, x_verify_params: str | None = XVerifyParamsHeader
         ) -> rm.ParametersModel:
             start = time.time()
             result = await get_parameters_definition(
@@ -240,7 +257,8 @@ class ProjectRoutes(RouteBase):
 
         @app.post(project_level_parameters_path, tags=["Project Metadata"], description=parameters_description)
         async def get_project_parameters_with_post(
-            request: Request, params: QueryModelForPostProjectParams, user=Depends(self.get_current_user) # type: ignore
+            request: Request, params: QueryModelForPostProjectParams, user=Depends(self.get_current_user), # type: ignore
+            x_api_key: str | None = XApiKeyHeader, x_verify_params: str | None = XVerifyParamsHeader
         ) -> rm.ParametersModel:
             start = time.time()
             payload: dict = await request.json()

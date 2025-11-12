@@ -20,10 +20,13 @@ And then call methods on the SquirrelsProject object to perform various operatio
 
 Creates a SquirrelsProject object.
 
-### Arguments
+### arguments (keyword)
 
 <ResponseField name="filepath" type="string" default=".">
   Path to the Squirrels project folder. Defaults to current working directory.
+</ResponseField>
+<ResponseField name="load_dotenv_globally" type="boolean" default={false}>
+  If True, loads variables from <code>.env</code> and <code>.env.local</code> into the process environment for the lifetime of this object.
 </ResponseField>
 <ResponseField name="log_level" type="string" default="INFO">
   Logging level to include in the log file. One of "DEBUG", "INFO", "WARNING".
@@ -39,118 +42,176 @@ Creates a SquirrelsProject object.
 
 Methods that can be invoked from the SquirrelsProject object.
 
-### compile
+### compile()
 
 Async method to compile the SQL templates into files in the "target/" folder. Same functionality as the "sqrl compile" CLI.
 
-<Expandable title="Arguments">
-  <ResponseField name="dataset" type="string" required>
-    Name of the dataset to compile. Ignored if <code>do_all_datasets</code> is True; required if it is False. Default: None.
+<Expandable title="arguments (keyword)" defaultOpen>
+  <ResponseField name="selected_model" type="string | None" default="None">
+    Name of the model to compile. If specified, the compiled SQL is also printed (for SQL models). If None, compiles all models.
   </ResponseField>
-  <ResponseField name="do_all_datasets" type="boolean">
-    Compile all datasets. If True, <code>dataset</code> is ignored. Default: False.
+  <ResponseField name="test_set" type="string | None" default="None">
+    Name of the test set to compile with. If None, uses the default test set (varies by dataset). Ignored if <code>do_all_test_sets</code> is True.
   </ResponseField>
-  <ResponseField name="selected_model" type="string">
-    Name of the model to compile. If specified, the compiled SQL is also printed. If None, all models for the selected dataset are compiled. Default: None.
+  <ResponseField name="do_all_test_sets" type="boolean" default={false}>
+    Compile all applicable test sets for the selected dataset(s). If True, <code>test_set</code> is ignored.
   </ResponseField>
-  <ResponseField name="test_set" type="string">
-    Name of the test set to compile with. If None, uses the default test set (varies by dataset). Ignored if <code>do_all_test_sets</code> is True. Default: None.
+  <ResponseField name="runquery" type="boolean" default={false}>
+    Run all compiled queries and save each result as CSV (runtime only). If True and <code>selected_model</code> is specified, all upstream models of the selected model are compiled as well.
   </ResponseField>
-  <ResponseField name="do_all_test_sets" type="boolean">
-    Compile all applicable test sets for the selected dataset(s). If True, <code>test_set</code> is ignored. Default: False.
+  <ResponseField name="clear" type="boolean" default={false}>
+    Clear the entire <code>target/compile/</code> folder before compiling.
   </ResponseField>
-  <ResponseField name="runquery" type="boolean">
-    Run all compiled queries and save each result as CSV. If True and <code>selected_model</code> is specified, all upstream models of the selected model are compiled as well. Default: False.
+  <ResponseField name="buildtime_only" type="boolean" default={false}>
+    Compile only buildtime (static/build) models.
+  </ResponseField>
+  <ResponseField name="runtime_only" type="boolean" default={false}>
+    Compile only runtime (dbviews/federates) models.
   </ResponseField>
 </Expandable>
 
-<ResponseField name="returns" type="None">None</ResponseField>
+<ResponseField name="returns" type="None"></ResponseField>
 
-### seed
+### get_all_data_models()
+
+Async method to list all data models in the project.
+
+<ResponseField name="returns" type="DataModelItem[]">
+  A list of DataModelItem objects. The DataModelItem object has the following properties:
+
+  <Expandable title="DataModelItem properties">
+    <ResponseField name="name" type="string">
+      The name of the model.
+    </ResponseField>
+    <ResponseField name="model_type" type="string">
+      The type of the model.
+    </ResponseField>
+    <ResponseField name="config" type="object">
+      The configuration of the model.
+    </ResponseField>
+    <ResponseField name="is_queryable" type="boolean">
+      Whether the model is queryable.
+    </ResponseField>
+  </Expandable>
+</ResponseField>
+
+### get_all_data_lineage()
+
+Async method to retrieve lineage across models, datasets, and dashboards.
+
+<ResponseField name="returns" type="LineageRelation[]">
+  A list of LineageRelation objects. The LineageRelation object has the following properties:
+
+  <Expandable title="LineageRelation properties">
+    <ResponseField name="type" type="Literal['buildtime', 'runtime']">
+      The type of the lineage relation.
+    </ResponseField>
+    <ResponseField name="source" type="LineageNode">
+      The source of the lineage relation. A LineageNode object (defined below).
+    </ResponseField>
+    <ResponseField name="target" type="LineageNode">
+      The target of the lineage relation. A LineageNode object (defined below).
+    </ResponseField>
+  </Expandable>
+
+  <Expandable title="LineageNode properties">
+    <ResponseField name="name" type="string">
+      The name of the node.
+    </ResponseField>
+    <ResponseField name="type" type="Literal['model', 'dataset', 'dashboard']">
+      The type of the node.
+    </ResponseField>
+  </Expandable>
+</ResponseField>
+
+### seed()
 
 Method to retrieve a seed as a polars LazyFrame given a seed name.
 
-<Expandable title="Arguments">
-  <ResponseField name="name" type="string">
+<Expandable title="arguments (positional)" defaultOpen>
+  <ResponseField name="name" type="string" required>
     Name of the seed to retrieve.
   </ResponseField>
 </Expandable>
 
-<ResponseField name="returns" type="polars.LazyFrame">A polars LazyFrame</ResponseField>
+<ResponseField name="returns" type="polars.LazyFrame">A polars LazyFrame of the seed data.</ResponseField>
 
-### build
+### build()
 
 Async method to build the virtual data environment. Same functionality as the "sqrl build" CLI.
 
-<Expandable title="Arguments">
-  <ResponseField name="full_refresh" type="boolean">
-    Drop all tables and rebuild the virtual data environment from scratch. Default: False.
+<Expandable title="arguments (keyword)" defaultOpen>
+  <ResponseField name="full_refresh" type="boolean" default={false}>
+    Drop all tables and rebuild the virtual data environment from scratch.
   </ResponseField>
-  <ResponseField name="select" type="string">
-    Name of a single data model to build; if None, builds all data models. Default: None.
-  </ResponseField>
-  <ResponseField name="stage_file" type="boolean">
-    If the virtual data environment is in use and cannot be modified, set to True to stage the DuckDB file to commit modifications later. Default: False.
+  <ResponseField name="select" type="string | None" default="None">
+    Name of a single data model to build; if None, builds all data models.
   </ResponseField>
 </Expandable>
 
-<ResponseField name="returns" type="None">None</ResponseField>
+<ResponseField name="returns" type="None"></ResponseField>
 
-### dataset_metadata
+### dataset_metadata()
 
 Method to retrieve the metadata (descriptions, columns, etc.) for a dataset.
 
-<Expandable title="Arguments">
-  <ResponseField name="name" type="string">
+<Expandable title="arguments (positional)" defaultOpen>
+  <ResponseField name="name" type="string" required>
     Name of the dataset to retrieve metadata for.
   </ResponseField>
 </Expandable>
 
-<ResponseField name="returns" type="DatasetMetadata">A [DatasetMetadata] object</ResponseField>
+<ResponseField name="returns" type="DatasetMetadata">A [DatasetMetadata] object.</ResponseField>
 
-### dataset
+### dataset()
 
 Async method to retrieve the dataset result given parameter selections.
 
-<Expandable title="Arguments">
-  <ResponseField name="name" type="string">
+<Expandable title="arguments (positional)" defaultOpen>
+  <ResponseField name="name" type="string" required>
     Name of the dataset to retrieve.
-  </ResponseField>
-  <ResponseField name="selections" type="object">
-    Dictionary of parameter selections to apply to the dataset. Optional; default is empty dictionary.
-  </ResponseField>
-  <ResponseField name="user" type="User">
-    User object to use for authentication. If None, no user is used. Default: None.
-  </ResponseField>
-  <ResponseField name="requires_auth" type="boolean">
-    Whether the dataset requires authentication. If True, the user object must be provided to access protected or private datasets. Default: True.
   </ResponseField>
 </Expandable>
 
-:::warning
+<Expandable title="arguments (keyword)" defaultOpen>
+  <ResponseField name="selections" type="dict[str, Any]" default={{}}>
+    Parameter selections to apply to the dataset.
+  </ResponseField>
+  <ResponseField name="user" type="RegisteredUser | None" default="None">
+    [RegisteredUser] object to use for authentication. If None, a guest user with default values for custom user fields is used.
+  </ResponseField>
+  <ResponseField name="require_auth" type="boolean" default={true}>
+    Whether to enforce authentication for the dataset. If True, the user object must be provided to access protected or private datasets.
+  </ResponseField>
+  <ResponseField name="configurables" type="dict[str, str]" default={{}}>
+    Optional overrides for configurable placeholders defined in your project.
+  </ResponseField>
+</Expandable>
 
-Do not set the `requires_auth` argument to False if the dataset (or data models used by the dataset) may change behaviour based on the user attributes.
+<ResponseField name="returns" type="DatasetResult">A [DatasetResult] object.</ResponseField>
 
-:::
-
-<ResponseField name="returns" type="DatasetResult">A [DatasetResult] object</ResponseField>
-
-### dashboard
+### dashboard()
 
 Async method to retrieve a dashboard given parameter selections.
 
-<Expandable title="Arguments">
-  <ResponseField name="name" type="string">
+<Expandable title="arguments (positional)" defaultOpen>
+  <ResponseField name="name" type="string" required>
     The name of the dashboard to retrieve.
   </ResponseField>
-  <ResponseField name="selections" type="object">
-    Dictionary of parameter selections to apply to the dashboard. Optional; default is empty dictionary.
+</Expandable>
+
+<Expandable title="arguments (keyword)" defaultOpen>
+  <ResponseField name="selections" type="dict[str, Any]" default={{}}>
+    Parameter selections to apply to the dashboard.
   </ResponseField>
-  <ResponseField name="user" type="User">
-    User object to use for authentication. If None, no user is used. Default: None.
+  <ResponseField name="user" type="RegisteredUser | None" default="None">
+    [RegisteredUser] object to use for authentication. If None, a guest user with default values for custom user fields is used.
   </ResponseField>
-  <ResponseField name="dashboard_type" type="type">
-    Return type used for type hints (if you rely on them). For example, provide [PngDashboard] to return a [PngDashboard]. Optional; default is [PngDashboard].
+  <ResponseField name="dashboard_type" type="type[PngDashboard | HtmlDashboard]" default="PngDashboard">
+    Return type used for type hints (if you rely on them). For example, provide [PngDashboard] to return a [PngDashboard].
+  </ResponseField>
+  <ResponseField name="configurables" type="dict[str, str]" default={{}}>
+    Optional overrides for configurable placeholders defined in your project.
   </ResponseField>
 </Expandable>
 
@@ -158,28 +219,288 @@ Async method to retrieve a dashboard given parameter selections.
   A [PngDashboard] or [HtmlDashboard] object based on <code>dashboard_type</code>.
 </ResponseField>
 
-### query_models
+### query_models()
 
 Async method to query the data models with SQL given parameter selections.
 
-<Expandable title="Arguments">
-  <ResponseField name="sql_query" type="string">
+<Expandable title="arguments (positional)" defaultOpen>
+  <ResponseField name="sql_query" type="string" required>
     SQL query to execute.
-  </ResponseField>
-  <ResponseField name="selections" type="object">
-    Dictionary of parameter selections to apply to the data models. Optional; default is empty dictionary.
-  </ResponseField>
-  <ResponseField name="user" type="User">
-    User object to use for attributes of authenticated user. If None, no user is used. Default: None.
   </ResponseField>
 </Expandable>
 
-<ResponseField name="returns" type="DatasetResult">A [DatasetResult] object</ResponseField>
+<Expandable title="arguments (keyword)" defaultOpen>
+  <ResponseField name="selections" type="dict[str, Any]" default={{}}>
+    Parameter selections to apply to the data models.
+  </ResponseField>
+  <ResponseField name="user" type="RegisteredUser | None" default="None">
+    [RegisteredUser] object to use for attributes of authenticated user. If None, a guest user with default values for custom user fields is used.
+  </ResponseField>
+  <ResponseField name="configurables" type="dict[str, str]" default={{}}>
+    Optional overrides for configurable placeholders defined in your project.
+  </ResponseField>
+</Expandable>
 
-### close
+<ResponseField name="returns" type="DatasetResult">A [DatasetResult] object.</ResponseField>
+
+### get_compiled_model_query()
+
+Async method to compile a specific data model and return its language and compiled definition.
+
+<Expandable title="arguments (positional)" defaultOpen>
+  <ResponseField name="model_name" type="string" required>
+    Name of the data model to compile.
+  </ResponseField>
+</Expandable>
+
+<Expandable title="arguments (keyword)" defaultOpen>
+  <ResponseField name="selections" type="dict[str, Any]" default={{}}>
+    Parameter selections to apply during compilation.
+  </ResponseField>
+  <ResponseField name="user" type="RegisteredUser | None" default="None">
+    [RegisteredUser] object to use for attributes of authenticated user. If None, a guest user with default values for custom user fields is used.
+  </ResponseField>
+  <ResponseField name="configurables" type="dict[str, str]" default={{}}>
+    Optional overrides for configurable placeholders defined in your project.
+  </ResponseField>
+</Expandable>
+
+<ResponseField name="returns" type="CompiledQueryModel">
+  A CompiledQueryModel object with <code>language</code>, <code>definition</code>, and <code>placeholders</code>.
+</ResponseField>
+
+### close()
 
 Use this method to deliberately close any database connections opened by the SquirrelsProject object.
 
 The database connections may still be opened again by other methods invoked on the SquirrelsProject object after this method is called.
 
-<ResponseField name="returns" type="None">None</ResponseField>
+<ResponseField name="returns" type="None"></ResponseField>
+
+## Examples
+
+Here are some common usage patterns for the SquirrelsProject class. It is assumed that the code is running in an async context (e.g. inside an async function or a Jupyter Notebook cell).
+
+### Basic project initialization
+
+```python
+from squirrels import SquirrelsProject
+
+# Initialize with default settings (current directory)
+sqrl = SquirrelsProject()
+
+# Initialize with specific project path
+sqrl = SquirrelsProject(filepath="path/to/project")
+
+# Initialize with environment variables and file logging
+sqrl = SquirrelsProject(
+    filepath="path/to/project",
+    log_format="json",
+    log_level="DEBUG"
+)
+```
+
+### Compiling and building models
+
+```python
+from squirrels import SquirrelsProject
+
+sqrl = SquirrelsProject()
+
+# Compile all models
+await sqrl.compile()
+
+# Compile a specific model and print its SQL
+await sqrl.compile(selected_model="my_model")
+
+# Compile with a specific test set
+await sqrl.compile(test_set="test_set_1")
+
+# Build the virtual data environment
+await sqrl.build()
+
+# Full refresh build (drop and rebuild everything)
+await sqrl.build(full_refresh=True)
+
+# Build only a specific model
+await sqrl.build(select="my_model")
+```
+
+### Querying a dataset
+
+```python
+from squirrels import SquirrelsProject
+
+sqrl = SquirrelsProject()
+
+# Get dataset metadata
+metadata = sqrl.dataset_metadata("sales_data")
+print(f"Description: {metadata.target_model_config.description}")
+print(f"Columns: {[col.name for col in metadata.target_model_config.columns]}")
+
+# Query a dataset with parameter selections
+result = await sqrl.dataset(
+    "sales_data",
+    selections={
+        "date_range": ["2024-01-01", "2024-12-31"],
+        "region": "North America"
+    }
+)
+
+# The result.df attribute is a polars DataFrame
+print(result.df.head())
+
+# Convert to pandas if needed
+pandas_df = result.df.to_pandas()
+print(pandas_df.head())
+```
+
+### Working with authentication
+
+```python
+from squirrels import SquirrelsProject
+from squirrels.auth import RegisteredUser, CustomUserFields
+
+from pyconfigs.user import CustomUserFields
+
+sqrl = SquirrelsProject()
+
+# Note: CustomUserFields must be extended in your project's user.py
+custom_fields = CustomUserFields()  # Use your extended class
+
+# Create a registered user with custom fields
+user = RegisteredUser(username="john_doe", custom_fields=custom_fields)
+
+# Query dataset as authenticated user
+result = await sqrl.dataset(
+    "protected_data",
+    selections={"year": "2024"},
+    user=user
+)
+
+# Querying protected datasets with code also allows for bypassing authentication
+result = await sqrl.dataset(
+    "protected_data",
+    selections={"year": "2024"},
+    require_auth=False
+)
+
+# Access the polars DataFrame
+print(result.df)
+```
+
+### Working with dashboards
+
+Render a PNG dashboard in a Jupyter Notebook:
+
+```python
+from squirrels import SquirrelsProject
+from squirrels.dashboards import PngDashboard, HtmlDashboard
+
+sqrl = SquirrelsProject()
+
+# Get a PNG dashboard
+png_dashboard = await sqrl.dashboard(
+    "sales_overview",
+    selections={"quarter": "Q1"},
+    dashboard_type=PngDashboard
+)
+png_dashboard
+```
+
+Render an HTML dashboard in a Jupyter Notebook:
+
+```python
+from squirrels import SquirrelsProject
+from squirrels.dashboards import HtmlDashboard
+
+sqrl = SquirrelsProject()
+
+# Get an HTML dashboard
+html_dashboard = await sqrl.dashboard(
+    "interactive_report",
+    selections={"year": "2024"},
+    dashboard_type=HtmlDashboard
+)
+html_dashboard
+```
+
+### Querying models directly
+
+```python
+from squirrels import SquirrelsProject
+
+sqrl = SquirrelsProject()
+
+# Query models using custom SQL
+result = await sqrl.query_models(
+    "SELECT * FROM my_model WHERE amount > 1000",
+    selections={"date_param": "2024-01-01"}
+)
+
+# Access the polars DataFrame
+print(result.df)
+
+# Get compiled query for a specific model
+compiled = await sqrl.get_compiled_model_query(
+    "my_model",
+    selections={"region": "West"}
+)
+
+print(f"Language: {compiled.language}")
+print(f"Query:\n{compiled.definition}")
+```
+
+### Working with seeds
+
+```python
+from squirrels import SquirrelsProject
+
+sqrl = SquirrelsProject()
+
+# Get a seed as a polars LazyFrame
+seed_lf = sqrl.seed("lookup_table")
+
+# Collect and print the data
+df = seed_lf.collect()
+print(df)
+```
+
+### Exploring project metadata
+
+```python
+from squirrels import SquirrelsProject
+
+sqrl = SquirrelsProject()
+
+# List all data models
+models = await sqrl.get_all_data_models()
+for model in models:
+    print(f"{model.name} ({model.model_type}): queryable={model.is_queryable}")
+
+# Get data lineage
+lineage = await sqrl.get_all_data_lineage()
+for relation in lineage:
+    print(f"{relation.source.name} ({relation.source.type}) -> "
+          f"{relation.target.name} ({relation.target.type}) [{relation.type}]")
+```
+
+### Close database connections
+
+```python
+from squirrels import SquirrelsProject
+
+sqrl = SquirrelsProject()
+
+# Perform operations...
+
+# Close database connections associated with the project when done
+sqrl.close()
+```
+
+
+[DatasetMetadata]: /references/python/types/datasetmetadata
+[DatasetResult]: /references/python/types/datasetresult
+[RegisteredUser]: /references/python/auth/registereduser
+[PngDashboard]: /references/python/dashboards/pngdashboard
+[HtmlDashboard]: /references/python/dashboards/htmldashboard
