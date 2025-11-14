@@ -1,0 +1,24 @@
+---
+title: "TextParameterOption"
+tag: "class"
+description: "Parameter option for text widgets"
+---
+
+Parameter option for text parameters.
+
+## Constructor
+
+### Arguments
+
+<ResponseField name="default_text" type="str" required>
+  Default text value for this option
+</ResponseField>
+
+<ResponseField name="user_groups" type="Iterable[Any] | str" default="frozenset()">
+  User groups this option is visible for
+</ResponseField>
+
+<ResponseField name="parent_option_ids" type="Iterable[str] | str" default="frozenset()">
+  Parent option ids that must be selected for this option to be visible
+</ResponseField>
+

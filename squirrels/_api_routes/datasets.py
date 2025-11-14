@@ -7,7 +7,8 @@ from fastapi import FastAPI, Depends, Request
 from fastapi.responses import JSONResponse
 from fastapi.security import HTTPBearer
 
-from mcp.server.fastmcp import FastMCP, Context
+from fastmcp import FastMCP
+from fastmcp.server.dependencies import get_http_headers
 from dataclasses import asdict
 from cachetools import TTLCache
 from textwrap import dedent
@@ -20,7 +21,7 @@ from .._exceptions import ConfigurationError, InvalidInputError
 from .._dataset_types import DatasetResult
 from .._schemas.query_param_models import get_query_models_for_parameters, get_query_models_for_dataset
 from .._schemas.auth_models import AbstractUser
-from .base import RouteBase
+from .base import RouteBase, XApiKeyHeader, XVerifyParamsHeader, XOrientationHeader
 
 
 class DatasetRoutes(RouteBase):
@@ -123,7 +124,8 @@ class DatasetRoutes(RouteBase):
 
             @app.get(curr_parameters_path, tags=[f"Dataset '{dataset_name}'"], description=self._parameters_description, response_class=JSONResponse)
             async def get_dataset_parameters(
-                request: Request, params: QueryModelForGetParams, user=Depends(self.get_current_user) # type: ignore
+                request: Request, params: QueryModelForGetParams, user=Depends(self.get_current_user), # type: ignore
+                x_api_key: str | None = XApiKeyHeader, x_verify_params: str | None = XVerifyParamsHeader
             ) -> rm.ParametersModel:
                 start = time.time()
                 curr_dataset_name = self.get_name_from_path_section(request, -2)
@@ -135,7 +137,8 @@ class DatasetRoutes(RouteBase):
 
             @app.post(curr_parameters_path, tags=[f"Dataset '{dataset_name}'"], description=self._parameters_description, response_class=JSONResponse)
             async def get_dataset_parameters_with_post(
-                request: Request, params: QueryModelForPostParams, user=Depends(self.get_current_user) # type: ignore
+                request: Request, params: QueryModelForPostParams, user=Depends(self.get_current_user), # type: ignore
+                x_api_key: str | None = XApiKeyHeader, x_verify_params: str | None = XVerifyParamsHeader
             ) -> rm.ParametersModel:
                 start = time.time()
                 curr_dataset_name = self.get_name_from_path_section(request, -2)
@@ -148,7 +151,9 @@ class DatasetRoutes(RouteBase):
             
             @app.get(curr_results_path, tags=[f"Dataset '{dataset_name}'"], description=dataset_config.description, response_class=JSONResponse)
             async def get_dataset_results(
-                request: Request, params: QueryModelForGetDataset, user=Depends(self.get_current_user) # type: ignore
+                request: Request, params: QueryModelForGetDataset, user=Depends(self.get_current_user), # type: ignore
+                x_api_key: str | None = XApiKeyHeader, x_verify_params: str | None = XVerifyParamsHeader, 
+                x_orientation: str | None = XOrientationHeader
             ) -> rm.DatasetResultModel:
                 start = time.time()
                 curr_dataset_name = self.get_name_from_path_section(request, -1)
@@ -162,7 +167,9 @@ class DatasetRoutes(RouteBase):
             
             @app.post(curr_results_path, tags=[f"Dataset '{dataset_name}'"], description=dataset_config.description, response_class=JSONResponse)
             async def get_dataset_results_with_post(
-                request: Request, params: QueryModelForPostDataset, user=Depends(self.get_current_user) # type: ignore
+                request: Request, params: QueryModelForPostDataset, user=Depends(self.get_current_user), # type: ignore
+                x_api_key: str | None = XApiKeyHeader, x_verify_params: str | None = XVerifyParamsHeader, 
+                x_orientation: str | None = XOrientationHeader
             ) -> rm.DatasetResultModel:
                 start = time.time()
                 curr_dataset_name = self.get_name_from_path_section(request, -1)
@@ -189,13 +196,12 @@ class DatasetRoutes(RouteBase):
             """).strip()
         )
         async def get_dataset_parameters_tool(
-            ctx: Context,
             dataset: str = Field(description="The name of the dataset whose parameters the trigger parameter will update"),
             parameter_name: str = Field(description="The name of the parameter triggering the refresh"),
             selected_ids: list[str] = Field(description="The ID(s) of the selected option(s) for the parameter"),
         ) -> rm.ParametersModel:
-            headers = self.get_headers_from_tool_ctx(ctx)
-            user = self.get_user_from_tool_headers(headers)
+            headers = get_http_headers()
+            user = self.get_user_from_mcp_headers(headers)
             dataset_name = u.normalize_name(dataset)
             payload = {
                 "x_parent_param": parameter_name,
@@ -213,7 +219,6 @@ class DatasetRoutes(RouteBase):
             """).strip()
         )
         async def get_dataset_results_tool(
-            ctx: Context,
             dataset: str = Field(description="The name of the dataset to get results for"),
             parameters: str = Field(description=dedent("""
             A JSON object (as string) containing key-value pairs for parameter name and selected value. The selected value to provide depends on the parameter widget type:
@@ -238,8 +243,8 @@ class DatasetRoutes(RouteBase):
             if limit > self.max_rows_for_ai:
                 raise ValueError(f"The maximum number of rows to return is {self.max_rows_for_ai}.")
 
-            headers = self.get_headers_from_tool_ctx(ctx)
-            user = self.get_user_from_tool_headers(headers)
+            headers = get_http_headers()
+            user = self.get_user_from_mcp_headers(headers)
             dataset_name = u.normalize_name(dataset)
             
             try:

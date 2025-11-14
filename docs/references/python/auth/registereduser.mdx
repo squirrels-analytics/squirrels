@@ -1,0 +1,22 @@
+---
+title: "RegisteredUser"
+tag: "class"
+description: "Represents a registered user in the system"
+---
+
+Class representing a registered user with authentication and custom fields.
+
+## Attributes
+
+<ResponseField name="username" type="str">
+  The unique username of the user
+</ResponseField>
+
+<ResponseField name="access_level" type="Literal['admin', 'member']">
+  The access level of the user
+</ResponseField>
+
+<ResponseField name="custom_fields" type="CustomUserFields">
+  Custom fields associated with the user
+</ResponseField>
+

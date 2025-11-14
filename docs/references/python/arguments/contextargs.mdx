@@ -1,0 +1,65 @@
+---
+title: "ContextArgs"
+tag: "class"
+description: "Arguments for context configuration"
+---
+
+`ContextArgs` is the class type of the `sqrl` argument for the context configuration function (i.e. the `main` function in the `pyconfigs/context.py` file), which runs every time an API request is made.
+
+The class can be imported from the `squirrels.arguments` or `squirrels` module.
+
+## Properties
+
+<ResponseField name="project_path" type="str">
+  Path to the Squirrels project directory.
+</ResponseField>
+
+<ResponseField name="proj_vars" type="dict[str, Any]">
+  A copy of project variables as a dictionary.
+</ResponseField>
+
+<ResponseField name="env_vars" type="dict[str, str]">
+  A copy of environment variables as a dictionary.
+</ResponseField>
+
+<ResponseField name="user" type="AbstractUser">
+  The current authenticated user.
+</ResponseField>
+
+<ResponseField name="prms" type="dict[str, Parameter]">
+  A copy of the parameters dictionary.
+</ResponseField>
+
+<ResponseField name="configurables" type="dict[str, str]">
+  A copy of the configurables dictionary (values set by application).
+</ResponseField>
+
+## Methods
+
+### set_placeholder()
+
+Sets a placeholder value for use in SQL queries.
+
+<Expandable title="arguments (positional)" defaultOpen>
+  <ResponseField name="placeholder" type="string" required>
+    The name of the placeholder.
+  </ResponseField>
+  <ResponseField name="value" type="TextValue | Any" required>
+    The value of the placeholder.
+  </ResponseField>
+</Expandable>
+
+<ResponseField name="returns" type="str">An empty string (because this function is also available to call from Jinja).</ResponseField>
+
+### param_exists()
+
+Checks whether a given parameter exists and is enabled.
+
+<Expandable title="arguments (positional)" defaultOpen>
+  <ResponseField name="param_name" type="string" required>
+    The name of the parameter.
+  </ResponseField>
+</Expandable>
+
+<ResponseField name="returns" type="bool">True if the parameter exists and is enabled, False otherwise.</ResponseField>
+

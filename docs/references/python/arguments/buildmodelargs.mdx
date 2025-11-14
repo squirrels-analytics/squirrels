@@ -1,0 +1,75 @@
+---
+title: "BuildModelArgs"
+tag: "class"
+description: "Arguments for build model functions"
+---
+
+`BuildModelArgs` is the class type of the `sqrl` argument for the main function of "build models" (i.e. data models in the `models/builds/` folder), which runs at build time.
+
+The class can be imported from the `squirrels.arguments` or `squirrels` module.
+
+## Properties
+
+<ResponseField name="project_path" type="str">
+  Path to the Squirrels project directory.
+</ResponseField>
+
+<ResponseField name="proj_vars" type="dict[str, Any]">
+  A copy of project variables as a dictionary.
+</ResponseField>
+
+<ResponseField name="env_vars" type="dict[str, str]">
+  A copy of environment variables as a dictionary.
+</ResponseField>
+
+<ResponseField name="connections" type="dict[str, Any]">
+  A copy of the connections dictionary which maps connection keys to SQLAlchemy Engines or other objects.
+</ResponseField>
+
+<ResponseField name="dependencies" type="set[str]">
+  The set of dependent data model names.
+</ResponseField>
+
+## Methods
+
+### ref()
+
+Returns the result of a dependent model as a polars LazyFrame.
+
+<Expandable title="arguments (positional)" defaultOpen>
+  <ResponseField name="model" type="string" required>
+    The model name to reference.
+  </ResponseField>
+</Expandable>
+
+<ResponseField name="returns" type="polars.LazyFrame">A polars LazyFrame of the dependent model's result.</ResponseField>
+
+### run_external_sql()
+
+Runs a SQL query against an external database.
+
+<Expandable title="arguments (positional)" defaultOpen>
+  <ResponseField name="connection_name" type="string" required>
+    The connection name for the database.
+  </ResponseField>
+  <ResponseField name="sql_query" type="string" required>
+    The SQL query to execute.
+  </ResponseField>
+</Expandable>
+
+<ResponseField name="returns" type="polars.DataFrame">A polars DataFrame of the query result.</ResponseField>
+
+### run_sql_on_dataframes()
+
+Uses a dictionary of dataframes to execute a SQL query in an embedded DuckDB database.
+
+<Expandable title="arguments (positional)" defaultOpen>
+  <ResponseField name="sql_query" type="string" required>
+    The SQL query to run.
+  </ResponseField>
+  <ResponseField name="dataframes" type="dict[str, polars.LazyFrame] | None" required>
+    Dictionary of table names to LazyFrames.
+  </ResponseField>
+</Expandable>
+
+<ResponseField name="returns" type="polars.DataFrame">A polars DataFrame of the query result</ResponseField>

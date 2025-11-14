@@ -1,0 +1,26 @@
+---
+title: "HtmlDashboard"
+tag: "class"
+description: "Dashboard in HTML format"
+---
+
+Instantiate a Dashboard from an HTML string.
+
+## Constructor
+
+### Arguments
+
+<ResponseField name="content" type="io.StringIO | str" required>
+  The content of the dashboard as an HTML string
+</ResponseField>
+
+## Example
+
+```python
+from squirrels.dashboards import HtmlDashboard
+
+def my_dashboard(sqrl: DashboardArgs):
+    html = "<h1>My Dashboard</h1><p>Some content</p>"
+    return HtmlDashboard(html)
+```
+

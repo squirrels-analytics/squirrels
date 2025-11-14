@@ -9,11 +9,10 @@ from sqlalchemy.orm import declarative_base, sessionmaker, Mapped, mapped_column
 import jwt, uuid, secrets, json
 
 from ._manifest import PermissionScope
-from ._py_module import PyModule
 from ._exceptions import InvalidInputError, ConfigurationError
 from ._arguments.init_time_args import AuthProviderArgs
 from ._schemas.auth_models import (
-    CustomUserFields, AbstractUser, GuestUser, RegisteredUser, ApiKey, UserField, AuthProvider, ProviderConfigs, 
+    CustomUserFields, AbstractUser, RegisteredUser, ApiKey, UserField, AuthProvider, ProviderConfigs, 
     ClientRegistrationRequest, ClientUpdateRequest, ClientDetailsResponse, ClientRegistrationResponse, 
     ClientUpdateResponse, TokenResponse
 )
@@ -161,6 +160,11 @@ class Authenticator:
             custom_fields=custom_fields
         )
     
+    def _validate_password_length(self, password: str) -> None:
+        """Validate that password does not exceed 72 characters (bcrypt limit)"""
+        if len(password) > 72:
+            raise InvalidInputError(400, "password_too_long", "Password cannot exceed 72 characters")
+    
     def _initialize_db(self): # TODO: Use logger instead of print
         session = self.Session()
         try:
@@ -195,8 +199,8 @@ class Authenticator:
             # Get admin password from environment variable if exists
             admin_password = self.env_vars.get(c.SQRL_SECRET_ADMIN_PASSWORD)
             
-            # If admin password variable exists, find username "admin". If it does not exist, add it
             if admin_password is not None:
+                self._validate_password_length(admin_password)
                 password_hash = pwd_context.hash(admin_password)
                 admin_user = session.get(self.DbUser, c.ADMIN_USERNAME)
                 if admin_user is None:
@@ -286,6 +290,7 @@ class Authenticator:
                 if password is None:
                     raise InvalidInputError(400, "missing_password", f"Missing required field 'password' when adding a new user")
                 
+                self._validate_password_length(password)
                 password_hash = pwd_context.hash(password)
                 new_user = self.DbUser(
                     username=username,
@@ -352,6 +357,7 @@ class Authenticator:
                 raise InvalidInputError(401, "user_not_found", f"Username '{username}' not found for password change")
             
             if db_user.password_hash and pwd_context.verify(old_password, db_user.password_hash):
+                self._validate_password_length(new_password)
                 db_user.password_hash = pwd_context.hash(new_password)
                 session.commit()
             else:
@@ -494,8 +500,9 @@ class Authenticator:
 
     def generate_secret_and_hash(self) -> tuple[str, str]:
         """Generate a secure access token and its hash"""
-        secret = secrets.token_urlsafe(64)
-        secret_hash = pwd_context.hash(secret)
+        secret = secrets.token_urlsafe(64) 
+        # Truncate to 72 characters to avoid bcrypt password length limit
+        secret_hash = pwd_context.hash(secret[:72])
         return secret, secret_hash
     
     def _validate_client_registration_request(self, request: ClientRegistrationRequest | ClientUpdateRequest) -> dict:
@@ -610,7 +617,7 @@ class Authenticator:
             client = session.get(self.DbOAuthClient, client_id)
             if client is None or not client.is_active:
                 return False
-            return pwd_context.verify(client_secret, client.client_secret_hash)
+            return pwd_context.verify(client_secret[:72], client.client_secret_hash)
         finally:
             session.close()
     
@@ -635,7 +642,7 @@ class Authenticator:
             if client is None:
                 return False
             
-            return pwd_context.verify(registration_access_token, client.registration_access_token_hash)
+            return pwd_context.verify(registration_access_token[:72], client.registration_access_token_hash)
         finally:
             session.close()
     
@@ -805,7 +812,7 @@ class Authenticator:
             # Generate tokens
             user_obj = self._convert_db_user_to_user(db_user)
             access_token, token_expires_at = self.create_access_token(user_obj, expiry_minutes=access_token_expiry_minutes)
-            access_token_hash = pwd_context.hash(access_token)
+            access_token_hash = pwd_context.hash(access_token[:72])
             
             # Generate refresh token
             refresh_token, refresh_token_hash = self.generate_secret_and_hash()
@@ -853,7 +860,7 @@ class Authenticator:
             ).first()
             
             # Find the token that matches our refresh token
-            if oauth_token is None or not pwd_context.verify(refresh_token, oauth_token.refresh_token_hash):
+            if oauth_token is None or not pwd_context.verify(refresh_token[:72], oauth_token.refresh_token_hash):
                 raise InvalidInputError(400, "invalid_grant", "Invalid or expired refresh token")
             
             # Get user
@@ -868,7 +875,7 @@ class Authenticator:
             # Generate new tokens
             user_obj = self._convert_db_user_to_user(db_user)
             access_token, token_expires_at = self.create_access_token(user_obj, expiry_minutes=access_token_expiry_minutes)
-            access_token_hash = pwd_context.hash(access_token)
+            access_token_hash = pwd_context.hash(access_token[:72])
             
             # Generate new refresh token
             new_refresh_token, new_refresh_token_hash = self.generate_secret_and_hash()
@@ -925,7 +932,7 @@ class Authenticator:
             # Find the token that matches
             oauth_token = None
             for token_obj in oauth_tokens:
-                if pwd_context.verify(token, token_obj.refresh_token_hash):
+                if pwd_context.verify(token[:72], token_obj.refresh_token_hash):
                     oauth_token = token_obj
                     break
             

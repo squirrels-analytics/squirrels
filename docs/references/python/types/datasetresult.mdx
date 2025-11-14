@@ -1,0 +1,37 @@
+---
+title: "DatasetResult"
+tag: "class"
+description: "Dataset result with data and metadata"
+---
+
+Class holding a dataset result including the data and metadata. Extends `DatasetMetadata`.
+
+## Attributes
+
+<ResponseField name="target_model_config" type="ModelConfig">
+  The model configuration for this dataset
+</ResponseField>
+
+<ResponseField name="df" type="pl.DataFrame">
+  The dataset as a Polars DataFrame
+</ResponseField>
+
+## Methods
+
+### to_json
+
+Returns the dataset as a JSON-serializable dictionary with pagination support.
+
+**Arguments:**
+- `orientation` (Literal["records", "rows", "columns"]): How to orient the data
+- `limit` (int): Maximum number of rows to return
+- `offset` (int): Number of rows to skip
+
+**Returns:** `dict`
+
+The returned dictionary includes:
+- `schema`: Schema information
+- `total_num_rows`: Total number of rows in the dataset
+- `data_details`: Details about the returned data subset
+- `data`: The actual data in the requested orientation
+

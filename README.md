@@ -2,7 +2,7 @@
 
 Squirrels is an API framework that lets you create REST APIs for dynamic data analytics!
 
-**Documentation**: <a href="https://squirrels-analytics.github.io/" target="_blank">https://squirrels-analytics.github.io/</a>
+**Documentation**: <a href="https://docs.pysquirrels.com" target="_blank">https://docs.pysquirrels.com</a>
 
 **Source Code**: <a href="https://github.com/squirrels-analytics/squirrels" target="_blank">https://github.com/squirrels-analytics/squirrels</a>
 
@@ -55,12 +55,12 @@ The sections below describe how to set up your local environment for Squirrels d
 
 ### Setup
 
-This project requires python version 3.10 or above to be installed. It also uses the python package manager `uv`. Information on setting up poetry can be found at: https://docs.astral.sh/uv/getting-started/installation/.
+This project requires the python package manager `uv` with Python 3.10 or above. Information on setting up uv can be found at: https://docs.astral.sh/uv/getting-started/installation/.
 
 Then, to install all dependencies in a virtual environment, run:
 
 ```bash
-uv sync
+uv sync -p 3.10
 ```
 
 And activate the virtual environment with:

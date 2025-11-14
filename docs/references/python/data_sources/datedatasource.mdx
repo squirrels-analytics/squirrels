@@ -1,0 +1,48 @@
+---
+title: "DateDataSource"
+tag: "class"
+description: "Lookup table for date parameter options"
+---
+
+Data source class for populating date parameter options from a database table or query.
+
+## Constructor
+
+### Arguments
+
+<ResponseField name="table_or_query" type="str" required>
+  Either the name of the table to use, or a query to run
+</ResponseField>
+
+<ResponseField name="default_date_col" type="str" required>
+  The column name for the default date
+</ResponseField>
+
+<ResponseField name="min_date_col" type="str | None" default="None">
+  The column name for the minimum date
+</ResponseField>
+
+<ResponseField name="max_date_col" type="str | None" default="None">
+  The column name for the maximum date
+</ResponseField>
+
+<ResponseField name="date_format" type="str" default="'%Y-%m-%d'">
+  Format of the dates in the columns
+</ResponseField>
+
+<ResponseField name="source" type="SourceEnum" default="SourceEnum.CONNECTION">
+  The source to fetch data from
+</ResponseField>
+
+<ResponseField name="user_group_col" type="str | None" default="None">
+  The column name of the user group for option visibility
+</ResponseField>
+
+<ResponseField name="parent_id_col" type="str | None" default="None">
+  The column name of the parent option id for cascading
+</ResponseField>
+
+<ResponseField name="connection" type="str | None" default="None">
+  Name of the connection to use
+</ResponseField>
+

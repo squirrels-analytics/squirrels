@@ -1,0 +1,49 @@
+---
+title: "SelectParameterOption"
+tag: "class"
+description: "Parameter option for select widgets"
+---
+
+Parameter option for single-select and multi-select parameters.
+
+## Constructor
+
+### Arguments
+
+<ResponseField name="id" type="str" required>
+  Unique identifier for this option that never changes over time
+</ResponseField>
+
+<ResponseField name="label" type="str" required>
+  Human readable label shown as a dropdown option
+</ResponseField>
+
+<ResponseField name="is_default" type="bool" default={false}>
+  True if this is a default option
+</ResponseField>
+
+<ResponseField name="user_groups" type="Iterable[Any] | str" default="frozenset()">
+  User groups this option is visible for
+</ResponseField>
+
+<ResponseField name="parent_option_ids" type="Iterable[str] | str" default="frozenset()">
+  Parent option ids that must be selected for this option to be visible
+</ResponseField>
+
+<ResponseField name="custom_fields" type="dict[str, Any]" default="{}">
+  Dictionary to associate custom attributes to the parameter option
+</ResponseField>
+
+## Methods
+
+### get_custom_field
+
+Get field value from the custom_fields attribute.
+
+**Arguments:**
+- `field` (str): The key to fetch from custom_fields
+- `default_field` (str | None): Fallback key if field doesn't exist
+- `default` (Any): Default value if neither field exists
+
+**Returns:** `Any`
+

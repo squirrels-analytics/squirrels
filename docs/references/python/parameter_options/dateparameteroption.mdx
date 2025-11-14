@@ -1,0 +1,36 @@
+---
+title: "DateParameterOption"
+tag: "class"
+description: "Parameter option for date widgets"
+---
+
+Parameter option for date parameters that can vary based on selection of another parameter.
+
+## Constructor
+
+### Arguments
+
+<ResponseField name="default_date" type="str | date" required>
+  Default date for this option
+</ResponseField>
+
+<ResponseField name="min_date" type="str | date | None" default="None">
+  Minimum date constraint
+</ResponseField>
+
+<ResponseField name="max_date" type="str | date | None" default="None">
+  Maximum date constraint
+</ResponseField>
+
+<ResponseField name="date_format" type="str" default="'%Y-%m-%d'">
+  Format of the date string
+</ResponseField>
+
+<ResponseField name="user_groups" type="Iterable[Any] | str" default="frozenset()">
+  User groups this option is visible for
+</ResponseField>
+
+<ResponseField name="parent_option_ids" type="Iterable[str] | str" default="frozenset()">
+  Parent option ids that must be selected for this option to be visible
+</ResponseField>
+
