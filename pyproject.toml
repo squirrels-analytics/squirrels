@@ -1,9 +1,9 @@
 [project]
 name = "squirrels"
-version = "0.6.0.dev1"
+version = "0.6.0.dev2"
 description = "Squirrels - API Framework for Data Analytics"
-authors = [{ name = "Tim Huang", email = "tim.yuting@hotmail.com" }]
-requires-python = ">=3.10,<4"
+authors = [{ name = "Tim Huang", email = "timhuang95@gmail.com" }]
+requires-python = ">=3.10"
 readme = "README.md"
 license = "Apache-2.0"
 classifiers = [
@@ -39,9 +39,9 @@ dependencies = [
 ]
 
 [project.urls]
-Homepage = "https://squirrels-analytics.github.io"
+Homepage = "https://docs.pysquirrels.com"
 Repository = "https://github.com/squirrels-analytics/squirrels"
-Documentation = "https://squirrels-analytics.github.io"
+Documentation = "https://docs.pysquirrels.com"
 
 [project.scripts]
 squirrels = "squirrels._command_line:main"

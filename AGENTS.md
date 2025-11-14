@@ -119,4 +119,4 @@ Alternatively, you can run `sqrl init` as an alias for `sqrl new --curr-dir`.
 - API server entry: `squirrels/_api_server.py`
 - Routes: `squirrels/_api_routes/`
 - Models orchestration: `squirrels/_models.py`
-- Docs (with Mintlify): `docs/`
+- Docs: `docs/` folder (built with Mintlify)
