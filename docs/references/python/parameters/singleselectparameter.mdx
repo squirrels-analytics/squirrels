@@ -4,78 +4,445 @@ tag: "class"
 description: "Single-select dropdown parameter"
 ---
 
-Class for single-select parameter widgets.
+Class for creating single-select dropdown parameter widgets that allow users to choose one option from a list.
 
-## Class Methods
+This class can be imported from the `squirrels.parameters` or the `squirrels` module.
 
-### CreateWithOptions
+## Factory methods
 
-Method for creating a parameter that may include user attribute or parent.
+Factory methods are class methods that create and configure parameter instances. These methods are typically used in the `pyconfigs/parameters.py` file to create the parameter configurations (which describes the "shape" of the parameter but does not include the realtime user selections).
 
-**Arguments:**
-- `name` (str): The name of the parameter
-- `label` (str): The display label for the parameter
-- `all_options` (Sequence[SelectParameterOption | dict]): All options for this parameter
-- `description` (str): Explains the meaning of the parameter (default: "")
-- `user_attribute` (str | None): User attribute that cascades options (default: None)
-- `parent_name` (str | None): Name of parent parameter (default: None)
+### create_simple()
 
-**Returns:** `SingleSelectParameterConfig`
+Decorator for creating a simple parameter from a function that returns select options.
 
-### create_with_options
+The decorated function must return a list of [SelectParameterOption](/references/python/parameter_options/selectparameteroption) objects.
 
-Decorator for creating a parameter with options from a function.
+```python
+@classmethod
+def create_simple(
+    cls, name: str, label: str, 
+    *, description: str = ""
+) -> Callable:
+```
 
-**Arguments:**
-- `name` (str): The name of the parameter
-- `label` (str): The display label for the parameter
-- `description` (str): Explains the meaning of the parameter (default: "")
-- `user_attribute` (str | None): User attribute that cascades options (default: None)
-- `parent_name` (str | None): Name of parent parameter (default: None)
+<Expandable title="arguments" defaultOpen>
+  <ResponseField name="name" type="str" required>
+    The unique identifier for this parameter.  Used to reference the parameter at query time (such as in `context.py` or when specifying parameter selections in the APIs).
+  </ResponseField>
 
-### CreateSimple
+  <ResponseField name="label" type="str" required>
+    The display label shown to users in the UI.
+  </ResponseField>
 
-Method for creating a parameter without user attributes or parent parameters.
+  <ResponseField name="description" type="str" default="">
+    An optional description explaining the purpose of this parameter.
+  </ResponseField>
+</Expandable>
 
-**Arguments:**
-- `name` (str): The name of the parameter
-- `label` (str): The display label for the parameter
-- `all_options` (Sequence[SelectParameterOption | dict]): All options for this parameter
-- `description` (str): Explains the meaning of the parameter (default: "")
+### create_with_options()
 
-**Returns:** `SingleSelectParameterConfig`
+Decorator for creating a parameter with options that can vary based on user attributes or parent parameter selections.
 
-### create_simple
+The decorated function must return a list of [SelectParameterOption](/references/python/parameter_options/selectparameteroption) objects. This is functionally equivalent to `create_simple` but with additional arguments available for `user_attribute` and `parent_name`.
 
-Decorator for creating a simple parameter from a function.
+```python
+@classmethod
+def create_with_options(
+    cls, name: str, label: str, 
+    *, description: str = "", user_attribute: str | None = None, 
+    parent_name: str | None = None
+) -> Callable:
+```
 
-**Arguments:**
-- `name` (str): The name of the parameter
-- `label` (str): The display label for the parameter
-- `description` (str): Explains the meaning of the parameter (default: "")
+<Expandable title="arguments" defaultOpen>
+  <ResponseField name="name" type="str" required>
+    The unique identifier for this parameter.  Used to reference the parameter at query time (such as in `context.py` or when specifying parameter selections in the APIs).
+  </ResponseField>
 
-### CreateFromSource
+  <ResponseField name="label" type="str" required>
+    The display label shown to users in the UI.
+  </ResponseField>
 
-Method for creating a parameter from a DataSource.
+  <ResponseField name="description" type="str" default="">
+    An optional description explaining the purpose of this parameter.
+  </ResponseField>
 
-**Arguments:**
-- `name` (str): The name of the parameter
-- `label` (str): The display label for the parameter
-- `data_source` (SelectDataSource | dict): The lookup table to use
-- `description` (str): Explains the meaning of the parameter (default: "")
-- `user_attribute` (str | None): User attribute that cascades options (default: None)
-- `parent_name` (str | None): Name of parent parameter (default: None)
+  <ResponseField name="user_attribute" type="str | None" default="None">
+    A user attribute (like "access_level") that determines which options are visible to different users. The decorated function should return options with matching `user_groups` values.
+    
+    To use custom user fields defined in `pyconfigs/user.py`, prefix with `custom_fields.` (e.g., `"custom_fields.department"`).
+  </ResponseField>
 
-**Returns:** `DataSourceParameterConfig`
+  <ResponseField name="parent_name" type="str | None" default="None">
+    The name of a parent parameter that controls which options are visible. The decorated function should return options with `parent_option_ids` matching the parent's selected value.
+  </ResponseField>
+</Expandable>
 
-### create_from_source
+### create_from_source()
 
-Decorator for creating a parameter from a DataSource function.
+Decorator for creating a parameter populated from a database table or query using a [SelectDataSource](/references/python/data_sources/selectdatasource).
 
-**Arguments:**
-- `name` (str): The name of the parameter
-- `label` (str): The display label for the parameter
-- `description` (str): Explains the meaning of the parameter (default: "")
-- `user_attribute` (str | None): User attribute that cascades options (default: None)
-- `parent_name` (str | None): Name of parent parameter (default: None)
+The decorated function must return a [SelectDataSource](/references/python/data_sources/selectdatasource) object.
 
+```python
+@classmethod
+def create_from_source(
+    cls, name: str, label: str, 
+    *, description: str = "", user_attribute: str | None = None, 
+    parent_name: str | None = None
+) -> Callable:
+```
+
+<Expandable title="arguments" defaultOpen>
+  <ResponseField name="name" type="str" required>
+    The unique identifier for this parameter. Used to reference the parameter at query time (such as in `context.py` or when specifying parameter selections in the APIs).
+  </ResponseField>
+
+  <ResponseField name="label" type="str" required>
+    The display label shown to users in the UI.
+  </ResponseField>
+
+  <ResponseField name="description" type="str" default="">
+    An optional description explaining the purpose of this parameter.
+  </ResponseField>
+
+  <ResponseField name="user_attribute" type="str | None" default="None">
+    A user attribute that determines which options from the data source are visible to different users.
+    
+    To use custom user fields defined in `pyconfigs/user.py`, prefix with `custom_fields.`.
+  </ResponseField>
+
+  <ResponseField name="parent_name" type="str | None" default="None">
+    The name of a parent parameter that controls which options from the data source are visible.
+  </ResponseField>
+</Expandable>
+
+## Instance methods
+
+Instance methods are available on parameter instances at query time (in `context.py` or data models) to retrieve selected values.
+
+### get_selected() -> SelectParameterOption
+
+Gets the selected [SelectParameterOption] object.
+
+```python
+def get_selected(self) -> SelectParameterOption:
+```
+
+<ResponseField name="returns" type="SelectParameterOption | None">
+  The selected [SelectParameterOption] object (or None if the parameter has no selectable options).
+</ResponseField>
+
+### get_selected() -> Any | None
+
+Gets the custom field from the selected option.
+
+```python
+def get_selected(
+    self, field: str, 
+    *, default_field: str | None = None, default: Any | None = None
+) -> Any | None:
+```
+
+<Expandable title="arguments" defaultOpen>
+  <ResponseField name="field" type="str" required>
+    The custom field to retrieve from the selected option.
+  </ResponseField>
+
+  <ResponseField name="default_field" type="str | None" default="None">
+    If `field` does not exist for the selected option and `default_field` is not None, this method uses `default_field` instead. Ignored if `field` is None.
+  </ResponseField>
+
+  <ResponseField name="default" type="Any" default="None">
+    If `field` does not exist for the selected option and `default_field` is None, returns this default value. Ignored if `field` is None or `default_field` is not None.
+  </ResponseField>
+</Expandable>
+
+<ResponseField name="returns" type="Any | None">
+  The custom field value, or None if either:
+  - the field does not exist and no default is provided, or
+  - the parameter has no selectable options.
+</ResponseField>
+
+### get_selected_id()
+
+Gets the ID of the selected option.
+
+```python
+def get_selected_id(self) -> str | None:
+```
+
+<ResponseField name="returns" type="str | None">
+  The ID string of the selected option (or None if the parameter has no selectable options).
+</ResponseField>
+
+### is_enabled()
+
+Returns whether the parameter is enabled. A parameter is enabled if it has at least one selectable option.
+
+```python
+def is_enabled(self) -> bool:
+```
+
+<ResponseField name="returns" type="bool">
+  True if the parameter has at least one selectable option, False otherwise.
+</ResponseField>
+
+## Examples for factory methods
+
+All examples below are defined in the `pyconfigs/parameters.py` file.
+
+### Using create_simple for basic dropdowns
+
+For parameters that don't need user-specific or parent-dependent options, you can use `create_simple`.
+
+```python highlight="3,8"
+from squirrels import parameters as p, parameter_options as po
+
+@p.SingleSelectParameter.create_simple(
+    name="time_period", 
+    label="Time Period",
+    description="Select reporting period"
+)
+def time_period_options() -> list[po.SelectParameterOption]:
+    return [
+        po.SelectParameterOption(id="today", label="Today"),
+        po.SelectParameterOption(id="week", label="This Week", is_default=True),
+        po.SelectParameterOption(id="month", label="This Month"),
+        po.SelectParameterOption(id="year", label="This Year"),
+    ]
+```
+
+### Cascading dropdowns with parent-child relationship
+
+This example shows how to create dependent dropdowns where the child options change based on the parent selection.
+
+```python highlight="20,27,32"
+from squirrels import parameters as p, parameter_options as po
+
+# Parent parameter
+@p.SingleSelectParameter.create_with_options(
+    name="country", 
+    label="Country",
+    description="Country to filter by"
+)
+def country_options():
+    return [
+        po.SelectParameterOption(id="usa", label="United States", is_default=True),
+        po.SelectParameterOption(id="canada", label="Canada"),
+    ]
+
+# Child parameter with cascading options
+@p.SingleSelectParameter.create_with_options(
+    name="city", 
+    label="City",
+    description="City to filter by",
+    parent_name="country"
+)
+def city_options():
+    return [
+        po.SelectParameterOption(
+            id="new-york", 
+            label="New York",
+            parent_option_ids="usa"
+        ),
+        po.SelectParameterOption(
+            id="toronto", 
+            label="Toronto",
+            parent_option_ids="canada"
+        ),
+    ]
+```
+
+### User-specific options
+
+This example restricts certain options based on user access levels.
+
+```python highlight="7,15,20,25"
+from squirrels import parameters as p, parameter_options as po
+
+@p.SingleSelectParameter.create_with_options(
+    name="report_type", 
+    label="Report Type",
+    description="Type of report to generate",
+    user_attribute="access_level"
+)
+def report_type_options():
+    return [
+        po.SelectParameterOption(
+            id="basic_report", 
+            label="Basic Report",
+            is_default=True,
+            user_groups=["admin", "member", "guest"]
+        ),
+        po.SelectParameterOption(
+            id="detailed_report", 
+            label="Detailed Report",
+            user_groups=["admin", "member"]
+        ),
+        po.SelectParameterOption(
+            id="financial_report", 
+            label="Financial Report (Admin Only)",
+            user_groups=["admin"]
+        ),
+    ]
+```
+
+If custom user fields are defined in `pyconfigs/user.py`, then they can be used to restrict visibility of parameter options as well. To do so, the `user_attribute` argument must be prefixed with `custom_fields.`.
+
+```python highlight="7,14,19"
+from squirrels import parameters as p, parameter_options as po
+
+@p.SingleSelectParameter.create_with_options(
+    name="report_type", 
+    label="Report Type",
+    description="Type of report to generate",
+    user_attribute="custom_fields.role"
+)
+def report_type_options():
+    return [
+        po.SelectParameterOption(
+            id="basic_report", 
+            label="Basic Report",
+            user_groups=["manager", "staff"]
+        ),
+        po.SelectParameterOption(
+            id="detailed_report", 
+            label="Detailed Report",
+            user_groups=["manager"]
+        ),
+    ]
+```
+
+### Single-select from database source
+
+This example populates dropdown options from a database table.
+
+```python highlight="3,8"
+from squirrels import parameters as p, data_sources as ds
+
+@p.SingleSelectParameter.create_from_source(
+    name="product_category", 
+    label="Product Category",
+    description="Select a product category"
+)
+def product_category_source() -> ds.SelectDataSource:
+    return ds.SelectDataSource(
+        table_or_query="""
+            SELECT 
+                category_id AS id,
+                category_name AS name,
+                sort_order
+            FROM product_categories
+            WHERE is_active = 1
+        """,
+        id_col="id",
+        options_col="name",
+        order_by_col="sort_order"
+    )
+```
+
+### Cascading dropdown from database with parent
+
+This example shows cascading from a database where products depend on the selected category.
+
+```python highlight="7,22"
+from squirrels import parameters as p, data_sources as ds
+
+@p.SingleSelectParameter.create_from_source(
+    name="product", 
+    label="Product",
+    description="Select a product from the chosen category",
+    parent_name="product_category"
+)
+def product_source():
+    return ds.SelectDataSource(
+        table_or_query="""
+            SELECT 
+                product_id,
+                product_name,
+                category_id
+            FROM products
+            WHERE is_active = 1
+            ORDER BY product_name
+        """,
+        id_col="product_id",
+        options_col="product_name",
+        parent_id_col="category_id"
+    )
+```
+
+## Examples for instance methods
+
+Once parameters are configured, you can use instance methods in your models to access the selected values. The parameter instances are available through the context object (e.g., `sqrl.prms`).
+
+### Basic usage in context.py
+
+```python highlight="7"
+from squirrels import ContextArgs
+
+def main(ctx: dict[str, Any], sqrl: ContextArgs) -> None:
+    if sqrl.param_exists("region"):
+        region_param = sqrl.prms["region"]
+        assert isinstance(region_param, p.SingleSelectParameter)
+        ctx["region_id"] = region_param.get_selected_id()
+```
+
+### Basic usage in Jinja SQL models
+
+The following example works but is not recommended. See tip below for why.
+
+```sql highlight="4"
+-- models/federates/filtered_sales.sql
+SELECT *
+FROM sales
+WHERE region = {{ prms["region"].get_selected_id() | quote }}
+```
+
+<Tip>
+  It is generally better to only use the instance methods in `context.py` to transform parameter selections into context variables. Using the instance methods directly in the data models is not recommended. 
+  
+  IDEs can provide code suggestions for the available instance methods in Python instead of having to memorize which method (such as `get_selected_id`) is available to use for `SingleSelectParameter` objects.
+</Tip>
+
+### Accessing custom fields
+
+Suppose you define a single-select parameter with custom fields as such:
+
+```python
+# In pyconfigs/parameters.py
+@p.SingleSelectParameter.create_with_options(
+    name="report_template", 
+    label="Report Template"
+)
+def report_template_options():
+    return [
+        po.SelectParameterOption(
+            id="summary", 
+            label="Summary",
+            table_name="sales_summary"
+        ),
+        po.SelectParameterOption(
+            id="detail", 
+            label="Detail",
+            table_name="sales_detail"
+        ),
+    ]
+```
+
+Then you can access the custom field in `context.py` as follows:
+
+```python highlight="7"
+# In context.py
+def main(ctx: dict[str, Any], sqrl: ContextArgs) -> None:
+    if sqrl.param_exists("report_template"):
+        report_template_param = sqrl.prms["report_template"]
+        assert isinstance(report_template_param, p.SingleSelectParameter)
+
+        table_name = report_template_param.get_selected("table_name")
+        ctx["report_template_table"] = table_name
+```
+
+
+[SelectParameterOption]: /references/python/parameter_options/selectparameteroption

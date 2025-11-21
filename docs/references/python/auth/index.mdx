@@ -1,0 +1,61 @@
+---
+title: "auth"
+tag: "module"
+description: "Module containing classes and functions for authentication in Squirrels"
+---
+
+The `squirrels.auth` module provides authentication functionality for Squirrels projects, including OAuth provider configuration, user management, and custom user fields.
+
+This module enables you to integrate external authentication providers (like Google, Microsoft, etc.) and manage authenticated users with custom attributes.
+
+## Base class for extending user fields
+
+- [CustomUserFields](/references/python/auth/customuserfields) - Base class for adding custom fields to users
+
+## Classes and functions to configure OAuth providers
+
+- [provider](/references/python/auth/provider) - Decorator function to register an OAuth authentication provider
+- [ProviderConfigs](/references/python/auth/providerconfigs) - Configuration class for OAuth provider settings
+- [RegisteredUser](/references/python/auth/registereduser) - Class representing an authenticated user
+
+## Example
+
+Here's a complete example of setting up an OAuth provider in the `pyconfigs/user.py` file:
+
+```python
+from squirrels import auth, arguments as args
+
+# Define custom user fields in pyconfigs/user.py
+class CustomUserFields(auth.CustomUserFields):
+    department: str = "general"
+    employee_id: int | None = None
+
+# Register an OAuth provider
+@auth.provider(
+    name="google", 
+    label="Google", 
+    icon="https://www.google.com/favicon.ico"
+)
+def google_auth_provider(sqrl: args.AuthProviderArgs) -> auth.ProviderConfigs:
+    def get_sqrl_user(claims: dict) -> auth.RegisteredUser:
+        custom_fields = CustomUserFields(
+            department=claims.get("department", "general"),
+            employee_id=claims.get("emp_id")
+        )
+        return auth.RegisteredUser(
+            username=claims["email"],
+            access_level="member",
+            custom_fields=custom_fields
+        )
+    
+    provider_configs = auth.ProviderConfigs(
+        client_id=sqrl.env_vars["GOOGLE_CLIENT_ID"],
+        client_secret=sqrl.env_vars["GOOGLE_CLIENT_SECRET"],
+        server_url="https://accounts.google.com",
+        client_kwargs={"scope": "openid email profile"},
+        get_user=get_sqrl_user
+    )
+    
+    return provider_configs
+```
+

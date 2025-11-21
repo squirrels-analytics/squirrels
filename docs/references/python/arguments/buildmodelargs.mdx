@@ -36,7 +36,11 @@ The class can be imported from the `squirrels.arguments` or `squirrels` module.
 
 Returns the result of a dependent model as a polars LazyFrame.
 
-<Expandable title="arguments (positional)" defaultOpen>
+```python
+def ref(self, model: str) -> polars.LazyFrame:
+```
+
+<Expandable title="arguments" defaultOpen>
   <ResponseField name="model" type="string" required>
     The model name to reference.
   </ResponseField>
@@ -48,7 +52,13 @@ Returns the result of a dependent model as a polars LazyFrame.
 
 Runs a SQL query against an external database.
 
-<Expandable title="arguments (positional)" defaultOpen>
+```python
+def run_external_sql(
+    self, connection_name: str, sql_query: str
+) -> polars.DataFrame:
+```
+
+<Expandable title="arguments" defaultOpen>
   <ResponseField name="connection_name" type="string" required>
     The connection name for the database.
   </ResponseField>
@@ -63,7 +73,13 @@ Runs a SQL query against an external database.
 
 Uses a dictionary of dataframes to execute a SQL query in an embedded DuckDB database.
 
-<Expandable title="arguments (positional)" defaultOpen>
+```python
+def run_sql_on_dataframes(
+    self, sql_query: str, *, dataframes: dict[str, polars.LazyFrame] | None = None
+) -> polars.DataFrame:
+```
+
+<Expandable title="arguments" defaultOpen>
   <ResponseField name="sql_query" type="string" required>
     The SQL query to run.
   </ResponseField>

@@ -1,16 +1,16 @@
 ---
 title: "DatasetResult"
 tag: "class"
-description: "Dataset result with data and metadata"
+description: "Return type representing a dataset result with data and metadata"
 ---
 
-Class holding a dataset result including the data and metadata. Extends `DatasetMetadata`.
+Class representing a dataset result including the data and metadata. Extends `DatasetMetadata`.
+
+Instances of `DatasetResult` are created and returned by Squirrels dataset execution APIs (for example, in dataset routes or project methods); you should not construct this class directly.
+
+If `DatasetResult` is needed for type annotation, it can be imported from the `squirrels.types` or `squirrels` module.
 
 ## Attributes
-
-<ResponseField name="target_model_config" type="ModelConfig">
-  The model configuration for this dataset
-</ResponseField>
 
 <ResponseField name="df" type="pl.DataFrame">
   The dataset as a Polars DataFrame
@@ -18,20 +18,133 @@ Class holding a dataset result including the data and metadata. Extends `Dataset
 
 ## Methods
 
-### to_json
+### to_json()
 
 Returns the dataset as a JSON-serializable dictionary with pagination support.
 
-**Arguments:**
-- `orientation` (Literal["records", "rows", "columns"]): How to orient the data
-- `limit` (int): Maximum number of rows to return
-- `offset` (int): Number of rows to skip
+```python
+def to_json(
+    self, orientation: Literal["records", "rows", "columns"], 
+    limit: int, offset: int
+) -> dict:
+```
 
-**Returns:** `dict`
+<Expandable title="arguments" defaultOpen>
+  <ResponseField name="orientation" type='Literal["records", "rows", "columns"]' required>
+    How to orient the data in the response. Options:
+    - <code>"records"</code>: Array of objects where each object is a row (e.g., <code>[{"{"}col1: val1, col2: val2{"}"}, ...]</code>)
+    - <code>"rows"</code>: Array of arrays where each inner array is a row (e.g., <code>[[val1, val2], ...]</code>)
+    - <code>"columns"</code>: Object where keys are column names and values are arrays (e.g., <code>{"{"}col1: [val1, val2], ...{"}"}</code>)
+  </ResponseField>
+  <ResponseField name="limit" type="int" required>
+    Maximum number of rows to return. Use 0 for no limit.
+  </ResponseField>
+  <ResponseField name="offset" type="int" required>
+    Number of rows to skip from the beginning. Use 0 to start from the first row.
+  </ResponseField>
+</Expandable>
 
-The returned dictionary includes:
-- `schema`: Schema information
-- `total_num_rows`: Total number of rows in the dataset
-- `data_details`: Details about the returned data subset
-- `data`: The actual data in the requested orientation
+<ResponseField name="returns" type="dict">
+  A dictionary containing the dataset with data and metadata. The structure includes:
 
+  <Expandable title="return structure">
+    <ResponseField name="schema" type="object">
+      Schema information for the dataset (same structure as [DatasetMetadata]).
+
+      <Expandable title="schema properties" defaultOpen>
+        <ResponseField name="fields" type="array">
+          Array of field objects, where each field has the following properties:
+
+          <Expandable title="field properties" defaultOpen>
+            <ResponseField name="name" type="string">
+              The name of the field/column.
+            </ResponseField>
+            <ResponseField name="type" type="string">
+              The data type of the field (e.g. "string", "integer", "float", "boolean", "date", "datetime").
+            </ResponseField>
+            <ResponseField name="description" type="string">
+              Human-readable description of the field.
+            </ResponseField>
+            <ResponseField name="category" type="string">
+              Category of the field (e.g. "dimension", "measure", "misc").
+            </ResponseField>
+          </Expandable>
+        </ResponseField>
+      </Expandable>
+    </ResponseField>
+    <ResponseField name="total_num_rows" type="int">
+      Total number of rows in the complete dataset (before applying limit/offset).
+    </ResponseField>
+    <ResponseField name="data_details" type="object">
+      Metadata about the data subset being returned.
+
+      <Expandable title="data_details properties" defaultOpen>
+        <ResponseField name="num_rows" type="int">
+          Actual number of rows in the returned data subset (after applying limit/offset).
+        </ResponseField>
+        <ResponseField name="orientation" type="string">
+          The orientation format used for the data (matches the input parameter).
+        </ResponseField>
+      </Expandable>
+    </ResponseField>
+    <ResponseField name="data" type="array | object">
+      The actual dataset in the requested orientation format. Type depends on the <code>orientation</code> parameter:
+      - <code>"records"</code>: Array of objects
+      - <code>"rows"</code>: Array of arrays
+      - <code>"columns"</code>: Object with column names as keys
+    </ResponseField>
+  </Expandable>
+</ResponseField>
+
+[DatasetMetadata]: /references/python/types/datasetmetadata
+
+## Examples
+
+Here are some common usage patterns for the `DatasetResult` class. It is assumed that the code is running in an async context (e.g. inside an async function or a Jupyter Notebook cell).
+
+### Query a dataset and access the dataframe
+
+```python
+from squirrels.types import DatasetResult
+from squirrels import SquirrelsProject
+
+sqrl = SquirrelsProject()
+
+# Query a dataset
+result: DatasetResult = await sqrl.dataset(
+    "sales_data",
+    selections={"year": "2024", "region": "north-america"}
+)
+
+# Access the Polars DataFrame
+print(result.df.head())
+
+# Convert to pandas if needed
+pandas_df = result.df.to_pandas()
+```
+
+### Export dataset to JSON with different orientations
+
+```python
+from squirrels.types import DatasetResult
+from squirrels import SquirrelsProject
+
+sqrl = SquirrelsProject()
+
+result: DatasetResult = await sqrl.dataset("sales_data")
+
+# Get first 10 rows as array of objects (records orientation)
+json_data = result.to_json("records", limit=10, offset=0)
+print(json_data['data'])
+# Output: [{'date': '2024-01-01', 'amount': 100}, ...]
+
+# Get as array of arrays (rows orientation)
+json_data = result.to_json("rows", limit=10, offset=0)
+print(json_data['data'])
+# Output: [['2024-01-01', 100], ['2024-01-02', 150], ...]
+
+# Get as column-oriented object (columns orientation)
+json_data = result.to_json("columns", limit=10, offset=0)
+print(json_data['data'])
+# Output: {'date': ['2024-01-01', '2024-01-02', ...], 'amount': [100, 150, ...]}
+```

@@ -4,33 +4,172 @@ tag: "class"
 description: "Parameter option for number widgets"
 ---
 
-Parameter option for number parameters.
+Parameter option for number parameters that can vary based on selection of another parameter.
+
+This class can be imported from the `squirrels.parameter_options` or the `squirrels` module.
 
 ## Constructor
 
-### Arguments
+Creates a `NumberParameterOption` object. Typically used in `pyconfigs/parameters.py`.
 
-<ResponseField name="default_value" type="Decimal | int | float | str" required>
-  Default value for this option
-</ResponseField>
+```python
+def __init__(
+    self, min_value: decimal.Decimal | int | float | str, 
+    max_value: decimal.Decimal | int | float | str, 
+    *, increment: decimal.Decimal | int | float | str = 1, 
+    default_value: decimal.Decimal | int | float | str | None = None,
+    user_groups: Iterable[Any] | str = frozenset(), 
+    parent_option_ids: Iterable[str] | str = frozenset()
+) -> None:
+```
 
-<ResponseField name="min_value" type="Decimal | int | float | str | None" default="None">
-  Minimum value constraint
-</ResponseField>
+<Expandable title="arguments" defaultOpen>
+  <ResponseField name="min_value" type="decimal.Decimal | int | float | str" required>
+    Minimum selectable value. Can be provided as a Decimal, int, float, or string representation of a number.
+  </ResponseField>
 
-<ResponseField name="max_value" type="Decimal | int | float | str | None" default="None">
-  Maximum value constraint
-</ResponseField>
+  <ResponseField name="max_value" type="decimal.Decimal | int | float | str" required>
+    Maximum selectable value. Can be provided as a Decimal, int, float, or string representation of a number.
 
-<ResponseField name="increment" type="Decimal | int | float | str | None" default="None">
-  Increment/step value
-</ResponseField>
+    Must be greater than or equal to `min_value`.
+  </ResponseField>
 
-<ResponseField name="user_groups" type="Iterable[Any] | str" default="frozenset()">
-  User groups this option is visible for
-</ResponseField>
+  <ResponseField name="increment" type="decimal.Decimal | int | float | str" default="1">
+    Increment or step value for the number input. Must fit evenly between `min_value` and `max_value`. Can be provided as a Decimal, int, float, or string representation of a number.
 
-<ResponseField name="parent_option_ids" type="Iterable[str] | str" default="frozenset()">
-  Parent option ids that must be selected for this option to be visible
-</ResponseField>
+    Must fit evenly between `min_value` and `max_value`. Increment must be specified if the difference is not divisible by 1.
+  </ResponseField>
 
+  <ResponseField name="default_value" type="decimal.Decimal | int | float | str | None" default="None">
+    Default value for this option. Must be selectable based on `min_value`, `max_value`, and `increment`. Can be provided as a Decimal, int, float, string representation of a number, or None. If None, defaults to `min_value`.
+  </ResponseField>
+
+  <ResponseField name="user_groups" type="Iterable[Any] | str" default="frozenset()">
+    User group(s) this option is visible for. Only applies if `user_attribute` is provided to the factory method `create_with_options` associated to the [NumberParameter](/references/python/parameters/numberparameter).
+  </ResponseField>
+
+  <ResponseField name="parent_option_ids" type="Iterable[str] | str" default="frozenset()">
+    Parent option id(s) that must be selected for this option to be visible. Only applies if `parent_name` is provided to the factory method `create_with_options` associated to the [NumberParameter](/references/python/parameters/numberparameter).
+  </ResponseField>
+</Expandable>
+
+## Examples
+
+A `NumberParameterOption` object is created in the `pyconfigs/parameters.py` file. It must be created in a function decorated with the `create_with_options` factory method from [NumberParameter](/references/python/parameters/numberparameter).
+
+### Usage example in parameters.py
+
+```python highlight="10-14"
+from squirrels import parameters as p, parameter_options as po
+
+@p.NumberParameter.create_with_options(
+    name="threshold", 
+    label="Threshold",
+    description="Threshold value for filtering"
+)
+def threshold_options():
+    return [
+        po.NumberParameterOption(
+            min_value=0, 
+            max_value=1000,
+            default_value=100
+        )
+    ]
+```
+
+In addition, the following are some additional examples for creating a `NumberParameterOption` object.
+
+### Setting up cascading parameters with varying number ranges
+
+This example shows how to create number options that change their constraints based on the selection of a parent parameter (e.g., different budget categories with different value ranges).
+
+```python highlight="18,26,32"
+# Parent parameter for budget category
+@p.SingleSelectParameter.create_with_options(
+    name="budget_category", 
+    label="Budget Category",
+    description="Category of budget"
+)
+def budget_category_options():
+    return [
+        po.SelectParameterOption(id="small", label="Small Projects"),
+        po.SelectParameterOption(id="large", label="Large Projects"),
+    ]
+
+# Child number parameter with ranges that vary by category
+@p.NumberParameter.create_with_options(
+    name="budget_amount", 
+    label="Budget Amount",
+    description="Budget amount based on category",
+    parent_name="budget_category"  # Name of the parent parameter above
+)
+def budget_amount_options():
+    return [
+        po.NumberParameterOption(
+            min_value=1000,
+            max_value=10000,
+            default_value=5000,
+            parent_option_ids="small"  # Only applies when "small" is selected
+        ),
+        po.NumberParameterOption(
+            min_value=25000,
+            max_value=500000,
+            default_value=50000,
+            parent_option_ids="large"  # Only applies when "large" is selected
+        )
+    ]
+```
+
+### Restricting value ranges by user groups
+
+This example shows how to provide different value constraints based on user access levels using the `user_groups` parameter.
+
+```python highlight="5,13,19"
+@p.NumberParameter.create_with_options(
+    name="discount_percentage", 
+    label="Discount Percentage",
+    description="Discount percentage to apply",
+    user_attribute="access_level"
+)
+def discount_percentage_options():
+    return [
+        po.NumberParameterOption(
+            min_value=0, 
+            max_value=10,
+            default_value=5,
+            user_groups=["member"]  # Members can apply up to 10% discount
+        ),
+        po.NumberParameterOption(
+            min_value=0, 
+            max_value=50,
+            default_value=10,
+            user_groups=["admin"]  # Admins can apply up to 50%
+        )
+    ]
+```
+
+If custom user fields are defined in `pyconfigs/user.py`, then they can be used to restrict value constraints as well. To do so, the `user_attribute` argument must be prefixed with `custom_fields.`.
+
+```python highlight="5,13,19"
+@p.NumberParameter.create_with_options(
+    name="credit_limit", 
+    label="Credit Limit",
+    description="Maximum credit limit",
+    user_attribute="custom_fields.role"
+)
+def credit_limit_options():
+    return [
+        po.NumberParameterOption(
+            min_value=100,
+            max_value=5000,
+            default_value=1000,
+            user_groups=["sales_rep"]  # Sales reps have standard limits
+        ),
+        po.NumberParameterOption(
+            min_value=100,
+            max_value=100000,
+            default_value=10000,
+            user_groups=["sales_director"]  # Directors have higher limits
+        )
+    ]
+```

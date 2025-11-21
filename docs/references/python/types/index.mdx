@@ -1,0 +1,26 @@
+---
+title: "types"
+tag: "module"
+description: "Module containing type classes for type hints in Squirrels"
+---
+
+The `squirrels.types` module provides abstract base classes and return types that are primarily used for type annotations in Squirrels projects.
+
+These classes are typically instantiated by the Squirrels framework and returned from various APIs. You generally should not instantiate these classes directly, but instead use them for type hints or work with their concrete implementations.
+
+## Abstract base classes
+
+These abstract classes serve as common types for their concrete implementations:
+
+- [Dashboard](/references/python/types/dashboard) - Base type for all dashboard classes
+- [Parameter](/references/python/types/parameter) - Base type for all parameter widget classes
+- [ParameterOption](/references/python/types/parameteroption) - Base type for all parameter option classes
+- [DataSource](/references/python/types/datasource) - Base type for all data source classes used by parameters
+
+## Return type classes
+
+These classes represent data returned from Squirrels APIs:
+
+- [DatasetMetadata](/references/python/types/datasetmetadata) - Return type for dataset schema and metadata information
+- [DatasetResult](/references/python/types/datasetresult) - Return type for dataset queries, includes data and metadata
+- [TextValue](/references/python/types/textvalue) - Wrapper for raw text entered into TextParameter widgets

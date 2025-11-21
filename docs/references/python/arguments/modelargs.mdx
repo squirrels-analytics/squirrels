@@ -52,7 +52,11 @@ The class can be imported from the `squirrels.arguments` or `squirrels` module.
 
 Sets a placeholder value for use in SQL queries.
 
-<Expandable title="arguments (positional)" defaultOpen>
+```python
+def set_placeholder(self, placeholder: str, value: TextValue | Any) -> str:
+```
+
+<Expandable title="arguments" defaultOpen>
   <ResponseField name="placeholder" type="string" required>
     The name of the placeholder.
   </ResponseField>
@@ -65,9 +69,13 @@ Sets a placeholder value for use in SQL queries.
 
 ### param_exists()
 
-Checks whether a given parameter exists and is enabled.
+Checks whether a given parameter exists and contains options.
 
-<Expandable title="arguments (positional)" defaultOpen>
+```python
+def param_exists(self, param_name: str) -> bool:
+```
+
+<Expandable title="arguments" defaultOpen>
   <ResponseField name="param_name" type="string" required>
     The name of the parameter.
   </ResponseField>
@@ -79,7 +87,11 @@ Checks whether a given parameter exists and is enabled.
 
 Returns the result of a dependent model as a polars LazyFrame.
 
-<Expandable title="arguments (positional)" defaultOpen>
+```python
+def ref(self, model: str) -> polars.LazyFrame:
+```
+
+<Expandable title="arguments" defaultOpen>
   <ResponseField name="model" type="string" required>
     The model name to reference.
   </ResponseField>
@@ -91,7 +103,13 @@ Returns the result of a dependent model as a polars LazyFrame.
 
 Runs a SQL query against an external database.
 
-<Expandable title="arguments (positional)" defaultOpen>
+```python
+def run_external_sql(
+    self, connection_name: str, sql_query: str, **kwargs
+) -> polars.DataFrame:
+```
+
+<Expandable title="arguments" defaultOpen>
   <ResponseField name="connection_name" type="string" required>
     The connection name for the database.
   </ResponseField>
@@ -106,7 +124,14 @@ Runs a SQL query against an external database.
 
 Uses a dictionary of dataframes to execute a SQL query in an embedded DuckDB database.
 
-<Expandable title="arguments (positional)" defaultOpen>
+```python
+def run_sql_on_dataframes(
+    self, sql_query: str, *, dataframes: dict[str, polars.LazyFrame] | None = None, 
+    **kwargs
+) -> polars.DataFrame:
+```
+
+<Expandable title="arguments" defaultOpen>
   <ResponseField name="sql_query" type="string" required>
     The SQL query to run.
   </ResponseField>
@@ -121,7 +146,11 @@ Uses a dictionary of dataframes to execute a SQL query in an embedded DuckDB dat
 
 Checks whether a name is a valid placeholder.
 
-<Expandable title="arguments (positional)" defaultOpen>
+```python
+def is_placeholder(self, placeholder: str) -> bool:
+```
+
+<Expandable title="arguments" defaultOpen>
   <ResponseField name="placeholder" type="string" required>
     The name to check.
   </ResponseField>
@@ -133,7 +162,11 @@ Checks whether a name is a valid placeholder.
 
 Gets the value of a placeholder. Use with caution to avoid SQL injection.
 
-<Expandable title="arguments (positional)" defaultOpen>
+```python
+def get_placeholder_value(self, placeholder: str) -> Any | None:
+```
+
+<Expandable title="arguments" defaultOpen>
   <ResponseField name="placeholder" type="string" required>
     The name of the placeholder.
   </ResponseField>

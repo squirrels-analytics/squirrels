@@ -83,7 +83,6 @@ DASHBOARDS_FOLDER = 'dashboards'
 DASHBOARD_FILE_STEM = 'dashboard_example'
 
 PYCONFIGS_FOLDER = 'pyconfigs'
-AUTH_FILE = 'auth.py'
 CONNECTIONS_FILE = 'connections.py'
 CONTEXT_FILE = 'context.py'
 PARAMETERS_FILE = 'parameters.py'

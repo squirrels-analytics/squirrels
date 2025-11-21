@@ -1,7 +1,7 @@
 from __future__ import annotations
 from dataclasses import dataclass
 from enum import Enum
-import polars as pl, typing as t, abc
+import polars as pl, typing as t, abc, re
 
 from . import _parameter_configs as pc, _parameter_options as po
 from ._exceptions import ConfigurationError
@@ -46,7 +46,7 @@ class DataSource(metaclass=abc.ABCMeta):
         Returns:
             str: The converted select query
         """
-        if self._table_or_query.strip().lower().startswith('select '):
+        if re.match(r'select\s', self._table_or_query.strip(), re.IGNORECASE):
             query = self._table_or_query
         else:
             query = f'SELECT * FROM {self._table_or_query}'

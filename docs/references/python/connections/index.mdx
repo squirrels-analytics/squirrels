@@ -1,0 +1,47 @@
+---
+title: "connections"
+tag: "module"
+description: "Module containing classes for database connection configuration in Squirrels"
+---
+
+The `squirrels.connections` module provides classes for configuring and managing database connections in Squirrels projects.
+
+This module allows you to define connections to various databases using different connection types, including SQLAlchemy, DuckDB, ADBC, and ConnectorX.
+
+## Classes
+
+- [ConnectionProperties](/references/python/connections/connectionproperties) - Class for defining database connection properties
+- [ConnectionTypeEnum](/references/python/connections/connectiontypeenum) - Enum for specifying connection types
+
+## Example
+
+Here's an example of configuring connections in `pyconfigs/connections.py`:
+
+```python
+from typing import Any
+from squirrels import arguments as args, connections as cn
+
+def main(connections: dict[str, cn.ConnectionProperties | Any], sqrl: args.ConnectionsArgs) -> None:
+    """
+    Define database connections by adding them to the "connections" dictionary
+    """
+    
+    # PostgreSQL with custom engine settings
+    connections["postgres"] = cn.ConnectionProperties(
+        label="Production Database",
+        type=cn.ConnectionTypeEnum.SQLALCHEMY,
+        uri=sqrl.env_vars["POSTGRES_URI"],
+        sa_create_engine_args={
+            "pool_size": 10,
+            "pool_pre_ping": True
+        }
+    )
+    
+    # DuckDB native connection for high performance
+    connections["analytics"] = cn.ConnectionProperties(
+        label="Analytics Database",
+        type=cn.ConnectionTypeEnum.DUCKDB,
+        uri=f"{sqrl.project_path}/assets/analytics.duckdb"
+    )
+```
+

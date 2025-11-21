@@ -1,25 +1,76 @@
 ---
 title: "DatasetMetadata"
 tag: "class"
-description: "Metadata about a dataset"
+description: "Return type representing metadata about a dataset"
 ---
 
-Class holding metadata about a dataset including schema information.
+Class representing metadata about a dataset including schema information.
 
-## Attributes
+Instances of `DatasetMetadata` are created by Squirrels when describing datasets (and as the base for `DatasetResult`); you should not construct this class directly.
 
-<ResponseField name="target_model_config" type="ModelConfig">
-  The model configuration for this dataset
-</ResponseField>
+If `DatasetMetadata` is needed for type annotation, it can be imported from the `squirrels.types` or `squirrels` module.
 
 ## Methods
 
-### to_json
+### to_json()
 
-Returns the metadata as a JSON-serializable dictionary.
+Returns the dataset metadata as a JSON-serializable dictionary.
 
-**Returns:** `dict`
+```python
+def to_json(self) -> dict:
+```
 
-The returned dictionary includes:
-- `schema`: Schema information with field names, types, descriptions, and categories
+<ResponseField name="returns" type="dict">
+  A dictionary containing dataset metadata with the following structure:
 
+  <Expandable title="return structure">
+    <ResponseField name="schema" type="object">
+      Schema information for the dataset.
+
+      <Expandable title="schema properties" defaultOpen>
+        <ResponseField name="fields" type="array">
+          Array of field objects, where each field has the following properties:
+
+          <Expandable title="field properties" defaultOpen>
+            <ResponseField name="name" type="string">
+              The name of the field/column.
+            </ResponseField>
+            <ResponseField name="type" type="string">
+              The data type of the field (e.g. "string", "integer", "float", "boolean", "date", "datetime").
+            </ResponseField>
+            <ResponseField name="condition" type="string | None">
+              Optional SQL condition that determines whether the column should be included in the result.
+            </ResponseField>
+            <ResponseField name="description" type="string">
+              Human-readable description of the field.
+            </ResponseField>
+            <ResponseField name="category" type="string">
+              Category of the field (e.g. "dimension", "measure", "misc").
+            </ResponseField>
+          </Expandable>
+        </ResponseField>
+      </Expandable>
+    </ResponseField>
+  </Expandable>
+</ResponseField>
+
+## Examples
+
+Here are some common usage patterns for the `DatasetMetadata` class. It is assumed that the code is running in an async context (e.g. inside an async function or a Jupyter Notebook cell).
+
+### Get dataset metadata
+
+```python
+from squirrels.types import DatasetMetadata
+from squirrels import SquirrelsProject
+
+sqrl = SquirrelsProject()
+
+# Get metadata for a dataset
+metadata: DatasetMetadata = sqrl.dataset_metadata("sales_data")
+
+# Access schema information as JSON
+schema_json = metadata.to_json()
+print(schema_json)
+# Output: {'schema': {'fields': [{'name': 'date', 'type': 'date', ...}, ...]}}
+```

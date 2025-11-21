@@ -6,43 +6,156 @@ description: "Lookup table for date parameter options"
 
 Data source class for populating date parameter options from a database table or query.
 
+This class can be imported from the `squirrels.data_sources` or the `squirrels` module.
+
 ## Constructor
 
-### Arguments
+Creates a `DateDataSource` object.
 
-<ResponseField name="table_or_query" type="str" required>
-  Either the name of the table to use, or a query to run
+```python
+def __init__(
+    self, table_or_query: str, default_date_col: str, 
+    *, min_date_col: str | None = None, max_date_col: str | None = None, 
+    date_format: str = '%Y-%m-%d', id_col: str | None = None, 
+    source: SourceEnum = SourceEnum.CONNECTION, 
+    user_group_col: str | None = None, parent_id_col: str | None = None, 
+    connection: str | None = None
+) -> None:
+```
+
+<Expandable title="arguments" defaultOpen>
+  <ResponseField name="table_or_query" type="str" required>
+  Either the name of the table to use, or a SQL query to run. If using a SQL query, it must start with "SELECT" (ignoring case and leading whitespaces) followed by a whitespace.
+
+  The available tables are based on the `source` argument. If the source is `SourceEnum.CONNECTION`, then the SQL syntax is based on the underlying database from the `connection` argument. Otherwise, the SQL syntax is DuckDB SQL.
 </ResponseField>
 
 <ResponseField name="default_date_col" type="str" required>
-  The column name for the default date
+  The column name for the default date.
 </ResponseField>
 
 <ResponseField name="min_date_col" type="str | None" default="None">
-  The column name for the minimum date
+  The column name for the minimum date. If None, then there is no minimum date constraint.
 </ResponseField>
 
 <ResponseField name="max_date_col" type="str | None" default="None">
-  The column name for the maximum date
+  The column name for the maximum date. If None, then there is no maximum date constraint.
 </ResponseField>
 
 <ResponseField name="date_format" type="str" default="'%Y-%m-%d'">
-  Format of the dates in the columns
+  Format of the dates in the columns. Uses Python's `strftime` format codes (e.g., `%Y-%m-%d` for ISO format, `%m/%d/%Y` for US format).
 </ResponseField>
 
 <ResponseField name="source" type="SourceEnum" default="SourceEnum.CONNECTION">
-  The source to fetch data from
+  The source to fetch data from as a [SourceEnum](/references/python/data_sources/sourceenum) value.
 </ResponseField>
 
 <ResponseField name="user_group_col" type="str | None" default="None">
-  The column name of the user group for option visibility
+  The column name of the user group for option visibility. If None, all users will see all options.
 </ResponseField>
 
 <ResponseField name="parent_id_col" type="str | None" default="None">
-  The column name of the parent option id for cascading
+  The column name of the parent option id for cascading. 
+  
+  If None, then this parameter has no parent and its options will not be cascaded.
 </ResponseField>
 
 <ResponseField name="connection" type="str | None" default="None">
-  Name of the connection to use
-</ResponseField>
+    Name of the connection to use. Only used if the source is `SourceEnum.CONNECTION`. Connection must be defined in `squirrels.yml` or the `connections.py` file.
 
+    If None, uses the default connection (specified by `SQRL_CONNECTIONS__DEFAULT_NAME_USED` environment variable or 'default').
+  </ResponseField>
+</Expandable>
+
+## Examples
+
+A `DateDataSource` object is created in the `pyconfigs/parameters.py` file. It must be created in a function decorated with the `create_from_source` factory method from [DateParameter](/references/python/parameters/dateparameter).
+
+### Usage example in parameters.py
+
+```python highlight="9-19"
+from squirrels import parameters as p, data_sources as ds
+
+@p.DateParameter.create_from_source(
+    name="report_date", 
+    label="Report Date",
+    description="Date to generate the report for"
+)
+def report_date_source():
+    return ds.DateDataSource(
+        table_or_query="""
+            SELECT 
+                CURRENT_DATE AS default_date,
+                CURRENT_DATE - INTERVAL '1 year' AS min_date,
+                CURRENT_DATE AS max_date
+        """,
+        default_date_col="default_date",
+        min_date_col="min_date",
+        max_date_col="max_date"
+    )
+```
+
+In addition, the following are some additional examples for creating a `DateDataSource` object.
+
+### Using a table from a specific connection
+
+This example uses a table called "fiscal_calendar" from the "analytics_db" connection.
+
+```python highlight="2,6"
+ds.DateDataSource(
+    table_or_query="fiscal_calendar",
+    default_date_col="reporting_date",
+    min_date_col="period_start",
+    max_date_col="period_end",
+    connection="analytics_db"
+)
+```
+
+The connection must either be defined in `squirrels.yml` or the `connections.py` file.
+
+### Using seeds as the data source
+
+This example uses a seed file called "date_config".
+
+```python highlight="2,4"
+ds.DateDataSource(
+    table_or_query="date_config",
+    default_date_col="default_date",
+    source=ds.SourceEnum.SEEDS
+)
+```
+
+### Using a custom date format
+
+This example demonstrates using a different date format for the dates stored in the database.
+
+```python highlight="6"
+ds.DateRangeDataSource(
+    table_or_query="""
+        SELECT '01/31/2025' AS default_date
+    """,
+    default_date_col="default_date",
+    date_format="%m/%d/%Y"
+)
+```
+
+### Enabling cascading effects with a parent parameter
+
+In this example, the default, minimum, and maximum dates are determined by the selected value of another parameter called "region".
+
+```python highlight="5,13"
+@p.DateParameter.create_from_source(
+    name="availability_date", 
+    label="Availability Date",
+    description="The date of availability for the selected region",
+    parent_name="region"
+)
+def report_date_source():
+    return ds.DateDataSource(
+      table_or_query="regional_availability",
+      default_date_col="availability_date",
+      min_date_col="earliest_date",
+      max_date_col="latest_date",
+      parent_id_col="region_id"  # Cascades based on region selection
+  )
+```

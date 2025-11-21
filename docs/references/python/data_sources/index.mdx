@@ -1,0 +1,66 @@
+---
+title: "data_sources"
+tag: "module"
+description: "Module containing data source classes for populating parameter options in Squirrels"
+---
+
+The `squirrels.data_sources` module provides data source classes for dynamically populating parameter options from databases, seeds, or other static data models in Squirrels projects.
+
+This module enables you to create parameter widget options from data tables or queries instead of hard-coding them.
+
+## Enum for data source types
+
+- [SourceEnum](/references/python/data_sources/sourceenum) - Enum for specifying the type of data source (connection, seed, or model)
+
+## Data source classes
+
+- [SelectDataSource](/references/python/data_sources/selectdatasource) - Lookup table for populating select parameter options
+- [DateDataSource](/references/python/data_sources/datedatasource) - Data source for date parameter constraints and defaults
+- [DateRangeDataSource](/references/python/data_sources/daterangedatasource) - Data source for date range parameter constraints and defaults
+- [NumberDataSource](/references/python/data_sources/numberdatasource) - Data source for number parameter constraints and defaults
+- [NumberRangeDataSource](/references/python/data_sources/numberrangedatasource) - Data source for number range parameter constraints and defaults
+- [TextDataSource](/references/python/data_sources/textdatasource) - Data source for text parameter defaults
+
+## Example
+
+Here's an example of using data sources in `pyconfigs/parameters.py`:
+
+```python highlight="10-22,31-37"
+from squirrels import parameters as p, data_sources as ds
+
+# Select parameter populated from a database query
+@p.SingleSelectParameter.create_from_source(
+    name="product_category", 
+    label="Product Category",
+    description="Select a product category"
+)
+def product_category_source():
+    return ds.SelectDataSource(
+        table_or_query="""
+            SELECT 
+                category_id AS id,
+                category_name AS name,
+                sort_order
+            FROM product_categories
+        """,
+        id_col="id",
+        options_col="name",
+        order_by_col="sort_order",
+        connection="default"
+    )
+
+# Date parameter with constraints from a seed
+@p.DateParameter.create_from_source(
+    name="report_date",
+    label="Report Date",
+    description="Select a date from available reporting periods"
+)
+def report_date_source():
+    return ds.DateDataSource(
+        table_or_query="reporting_dates",
+        date_col="report_date",
+        min_date_col="min_available_date",
+        max_date_col="max_available_date",
+        source=ds.SourceEnum.SEEDS
+    )
+```

@@ -4,21 +4,136 @@ tag: "class"
 description: "Parameter option for text widgets"
 ---
 
-Parameter option for text parameters.
+Parameter option for text parameters that can vary based on selection of another parameter.
+
+This class can be imported from the `squirrels.parameter_options` or the `squirrels` module.
 
 ## Constructor
 
-### Arguments
+Creates a `TextParameterOption` object. Typically used in `pyconfigs/parameters.py`.
 
-<ResponseField name="default_text" type="str" required>
-  Default text value for this option
-</ResponseField>
+```python
+def __init__(
+    self, *, default_text: str = "", user_groups: Iterable[Any] | str = frozenset(), 
+    parent_option_ids: Iterable[str] | str = frozenset()
+) -> None:
+```
 
-<ResponseField name="user_groups" type="Iterable[Any] | str" default="frozenset()">
-  User groups this option is visible for
-</ResponseField>
+<Expandable title="arguments" defaultOpen>
+  <ResponseField name="default_text" type="str" default="">
+    Default text value for this option.
+  </ResponseField>
 
-<ResponseField name="parent_option_ids" type="Iterable[str] | str" default="frozenset()">
-  Parent option ids that must be selected for this option to be visible
-</ResponseField>
+  <ResponseField name="user_groups" type="Iterable[Any] | str" default="frozenset()">
+    User group(s) this option is visible for. Only applies if `user_attribute` is provided to the factory method `create_with_options` associated to the [TextParameter](/references/python/parameters/textparameter).
+  </ResponseField>
 
+  <ResponseField name="parent_option_ids" type="Iterable[str] | str" default="frozenset()">
+    Parent option id(s) that must be selected for this option to be visible. Only applies if `parent_name` is provided to the factory method `create_with_options` associated to the [TextParameter](/references/python/parameters/textparameter).
+  </ResponseField>
+</Expandable>
+
+## Examples
+
+A `TextParameterOption` object is created in the `pyconfigs/parameters.py` file. It must be created in a function decorated with the `create_with_options` factory method from [TextParameter](/references/python/parameters/textparameter).
+
+### Usage example in parameters.py
+
+```python highlight="10"
+from squirrels import parameters as p, parameter_options as po
+
+@p.TextParameter.create_with_options(
+    name="search_query", 
+    label="Search Query",
+    description="Text to search for"
+)
+def search_query_options():
+    return [
+        po.TextParameterOption()
+    ]
+```
+
+In addition, the following are some additional examples for creating a `TextParameterOption` object.
+
+### Setting up cascading parameters with varying default text
+
+This example shows how to create text options that change their default values based on the selection of a parent parameter (e.g., different report types with different default search terms).
+
+```python highlight="18,24,28"
+# Parent parameter for report type
+@p.SingleSelectParameter.create_with_options(
+    name="report_type", 
+    label="Report Type",
+    description="Type of report to generate"
+)
+def report_type_options():
+    return [
+        po.SelectParameterOption(id="sales", label="Sales Report"),
+        po.SelectParameterOption(id="inventory", label="Inventory Report"),
+    ]
+
+# Child text parameter with defaults that vary by report type
+@p.TextParameter.create_with_options(
+    name="filter_text", 
+    label="Filter Text",
+    description="Text filter based on report type",
+    parent_name="report_type"  # Name of the parent parameter above
+)
+def filter_text_options():
+    return [
+        po.TextParameterOption(
+            default_text="revenue",
+            parent_option_ids="sales"  # Only applies when "sales" is selected
+        ),
+        po.TextParameterOption(
+            default_text="in stock",
+            parent_option_ids="inventory"  # Only applies when "inventory" is selected
+        )
+    ]
+```
+
+### Restricting default text by user groups
+
+This example shows how to provide different default text values based on user access levels using the `user_groups` parameter.
+
+```python highlight="5,11,15"
+@p.TextParameter.create_with_options(
+    name="filter_keyword", 
+    label="Filter Keyword",
+    description="Default keyword for filtering",
+    user_attribute="access_level"
+)
+def filter_keyword_options():
+    return [
+        po.TextParameterOption(
+            default_text="public",
+            user_groups=["guest"]  # Guests see "public" as default
+        ),
+        po.TextParameterOption(
+            default_text="",
+            user_groups=["admin", "member"]  # Non-guests see all records as default
+        )
+    ]
+```
+
+If custom user fields are defined in `pyconfigs/user.py`, then they can be used to provide different default text values as well. To do so, the `user_attribute` argument must be prefixed with `custom_fields.`.
+
+```python highlight="5,11,15"
+@p.TextParameter.create_with_options(
+    name="department_filter", 
+    label="Department Filter",
+    description="Default department search",
+    user_attribute="custom_fields.department"
+)
+def department_filter_options():
+    return [
+        po.TextParameterOption(
+            default_text="Sales",
+            user_groups=["sales"]  # Sales team sees "Sales" as default
+        ),
+        po.TextParameterOption(
+            default_text="Engineering",
+            user_groups=["engineering"]  # Engineering team sees "Engineering" as default
+        )
+    ]
+```

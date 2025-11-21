@@ -6,43 +6,145 @@ description: "Lookup table for number parameter options"
 
 Data source class for populating number parameter options from a database table or query.
 
+This class can be imported from the `squirrels.data_sources` or the `squirrels` module.
+
 ## Constructor
 
-### Arguments
+Creates a `NumberDataSource` object.
 
-<ResponseField name="table_or_query" type="str" required>
-  Either the name of the table to use, or a query to run
+```python
+def __init__(
+    self, table_or_query: str, min_value_col: str, max_value_col: str, 
+    *, increment_col: str | None = None, default_value_col: str | None = None, 
+    id_col: str | None = None, source: SourceEnum = SourceEnum.CONNECTION, 
+    user_group_col: str | None = None, parent_id_col: str | None = None, 
+    connection: str | None = None
+) -> None:
+```
+
+<Expandable title="arguments" defaultOpen>
+  <ResponseField name="table_or_query" type="str" required>
+  Either the name of the table to use, or a SQL query to run. If using a SQL query, it must start with "SELECT" (ignoring case and leading whitespaces) followed by a whitespace.
+
+  The available tables are based on the `source` argument. If the source is `SourceEnum.CONNECTION`, then the SQL syntax is based on the underlying database from the `connection` argument. Otherwise, the SQL syntax is DuckDB SQL.
 </ResponseField>
 
-<ResponseField name="default_value_col" type="str" required>
-  The column name for the default value
+<ResponseField name="min_value_col" type="str" required>
+  The column name for the minimum value.
 </ResponseField>
 
-<ResponseField name="min_value_col" type="str | None" default="None">
-  The column name for the minimum value
-</ResponseField>
-
-<ResponseField name="max_value_col" type="str | None" default="None">
-  The column name for the maximum value
+<ResponseField name="max_value_col" type="str" required>
+  The column name for the maximum value.
 </ResponseField>
 
 <ResponseField name="increment_col" type="str | None" default="None">
-  The column name for the increment/step value
+  The column name for the increment/step value. If None, defaults to 1.
+</ResponseField>
+
+<ResponseField name="default_value_col" type="str | None" default="None">
+  The column name for the default value. If None, defaults to the minimum value.
 </ResponseField>
 
 <ResponseField name="source" type="SourceEnum" default="SourceEnum.CONNECTION">
-  The source to fetch data from
+  The source to fetch data from as a [SourceEnum](/references/python/data_sources/sourceenum) value.
 </ResponseField>
 
 <ResponseField name="user_group_col" type="str | None" default="None">
-  The column name of the user group for option visibility
+  The column name of the user group for option visibility. If None, all users will see all options.
 </ResponseField>
 
 <ResponseField name="parent_id_col" type="str | None" default="None">
-  The column name of the parent option id for cascading
+  The column name of the parent option id for cascading. 
+  
+  If None, then this parameter has no parent and its options will not be cascaded.
 </ResponseField>
 
 <ResponseField name="connection" type="str | None" default="None">
-  Name of the connection to use
-</ResponseField>
+    Name of the connection to use. Only used if the source is `SourceEnum.CONNECTION`. Connection must be defined in `squirrels.yml` or the `connections.py` file.
 
+    If None, uses the default connection (specified by `SQRL_CONNECTIONS__DEFAULT_NAME_USED` environment variable or 'default').
+  </ResponseField>
+</Expandable>
+
+## Examples
+
+A `NumberDataSource` object is created in the `pyconfigs/parameters.py` file. It must be created in a function decorated with the `create_from_source` factory method from [NumberParameter](/references/python/parameters/numberparameter).
+
+### Usage example in parameters.py
+
+```python highlight="9-21"
+from squirrels import parameters as p, data_sources as ds
+
+@p.NumberParameter.create_from_source(
+    name="top_n", 
+    label="Top N Records",
+    description="Number of top records to display"
+)
+def top_n_source():
+    return ds.NumberDataSource(
+        table_or_query="""
+            SELECT 
+                1 AS min_val,
+                100 AS max_val,
+                5 AS increment,
+                10 AS default_val
+        """,
+        min_value_col="min_val",
+        max_value_col="max_val",
+        increment_col="increment",
+        default_value_col="default_val"
+    )
+```
+
+In addition, the following are some additional examples for creating a `NumberDataSource` object.
+
+### Using a table from a specific connection
+
+This example uses a table called "parameter_configs" from the "config_db" connection.
+
+```python highlight="2,6"
+ds.NumberDataSource(
+    table_or_query="parameter_configs",
+    min_value_col="min_threshold",
+    max_value_col="max_threshold",
+    default_value_col="default_threshold",
+    connection="config_db"
+)
+```
+
+The connection must either be defined in `squirrels.yml` or the `connections.py` file.
+
+### Using seeds as the data source
+
+This example uses a seed file called "number_config".
+
+```python highlight="2,5"
+ds.NumberDataSource(
+    table_or_query="number_config",
+    min_value_col="min_value",
+    max_value_col="max_value",
+    source=ds.SourceEnum.SEEDS
+)
+```
+
+### Enabling cascading effects with a parent parameter
+
+In this example, the minimum, maximum, and default values are determined by the selected value of another parameter called "metric_type".
+
+```python highlight="5,14"
+@p.NumberParameter.create_from_source(
+    name="threshold_value", 
+    label="Threshold Value",
+    description="The threshold for the selected metric",
+    parent_name="metric_type"
+)
+def threshold_value_source():
+    return ds.NumberDataSource(
+        table_or_query="metric_thresholds",
+        min_value_col="min_threshold",
+        max_value_col="max_threshold",
+        increment_col="step_size",
+        default_value_col="default_threshold",
+        parent_id_col="metric_type_id"  # Cascades based on metric_type selection
+    )
+```

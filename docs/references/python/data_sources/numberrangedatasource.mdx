@@ -6,47 +6,155 @@ description: "Lookup table for number range parameter options"
 
 Data source class for populating number range parameter options from a database table or query.
 
+This class can be imported from the `squirrels.data_sources` or the `squirrels` module.
+
 ## Constructor
 
-### Arguments
+Creates a `NumberRangeDataSource` object.
 
-<ResponseField name="table_or_query" type="str" required>
-  Either the name of the table to use, or a query to run
+```python
+def __init__(
+    self, table_or_query: str, min_value_col: str, max_value_col: str, 
+    *, increment_col: str | None = None, default_lower_value_col: str | None = None, 
+    default_upper_value_col: str | None = None, id_col: str | None = None, 
+    source: SourceEnum = SourceEnum.CONNECTION, user_group_col: str | None = None, 
+    parent_id_col: str | None = None, connection: str | None = None
+) -> None:
+```
+
+<Expandable title="arguments" defaultOpen>
+  <ResponseField name="table_or_query" type="str" required>
+  Either the name of the table to use, or a SQL query to run. If using a SQL query, it must start with "SELECT" (ignoring case and leading whitespaces) followed by a whitespace.
+
+  The available tables are based on the `source` argument. If the source is `SourceEnum.CONNECTION`, then the SQL syntax is based on the underlying database from the `connection` argument. Otherwise, the SQL syntax is DuckDB SQL.
 </ResponseField>
 
-<ResponseField name="default_lower_value_col" type="str" required>
-  The column name for the default lower value
+<ResponseField name="min_value_col" type="str" required>
+  The column name for the minimum value constraint.
 </ResponseField>
 
-<ResponseField name="default_upper_value_col" type="str" required>
-  The column name for the default upper value
-</ResponseField>
-
-<ResponseField name="min_value_col" type="str | None" default="None">
-  The column name for the minimum value
-</ResponseField>
-
-<ResponseField name="max_value_col" type="str | None" default="None">
-  The column name for the maximum value
+<ResponseField name="max_value_col" type="str" required>
+  The column name for the maximum value constraint.
 </ResponseField>
 
 <ResponseField name="increment_col" type="str | None" default="None">
-  The column name for the increment/step value
+  The column name for the increment/step value. If None, defaults to 1.
+</ResponseField>
+
+<ResponseField name="default_lower_value_col" type="str | None" default="None">
+  The column name for the default lower value of the range. If None, defaults to the minimum value.
+</ResponseField>
+
+<ResponseField name="default_upper_value_col" type="str | None" default="None">
+  The column name for the default upper value of the range. If None, defaults to the maximum value.
 </ResponseField>
 
 <ResponseField name="source" type="SourceEnum" default="SourceEnum.CONNECTION">
-  The source to fetch data from
+  The source to fetch data from as a [SourceEnum](/references/python/data_sources/sourceenum) value.
 </ResponseField>
 
 <ResponseField name="user_group_col" type="str | None" default="None">
-  The column name of the user group for option visibility
+  The column name of the user group for option visibility. If None, all users will see all options.
 </ResponseField>
 
 <ResponseField name="parent_id_col" type="str | None" default="None">
-  The column name of the parent option id for cascading
+  The column name of the parent option id for cascading. 
+  
+  If None, then this parameter has no parent and its options will not be cascaded.
 </ResponseField>
 
 <ResponseField name="connection" type="str | None" default="None">
-  Name of the connection to use
-</ResponseField>
+    Name of the connection to use. Only used if the source is `SourceEnum.CONNECTION`. Connection must be defined in `squirrels.yml` or the `connections.py` file.
 
+    If None, uses the default connection (specified by `SQRL_CONNECTIONS__DEFAULT_NAME_USED` environment variable or 'default').
+  </ResponseField>
+</Expandable>
+
+## Examples
+
+A `NumberRangeDataSource` object is created in the `pyconfigs/parameters.py` file. It must be created in a function decorated with the `create_from_source` factory method from [NumberRangeParameter](/references/python/parameters/numberrangeparameter).
+
+### Usage example in parameters.py
+
+```python highlight="9-23"
+from squirrels import parameters as p, data_sources as ds
+
+@p.NumberRangeParameter.create_from_source(
+    name="price_range", 
+    label="Price Range",
+    description="Filter products by price range"
+)
+def price_range_source():
+    return ds.NumberRangeDataSource(
+        table_or_query="""
+            SELECT 
+                0 AS min_price,
+                1000 AS max_price,
+                10 AS price_step,
+                100 AS default_lower,
+                500 AS default_upper
+        """,
+        min_value_col="min_price",
+        max_value_col="max_price",
+        increment_col="price_step",
+        default_lower_value_col="default_lower",
+        default_upper_value_col="default_upper"
+    )
+```
+
+In addition, the following are some additional examples for creating a `NumberRangeDataSource` object.
+
+### Using a table from a specific connection
+
+This example uses a table called "range_configs" from the "config_db" connection.
+
+```python highlight="2,7"
+ds.NumberRangeDataSource(
+    table_or_query="range_configs",
+    min_value_col="min_value",
+    max_value_col="max_value",
+    default_lower_value_col="default_min",
+    default_upper_value_col="default_max",
+    connection="config_db"
+)
+```
+
+The connection must either be defined in `squirrels.yml` or the `connections.py` file.
+
+### Using seeds as the data source
+
+This example uses a seed file called "number_range_config".
+
+```python highlight="2,7"
+ds.NumberRangeDataSource(
+    table_or_query="number_range_config",
+    min_value_col="minimum",
+    max_value_col="maximum",
+    default_lower_value_col="lower_default",
+    default_upper_value_col="upper_default",
+    source=ds.SourceEnum.SEEDS
+)
+```
+
+### Enabling cascading effects with a parent parameter
+
+In this example, the range constraints and defaults are determined by the selected value of another parameter called "product_category".
+
+```python highlight="5,15"
+@p.NumberRangeParameter.create_from_source(
+    name="quantity_range", 
+    label="Quantity Range",
+    description="The quantity range for the selected category",
+    parent_name="product_category"
+)
+def quantity_range_source():
+    return ds.NumberRangeDataSource(
+        table_or_query="category_quantity_ranges",
+        min_value_col="min_quantity",
+        max_value_col="max_quantity",
+        increment_col="quantity_increment",
+        default_lower_value_col="default_min_qty",
+        default_upper_value_col="default_max_qty",
+        parent_id_col="category_id"  # Cascades based on category selection
+    )
+```

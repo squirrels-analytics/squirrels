@@ -4,23 +4,48 @@ tag: "class"
 description: "Dashboard in HTML format"
 ---
 
-Instantiate a Dashboard from an HTML string.
+Instantiate a dashboard from an HTML string inside a Python dashboard file.
+
+This class can be imported from the `squirrels.dashboards` or the `squirrels` module.
 
 ## Constructor
 
-### Arguments
+Creates a `HtmlDashboard` object.
 
-<ResponseField name="content" type="io.StringIO | str" required>
-  The content of the dashboard as an HTML string
-</ResponseField>
+```python
+def __init__(self, content: io.StringIO | str) -> None:
+```
+
+<Expandable title="arguments" defaultOpen>
+  <ResponseField name="content" type="io.StringIO | str" required>
+    The content of the dashboard as an HTML string.
+  </ResponseField>
+</Expandable>
 
 ## Example
 
+Here's an example of creating an HTML dashboard with Plotly:
+
 ```python
 from squirrels.dashboards import HtmlDashboard
+from squirrels.arguments import DashboardArgs
+import plotly.express as px
 
-def my_dashboard(sqrl: DashboardArgs):
-    html = "<h1>My Dashboard</h1><p>Some content</p>"
-    return HtmlDashboard(html)
+async def main(sqrl: DashboardArgs) -> HtmlDashboard:
+    # Get dataset
+    df = await sqrl.dataset("sales_data")
+    
+    # Create interactive plotly chart
+    fig = px.line(
+        df.to_pandas(), 
+        x='date', 
+        y='revenue',
+        title='Sales Revenue Over Time'
+    )
+    
+    # Convert to HTML
+    html_content = fig.to_html(include_plotlyjs='cdn')
+    
+    # Return as HtmlDashboard
+    return HtmlDashboard(content=html_content)
 ```
-

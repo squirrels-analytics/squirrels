@@ -28,13 +28,16 @@ The class can be imported from the `squirrels.arguments` or `squirrels` module.
 
 Async method to get a dataset as a polars DataFrame given the dataset name.
 
-<Expandable title="arguments (positional)" defaultOpen>
+```python
+async def dataset(
+    self, name: str, *, fixed_parameters: dict[str, Any] = {}
+) -> polars.DataFrame:
+```
+
+<Expandable title="arguments" defaultOpen>
   <ResponseField name="name" type="string" required>
     The dataset name.
   </ResponseField>
-</Expandable>
-
-<Expandable title="arguments (keyword)" defaultOpen>
   <ResponseField name="fixed_parameters" type="dict[str, Any]" default={{}}>
     Parameters to set for this dataset.
   </ResponseField>

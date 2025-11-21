@@ -21,7 +21,7 @@ packages: []
 
 
 datasets:
-  - name: expense_transactions           ## model name uses same name unless "model" field is specified
+  - name: expense_transactions            ## model name uses same name unless "model" field is specified
     label: Expense Transactions - DBView Example
     description: All expense transactions
     model: dbview_example 
@@ -36,7 +36,7 @@ datasets:
     label: Grouped Expenses - Federate Example
     description: Aggregated expense transactions by custom dimension using federate_example model
     model: federate_example 
-    scope: public                         ## using an auth.py file is suggested for protected or private datasets
+    scope: public
     parameters:
       - group_by
       - date_range

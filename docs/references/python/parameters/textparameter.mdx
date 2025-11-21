@@ -4,78 +4,378 @@ tag: "class"
 description: "Text input parameter"
 ---
 
-Class for text input parameter widgets.
+Class for creating text input parameter widgets that allow users to enter free-form text.
 
-## Class Methods
+This class can be imported from the `squirrels.parameters` or the `squirrels` module.
 
-### CreateWithOptions
+## Factory methods
 
-Method for creating a parameter that may include user attribute or parent.
+Factory methods are class methods that create and configure parameter instances. These methods are typically used in the `pyconfigs/parameters.py` file to create the parameter configurations (which describes the "shape" of the parameter but does not include the realtime user selections).
 
-**Arguments:**
-- `name` (str): The name of the parameter
-- `label` (str): The display label for the parameter
-- `all_options` (Sequence[TextParameterOption | dict]): All options for this parameter
-- `description` (str): Explains the meaning of the parameter (default: "")
-- `user_attribute` (str | None): User attribute that cascades options (default: None)
-- `parent_name` (str | None): Name of parent parameter (default: None)
+### create_simple()
 
-**Returns:** `TextParameterConfig`
+Decorator for creating a simple text parameter that doesn't involve user attributes or parent parameters.
 
-### create_with_options
+The body of the decorated function does not need to return anything (i.e., it can simply be `pass`).
 
-Decorator for creating a parameter with options from a function.
+```python
+@classmethod
+def create_simple(
+    cls, name: str, label: str, 
+    *, description: str = "", default_text: str = "", input_type: str = "text"
+) -> Callable:
+```
 
-**Arguments:**
-- `name` (str): The name of the parameter
-- `label` (str): The display label for the parameter
-- `description` (str): Explains the meaning of the parameter (default: "")
-- `user_attribute` (str | None): User attribute that cascades options (default: None)
-- `parent_name` (str | None): Name of parent parameter (default: None)
+<Expandable title="arguments" defaultOpen>
+  <ResponseField name="name" type="str" required>
+    The unique identifier for this parameter. Used to reference the parameter at query time (such as in `context.py` or when specifying parameter selections in the APIs).
+  </ResponseField>
 
-### CreateSimple
+  <ResponseField name="label" type="str" required>
+    The display label shown to users in the UI.
+  </ResponseField>
 
-Method for creating a parameter without user attributes or parent parameters.
+  <ResponseField name="description" type="str" default="">
+    An optional description explaining the purpose of this parameter.
+  </ResponseField>
 
-**Arguments:**
-- `name` (str): The name of the parameter
-- `label` (str): The display label for the parameter
-- `default_text` (str): Default text value
-- `description` (str): Explains the meaning of the parameter (default: "")
+  <ResponseField name="default_text" type="str" default="">
+    Default input text for this parameter. Defaults to empty string.
+  </ResponseField>
 
-**Returns:** `TextParameterConfig`
+  <ResponseField name="input_type" type="str" default="text">
+    Communicates to the API client for the type of input field to use. Must be one of "text", "textarea", "number", "color", "date", "datetime-local", "month", "time", and "password". 
+    - More information on "textarea" can be found at [W3Schools textarea tag](https://www.w3schools.com/tags/tag_textarea.asp).
+    - More information on other input types can be found at [W3Schools HTML Input Types](https://www.w3schools.com/html/html_form_input_types.asp). 
+  </ResponseField>
+</Expandable>
 
-### create_simple
+### create_with_options()
 
-Decorator for creating a simple parameter from a function returning text default.
+Decorator for creating a parameter with options that can vary based on user attributes or parent parameter selections.
 
-**Arguments:**
-- `name` (str): The name of the parameter
-- `label` (str): The display label for the parameter
-- `description` (str): Explains the meaning of the parameter (default: "")
+The decorated function must return a list of [TextParameterOption](/references/python/parameter_options/textparameteroption) objects.
 
-### CreateFromSource
+```python
+@classmethod
+def create_with_options(
+    cls, name: str, label: str, 
+    *, description: str = "", input_type: str = "text",
+    user_attribute: str | None = None, parent_name: str | None = None
+) -> Callable:
+```
 
-Method for creating a parameter from a DataSource.
+<Expandable title="arguments" defaultOpen>
+  <ResponseField name="name" type="str" required>
+    The unique identifier for this parameter. Used to reference the parameter at query time (such as in `context.py` or when specifying parameter selections in the APIs).
+  </ResponseField>
 
-**Arguments:**
-- `name` (str): The name of the parameter
-- `label` (str): The display label for the parameter
-- `data_source` (TextDataSource | dict): The lookup table to use
-- `description` (str): Explains the meaning of the parameter (default: "")
-- `user_attribute` (str | None): User attribute that cascades options (default: None)
-- `parent_name` (str | None): Name of parent parameter (default: None)
+  <ResponseField name="label" type="str" required>
+    The display label shown to users in the UI.
+  </ResponseField>
 
-**Returns:** `DataSourceParameterConfig`
+  <ResponseField name="description" type="str" default="">
+    An optional description explaining the purpose of this parameter.
+  </ResponseField>
 
-### create_from_source
+  <ResponseField name="input_type" type="str" default="text">
+    Communicates to the API client for the type of input field to use. Must be one of "text", "textarea", "number", "color", "date", "datetime-local", "month", "time", and "password". 
+    - More information on "textarea" can be found at [W3Schools textarea tag](https://www.w3schools.com/tags/tag_textarea.asp).
+    - More information on other input types can be found at [W3Schools HTML Input Types](https://www.w3schools.com/html/html_form_input_types.asp). 
+  </ResponseField>
 
-Decorator for creating a parameter from a DataSource function.
+  <ResponseField name="user_attribute" type="str | None" default="None">
+    A user attribute (like "access_level") that determines which options are visible to different users. The decorated function should return options with matching `user_groups` values.
+    
+    To use custom user fields defined in `pyconfigs/user.py`, prefix with `custom_fields.` (e.g., `"custom_fields.department"`).
+  </ResponseField>
 
-**Arguments:**
-- `name` (str): The name of the parameter
-- `label` (str): The display label for the parameter
-- `description` (str): Explains the meaning of the parameter (default: "")
-- `user_attribute` (str | None): User attribute that cascades options (default: None)
-- `parent_name` (str | None): Name of parent parameter (default: None)
+  <ResponseField name="parent_name" type="str | None" default="None">
+    The name of a parent parameter that controls which options are visible. The decorated function should return options with `parent_option_ids` matching the parent's selected value.
+  </ResponseField>
+</Expandable>
 
+### create_from_source()
+
+Decorator for creating a parameter populated from a database table or query using a [TextDataSource](/references/python/data_sources/textdatasource).
+
+The decorated function must return a [TextDataSource](/references/python/data_sources/textdatasource) object.
+
+```python
+@classmethod
+def create_from_source(
+    cls, name: str, label: str, 
+    *, description: str = "", input_type: str = "text",
+    user_attribute: str | None = None, parent_name: str | None = None
+) -> Callable:
+```
+
+<Expandable title="arguments" defaultOpen>
+  <ResponseField name="name" type="str" required>
+    The unique identifier for this parameter. Used to reference the parameter at query time (such as in `context.py` or when specifying parameter selections in the APIs).
+  </ResponseField>
+
+  <ResponseField name="label" type="str" required>
+    The display label shown to users in the UI.
+  </ResponseField>
+
+  <ResponseField name="description" type="str" default="">
+    An optional description explaining the purpose of this parameter.
+  </ResponseField>
+
+  <ResponseField name="input_type" type="str" default="text">
+    The type of input field to use. Must be one of "text", "textarea", "number", "color", "date", "datetime-local", "month", "time", and "password".
+  </ResponseField>
+
+  <ResponseField name="user_attribute" type="str | None" default="None">
+    A user attribute that determines which options from the data source are visible to different users.
+    
+    To use custom user fields defined in `pyconfigs/user.py`, prefix with `custom_fields.`.
+  </ResponseField>
+
+  <ResponseField name="parent_name" type="str | None" default="None">
+    The name of a parent parameter that controls which options from the data source are visible.
+  </ResponseField>
+</Expandable>
+
+## Instance methods
+
+Instance methods are available on parameter instances at query time (in `context.py` or data models) to retrieve selected values.
+
+### get_entered_text()
+
+Gets the entered text. Returns a TextValue object that cannot be converted to string except through placeholders (to avoid SQL injection).
+
+```python
+def get_entered_text(self) -> TextValue:
+```
+
+<ResponseField name="returns" type="TextValue">
+  A TextValue object containing the user's entered text. This object has transformation methods like `apply()`, `apply_percent_wrap()`, `apply_as_bool()`, `apply_as_number()`, and `apply_as_datetime()` for safe usage in queries via placeholders.
+</ResponseField>
+
+### is_enabled()
+
+Returns True if the parameter has a valid option after applying user attribute and parent parameter selections, False otherwise.
+
+```python
+def is_enabled(self) -> bool:
+```
+
+<ResponseField name="returns" type="bool">
+  True if the parameter has a valid option, False otherwise.
+</ResponseField>
+
+## Examples for factory methods
+
+All examples below are defined in the `pyconfigs/parameters.py` file.
+
+### Using create_simple for basic text input
+
+For parameters that only need a single default value, use `create_simple`. The default text is passed directly to the decorator.
+
+```python highlight="3"
+from squirrels import parameters as p
+
+@p.TextParameter.create_simple(
+    name="search_term", 
+    label="Search Term",
+    default_text="laptop",
+    description="Enter search keywords"
+)
+def search_term_default():
+    pass
+```
+
+### Using textarea input type
+
+This example creates a multi-line text input using the textarea type.
+
+```python highlight="7"
+from squirrels import parameters as p
+
+@p.TextParameter.create_simple(
+    name="comments", 
+    label="Comments",
+    default_text="",
+    input_type="textarea",
+    description="Enter your comments"
+)
+def comments_default():
+    pass
+```
+
+### Cascading text parameter with varying defaults
+
+This example shows how default text values change based on a parent parameter selection.
+
+```python highlight="20,26,30"
+from squirrels import parameters as p, parameter_options as po
+
+# Parent parameter
+@p.SingleSelectParameter.create_with_options(
+    name="report_type", 
+    label="Report Type",
+    description="Type of report to generate"
+)
+def report_type_options():
+    return [
+        po.SelectParameterOption(id="sales", label="Sales Report"),
+        po.SelectParameterOption(id="inventory", label="Inventory Report"),
+    ]
+
+# Child text parameter with defaults varying by report type
+@p.TextParameter.create_with_options(
+    name="filter_text", 
+    label="Filter Text",
+    description="Text filter based on report type",
+    parent_name="report_type"
+)
+def filter_text_options():
+    return [
+        po.TextParameterOption(
+            default_text="revenue",
+            parent_option_ids="sales"
+        ),
+        po.TextParameterOption(
+            default_text="in stock",
+            parent_option_ids="inventory"
+        )
+    ]
+```
+
+### Text parameter with user-specific defaults
+
+This example provides different default values based on user access levels.
+
+```python highlight="7,13,17"
+from squirrels import parameters as p, parameter_options as po
+
+@p.TextParameter.create_with_options(
+    name="filter_keyword", 
+    label="Filter Keyword",
+    description="Default keyword for filtering",
+    user_attribute="access_level"
+)
+def filter_keyword_options():
+    return [
+        po.TextParameterOption(
+            default_text="public",
+            user_groups=["guest"]
+        ),
+        po.TextParameterOption(
+            default_text="",
+            user_groups=["admin", "member"]
+        )
+    ]
+```
+
+### Text parameter from database source
+
+This example populates default text from a database table.
+
+```python highlight="3,8"
+from squirrels import parameters as p, data_sources as ds
+
+@p.TextParameter.create_from_source(
+    name="default_category", 
+    label="Default Category",
+    description="Most popular search category"
+)
+def default_category_source() -> ds.TextDataSource:
+    return ds.TextDataSource(
+        table_or_query="""
+            SELECT default_search_text
+            FROM user_preferences
+            WHERE is_active = 1
+            LIMIT 1
+        """,
+        default_text_col="default_search_text"
+    )
+```
+
+### Cascading text from database source
+
+This example shows a text parameter whose default comes from a database and depends on a parent parameter.
+
+```python highlight="20,29"
+from squirrels import parameters as p, data_sources as ds
+
+# Parent parameter for departments
+@p.SingleSelectParameter.create_from_source(
+    name="department_id", 
+    label="Department",
+    description="Select a department"
+)
+def department_source():
+    return ds.SelectDataSource(
+        table_or_query="departments",
+        id_col="department_id",
+        options_col="department_name"
+    )
+
+@p.TextParameter.create_from_source(
+    name="department_search", 
+    label="Department Search",
+    description="Common search term for this department",
+    parent_name="department_id"
+)
+def department_search_source():
+    return ds.TextDataSource(
+        table_or_query="""
+            SELECT department_id, default_search_term
+            FROM department_settings
+        """,
+        default_text_col="default_search_term",
+        parent_id_col="department_id"
+    )
+```
+
+## Examples for instance methods
+
+Once parameters are configured, you can use instance methods in your models to access the entered text. The parameter instances are available through the context object (e.g., `sqrl.prms`).
+
+### Basic usage in context.py
+
+The TextValue object returned by `get_entered_text()` cannot be directly converted to string. It must be used through placeholders for SQL injection safety.
+
+```python highlight="7"
+from squirrels import ContextArgs, TextValue
+
+def main(ctx: dict[str, Any], sqrl: ContextArgs) -> None:
+    if sqrl.param_exists("search_term"):
+        search_param = sqrl.prms["search_term"]
+        assert isinstance(search_param, p.TextParameter)
+        search_text: TextValue = search_param.get_entered_text()
+        sqrl.set_placeholder("search_text", search_text.apply_percent_wrap())
+```
+
+Then, in the SQL model, use the placeholder as such:
+
+```sql highlight="4"
+-- models/federates/search_results.sql
+SELECT *
+FROM products
+WHERE product_name LIKE $search_text 
+  -- or :search_text for dbviews that use a sqlalchemy connection
+```
+
+This is the recommended way to use text parameters in SQL to prevent SQL injection.
+
+### Transforming text values
+
+The TextValue object provides transformation methods for different use cases.
+
+```python highlight="7-11"
+# In context.py
+def main(ctx: dict[str, Any], sqrl: ContextArgs) -> None:
+    if sqrl.param_exists("search_term"):
+        search_param = sqrl.prms["search_term"]
+        assert isinstance(search_param, p.TextParameter)
+        
+        search_text = search_param.get_entered_text()
+        ctx["search_with_wildcards"] = search_text.apply_percent_wrap()  # Adds % before and after
+        ctx["search_uppercase"] = search_text.apply(lambda x: x.upper())  # Custom transformation
+        ctx["is_empty"] = search_text.apply_as_bool(lambda x: len(x) == 0)  # Convert to boolean
+        ctx["search_length"] = search_text.apply_as_number(len)  # Convert to number
+```

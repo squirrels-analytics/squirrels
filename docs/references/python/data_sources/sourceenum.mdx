@@ -6,23 +6,17 @@ description: "Enum for data source types"
 
 Enumeration of data source types for parameter options.
 
-## Values
+## Enum values
 
-### CONNECTION
+<ResponseField name="CONNECTION" type="SourceEnum">
+  Data from an external database connection.
+</ResponseField>
 
-Data from an external database connection.
+<ResponseField name="SEEDS" type="SourceEnum">
+  Data from CSV seed files.
+</ResponseField>
 
-**Value:** `"connection"`
-
-### SEEDS
-
-Data from CSV seed files.
-
-**Value:** `"seeds"`
-
-### VDL
-
-Data from the Virtual Data Lake (built models).
-
-**Value:** `"vdl"`
+<ResponseField name="VDL" type="SourceEnum">
+  Data from the Virtual Data Lake (built models).
+</ResponseField>
 

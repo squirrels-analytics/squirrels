@@ -1,0 +1,63 @@
+---
+title: "parameter_options"
+tag: "module"
+description: "Module containing parameter option classes for defining widget options in Squirrels"
+---
+
+The `squirrels.parameter_options` module provides parameter option classes for defining options that populate parameter widgets in Squirrels projects.
+
+This module enables you to create structured parameter options with features like default values, user group restrictions, cascading dependencies, and custom fields.
+
+## Parameter option classes
+
+- [SelectParameterOption](/references/python/parameter_options/selectparameteroption) - Parameter option for single-select and multi-select parameters
+- [DateParameterOption](/references/python/parameter_options/dateparameteroption) - Parameter option for date parameters
+- [DateRangeParameterOption](/references/python/parameter_options/daterangeparameteroption) - Parameter option for date range parameters
+- [NumberParameterOption](/references/python/parameter_options/numberparameteroption) - Parameter option for number parameters
+- [NumberRangeParameterOption](/references/python/parameter_options/numberrangeparameteroption) - Parameter option for number range parameters
+- [TextParameterOption](/references/python/parameter_options/textparameteroption) - Parameter option for text parameters
+
+## Example
+
+Here's an example of using parameter options in `pyconfigs/parameters.py`:
+
+```python highlight="11-23,34-36"
+from squirrels import parameters as p, parameter_options as po
+
+# Single-select parameter with static options
+@p.SingleSelectParameter.create_with_options(
+    name="region", 
+    label="Region",
+    description="Select a geographic region"
+)
+def region_options():
+    return [
+        po.SelectParameterOption(
+            id="north_america", 
+            label="North America",
+            is_default=True
+        ),
+        po.SelectParameterOption(
+            id="europe", 
+            label="Europe"
+        ),
+        po.SelectParameterOption(
+            id="asia_pacific", 
+            label="Asia Pacific"
+        ),
+    ]
+
+# Date parameter with default option
+@p.DateParameter.create_with_options(
+    name="report_date",
+    label="Report Date",
+    description="Select a reporting date"
+)
+def report_date_options():
+    return [
+        po.DateParameterOption(
+            default_date="2024-01-01",
+        )
+    ]
+```
+

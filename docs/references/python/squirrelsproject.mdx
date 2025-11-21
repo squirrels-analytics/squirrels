@@ -4,9 +4,9 @@ tag: "class"
 description: "Class to interact with a Squirrels project from Python"
 ---
 
-This class is used to interact with a Squirrels project from Python. It can be imported directly from the `squirrels` module.
+This class is used to interact with a Squirrels project from Python.
 
-For example, you can create a SquirrelsProject object in Python (or Jupyter Notebook) as such:
+For example, you can create a `SquirrelsProject` object in Python (or Jupyter Notebook) as such:
 
 ```python
 from squirrels import SquirrelsProject
@@ -14,39 +14,58 @@ from squirrels import SquirrelsProject
 sqrl = SquirrelsProject(filepath="path/to/squirrels/project/")
 ```
 
-And then call methods on the SquirrelsProject object to perform various operations.
+And then call methods on the `SquirrelsProject` object to perform various operations.
+
+This class can be imported from the `squirrels` module.
 
 ## Constructor
 
-Creates a SquirrelsProject object.
+Creates a `SquirrelsProject` object.
 
-### arguments (keyword)
+```python
+def __init__(
+    self, *, filepath: str = ".", load_dotenv_globally: bool = False,
+    log_to_file: bool = False, 
+    log_level: Literal["DEBUG", "INFO", "WARNING"] = "INFO", 
+    log_format: Literal["text", "json"] = "text"
+) -> None:
+```
 
-<ResponseField name="filepath" type="string" default=".">
-  Path to the Squirrels project folder. Defaults to current working directory.
-</ResponseField>
-<ResponseField name="load_dotenv_globally" type="boolean" default={false}>
-  If True, loads variables from <code>.env</code> and <code>.env.local</code> into the process environment for the lifetime of this object.
-</ResponseField>
-<ResponseField name="log_level" type="string" default="INFO">
-  Logging level to include in the log file. One of "DEBUG", "INFO", "WARNING".
-</ResponseField>
-<ResponseField name="log_format" type="string" default="text">
-  Format of the log file. One of "text", "json".
-</ResponseField>
-<ResponseField name="log_to_file" type="boolean" default={false}>
-  Whether to enable logging to file(s) in the "logs/" folder with rotation and retention policies.
-</ResponseField>
+<Expandable title="arguments" defaultOpen>
+  <ResponseField name="filepath" type="string" default=".">
+    Path to the Squirrels project folder. Defaults to current working directory.
+  </ResponseField>
+  <ResponseField name="load_dotenv_globally" type="boolean" default={false}>
+    If True, loads variables from <code>.env</code> and <code>.env.local</code> into the process environment for the lifetime of this object.
+  </ResponseField>
+  <ResponseField name="log_to_file" type="boolean" default={false}>
+    Whether to enable logging to file(s) in the "logs/" folder with rotation and retention policies.
+  </ResponseField>
+  <ResponseField name="log_level" type="string" default="INFO">
+    Logging level to include in the log file. One of "DEBUG", "INFO", "WARNING".
+  </ResponseField>
+  <ResponseField name="log_format" type="string" default="text">
+    Format of the log file. One of "text", "json".
+  </ResponseField>
+</Expandable>
 
 ## Methods
 
-Methods that can be invoked from the SquirrelsProject object.
+Methods that can be invoked from the `SquirrelsProject` object.
 
 ### compile()
 
 Async method to compile the SQL templates into files in the "target/" folder. Same functionality as the "sqrl compile" CLI.
 
-<Expandable title="arguments (keyword)" defaultOpen>
+```python
+async def compile(
+    self, *, selected_model: str | None = None, test_set: str | None = None, 
+    do_all_test_sets: bool = False, runquery: bool = False, clear: bool = False, 
+    buildtime_only: bool = False, runtime_only: bool = False
+) -> None:
+```
+
+<Expandable title="arguments" defaultOpen>
   <ResponseField name="selected_model" type="string | None" default="None">
     Name of the model to compile. If specified, the compiled SQL is also printed (for SQL models). If None, compiles all models.
   </ResponseField>
@@ -70,15 +89,18 @@ Async method to compile the SQL templates into files in the "target/" folder. Sa
   </ResponseField>
 </Expandable>
 
-<ResponseField name="returns" type="None"></ResponseField>
+<ResponseField name="returns" type="None">No return value.</ResponseField>
 
 ### get_all_data_models()
 
 Async method to list all data models in the project.
 
-<ResponseField name="returns" type="DataModelItem[]">
-  A list of DataModelItem objects. The DataModelItem object has the following properties:
+```python
+async def get_all_data_models(self) -> list[DataModelItem]:
+```
 
+<ResponseField name="returns" type="list[DataModelItem]">
+  A list of DataModelItem objects. The DataModelItem object has the following properties:
   <Expandable title="DataModelItem properties">
     <ResponseField name="name" type="string">
       The name of the model.
@@ -98,6 +120,10 @@ Async method to list all data models in the project.
 ### get_all_data_lineage()
 
 Async method to retrieve lineage across models, datasets, and dashboards.
+
+```python
+async def get_all_data_lineage(self) -> list[LineageRelation]:
+```
 
 <ResponseField name="returns" type="LineageRelation[]">
   A list of LineageRelation objects. The LineageRelation object has the following properties:
@@ -128,7 +154,11 @@ Async method to retrieve lineage across models, datasets, and dashboards.
 
 Method to retrieve a seed as a polars LazyFrame given a seed name.
 
-<Expandable title="arguments (positional)" defaultOpen>
+```python
+def seed(self, name: str) -> polars.LazyFrame:
+```
+
+<Expandable title="arguments" defaultOpen>
   <ResponseField name="name" type="string" required>
     Name of the seed to retrieve.
   </ResponseField>
@@ -140,7 +170,13 @@ Method to retrieve a seed as a polars LazyFrame given a seed name.
 
 Async method to build the virtual data environment. Same functionality as the "sqrl build" CLI.
 
-<Expandable title="arguments (keyword)" defaultOpen>
+```python
+async def build(
+  self, *, full_refresh: bool = False, select: str | None = None
+) -> None:
+```
+
+<Expandable title="arguments" defaultOpen>
   <ResponseField name="full_refresh" type="boolean" default={false}>
     Drop all tables and rebuild the virtual data environment from scratch.
   </ResponseField>
@@ -149,13 +185,17 @@ Async method to build the virtual data environment. Same functionality as the "s
   </ResponseField>
 </Expandable>
 
-<ResponseField name="returns" type="None"></ResponseField>
+<ResponseField name="returns" type="None">No return value.</ResponseField>
 
 ### dataset_metadata()
 
 Method to retrieve the metadata (descriptions, columns, etc.) for a dataset.
 
-<Expandable title="arguments (positional)" defaultOpen>
+```python
+def dataset_metadata(self, name: str) -> DatasetMetadata:
+```
+
+<Expandable title="arguments" defaultOpen>
   <ResponseField name="name" type="string" required>
     Name of the dataset to retrieve metadata for.
   </ResponseField>
@@ -167,13 +207,18 @@ Method to retrieve the metadata (descriptions, columns, etc.) for a dataset.
 
 Async method to retrieve the dataset result given parameter selections.
 
-<Expandable title="arguments (positional)" defaultOpen>
+```python
+async def dataset(
+    self, name: str, *, selections: dict[str, Any] = {}, 
+    user: RegisteredUser | None = None, require_auth: bool = True, 
+    configurables: dict[str, str] = {}
+) -> DatasetResult:
+```
+
+<Expandable title="arguments" defaultOpen>
   <ResponseField name="name" type="string" required>
     Name of the dataset to retrieve.
   </ResponseField>
-</Expandable>
-
-<Expandable title="arguments (keyword)" defaultOpen>
   <ResponseField name="selections" type="dict[str, Any]" default={{}}>
     Parameter selections to apply to the dataset.
   </ResponseField>
@@ -194,13 +239,19 @@ Async method to retrieve the dataset result given parameter selections.
 
 Async method to retrieve a dashboard given parameter selections.
 
-<Expandable title="arguments (positional)" defaultOpen>
+```python
+async def dashboard(
+    self, name: str, *, selections: dict[str, Any] = {}, 
+    user: RegisteredUser | None = None, 
+    dashboard_type: type[PngDashboard | HtmlDashboard] = PngDashboard, 
+    configurables: dict[str, str] = {}
+) -> PngDashboard | HtmlDashboard:
+```
+
+<Expandable title="arguments" defaultOpen>
   <ResponseField name="name" type="string" required>
     The name of the dashboard to retrieve.
   </ResponseField>
-</Expandable>
-
-<Expandable title="arguments (keyword)" defaultOpen>
   <ResponseField name="selections" type="dict[str, Any]" default={{}}>
     Parameter selections to apply to the dashboard.
   </ResponseField>
@@ -223,13 +274,17 @@ Async method to retrieve a dashboard given parameter selections.
 
 Async method to query the data models with SQL given parameter selections.
 
-<Expandable title="arguments (positional)" defaultOpen>
+```python
+async def query_models(
+    self, sql_query: str, *, selections: dict[str, Any] = {}, 
+    user: RegisteredUser | None = None, configurables: dict[str, str] = {}
+) -> DatasetResult:
+```
+
+<Expandable title="arguments" defaultOpen>
   <ResponseField name="sql_query" type="string" required>
     SQL query to execute.
   </ResponseField>
-</Expandable>
-
-<Expandable title="arguments (keyword)" defaultOpen>
   <ResponseField name="selections" type="dict[str, Any]" default={{}}>
     Parameter selections to apply to the data models.
   </ResponseField>
@@ -247,13 +302,17 @@ Async method to query the data models with SQL given parameter selections.
 
 Async method to compile a specific data model and return its language and compiled definition.
 
-<Expandable title="arguments (positional)" defaultOpen>
+```python
+async def get_compiled_model_query(
+    self, model_name: str, *, selections: dict[str, Any] = {}, 
+    user: RegisteredUser | None = None, configurables: dict[str, str] = {}
+) -> CompiledQueryModel:
+```
+
+<Expandable title="arguments" defaultOpen>
   <ResponseField name="model_name" type="string" required>
     Name of the data model to compile.
   </ResponseField>
-</Expandable>
-
-<Expandable title="arguments (keyword)" defaultOpen>
   <ResponseField name="selections" type="dict[str, Any]" default={{}}>
     Parameter selections to apply during compilation.
   </ResponseField>
@@ -271,15 +330,19 @@ Async method to compile a specific data model and return its language and compil
 
 ### close()
 
-Use this method to deliberately close any database connections opened by the SquirrelsProject object.
+Use this method to deliberately close any database connections opened by the `SquirrelsProject` object.
 
-The database connections may still be opened again by other methods invoked on the SquirrelsProject object after this method is called.
+The database connections may still be opened again by other methods invoked on the `SquirrelsProject` object after this method is called.
 
-<ResponseField name="returns" type="None"></ResponseField>
+```python
+def close(self) -> None:
+```
+
+<ResponseField name="returns" type="None">No return value.</ResponseField>
 
 ## Examples
 
-Here are some common usage patterns for the SquirrelsProject class. It is assumed that the code is running in an async context (e.g. inside an async function or a Jupyter Notebook cell).
+Here are some common usage patterns for the `SquirrelsProject` class. It is assumed that the code is running in an async context (e.g. inside an async function or a Jupyter Notebook cell).
 
 ### Basic project initialization
 
@@ -343,7 +406,7 @@ result = await sqrl.dataset(
     "sales_data",
     selections={
         "date_range": ["2024-01-01", "2024-12-31"],
-        "region": "North America"
+        "region": "north-america"
     }
 )
 
@@ -444,7 +507,7 @@ print(result.df)
 # Get compiled query for a specific model
 compiled = await sqrl.get_compiled_model_query(
     "my_model",
-    selections={"region": "West"}
+    selections={"region": "west"}
 )
 
 print(f"Language: {compiled.language}")

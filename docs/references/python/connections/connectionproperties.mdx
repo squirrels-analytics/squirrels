@@ -4,47 +4,126 @@ tag: "class"
 description: "Properties for database connections"
 ---
 
-A class for holding the properties of a database connection.
+A class for holding the properties of a database connection. The class is usually created in the `pyconfigs/connections.py` file.
+
+This class can be imported from the `squirrels.connections` or the `squirrels` module.
 
 ## Constructor
 
-### Arguments
+Creates a `ConnectionProperties` object.
 
-<ResponseField name="type" type="ConnectionTypeEnum" default="ConnectionTypeEnum.SQLALCHEMY">
-  The type of connection
-</ResponseField>
+```python
+def __init__(
+    self, *, type: ConnectionTypeEnum = ConnectionTypeEnum.SQLALCHEMY, 
+    uri: str, label: str | None = None, 
+    sa_create_engine_args: dict[str, Any] = {}
+) -> None:
+```
 
-<ResponseField name="uri" type="str" required>
-  The URI for the connection
-</ResponseField>
+<Expandable title="arguments" defaultOpen>
+  <ResponseField name="type" type="ConnectionTypeEnum" default="ConnectionTypeEnum.SQLALCHEMY">
+    The type of connection as [ConnectionTypeEnum](/references/python/connections/ConnectionTypeEnum).
+    <Warning>
+      The `ConnectionTypeEnum.ADBC` and `ConnectionTypeEnum.CONNECTORX` connection types do not support placeholders in the SQL query.
+    </Warning>
+  </ResponseField>
 
-<ResponseField name="label" type="str | None" default="None">
-  Optional label for the connection
-</ResponseField>
+  <ResponseField name="uri" type="str" required>
+    The URI for the connection.
+  </ResponseField>
 
-<ResponseField name="sa_create_engine_args" type="dict[str, Any]" default="{}">
-  Additional arguments to pass to SQLAlchemy's create_engine
-</ResponseField>
+  <ResponseField name="label" type="str | None" default="None">
+    Optional label for the connection. If the label is not provided, the connection name will be used as the label.
+  </ResponseField>
 
-## Properties
+  <ResponseField name="sa_create_engine_args" type="dict[str, Any]" default="{}">
+    Additional arguments to pass to SQLAlchemy's create_engine function. Only used if the connection type is `ConnectionTypeEnum.SQLALCHEMY`.
+  </ResponseField>
+</Expandable>
 
-### engine
+## Examples
 
-Creates and caches a SQLAlchemy engine if the connection type is sqlalchemy.
+Below is an example of a `pyconfigs/connections.py` file that uses `ConnectionProperties` to define a SQLite database connection.
 
-**Returns:** `Engine`
+```python highlight={13-17}
+from typing import Any
+from squirrels import arguments as args, connections as cn
 
-**Raises:** `ValueError` if connection type doesn't support engine property
 
-### dialect
+def main(connections: dict[str, cn.ConnectionProperties | Any], sqrl: args.ConnectionsArgs) -> None:
+    """
+    Define sqlalchemy engines by adding them to the "connections" dictionary
+    """
+    ## SQLAlchemy URL for a connection engine
+    conn_str: str = "sqlite://{project_path}/path/to/database.db"
 
-Returns the SQL dialect of the connection.
+    ## Assigning names to connection engines
+    connections["default"] = cn.ConnectionProperties(
+        label="SQLite Database", 
+        type=cn.ConnectionTypeEnum.SQLALCHEMY, 
+        uri=conn_str.format(project_path=sqrl.project_path)
+    )
+```
 
-**Returns:** `str`
+The following are additional examples of creating `ConnectionProperties` objects.
 
-### attach_uri_for_duckdb
+### SQLAlchemy connection with engine arguments
 
-Returns the attachment URI for DuckDB connections.
+```python
+# Connection with custom SQLAlchemy engine settings
+postgres_conn = ConnectionProperties(
+    uri="postgresql://user:password@localhost:5432/mydb",
+    label="Production Database",
+    sa_create_engine_args={
+        "pool_size": 10,
+        "pool_pre_ping": True
+    }
+)
+```
 
-**Returns:** `str | None`
+### DuckDB connection
 
+```python
+# DuckDB native connection
+duckdb_conn = ConnectionProperties(
+    type=ConnectionTypeEnum.DUCKDB,
+    uri="/path/to/database.duckdb",
+    label="DuckDB database"
+)
+
+# You can also connect to other databases using DuckDB
+# such as PostgreSQL, MySQL, and SQLite.
+postgres_conn = ConnectionProperties(
+    type=ConnectionTypeEnum.DUCKDB,
+    uri="postgresql://username@hostname/dbname",
+    label="PostgreSQL database"
+)
+
+sqlite_conn = ConnectionProperties(
+    type=ConnectionTypeEnum.DUCKDB,
+    uri="sqlite:/path/to/database.db",
+    label="SQLite database"
+)
+```
+
+### ADBC connection
+
+```python
+# Arrow Database Connectivity connection
+adbc_conn = ConnectionProperties(
+    type=ConnectionTypeEnum.ADBC,
+    uri="postgresql://user:password@localhost:5432/mydb",
+    label="High Performance ADBC"
+)
+```
+
+### ConnectorX connection
+
+```python
+# Fast data loading with ConnectorX
+cx_conn = ConnectionProperties(
+    type=ConnectionTypeEnum.CONNECTORX,
+    uri="postgresql://user:password@localhost:5432/mydb",
+    label="Fast Loading Connection"
+)
+```

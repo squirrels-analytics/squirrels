@@ -1,19 +1,20 @@
 ---
 title: "Parameter"
-tag: "class"
-description: "Abstract base class for parameters"
+tag: "abstract"
+description: "Base type for parameter widgets returned from APIs"
 ---
 
-Abstract base class for all parameter widget classes.
+Abstract base class for all parameter widget classes. In user code, `Parameter` is typically seen as the common return type for parameter widgets you access in `context.py` and other helpers.
 
-This is an abstract class and should not be instantiated directly. Use one of the concrete implementations:
-- `SingleSelectParameter`
-- `MultiSelectParameter`
-- `DateParameter`
-- `DateRangeParameter`
-- `NumberParameter`
-- `NumberRangeParameter`
-- `TextParameter`
+Concrete parameter widgets are created by Squirrels based on your parameter configuration and returned from Squirrels APIs; you should not instantiate `Parameter` directly. Use one of the concrete implementations:
+- [SingleSelectParameter](/references/python/parameters/singleselectparameter)
+- [MultiSelectParameter](/references/python/parameters/multiselectparameter)
+- [DateParameter](/references/python/parameters/dateparameter)
+- [DateRangeParameter](/references/python/parameters/daterangeparameter)
+- [NumberParameter](/references/python/parameters/numberparameter)
+- [NumberRangeParameter](/references/python/parameters/numberrangeparameter)
+- [TextParameter](/references/python/parameters/textparameter)
 
-See the `parameters` module for concrete implementations.
+When defining parameters or working with them at runtime, use the concrete classes from the `parameters` module rather than `Parameter` itself.
 
+If `Parameter` is needed for type annotation, it can be imported from the `squirrels.types` or `squirrels` module.

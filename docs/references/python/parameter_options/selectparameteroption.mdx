@@ -6,44 +6,187 @@ description: "Parameter option for select widgets"
 
 Parameter option for single-select and multi-select parameters.
 
+This class can be imported from the `squirrels.parameter_options` or the `squirrels` module.
+
 ## Constructor
 
-### Arguments
+Creates a `SelectParameterOption` object. Typically used in `pyconfigs/parameters.py`.
 
-<ResponseField name="id" type="str" required>
-  Unique identifier for this option that never changes over time
-</ResponseField>
+```python
+def __init__(
+    self, id: str, label: str, 
+    *, is_default: bool = False, user_groups: Iterable[Any] | str = frozenset(), 
+    parent_option_ids: Iterable[str] | str = frozenset(), 
+    custom_fields: dict[str, Any] = {}, **kwargs
+) -> None:
+```
 
-<ResponseField name="label" type="str" required>
-  Human readable label shown as a dropdown option
-</ResponseField>
+<Expandable title="arguments" defaultOpen>
+  <ResponseField name="id" type="str" required>
+    Unique identifier for this option. In production, this should never be changed.
+  </ResponseField>
 
-<ResponseField name="is_default" type="bool" default={false}>
-  True if this is a default option
-</ResponseField>
+  <ResponseField name="label" type="str" required>
+    Human readable label shown as a dropdown option.
+  </ResponseField>
 
-<ResponseField name="user_groups" type="Iterable[Any] | str" default="frozenset()">
-  User groups this option is visible for
-</ResponseField>
+  <ResponseField name="is_default" type="bool" default={false}>
+    True if this is a default option. 
+    
+    If more than one parameter option of a single-select parameter has this set to True, then the first option will be chosen for the default.
+  </ResponseField>
 
-<ResponseField name="parent_option_ids" type="Iterable[str] | str" default="frozenset()">
-  Parent option ids that must be selected for this option to be visible
-</ResponseField>
+  <ResponseField name="user_groups" type="Iterable[Any] | str" default="frozenset()">
+    User group(s) this option is visible for. Only applies if `user_attribute` is provided to the factory method `create_with_options` associated to the [SingleSelectParameter](/references/python/parameters/singleselectparameter) or [MultiSelectParameter](/references/python/parameters/multiselectparameter).
+  </ResponseField>
 
-<ResponseField name="custom_fields" type="dict[str, Any]" default="{}">
-  Dictionary to associate custom attributes to the parameter option
-</ResponseField>
+  <ResponseField name="parent_option_ids" type="Iterable[str] | str" default="frozenset()">
+    Parent option id(s) that must be selected for this option to be visible. Only applies if `parent_name` is provided to the factory method `create_with_options` associated to the [SingleSelectParameter](/references/python/parameters/singleselectparameter) or [MultiSelectParameter](/references/python/parameters/multiselectparameter).
+  </ResponseField>
 
-## Methods
+  <ResponseField name="custom_fields" type="dict[str, Any]" default="{}">
+    Dictionary to associate custom attributes to the parameter option. Attribute names cannot be the same as the arguments above.
+  </ResponseField>
 
-### get_custom_field
+  <ResponseField name="(any additional argument)" type="Any">
+    Custom attributes to the parameter option. Can use any argument name except the ones above.
 
-Get field value from the custom_fields attribute.
+    If the argument name is also a key in `custom_fields`, then the value in `custom_fields` takes precedence.
+  </ResponseField>
+</Expandable>
 
-**Arguments:**
-- `field` (str): The key to fetch from custom_fields
-- `default_field` (str | None): Fallback key if field doesn't exist
-- `default` (Any): Default value if neither field exists
+## Examples
 
-**Returns:** `Any`
+A `SelectParameterOption` object is created in the `pyconfigs/parameters.py` file. It must be created in a function decorated with the `create_with_options` or `create_simple` factory method from [SingleSelectParameter](/references/python/parameters/singleselectparameter) or [MultiSelectParameter](/references/python/parameters/multiselectparameter).
 
+### Usage example in parameters.py
+
+```python highlight="10-22"
+from squirrels import parameters as p, parameter_options as po
+
+@p.SingleSelectParameter.create_with_options(
+    name="region", 
+    label="Region",
+    description="Geographic region to filter by"
+)
+def region_options():
+    return [
+        po.SelectParameterOption(
+            id="north_america", 
+            label="North America",
+            is_default=True
+        ),
+        po.SelectParameterOption(
+            id="europe", 
+            label="Europe"
+        ),
+        po.SelectParameterOption(
+            id="asia_pacific", 
+            label="Asia Pacific"
+        ),
+    ]
+```
+
+In addition, the following are some additional examples for creating a `SelectParameterOption` object.
+
+### Using custom fields
+
+This example adds custom attributes to parameter options that can be accessed in `context.py` or the data models directly. Custom fields can be provided as keyword arguments or in the `custom_fields` dictionary.
+
+```python highlight="4-5"
+po.SelectParameterOption(
+    id="summary", 
+    label="Summary Report",
+    columns=["date", "category", "total"],
+    report_type="summary"
+)
+```
+
+### Setting up cascading parameters with parent options
+
+This example shows how to create child options that are only visible when specific parent options are selected. The `parent_option_ids` field controls this behavior.
+
+```python highlight="18,25,30"
+# Parent parameter
+@p.SingleSelectParameter.create_with_options(
+    name="country", 
+    label="Country",
+    description="Country to filter by"
+)
+def country_options():
+    return [
+      po.SelectParameterOption(id="usa", label="United States")
+      po.SelectParameterOption(id="canada", label="Canada")
+    ]
+
+# Child parameter with options that cascade based on parent selection
+@p.SingleSelectParameter.create_with_options(
+    name="city", 
+    label="City",
+    description="City to filter by",
+    parent_name="country" # Name of the parent parameter above
+)
+def city_options():
+    return [
+      po.SelectParameterOption(
+          id="new-york", 
+          label="New York",
+          parent_option_ids="usa"  # Only visible when "usa" is selected
+      )
+      po.SelectParameterOption(
+          id="toronto", 
+          label="Toronto",
+          parent_option_ids="canada"  # Only visible when "canada" is selected
+      )
+    ]
+```
+
+### Restricting visibility by user groups
+
+This example shows how to restrict certain options to specific user access levels using the `user_groups` parameter.
+
+```python highlight="5,12,17"
+@p.SingleSelectParameter.create_with_options(
+    name="report_type", 
+    label="Report Type",
+    description="Type of report to generate",
+    user_attribute="access_level"
+)
+def report_type_options():
+    return [
+        po.SelectParameterOption(
+            id="basic_report", 
+            label="Basic Report",
+            user_groups=["admin", "member", "guest"]  # Available to all users
+        )
+        po.SelectParameterOption(
+            id="detailed_report", 
+            label="Detailed Report (Admin Only)",
+            user_groups=["admin"]  # Only visible to admin users
+        )
+    ]
+```
+
+If custom user fields are defined in `pyconfigs/user.py`, then they can be used to restrict visibility of parameter options as well. To do so, the `user_attribute` argument must be prefixed with `custom_fields.`.
+
+```python highlight="5,12,17"
+@p.SingleSelectParameter.create_with_options(
+    name="report_type", 
+    label="Report Type",
+    description="Type of report to generate",
+    user_attribute="custom_fields.role"
+)
+def report_type_options():
+    return [
+        po.SelectParameterOption(
+            id="basic_report", 
+            label="Basic Report",
+            user_groups=["manager", "staff"]  # Available to manager and staff users
+        )
+        po.SelectParameterOption(
+            id="detailed_report", 
+            label="Detailed Report (Manager Only)",
+            user_groups=["manager"]  # Only visible to manager users
+        )
+    ]
+```
