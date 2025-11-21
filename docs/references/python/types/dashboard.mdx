@@ -1,14 +1,15 @@
 ---
 title: "Dashboard"
-tag: "class"
-description: "Abstract base class for dashboards"
+tag: "abstract"
+description: "Base type for dashboard objects"
 ---
 
 Abstract base class for all dashboard classes.
 
-This is an abstract class and should not be instantiated directly. Use one of the concrete implementations:
-- `PngDashboard`
-- `HtmlDashboard`
+In Squirrels projects, `Dashboard` is typically used as a common type for concrete dashboard classes that are created from your dashboard definitions; you should not instantiate `Dashboard` directly. Use one of the concrete implementations:
+- [PngDashboard](/references/python/dashboards/pngdashboard)
+- [HtmlDashboard](/references/python/dashboards/htmldashboard)
 
-See the `dashboards` module for concrete implementations.
+When defining and working with dashboards, use the concrete classes from the `dashboards` module rather than `Dashboard` itself.
 
+If `Dashboard` is needed for type annotation, it can be imported from the `squirrels.types` or `squirrels` module.

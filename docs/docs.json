@@ -34,42 +34,17 @@
         ]
       },
       {
-        "tab": "Guides",
-        "groups": [
-          {
-            "group": "AI",
-            "icon": "robot",
-            "pages": [
-              "guides/mcp-clients"
-            ]
-          }
-        ]
-      },
-      {
         "tab": "References",
-        "groups": [
+        "anchors": [
           {
-            "group": "CLI reference",
-            "icon": "terminal",
-            "pages": [
-              "references/cli/index",
-              "references/cli/new",
-              "references/cli/init",
-              "references/cli/get-file",
-              "references/cli/deps",
-              "references/cli/compile",
-              "references/cli/build",
-              "references/cli/duckdb",
-              "references/cli/run"
-            ]
-          },
-          {
-            "group": "Python reference",
+            "anchor": "Python reference",
             "icon": "python",
             "pages": [
+              "references/python/index",
               "references/python/squirrelsproject",
               {
                 "group": "arguments",
+                "icon": "folder",
                 "tag": "module",
                 "pages": [
                   "references/python/arguments/authproviderargs",
@@ -83,16 +58,18 @@
               },
               {
                 "group": "auth",
+                "icon": "folder",
                 "tag": "module",
                 "pages": [
-                  "references/python/auth/customuserfields",
                   "references/python/auth/provider",
+                  "references/python/auth/customuserfields",
                   "references/python/auth/providerconfigs",
                   "references/python/auth/registereduser"
                 ]
               },
               {
                 "group": "connections",
+                "icon": "folder",
                 "tag": "module",
                 "pages": [
                   "references/python/connections/connectionproperties",
@@ -100,40 +77,8 @@
                 ]
               },
               {
-                "group": "dashboards",
-                "tag": "module",
-                "pages": [
-                  "references/python/dashboards/pngdashboard",
-                  "references/python/dashboards/htmldashboard"
-                ]
-              },
-              {
-                "group": "data_sources",
-                "tag": "module",
-                "pages": [
-                  "references/python/data_sources/sourceenum",
-                  "references/python/data_sources/selectdatasource",
-                  "references/python/data_sources/datedatasource",
-                  "references/python/data_sources/daterangedatasource",
-                  "references/python/data_sources/numberdatasource",
-                  "references/python/data_sources/numberrangedatasource",
-                  "references/python/data_sources/textdatasource"
-                ]
-              },
-              {
-                "group": "parameter_options",
-                "tag": "module",
-                "pages": [
-                  "references/python/parameter_options/selectparameteroption",
-                  "references/python/parameter_options/dateparameteroption",
-                  "references/python/parameter_options/daterangeparameteroption",
-                  "references/python/parameter_options/numberparameteroption",
-                  "references/python/parameter_options/numberrangeparameteroption",
-                  "references/python/parameter_options/textparameteroption"
-                ]
-              },
-              {
                 "group": "parameters",
+                "icon": "folder",
                 "tag": "module",
                 "pages": [
                   "references/python/parameters/singleselectparameter",
@@ -146,19 +91,88 @@
                 ]
               },
               {
-                "group": "types",
+                "group": "parameter_options",
+                "icon": "folder",
                 "tag": "module",
                 "pages": [
+                  "references/python/parameter_options/selectparameteroption",
+                  "references/python/parameter_options/dateparameteroption",
+                  "references/python/parameter_options/daterangeparameteroption",
+                  "references/python/parameter_options/numberparameteroption",
+                  "references/python/parameter_options/numberrangeparameteroption",
+                  "references/python/parameter_options/textparameteroption"
+                ]
+              },
+              {
+                "group": "data_sources",
+                "icon": "folder",
+                "tag": "module",
+                "pages": [
+                  "references/python/data_sources/sourceenum",
+                  "references/python/data_sources/selectdatasource",
+                  "references/python/data_sources/datedatasource",
+                  "references/python/data_sources/daterangedatasource",
+                  "references/python/data_sources/numberdatasource",
+                  "references/python/data_sources/numberrangedatasource",
+                  "references/python/data_sources/textdatasource"
+                ]
+              },
+              {
+                "group": "dashboards",
+                "icon": "folder",
+                "tag": "module",
+                "pages": [
+                  "references/python/dashboards/pngdashboard",
+                  "references/python/dashboards/htmldashboard"
+                ]
+              },
+              {
+                "group": "types",
+                "icon": "folder",
+                "tag": "module",
+                "pages": [
+                  "references/python/types/dashboard",
                   "references/python/types/datasource",
                   "references/python/types/parameteroption",
                   "references/python/types/parameter",
-                  "references/python/types/textvalue",
                   "references/python/types/datasetmetadata",
                   "references/python/types/datasetresult",
-                  "references/python/types/dashboard",
-                  "references/python/types/parameterconfigbase"
+                  "references/python/types/textvalue"
                 ]
               }
+            ]
+          },
+          {
+            "anchor": "CLI reference",
+            "icon": "terminal",
+            "pages": [
+              "references/cli/index",
+              {
+                "group": "CLI commands",
+                "icon": "terminal",
+                "pages": [
+                  "references/cli/new",
+                  "references/cli/init",
+                  "references/cli/get-file",
+                  "references/cli/deps",
+                  "references/cli/compile",
+                  "references/cli/build",
+                  "references/cli/duckdb",
+                  "references/cli/run"
+                ]
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "tab": "How-to Guides",
+        "groups": [
+          {
+            "group": "AI",
+            "icon": "robot",
+            "pages": [
+              "guides/mcp-clients"
             ]
           }
         ]

@@ -4,37 +4,188 @@ tag: "class"
 description: "Parameter option for date range widgets"
 ---
 
-Parameter option for date range parameters.
+Parameter option for date range parameters that can vary based on selection of another parameter.
+
+This class can be imported from the `squirrels.parameter_options` or the `squirrels` module.
 
 ## Constructor
 
-### Arguments
+Creates a `DateRangeParameterOption` object. Typically used in `pyconfigs/parameters.py`.
 
-<ResponseField name="default_start_date" type="str | date" required>
-  Default start date for this option
-</ResponseField>
+```python
+def __init__(
+    self, default_start_date: str | date, default_end_date: str | date, 
+    *, min_date: str | date | None = None, max_date: str | date | None = None, 
+    date_format: str = '%Y-%m-%d', user_groups: Iterable[Any] | str = frozenset(), 
+    parent_option_ids: Iterable[str] | str = frozenset()
+) -> None:
+```
 
-<ResponseField name="default_end_date" type="str | date" required>
-  Default end date for this option
-</ResponseField>
+<Expandable title="arguments" defaultOpen>
+  <ResponseField name="default_start_date" type="str | date" required>
+    Default start date for this option. Can be provided as a string (parsed using `date_format` argument) or as a `datetime.date` object.
+  </ResponseField>
 
-<ResponseField name="min_date" type="str | date | None" default="None">
-  Minimum date constraint
-</ResponseField>
+  <ResponseField name="default_end_date" type="str | date" required>
+    Default end date for this option. Can be provided as a string (parsed using `date_format` argument) or as a `datetime.date` object.
+  </ResponseField>
 
-<ResponseField name="max_date" type="str | date | None" default="None">
-  Maximum date constraint
-</ResponseField>
+  <ResponseField name="min_date" type="str | date | None" default="None">
+    Minimum date constraint for both start and end dates. Can be provided as a string (parsed using `date_format` argument), a `datetime.date` object, or None. If None, no minimum date constraint applies.
+  </ResponseField>
 
-<ResponseField name="date_format" type="str" default="'%Y-%m-%d'">
-  Format of the date strings
-</ResponseField>
+  <ResponseField name="max_date" type="str | date | None" default="None">
+    Maximum date constraint for both start and end dates. Can be provided as a string (parsed using `date_format` argument), a `datetime.date` object, or None. If None, no maximum date constraint applies.
+  </ResponseField>
 
-<ResponseField name="user_groups" type="Iterable[Any] | str" default="frozenset()">
-  User groups this option is visible for
-</ResponseField>
+  <ResponseField name="date_format" type="str" default="'%Y-%m-%d'">
+    Format of the date string when dates are provided as strings. Uses Python's `strftime` format codes (e.g., `%Y-%m-%d` for ISO format, `%m/%d/%Y` for US format).
+  </ResponseField>
 
-<ResponseField name="parent_option_ids" type="Iterable[str] | str" default="frozenset()">
-  Parent option ids that must be selected for this option to be visible
-</ResponseField>
+  <ResponseField name="user_groups" type="Iterable[Any] | str" default="frozenset()">
+    User group(s) this option is visible for. Only applies if `user_attribute` is provided to the factory method `create_with_options` associated to the [DateRangeParameter](/references/python/parameters/daterangeparameter).
+  </ResponseField>
 
+  <ResponseField name="parent_option_ids" type="Iterable[str] | str" default="frozenset()">
+    Parent option id(s) that must be selected for this option to be visible. Only applies if `parent_name` is provided to the factory method `create_with_options` associated to the [DateRangeParameter](/references/python/parameters/daterangeparameter).
+  </ResponseField>
+</Expandable>
+
+## Examples
+
+A `DateRangeParameterOption` object is created in the `pyconfigs/parameters.py` file. It must be created in a function decorated with the `create_with_options` factory method from [DateRangeParameter](/references/python/parameters/daterangeparameter).
+
+### Usage example in parameters.py
+
+```python highlight="11-16"
+from squirrels import parameters as p, parameter_options as po
+from datetime import date
+
+@p.DateRangeParameter.create_with_options(
+    name="date_range", 
+    label="Date Range",
+    description="Date range for the report"
+)
+def date_range_options():
+    return [
+        po.DateRangeParameterOption(
+            default_start_date=date(2024, 1, 1),
+            default_end_date=date(2024, 12, 31),
+            min_date=date(2020, 1, 1),
+            max_date=date(2024, 12, 31)
+        )
+    ]
+```
+
+In addition, the following are some additional examples for creating a `DateRangeParameterOption` object.
+
+### Using string dates with custom format
+
+This example shows how to specify dates as strings with a custom date format instead of using `datetime.date` objects.
+
+```python highlight="6"
+po.DateRangeParameterOption(
+    default_start_date="01/01/2024",
+    default_end_date="12/31/2024",
+    min_date="01/01/2020",
+    max_date="12/31/2024",
+    date_format="%m/%d/%Y"  # US date format
+)
+```
+
+### Setting up cascading parameters with varying date ranges
+
+This example shows how to create date range options that change their constraints based on the selection of a parent parameter (e.g., different fiscal years with different date ranges).
+
+```python highlight="18,27,34"
+# Parent parameter for fiscal year
+@p.SingleSelectParameter.create_with_options(
+    name="fiscal_year", 
+    label="Fiscal Year",
+    description="Fiscal year for the report"
+)
+def fiscal_year_options():
+    return [
+        po.SelectParameterOption(id="fy2023", label="FY 2023"),
+        po.SelectParameterOption(id="fy2024", label="FY 2024"),
+    ]
+
+# Child date range parameter with ranges that vary by fiscal year
+@p.DateRangeParameter.create_with_options(
+    name="date_range", 
+    label="Date Range",
+    description="Date range within the selected fiscal year",
+    parent_name="fiscal_year"  # Name of the parent parameter above
+)
+def date_range_options():
+    return [
+        po.DateRangeParameterOption(
+            default_start_date="2023-01-01",
+            default_end_date="2023-12-31",
+            min_date="2023-01-01",
+            max_date="2023-12-31",
+            parent_option_ids="fy2023"  # Only applies when "fy2023" is selected
+        ),
+        po.DateRangeParameterOption(
+            default_start_date="2024-01-01",
+            default_end_date="2024-12-31",
+            min_date="2024-01-01",
+            max_date="2024-12-31",
+            parent_option_ids="fy2024"  # Only applies when "fy2024" is selected
+        )
+    ]
+```
+
+### Restricting date ranges by user groups
+
+This example shows how to provide different date range constraints based on user access levels using the `user_groups` parameter.
+
+```python highlight="5,13,19"
+@p.DateRangeParameter.create_with_options(
+    name="analysis_period", 
+    label="Analysis Period",
+    description="Period to analyze transactions",
+    user_attribute="access_level"
+)
+def analysis_period_options():
+    return [
+        po.DateRangeParameterOption(
+            default_start_date=date(2025, 1, 1),
+            default_end_date=date(2025, 7, 1),
+            min_date=date(2025, 1, 1),  # Recent data only
+            user_groups=["guest"]  # Guests can only see recent dates
+        ),
+        po.DateRangeParameterOption(
+            default_start_date=date(2024, 1, 1),
+            default_end_date=date(2025, 7, 1),
+            min_date=date(2020, 1, 1),  # Can see back to 2020
+            user_groups=["admin", "member"]  # Members and admins see full history
+        )
+    ]
+```
+
+If custom user fields are defined in `pyconfigs/user.py`, then they can be used to restrict date range constraints as well. To do so, the `user_attribute` argument must be prefixed with `custom_fields.`.
+
+```python highlight="5,13,19"
+@p.DateRangeParameter.create_with_options(
+    name="reporting_period", 
+    label="Reporting Period",
+    description="Period for reporting",
+    user_attribute="custom_fields.department"
+)
+def reporting_period_options():
+    return [
+        po.DateRangeParameterOption(
+            default_start_date=date(2024, 10, 1),
+            default_end_date=date(2025, 7, 1),
+            min_date=date(2024, 6, 1),  # Recent data only
+            user_groups=["sales"]  # Sales team sees only recent dates
+        ),
+        po.DateRangeParameterOption(
+            default_start_date=date(2024, 1, 1),
+            default_end_date=date(2025, 7, 1),
+            min_date=date(2020, 1, 1),  # Historical data access
+            user_groups=["analytics"]  # Analytics team sees full history
+        )
+    ]
+```

@@ -6,31 +6,124 @@ description: "Lookup table for text parameter options"
 
 Data source class for populating text parameter options from a database table or query.
 
+This class can be imported from the `squirrels.data_sources` or the `squirrels` module.
+
 ## Constructor
 
-### Arguments
+Creates a `TextDataSource` object.
 
-<ResponseField name="table_or_query" type="str" required>
-  Either the name of the table to use, or a query to run
+```python
+def __init__(
+    self, table_or_query: str, default_text_col: str, 
+    *, id_col: str | None = None, source: SourceEnum = SourceEnum.CONNECTION, 
+    user_group_col: str | None = None, parent_id_col: str | None = None, 
+    connection: str | None = None
+) -> None:
+```
+
+<Expandable title="arguments" defaultOpen>
+  <ResponseField name="table_or_query" type="str" required>
+  Either the name of the table to use, or a SQL query to run. If using a SQL query, it must start with "SELECT" (ignoring case and leading whitespaces) followed by a whitespace.
+
+  The available tables are based on the `source` argument. If the source is `SourceEnum.CONNECTION`, then the SQL syntax is based on the underlying database from the `connection` argument. Otherwise, the SQL syntax is DuckDB SQL.
 </ResponseField>
 
 <ResponseField name="default_text_col" type="str" required>
-  The column name for the default text value
+  The column name for the default text value.
 </ResponseField>
 
 <ResponseField name="source" type="SourceEnum" default="SourceEnum.CONNECTION">
-  The source to fetch data from
+  The source to fetch data from as a [SourceEnum](/references/python/data_sources/sourceenum) value.
 </ResponseField>
 
 <ResponseField name="user_group_col" type="str | None" default="None">
-  The column name of the user group for option visibility
+  The column name of the user group for option visibility. If None, all users will see all options.
 </ResponseField>
 
 <ResponseField name="parent_id_col" type="str | None" default="None">
-  The column name of the parent option id for cascading
+  The column name of the parent option id for cascading. 
+  
+  If None, then this parameter has no parent and its options will not be cascaded.
 </ResponseField>
 
 <ResponseField name="connection" type="str | None" default="None">
-  Name of the connection to use
-</ResponseField>
+    Name of the connection to use. Only used if the source is `SourceEnum.CONNECTION`. Connection must be defined in `squirrels.yml` or the `connections.py` file.
 
+    If None, uses the default connection (specified by `SQRL_CONNECTIONS__DEFAULT_NAME_USED` environment variable or 'default').
+  </ResponseField>
+</Expandable>
+
+## Examples
+
+A `TextDataSource` object is created in the `pyconfigs/parameters.py` file. It must be created in a function decorated with the `create_from_source` factory method from [TextParameter](/references/python/parameters/textparameter).
+
+### Usage example in parameters.py
+
+```python highlight="9-14"
+from squirrels import parameters as p, data_sources as ds
+
+@p.TextParameter.create_from_source(
+    name="search_query", 
+    label="Search Query",
+    description="Enter search terms"
+)
+def search_query_source():
+    return ds.TextDataSource(
+        table_or_query="""
+            SELECT 'product' AS default_search
+        """,
+        default_text_col="default_search"
+    )
+```
+
+In addition, the following are some additional examples for creating a `TextDataSource` object.
+
+### Using a table from a specific connection
+
+This example uses a table called "default_values" from the "config_db" connection.
+
+```python highlight="2,4"
+ds.TextDataSource(
+    table_or_query="default_values",
+    default_text_col="search_term",
+    connection="config_db"
+)
+```
+
+The connection must either be defined in `squirrels.yml` or the `connections.py` file.
+
+### Using seeds as the data source
+
+This example uses a seed file called "text_defaults".
+
+```python highlight="2,4"
+ds.TextDataSource(
+    table_or_query="text_defaults",
+    default_text_col="default_value",
+    source=ds.SourceEnum.SEEDS
+)
+```
+
+### Enabling cascading effects with a parent parameter
+
+In this example, the default text value is determined by the selected value of another parameter called "template_type".
+
+```python highlight="5,16"
+@p.TextParameter.create_from_source(
+    name="message_template", 
+    label="Message Template",
+    description="The default message template for the selected type",
+    parent_name="template_type"
+)
+def message_template_source():
+    return ds.TextDataSource(
+        table_or_query="""
+            SELECT 
+                template_type_id,
+                default_message
+            FROM message_templates
+        """,
+        default_text_col="default_message",
+        parent_id_col="template_type_id"  # Cascades based on template_type selection
+    )
+```

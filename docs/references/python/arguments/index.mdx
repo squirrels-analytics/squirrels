@@ -1,0 +1,31 @@
+---
+title: "arguments"
+tag: "module"
+description: "Module containing classes for arguments passed to Python functions in Squirrels"
+---
+
+The `squirrels.arguments` module provides specialized argument classes that are passed to various Python functions in a Squirrels project.
+
+Each argument class is designed for a specific context and provides appropriate properties and methods for that stage of execution.
+
+## Initialization time arguments
+
+These argument classes are used during server startup time:
+
+- [AuthProviderArgs](/references/python/arguments/authproviderargs) - Passed to the auth provider decorator function for authentication setup
+- [ConnectionsArgs](/references/python/arguments/connectionsargs) - Passed to the `main` function in `pyconfigs/connections.py` for configuring database connections
+- [ParametersArgs](/references/python/arguments/parametersargs) - Passed to the `main` function in `pyconfigs/parameters.py` for defining parameter widgets
+
+## Build time arguments
+
+These argument classes are used when building the virtual data environment:
+
+- [BuildModelArgs](/references/python/arguments/buildmodelargs) - Passed as the `sqrl` argument to Python build models in the `models/builds/` folder
+
+## Runtime arguments
+
+These argument classes are used when processing API requests:
+
+- [ContextArgs](/references/python/arguments/contextargs) - Passed to the `main` function in `pyconfigs/context.py` for setting up request-specific context
+- [ModelArgs](/references/python/arguments/modelargs) - Passed as the `sqrl` argument to Python federate models in the `models/federates/` folder
+- [DashboardArgs](/references/python/arguments/dashboardargs) - Passed as the `sqrl` argument to dashboard functions in the `dashboards/` folder

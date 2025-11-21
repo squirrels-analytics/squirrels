@@ -4,81 +4,405 @@ tag: "class"
 description: "Numeric input parameter"
 ---
 
-Class for numeric input parameter widgets.
+Class for creating numeric input parameter widgets that allow users to enter a single numeric value.
 
-## Class Methods
+This class can be imported from the `squirrels.parameters` or the `squirrels` module.
 
-### CreateWithOptions
+## Factory methods
 
-Method for creating a parameter that may include user attribute or parent.
+Factory methods are class methods that create and configure parameter instances. These methods are typically used in the `pyconfigs/parameters.py` file to create the parameter configurations (which describes the "shape" of the parameter but does not include the realtime user selections).
 
-**Arguments:**
-- `name` (str): The name of the parameter
-- `label` (str): The display label for the parameter
-- `all_options` (Sequence[NumberParameterOption | dict]): All options for this parameter
-- `description` (str): Explains the meaning of the parameter (default: "")
-- `user_attribute` (str | None): User attribute that cascades options (default: None)
-- `parent_name` (str | None): Name of parent parameter (default: None)
+### create_simple()
 
-**Returns:** `NumberParameterConfig`
+Decorator for creating a simple numeric parameter that doesn't involve user attributes or parent parameters.
 
-### create_with_options
+The body of the decorated function does not need to return anything (i.e., it can simply be `pass`).
 
-Decorator for creating a parameter with options from a function.
+```python
+@classmethod
+def create_simple(
+    cls, name: str, label: str, min_value: decimal.Decimal | int | float | str, 
+    max_value: decimal.Decimal | int | float | str,
+    *, description: str = "", increment: decimal.Decimal | int | float | str = 1, 
+    default_value: decimal.Decimal | int | float | str | None = None
+) -> Callable:
+```
 
-**Arguments:**
-- `name` (str): The name of the parameter
-- `label` (str): The display label for the parameter
-- `description` (str): Explains the meaning of the parameter (default: "")
-- `user_attribute` (str | None): User attribute that cascades options (default: None)
-- `parent_name` (str | None): Name of parent parameter (default: None)
+<Expandable title="arguments" defaultOpen>
+  <ResponseField name="name" type="str" required>
+    The unique identifier for this parameter. Used to reference the parameter at query time (such as in `context.py` or when specifying parameter selections in the APIs).
+  </ResponseField>
 
-### CreateSimple
+  <ResponseField name="label" type="str" required>
+    The display label shown to users in the UI.
+  </ResponseField>
 
-Method for creating a parameter without user attributes or parent parameters.
+  <ResponseField name="min_value" type="decimal.Decimal | int | float | str" required>
+    Minimum selectable value. Must be less than or equal to `max_value`.
+  </ResponseField>
 
-**Arguments:**
-- `name` (str): The name of the parameter
-- `label` (str): The display label for the parameter
-- `default_value` (Decimal | int | float | str): Default value
-- `min_value` (Decimal | int | float | str | None): Minimum value constraint (default: None)
-- `max_value` (Decimal | int | float | str | None): Maximum value constraint (default: None)
-- `increment` (Decimal | int | float | str | None): Increment/step value (default: None)
-- `description` (str): Explains the meaning of the parameter (default: "")
+  <ResponseField name="max_value" type="decimal.Decimal | int | float | str" required>
+    Maximum selectable value. Must be greater than or equal to `min_value`.
+  </ResponseField>
 
-**Returns:** `NumberParameterConfig`
+  <ResponseField name="description" type="str" default="">
+    An optional description explaining the purpose of this parameter.
+  </ResponseField>
 
-### create_simple
+  <ResponseField name="increment" type="decimal.Decimal | int | float | str" default="1">
+    Increment of selectable values. Must fit evenly between `min_value` and `max_value`.
+  </ResponseField>
 
-Decorator for creating a simple parameter from a function returning numeric constraints.
+  <ResponseField name="default_value" type="decimal.Decimal | int | float | str | None" default="None">
+    Default value for this parameter. Must be selectable based on `min_value`, `max_value`, and `increment`. If None, defaults to `min_value`.
+  </ResponseField>
+</Expandable>
 
-**Arguments:**
-- `name` (str): The name of the parameter
-- `label` (str): The display label for the parameter
-- `description` (str): Explains the meaning of the parameter (default: "")
+### create_with_options()
 
-### CreateFromSource
+Decorator for creating a parameter with options that can vary based on user attributes or parent parameter selections.
 
-Method for creating a parameter from a DataSource.
+The decorated function must return a list of [NumberParameterOption](/references/python/parameter_options/numberparameteroption) objects.
 
-**Arguments:**
-- `name` (str): The name of the parameter
-- `label` (str): The display label for the parameter
-- `data_source` (NumberDataSource | dict): The lookup table to use
-- `description` (str): Explains the meaning of the parameter (default: "")
-- `user_attribute` (str | None): User attribute that cascades options (default: None)
-- `parent_name` (str | None): Name of parent parameter (default: None)
+```python
+@classmethod
+def create_with_options(
+    cls, name: str, label: str, 
+    *, description: str = "", user_attribute: str | None = None, 
+    parent_name: str | None = None
+) -> Callable:
+```
 
-**Returns:** `DataSourceParameterConfig`
+<Expandable title="arguments" defaultOpen>
+  <ResponseField name="name" type="str" required>
+    The unique identifier for this parameter. Used to reference the parameter at query time (such as in `context.py` or when specifying parameter selections in the APIs).
+  </ResponseField>
 
-### create_from_source
+  <ResponseField name="label" type="str" required>
+    The display label shown to users in the UI.
+  </ResponseField>
 
-Decorator for creating a parameter from a DataSource function.
+  <ResponseField name="description" type="str" default="">
+    An optional description explaining the purpose of this parameter.
+  </ResponseField>
 
-**Arguments:**
-- `name` (str): The name of the parameter
-- `label` (str): The display label for the parameter
-- `description` (str): Explains the meaning of the parameter (default: "")
-- `user_attribute` (str | None): User attribute that cascades options (default: None)
-- `parent_name` (str | None): Name of parent parameter (default: None)
+  <ResponseField name="user_attribute" type="str | None" default="None">
+    A user attribute (like "access_level") that determines which options are visible to different users. The decorated function should return options with matching `user_groups` values.
+    
+    To use custom user fields defined in `pyconfigs/user.py`, prefix with `custom_fields.` (e.g., `"custom_fields.department"`).
+  </ResponseField>
 
+  <ResponseField name="parent_name" type="str | None" default="None">
+    The name of a parent parameter that controls which options are visible. The decorated function should return options with `parent_option_ids` matching the parent's selected value.
+  </ResponseField>
+</Expandable>
+
+### create_from_source()
+
+Decorator for creating a parameter populated from a database table or query using a [NumberDataSource](/references/python/data_sources/numberdatasource).
+
+The decorated function must return a [NumberDataSource](/references/python/data_sources/numberdatasource) object.
+
+```python
+@classmethod
+def create_from_source(
+    cls, name: str, label: str, 
+    *, description: str = "", user_attribute: str | None = None, 
+    parent_name: str | None = None
+) -> Callable:
+```
+
+<Expandable title="arguments" defaultOpen>
+  <ResponseField name="name" type="str" required>
+    The unique identifier for this parameter. Used to reference the parameter at query time (such as in `context.py` or when specifying parameter selections in the APIs).
+  </ResponseField>
+
+  <ResponseField name="label" type="str" required>
+    The display label shown to users in the UI.
+  </ResponseField>
+
+  <ResponseField name="description" type="str" default="">
+    An optional description explaining the purpose of this parameter.
+  </ResponseField>
+
+  <ResponseField name="user_attribute" type="str | None" default="None">
+    A user attribute that determines which options from the data source are visible to different users.
+    
+    To use custom user fields defined in `pyconfigs/user.py`, prefix with `custom_fields.`.
+  </ResponseField>
+
+  <ResponseField name="parent_name" type="str | None" default="None">
+    The name of a parent parameter that controls which options from the data source are visible.
+  </ResponseField>
+</Expandable>
+
+## Instance methods
+
+Instance methods are available on parameter instances at query time (in `context.py` or data models) to retrieve selected values.
+
+### get_selected_value()
+
+Gets the selected numeric value as a float.
+
+```python
+def get_selected_value(self) -> float:
+```
+
+<ResponseField name="returns" type="float">
+  The selected numeric value converted from Decimal to float.
+</ResponseField>
+
+### is_enabled()
+
+Returns True if the parameter has a valid option after applying user attribute and parent parameter selections, False otherwise.
+
+```python
+def is_enabled(self) -> bool:
+```
+
+<ResponseField name="returns" type="bool">
+  True if the parameter has a valid option, False otherwise.
+</ResponseField>
+
+## Examples for factory methods
+
+All examples below are defined in the `pyconfigs/parameters.py` file.
+
+### Using create_simple for basic numeric input
+
+For parameters that only need a single set of constraints, use `create_simple`. The numeric parameters are passed directly to the decorator.
+
+```python highlight="3"
+from squirrels import parameters as p
+
+@p.NumberParameter.create_simple(
+    name="threshold", 
+    label="Threshold Value",
+    min_value=0,
+    max_value=1000,
+    increment=10,
+    default_value=100,
+    description="Enter threshold value"
+)
+def threshold_default():
+    pass
+```
+
+### Number parameter with decimal precision
+
+This example uses decimal values for precise numeric input. Regardless of whether `Decimal`, float, or string values are used, the exact precision will always be maintained (without floating point errors).
+
+```python highlight="7-10"
+from squirrels import parameters as p
+from decimal import Decimal
+
+@p.NumberParameter.create_simple(
+    name="price_multiplier", 
+    label="Price Multiplier",
+    min_value="0.1",
+    max_value="2.0",
+    increment=0.1,
+    default_value=Decimal("1.2"),
+    description="Enter price multiplier (0.1 to 2.0)"
+)
+def price_multiplier_default():
+    pass
+```
+
+### Cascading number parameters
+
+This example shows how numeric constraints can vary based on a parent parameter selection.
+
+```python highlight="20,29,36"
+from squirrels import parameters as p, parameter_options as po
+
+# Parent parameter
+@p.SingleSelectParameter.create_with_options(
+    name="product_type", 
+    label="Product Type",
+    description="Select product type"
+)
+def product_type_options():
+    return [
+        po.SelectParameterOption(id="small", label="Small Items"),
+        po.SelectParameterOption(id="large", label="Large Items"),
+    ]
+
+# Child number parameter with varying constraints
+@p.NumberParameter.create_with_options(
+    name="order_quantity", 
+    label="Order Quantity",
+    description="Enter quantity based on product type",
+    parent_name="product_type"
+)
+def order_quantity_options():
+    return [
+        po.NumberParameterOption(
+            default_value=10,
+            min_value=1,
+            max_value=100,
+            increment=1,
+            parent_option_ids="small"
+        ),
+        po.NumberParameterOption(
+            default_value=5,
+            min_value=1,
+            max_value=20,
+            increment=1,
+            parent_option_ids="large"
+        ),
+    ]
+```
+
+### User-specific numeric constraints
+
+This example provides different numeric constraints based on user access levels.
+
+```python highlight="7,16,23"
+from squirrels import parameters as p, parameter_options as po
+
+@p.NumberParameter.create_with_options(
+    name="budget_limit", 
+    label="Budget Limit",
+    description="Set budget limit based on your access level",
+    user_attribute="access_level"
+)
+def budget_limit_options():
+    return [
+        po.NumberParameterOption(
+            default_value=1000,
+            min_value=0,
+            max_value=5000,
+            increment=100,
+            user_groups=["member", "guest"]
+        ),
+        po.NumberParameterOption(
+            default_value=5000,
+            min_value=0,
+            max_value=50000,
+            increment=1000,
+            user_groups=["admin"]
+        ),
+    ]
+```
+
+### Number parameter from database source
+
+This example populates numeric constraints from a database query.
+
+```python highlight="3,8"
+from squirrels import parameters as p, data_sources as ds
+
+@p.NumberParameter.create_from_source(
+    name="inventory_quantity", 
+    label="Inventory Quantity",
+    description="Enter quantity (based on current inventory)"
+)
+def inventory_quantity_source() -> ds.NumberDataSource:
+    return ds.NumberDataSource(
+        table_or_query="""
+            SELECT 
+                AVG(quantity) AS default_value,
+                MIN(quantity) AS min_value,
+                MAX(quantity) AS max_value,
+                1 AS increment
+            FROM inventory
+        """,
+        default_value_col="default_value",
+        min_value_col="min_value",
+        max_value_col="max_value",
+        increment_col="increment"
+    )
+```
+
+### Cascading number from database source
+
+This example shows a number parameter whose constraints come from a database and depend on a parent parameter.
+
+```python highlight="20,37"
+from squirrels import parameters as p, data_sources as ds
+
+# Parent parameter for projects
+@p.SingleSelectParameter.create_from_source(
+    name="department_id", 
+    label="Department",
+    description="Select a department"
+)
+def department_source():
+    return ds.SelectDataSource(
+        table_or_query="departments",
+        id_col="department_id",
+        options_col="department_name"
+    )
+
+@p.NumberParameter.create_from_source(
+    name="allocation_amount", 
+    label="Allocation Amount",
+    description="Enter allocation amount for the selected department",
+    parent_name="department_id"
+)
+def allocation_amount_source():
+    return ds.NumberDataSource(
+        table_or_query="""
+            SELECT 
+                department_id,
+                budget_default AS default_value,
+                budget_min AS min_value,
+                budget_max AS max_value,
+                100 AS increment
+            FROM department_budgets
+        """,
+        default_value_col="default_value",
+        min_value_col="min_value",
+        max_value_col="max_value",
+        increment_col="increment",
+        parent_id_col="department_id"
+    )
+```
+
+## Examples for instance methods
+
+Once parameters are configured, you can use instance methods in your models to access the selected values. The parameter instances are available through the context object (e.g., `sqrl.prms`).
+
+### Basic usage in context.py
+
+```python highlight="7"
+from squirrels import ContextArgs
+
+def main(ctx: dict[str, Any], sqrl: ContextArgs) -> None:
+    if sqrl.param_exists("threshold"):
+        threshold_param = sqrl.prms["threshold"]
+        assert isinstance(threshold_param, p.NumberParameter)
+        ctx["threshold_value"] = threshold_param.get_selected_value()
+```
+
+### Basic usage in Jinja SQL models
+
+The following example works but is not recommended. See tip below for why.
+
+```sql highlight="4"
+-- models/federates/filtered_data.sql
+SELECT *
+FROM products
+WHERE price >= {{ prms["threshold"].get_selected_value() }}
+```
+
+<Tip>
+  It is generally better to only use the instance methods in `context.py` to transform parameter selections into context variables. Using the instance methods directly in the data models is not recommended.
+  
+  IDEs can provide code suggestions for the available instance methods in Python instead of having to memorize which method (such as `get_selected_value`) is available to use for `NumberParameter` objects.
+</Tip>
+
+### Using numeric values in calculations
+
+```python highlight="7-9"
+# In context.py
+def main(ctx: dict[str, Any], sqrl: ContextArgs) -> None:
+    if sqrl.param_exists("price_multiplier"):
+        multiplier_param = sqrl.prms["price_multiplier"]
+        assert isinstance(multiplier_param, p.NumberParameter)
+        
+        multiplier = multiplier_param.get_selected_value()
+        ctx["adjusted_price"] = 100 * multiplier
+        ctx["discount_percentage"] = (1 - multiplier) * 100
+```

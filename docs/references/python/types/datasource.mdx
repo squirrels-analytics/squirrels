@@ -1,18 +1,19 @@
 ---
 title: "DataSource"
-tag: "class"
-description: "Abstract base class for data sources"
+tag: "abstract"
+description: "Base type for data source objects used by parameters"
 ---
 
-Abstract base class for all data source classes. Data sources populate parameter options from lookup tables.
+Abstract base class for all data source classes. Data sources populate parameter options from lookup tables or queries.
 
-This is an abstract class and should not be instantiated directly. Use one of the concrete implementations:
-- `SelectDataSource`
-- `DateDataSource`
-- `DateRangeDataSource`
-- `NumberDataSource`
-- `NumberRangeDataSource`
-- `TextDataSource`
+In user code, `DataSource` appears as the common type for concrete data source classes that you construct to configure parameters; you should not instantiate `DataSource` itself directly. Use one of the concrete implementations:
+- [SelectDataSource](/references/python/datasources/selectdatasource)
+- [DateDataSource](/references/python/datasources/datedatasource)
+- [DateRangeDataSource](/references/python/datasources/daterangedatasource)
+- [NumberDataSource](/references/python/datasources/numberdatasource)
+- [NumberRangeDataSource](/references/python/datasources/numberrangedatasource)
+- [TextDataSource](/references/python/datasources/textdatasource)
 
-See the `data_sources` module for concrete implementations.
+When defining lookup-backed parameters, use the concrete classes from the `data_sources` module rather than `DataSource` itself.
 
+If `DataSource` is needed for type annotation, it can be imported from the `squirrels.types` or `squirrels` module.

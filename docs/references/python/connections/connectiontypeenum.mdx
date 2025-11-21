@@ -6,29 +6,28 @@ description: "Enum for connection types"
 
 Enumeration of supported connection types in Squirrels.
 
-## Values
+For example usage, see [ConnectionProperties](/references/python/connections/ConnectionProperties).
 
-### SQLALCHEMY
+This enum can be imported from the `squirrels.connections` or the `squirrels` module.
 
-SQLAlchemy-based connections using standard database drivers.
+## Enum values
 
-**Value:** `"sqlalchemy"`
+<ResponseField name="SQLALCHEMY" type="ConnectionTypeEnum">
+  SQLAlchemy-based connections using standard database drivers. This is the default connection type and supports the widest range of databases.
+  
+  Supports placeholders in SQL queries, using `:param_name` syntax for named parameters.
+</ResponseField>
 
-### CONNECTORX
+<ResponseField name="DUCKDB" type="ConnectionTypeEnum">
+  Native DuckDB connections for fast analytical queries. Use this for DuckDB databases and also for connecting to PostgreSQL, MySQL, and SQLite through DuckDB's connectors. 
+  
+  Supports placeholders in SQL queries, using `$param_name` syntax for named parameters.
+</ResponseField>
 
-ConnectorX-based connections for fast data loading.
+<ResponseField name="CONNECTORX" type="ConnectionTypeEnum">
+  ConnectorX-based connections for fast data loading from databases. Optimized for bulk data transfers but does not support placeholders in SQL queries.
+</ResponseField>
 
-**Value:** `"connectorx"`
-
-### ADBC
-
-Arrow Database Connectivity (ADBC) connections.
-
-**Value:** `"adbc"`
-
-### DUCKDB
-
-Native DuckDB connections.
-
-**Value:** `"duckdb"`
-
+<ResponseField name="ADBC" type="ConnectionTypeEnum">
+  Arrow Database Connectivity (ADBC) connections for high-performance data transfer using Apache Arrow. Does not support placeholders in SQL queries.
+</ResponseField>

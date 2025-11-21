@@ -40,7 +40,11 @@ The class can be imported from the `squirrels.arguments` or `squirrels` module.
 
 Sets a placeholder value for use in SQL queries.
 
-<Expandable title="arguments (positional)" defaultOpen>
+```python
+def set_placeholder(self, placeholder: str, value: TextValue | Any) -> str:
+```
+
+<Expandable title="arguments" defaultOpen>
   <ResponseField name="placeholder" type="string" required>
     The name of the placeholder.
   </ResponseField>
@@ -53,9 +57,13 @@ Sets a placeholder value for use in SQL queries.
 
 ### param_exists()
 
-Checks whether a given parameter exists and is enabled.
+Checks whether a given parameter exists and contains options.
 
-<Expandable title="arguments (positional)" defaultOpen>
+```python
+def param_exists(self, param_name: str) -> bool:
+```
+
+<Expandable title="arguments" defaultOpen>
   <ResponseField name="param_name" type="string" required>
     The name of the parameter.
   </ResponseField>

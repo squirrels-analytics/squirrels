@@ -1,10 +1,146 @@
 ---
 title: "TextValue"
 tag: "class"
-description: "Wrapper for text values in parameters"
+description: "Wrapper for raw text entered into TextParameter widgets"
 ---
 
-Wrapper class for text values in parameters. Used to distinguish between text that should be quoted in SQL queries and text that should not be quoted.
+Wrapper class for raw text entered into `TextParameter` widgets. It is returned by methods such as `TextParameter.get_entered_text()` so that the text cannot be accidentally treated as a plain string (for example, when building SQL).
 
-This class is primarily used internally by the Squirrels framework when processing text parameters.
+Instead of converting a `TextValue` directly to a string, you transform it using helper methods or pass it to APIs such as `ContextArgs.set_placeholder`, which safely unwrap the underlying text.
 
+Instances of `TextValue` are created by Squirrels and returned from parameter methods; you should not instantiate this class directly in your project code.
+
+If `TextValue` is needed for type annotation, it can be imported from the `squirrels.types` or `squirrels` module.
+
+## Methods
+
+### apply()
+
+Transforms the entered text using a function that takes a string and returns a string, and returns a new `TextValue`.
+
+```python
+def apply(self, str_to_str_function: Callable[[str], str]) -> TextValue:
+```
+
+<Expandable title="arguments" defaultOpen>
+  <ResponseField name="str_to_str_function" type="Callable[[str], str]" required>
+    Function that receives the raw text and returns a transformed string.
+  </ResponseField>
+</Expandable>
+
+<ResponseField name="returns" type="TextValue">A new `TextValue` with the transformed text.</ResponseField>
+
+If the function does not return a string, a configuration error is raised.
+
+### apply_percent_wrap()
+
+Returns a new `TextValue` with percent signs added before and after the entered text (for example, for use in SQL `LIKE` patterns).
+
+```python
+def apply_percent_wrap(self) -> TextValue:
+```
+
+<ResponseField name="returns" type="TextValue">A new `TextValue` with percent signs wrapping the text.</ResponseField>
+
+### apply_as_bool()
+
+Transforms the entered text with a function that takes a string and returns a boolean.
+
+```python
+def apply_as_bool(self, str_to_bool_function: Callable[[str], bool]) -> bool:
+```
+
+<Expandable title="arguments" defaultOpen>
+  <ResponseField name="str_to_bool_function" type="Callable[[str], bool]" required>
+    Function that receives the raw text and returns a boolean.
+  </ResponseField>
+</Expandable>
+
+<ResponseField name="returns" type="bool">The boolean result from the input function.</ResponseField>
+
+If the function does not return a boolean, a configuration error is raised.
+
+### apply_as_number()
+
+Transforms the entered text with a function that takes a string and returns a number.
+
+```python
+def apply_as_number(
+    self, str_to_num_function: Callable[[str], int | float]
+) -> int | float:
+```
+
+<Expandable title="arguments" defaultOpen>
+  <ResponseField name="str_to_num_function" type="Callable[[str], int | float]" required>
+    Function that receives the raw text and returns an <code>int</code> or <code>float</code>.
+  </ResponseField>
+</Expandable>
+
+<ResponseField name="returns" type="int | float">The numeric result from the input function.</ResponseField>
+
+If the function does not return a number, a configuration error is raised.
+
+### apply_as_datetime()
+
+Transforms the entered text with a function that takes a string and returns a `datetime` object.
+
+```python
+def apply_as_datetime(
+    self, str_to_datetime_function: Callable[[str], datetime]
+) -> datetime:
+```
+
+<Expandable title="arguments" defaultOpen>
+  <ResponseField name="str_to_datetime_function" type="Callable[[str], datetime]" required>
+    Function that receives the raw text and returns a <code>datetime</code>.
+  </ResponseField>
+</Expandable>
+
+<ResponseField name="returns" type="datetime">The datetime result from the input function.</ResponseField>
+
+If the function does not return a `datetime`, a configuration error is raised.
+
+## Examples
+
+The `TextValue` class is primarily used as a type hint in `pyconfigs/context.py`. You receive `TextValue` instances from methods like `TextParameter.get_entered_text()`, then transform them using the provided methods before passing to APIs that safely handle the text.
+
+### Using TextValue as a type hint in context.py
+
+```python highlight="10,13"
+from typing import Any
+from squirrels import arguments as args, parameters as p, TextValue
+
+def main(ctx: dict[str, Any], sqrl: args.ContextArgs) -> None:
+    if sqrl.param_exists("my_text_param"):
+        my_text_param = sqrl.prms["my_text_param"]
+        assert isinstance(my_text_param, p.TextParameter)
+        
+        # Get text parameter value as TextValue
+        text_value: TextValue = my_text_param.get_entered_text()
+        
+        # Wrap with % for SQL LIKE pattern matching
+        search_pattern = text_value.apply_percent_wrap()
+        sqrl.set_placeholder("search_pattern", search_pattern)
+```
+
+### Transforming text
+
+```python
+new_text_value: TextValue = text_value.apply(lambda s: s.strip().upper())
+```
+
+### Converting text to other types
+
+```python
+from datetime import datetime
+
+# Convert TextValue to float
+new_float_value: float = text_value.apply_as_number(
+    lambda s: float(s.replace(",", ""))
+)
+
+# Convert TextValue to datetime
+new_datetime_value: datetime = text_value.apply_as_datetime(
+    lambda s: datetime.strptime(s, "%Y/%m/%d")
+)
+```

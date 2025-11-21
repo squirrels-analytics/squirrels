@@ -1,18 +1,19 @@
 ---
 title: "ParameterOption"
-tag: "class"
-description: "Abstract base class for parameter options"
+tag: "abstract"
+description: "Base type for parameter option objects returned from parameters"
 ---
 
-Abstract base class for all parameter option classes.
+Abstract base class for all parameter option classes. In Squirrels projects, `ParameterOption` most often appears in type hints as the common type for concrete options returned by parameter widgets.
 
-This is an abstract class and should not be instantiated directly. Use one of the concrete implementations:
-- `SelectParameterOption`
-- `DateParameterOption`
-- `DateRangeParameterOption`
-- `NumberParameterOption`
-- `NumberRangeParameterOption`
-- `TextParameterOption`
+Instances are created through concrete option classes and configuration helpers; you should not instantiate `ParameterOption` directly. Use one of the concrete implementations:
+- [SelectParameterOption](/references/python/parameter_options/selectparameteroption)
+- [DateParameterOption](/references/python/parameter_options/dateparameteroption)
+- [DateRangeParameterOption](/references/python/parameter_options/daterangeparameteroption)
+- [NumberParameterOption](/references/python/parameter_options/numberparameteroption)
+- [NumberRangeParameterOption](/references/python/parameter_options/numberrangedatasource)
+- [TextParameterOption](/references/python/parameter_options/textparameteroption)
 
-See the `parameter_options` module for concrete implementations.
+When you need to construct options, use the concrete classes from the `parameter_options` module rather than `ParameterOption` itself.
 
+If `ParameterOption` is needed for type annotation, it can be imported from the `squirrels.types` or `squirrels` module.

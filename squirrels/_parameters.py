@@ -50,6 +50,9 @@ class Parameter(Generic[PC, PO, DS], metaclass=ABCMeta):
         """
         Method for creating the configurations for a Parameter that may include user attribute or parent
 
+        .. deprecated::
+            Use the lowercase decorator form `create_with_options` instead.
+
         Arguments:
             name: The name of the parameter
             label: The display label for the parameter
@@ -127,6 +130,9 @@ class Parameter(Generic[PC, PO, DS], metaclass=ABCMeta):
     ):
         """
         Method for creating the configurations for any Parameter that uses a DataSource to receive the options
+
+        .. deprecated::
+            Use the lowercase decorator form `create_from_source` instead.
 
         Arguments:
             name: The name of the parameter
@@ -276,6 +282,9 @@ class SingleSelectParameter(_SelectionParameter[pc.SingleSelectParameterConfig])
     ):
         """
         Method for creating the configurations for a SingleSelectParameter that doesn't involve user attributes or parent parameters
+
+        .. deprecated::
+            Use the lowercase decorator form `create_simple` instead.
 
         Arguments:
             name: The name of the parameter
@@ -454,6 +463,9 @@ class MultiSelectParameter(_SelectionParameter[pc.MultiSelectParameterConfig]):
         """
         Method for creating the configurations for a MultiSelectParameter that may include user attribute or parent
 
+        .. deprecated::
+            Use the lowercase decorator form `create_with_options` instead.
+
         Arguments:
             name: The name of the parameter
             label: The display label for the parameter
@@ -509,6 +521,9 @@ class MultiSelectParameter(_SelectionParameter[pc.MultiSelectParameterConfig]):
         """
         Method for creating the configurations for a MultiSelectParameter that doesn't involve user attributes or parent parameters
 
+        .. deprecated::
+            Use the lowercase decorator form `create_simple` instead.
+
         Arguments:
             name: The name of the parameter
             label: The display label for the parameter
@@ -560,6 +575,9 @@ class MultiSelectParameter(_SelectionParameter[pc.MultiSelectParameterConfig]):
     ):
         """
         Method for creating the configurations for a MultiSelectParameter that uses a SelectDataSource to receive the options
+
+        .. deprecated::
+            Use the lowercase decorator form `create_from_source` instead.
 
         Arguments:
             name: The name of the parameter
@@ -868,6 +886,9 @@ class DateParameter(_DateTypeParameter[pc.DateParameterConfig, po.DateParameterO
         """
         Method for creating the configurations for a DateParameter that doesn't involve user attributes or parent parameters
 
+        .. deprecated::
+            Use the lowercase decorator form `create_simple` instead.
+
         Arguments:
             name: The name of the parameter
             label: The display label for the parameter
@@ -996,6 +1017,9 @@ class DateRangeParameter(_DateTypeParameter[pc.DateRangeParameterConfig, po.Date
     ):
         """
         Method for creating the configurations for a DateRangeParameter that doesn't involve user attributes or parent parameters
+
+        .. deprecated::
+            Use the lowercase decorator form `create_simple` instead.
 
         Arguments:
             name: The name of the parameter
@@ -1165,6 +1189,9 @@ class NumberParameter(_NumberTypeParameter[pc.NumberParameterConfig, po.NumberPa
         """
         Method for creating the configurations for a NumberParameter that doesn't involve user attributes or parent parameters
         
+        .. deprecated::
+            Use the lowercase decorator form `create_simple` instead.
+        
         * Note that the "Number" type denotes an int, a Decimal (from decimal module), or a string that can be parsed to Decimal
         
         Arguments:
@@ -1273,6 +1300,9 @@ class NumberRangeParameter(_NumberTypeParameter[pc.NumberRangeParameterConfig, p
     ):
         """
         Method for creating the configurations for a NumberRangeParameter that doesn't involve user attributes or parent parameters
+        
+        .. deprecated::
+            Use the lowercase decorator form `create_simple` instead.
         
         * Note that the "Number" type denotes an int, a Decimal (from decimal module), or a string that can be parsed to Decimal
 
@@ -1479,6 +1509,9 @@ class TextParameter(Parameter[pc.TextParameterConfig, po.TextParameterOption, d.
         """
         Method for creating the configurations for a TextParameter that doesn't involve user attribute or parent
 
+        .. deprecated::
+            Use the lowercase decorator form `create_with_options` instead.
+
         Arguments:
             name: The name of the parameter
             label: The display label for the parameter
@@ -1529,6 +1562,9 @@ class TextParameter(Parameter[pc.TextParameterConfig, po.TextParameterOption, d.
         """
         Method for creating the configurations for a TextParameter that doesn't involve user attributes or parent parameters
         
+        .. deprecated::
+            Use the lowercase decorator form `create_simple` instead.
+        
         Arguments:
             name: The name of the parameter
             label: The display label for the parameter
@@ -1565,6 +1601,9 @@ class TextParameter(Parameter[pc.TextParameterConfig, po.TextParameterOption, d.
     ):
         """
         Method for creating the configurations for a TextParameter that uses a TextDataSource to receive the options
+
+        .. deprecated::
+            Use the lowercase decorator form `create_from_source` instead.
 
         Arguments:
             name: The name of the parameter

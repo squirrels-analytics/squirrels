@@ -6,35 +6,68 @@ description: "Configuration for OAuth authentication providers"
 
 Configuration class for setting up OAuth authentication providers.
 
-## Attributes
+This class can be imported from the `squirrels.auth` or the `squirrels` module.
 
-<ResponseField name="client_id" type="str">
-  OAuth client ID
-</ResponseField>
+## Constructor 
 
-<ResponseField name="client_secret" type="str">
-  OAuth client secret
-</ResponseField>
+Creates a `ProviderConfigs` object.
 
-<ResponseField name="server_url" type="str">
-  URL of the OAuth server
-</ResponseField>
+```python
+def __init__(
+    self, *, client_id: str, client_secret: str, server_url: str, 
+    server_metadata_path: str = "/.well-known/openid-configuration",
+    client_kwargs: dict = {}, 
+    get_user: Callable[[dict], RegisteredUser]
+) -> None:
+```
 
-<ResponseField name="server_metadata_path" type="str" default="/.well-known/openid-configuration">
-  Path to the OAuth server metadata
-</ResponseField>
+<Expandable title="arguments" defaultOpen>
+  <ResponseField name="client_id" type="str" required>
+    OAuth client ID
+  </ResponseField>
 
-<ResponseField name="client_kwargs" type="dict" default="{}">
-  Additional keyword arguments for the OAuth client
-</ResponseField>
+  <ResponseField name="client_secret" type="str" required>
+    OAuth client secret
+  </ResponseField>
 
-<ResponseField name="get_user" type="Callable[[dict], RegisteredUser]">
-  Function to convert OAuth user info to RegisteredUser
-</ResponseField>
+  <ResponseField name="server_url" type="str" required>
+    URL of the OAuth server
+  </ResponseField>
 
-## Properties
+  <ResponseField name="server_metadata_path" type="str" default="/.well-known/openid-configuration">
+    Path to the OAuth server metadata
+  </ResponseField>
 
-### server_metadata_url
+  <ResponseField name="client_kwargs" type="dict" default="{}">
+    Additional keyword arguments for the OAuth client
+  </ResponseField>
 
-Returns the full URL to the OAuth server metadata.
+  <ResponseField name="get_user" type="Callable[[dict], RegisteredUser]" required>
+    Function to convert OAuth user info to [RegisteredUser](/references/python/auth/RegisteredUser)
+  </ResponseField>
+</Expandable>
 
+## Example
+
+```python highlight={12-18}
+from squirrels import auth, arguments as args
+
+@auth.provider(
+  name="google", label="Google", 
+  icon="https://www.google.com/favicon.ico"
+)
+def google_auth_provider(sqrl: args.AuthProviderArgs) -> auth.ProviderConfigs:
+    def get_user(user_info: dict) -> auth.RegisteredUser:
+        # Convert OAuth user info to RegisteredUser
+        pass
+    
+    provider_configs = auth.ProviderConfigs(
+        client_id=sqrl.env_vars["GOOGLE_CLIENT_ID"],
+        client_secret=sqrl.env_vars["GOOGLE_CLIENT_SECRET"],
+        server_url="https://accounts.google.com",
+        client_kwargs={"scope": "openid email profile"},
+        get_user=get_sqrl_user
+    )
+
+    return provider_configs
+```

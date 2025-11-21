@@ -4,19 +4,63 @@ tag: "class"
 description: "Represents a registered user in the system"
 ---
 
-Class representing a registered user with authentication and custom fields.
+Class representing a user that must be authenticated by logging in.
 
-## Attributes
+This is often used to define the user returned by the `get_user` function of the [ProviderConfigs](/references/python/auth/ProviderConfigs) class.
 
-<ResponseField name="username" type="str">
-  The unique username of the user
-</ResponseField>
+This class can be imported from the `squirrels.auth` or the `squirrels` module.
 
-<ResponseField name="access_level" type="Literal['admin', 'member']">
-  The access level of the user
-</ResponseField>
+## Constructor 
 
-<ResponseField name="custom_fields" type="CustomUserFields">
-  Custom fields associated with the user
-</ResponseField>
+Creates a `RegisteredUser` object.
+
+```python
+def __init__(
+    self, *, username: str, access_level: Literal['admin', 'member'], 
+    custom_fields: CustomUserFields
+) -> None:
+```
+
+<Expandable title="arguments" defaultOpen>
+  <ResponseField name="username" type="str">
+    The unique username of the user
+  </ResponseField>
+
+  <ResponseField name="access_level" type="Literal['admin', 'member']">
+    The access level of the user
+  </ResponseField>
+
+  <ResponseField name="custom_fields" type="CustomUserFields">
+    Custom fields associated with the user
+  </ResponseField>
+</Expandable>
+
+## Example
+
+```python highlight={10-14}
+from squirrels import auth, arguments as args
+
+@auth.provider(
+  name="google", label="Google", 
+  icon="https://www.google.com/favicon.ico"
+)
+def google_auth_provider(sqrl: args.AuthProviderArgs) -> auth.ProviderConfigs:
+    def get_sqrl_user(claims: dict) -> auth.RegisteredUser:
+        custom_fields = auth.CustomUserFields() # or the derived class
+        return auth.RegisteredUser(
+            username=claims["email"],
+            access_level="member",
+            custom_fields=custom_fields
+        )
+    
+    provider_configs = auth.ProviderConfigs(
+        client_id=sqrl.env_vars["GOOGLE_CLIENT_ID"],
+        client_secret=sqrl.env_vars["GOOGLE_CLIENT_SECRET"],
+        server_url="https://accounts.google.com",
+        client_kwargs={"scope": "openid email profile"},
+        get_user=get_sqrl_user
+    )
+
+    return provider_configs
+```
 

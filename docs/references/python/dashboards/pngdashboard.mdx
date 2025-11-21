@@ -4,25 +4,50 @@ tag: "class"
 description: "Dashboard in PNG format"
 ---
 
-Instantiate a Dashboard in PNG format from a matplotlib figure or bytes.
+Instantiate a dashboard in PNG format from a matplotlib figure or bytes inside a Python dashboard file.
+
+This class can be imported from the `squirrels.dashboards` or the `squirrels` module.
 
 ## Constructor
 
-### Arguments
+Creates a `PngDashboard` object.
 
-<ResponseField name="content" type="matplotlib.figure.Figure | io.BytesIO | bytes" required>
-  The content of the dashboard as a matplotlib figure or bytes
-</ResponseField>
+```python
+def __init__(
+    self, content: matplotlib.figure.Figure | io.BytesIO | bytes
+) -> None:
+```
+
+<Expandable title="arguments" defaultOpen>
+  <ResponseField name="content" type="matplotlib.figure.Figure | io.BytesIO | bytes" required>
+    The content of the dashboard as a matplotlib figure or a png image as bytes.
+  </ResponseField>
+</Expandable>
 
 ## Example
 
+Here's an example of creating a PNG dashboard using matplotlib:
+
 ```python
 from squirrels.dashboards import PngDashboard
+from squirrels.arguments import DashboardArgs
 import matplotlib.pyplot as plt
+import polars as pl
 
-def my_dashboard(sqrl: DashboardArgs):
-    fig, ax = plt.subplots()
-    ax.plot([1, 2, 3], [1, 4, 9])
-    return PngDashboard(fig)
+async def main(sqrl: DashboardArgs) -> PngDashboard:
+    # Get dataset
+    df = await sqrl.dataset("sales_data")
+    
+    # Create matplotlib figure
+    fig, ax = plt.subplots(figsize=(10, 6))
+    
+    # Plot data
+    pandas_df = df.to_pandas()
+    pandas_df.plot(x='date', y='revenue', ax=ax)
+    ax.set_title('Sales Revenue Over Time')
+    ax.set_xlabel('Date')
+    ax.set_ylabel('Revenue ($)')
+    
+    # Return as PngDashboard
+    return PngDashboard(content=fig)
 ```
-

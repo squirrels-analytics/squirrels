@@ -4,82 +4,437 @@ tag: "class"
 description: "Numeric range parameter"
 ---
 
-Class for numeric range parameter widgets with lower and upper bounds.
+Class for creating numeric range parameter widgets that allow users to select a lower and upper numeric value.
 
-## Class Methods
+This class can be imported from the `squirrels.parameters` or the `squirrels` module.
 
-### CreateWithOptions
+## Factory methods
 
-Method for creating a parameter that may include user attribute or parent.
+Factory methods are class methods that create and configure parameter instances. These methods are typically used in the `pyconfigs/parameters.py` file to create the parameter configurations (which describes the "shape" of the parameter but does not include the realtime user selections).
 
-**Arguments:**
-- `name` (str): The name of the parameter
-- `label` (str): The display label for the parameter
-- `all_options` (Sequence[NumberRangeParameterOption | dict]): All options for this parameter
-- `description` (str): Explains the meaning of the parameter (default: "")
-- `user_attribute` (str | None): User attribute that cascades options (default: None)
-- `parent_name` (str | None): Name of parent parameter (default: None)
+### create_simple()
 
-**Returns:** `NumberRangeParameterConfig`
+Decorator for creating a simple numeric range parameter that doesn't involve user attributes or parent parameters.
 
-### create_with_options
+The body of the decorated function does not need to return anything (i.e., it can simply be `pass`).
 
-Decorator for creating a parameter with options from a function.
+```python
+@classmethod
+def create_simple(
+    cls, name: str, label: str, min_value: decimal.Decimal | int | float | str, 
+    max_value: decimal.Decimal | int | float | str,
+    *, description: str = "", increment: decimal.Decimal | int | float | str = 1, 
+    default_lower_value: decimal.Decimal | int | float | str | None = None, 
+    default_upper_value: decimal.Decimal | int | float | str | None = None
+) -> Callable:
+```
 
-**Arguments:**
-- `name` (str): The name of the parameter
-- `label` (str): The display label for the parameter
-- `description` (str): Explains the meaning of the parameter (default: "")
-- `user_attribute` (str | None): User attribute that cascades options (default: None)
-- `parent_name` (str | None): Name of parent parameter (default: None)
+<Expandable title="arguments" defaultOpen>
+  <ResponseField name="name" type="str" required>
+    The unique identifier for this parameter. Used to reference the parameter at query time (such as in `context.py` or when specifying parameter selections in the APIs).
+  </ResponseField>
 
-### CreateSimple
+  <ResponseField name="label" type="str" required>
+    The display label shown to users in the UI.
+  </ResponseField>
 
-Method for creating a parameter without user attributes or parent parameters.
+  <ResponseField name="min_value" type="decimal.Decimal | int | float | str" required>
+    Minimum selectable value. Must be less than or equal to `max_value`.
+  </ResponseField>
 
-**Arguments:**
-- `name` (str): The name of the parameter
-- `label` (str): The display label for the parameter
-- `default_lower_value` (Decimal | int | float | str): Default lower value
-- `default_upper_value` (Decimal | int | float | str): Default upper value
-- `min_value` (Decimal | int | float | str | None): Minimum value constraint (default: None)
-- `max_value` (Decimal | int | float | str | None): Maximum value constraint (default: None)
-- `increment` (Decimal | int | float | str | None): Increment/step value (default: None)
-- `description` (str): Explains the meaning of the parameter (default: "")
+  <ResponseField name="max_value" type="decimal.Decimal | int | float | str" required>
+    Maximum selectable value. Must be greater than or equal to `min_value`.
+  </ResponseField>
 
-**Returns:** `NumberRangeParameterConfig`
+  <ResponseField name="description" type="str" default="">
+    An optional description explaining the purpose of this parameter.
+  </ResponseField>
 
-### create_simple
+  <ResponseField name="increment" type="decimal.Decimal | int | float | str" default="1">
+    Increment of selectable values. Must fit evenly between `min_value` and `max_value`.
+  </ResponseField>
 
-Decorator for creating a simple parameter from a function returning numeric constraints.
+  <ResponseField name="default_lower_value" type="decimal.Decimal | int | float | str | None" default="None">
+    Default lower value for this parameter. Must be selectable based on `min_value`, `max_value`, and `increment`. Must be less than or equal to `default_upper_value`. If None, defaults to `min_value`.
+  </ResponseField>
 
-**Arguments:**
-- `name` (str): The name of the parameter
-- `label` (str): The display label for the parameter
-- `description` (str): Explains the meaning of the parameter (default: "")
+  <ResponseField name="default_upper_value" type="decimal.Decimal | int | float | str | None" default="None">
+    Default upper value for this parameter. Must be selectable based on `min_value`, `max_value`, and `increment`. Must be greater than or equal to `default_lower_value`. If None, defaults to `max_value`.
+  </ResponseField>
+</Expandable>
 
-### CreateFromSource
+### create_with_options()
 
-Method for creating a parameter from a DataSource.
+Decorator for creating a parameter with options that can vary based on user attributes or parent parameter selections.
 
-**Arguments:**
-- `name` (str): The name of the parameter
-- `label` (str): The display label for the parameter
-- `data_source` (NumberRangeDataSource | dict): The lookup table to use
-- `description` (str): Explains the meaning of the parameter (default: "")
-- `user_attribute` (str | None): User attribute that cascades options (default: None)
-- `parent_name` (str | None): Name of parent parameter (default: None)
+The decorated function must return a list of [NumberRangeParameterOption](/references/python/parameter_options/numberrangeparameteroption) objects.
 
-**Returns:** `DataSourceParameterConfig`
+```python
+@classmethod
+def create_with_options(
+    cls, name: str, label: str, 
+    *, description: str = "", user_attribute: str | None = None, 
+    parent_name: str | None = None
+) -> Callable:
+```
 
-### create_from_source
+<Expandable title="arguments" defaultOpen>
+  <ResponseField name="name" type="str" required>
+    The unique identifier for this parameter. Used to reference the parameter at query time (such as in `context.py` or when specifying parameter selections in the APIs).
+  </ResponseField>
 
-Decorator for creating a parameter from a DataSource function.
+  <ResponseField name="label" type="str" required>
+    The display label shown to users in the UI.
+  </ResponseField>
 
-**Arguments:**
-- `name` (str): The name of the parameter
-- `label` (str): The display label for the parameter
-- `description` (str): Explains the meaning of the parameter (default: "")
-- `user_attribute` (str | None): User attribute that cascades options (default: None)
-- `parent_name` (str | None): Name of parent parameter (default: None)
+  <ResponseField name="description" type="str" default="">
+    An optional description explaining the purpose of this parameter.
+  </ResponseField>
 
+  <ResponseField name="user_attribute" type="str | None" default="None">
+    A user attribute (like "access_level") that determines which options are visible to different users. The decorated function should return options with matching `user_groups` values.
+    
+    To use custom user fields defined in `pyconfigs/user.py`, prefix with `custom_fields.` (e.g., `"custom_fields.department"`).
+  </ResponseField>
+
+  <ResponseField name="parent_name" type="str | None" default="None">
+    The name of a parent parameter that controls which options are visible. The decorated function should return options with `parent_option_ids` matching the parent's selected value.
+  </ResponseField>
+</Expandable>
+
+### create_from_source()
+
+Decorator for creating a parameter populated from a database table or query using a [NumberRangeDataSource](/references/python/data_sources/numberrangedatasource).
+
+The decorated function must return a [NumberRangeDataSource](/references/python/data_sources/numberrangedatasource) object.
+
+```python
+@classmethod
+def create_from_source(
+    cls, name: str, label: str, 
+    *, description: str = "", user_attribute: str | None = None, 
+    parent_name: str | None = None
+) -> Callable:
+```
+
+<Expandable title="arguments" defaultOpen>
+  <ResponseField name="name" type="str" required>
+    The unique identifier for this parameter. Used to reference the parameter at query time (such as in `context.py` or when specifying parameter selections in the APIs).
+  </ResponseField>
+
+  <ResponseField name="label" type="str" required>
+    The display label shown to users in the UI.
+  </ResponseField>
+
+  <ResponseField name="description" type="str" default="">
+    An optional description explaining the purpose of this parameter.
+  </ResponseField>
+
+  <ResponseField name="user_attribute" type="str | None" default="None">
+    A user attribute that determines which options from the data source are visible to different users.
+    
+    To use custom user fields defined in `pyconfigs/user.py`, prefix with `custom_fields.`.
+  </ResponseField>
+
+  <ResponseField name="parent_name" type="str | None" default="None">
+    The name of a parameter that controls which options from the data source are visible.
+  </ResponseField>
+</Expandable>
+
+## Instance methods
+
+Instance methods are available on parameter instances at query time (in `context.py` or data models) to retrieve selected values.
+
+### get_selected_lower_value()
+
+Gets the selected lower numeric value as a float.
+
+```python
+def get_selected_lower_value(self) -> float:
+```
+
+<ResponseField name="returns" type="float">
+  The selected lower numeric value converted from Decimal to float.
+</ResponseField>
+
+### get_selected_upper_value()
+
+Gets the selected upper numeric value as a float.
+
+```python
+def get_selected_upper_value(self) -> float:
+```
+
+<ResponseField name="returns" type="float">
+  The selected upper numeric value converted from Decimal to float.
+</ResponseField>
+
+### is_enabled()
+
+Returns True if the parameter has a valid option after applying user attribute and parent parameter selections, False otherwise.
+
+```python
+def is_enabled(self) -> bool:
+```
+
+<ResponseField name="returns" type="bool">
+  True if the parameter has a valid option, False otherwise.
+</ResponseField>
+
+## Examples for factory methods
+
+All examples below are defined in the `pyconfigs/parameters.py` file.
+
+### Using create_simple for basic numeric range
+
+For parameters that only need a single set of constraints, use `create_simple`. The numeric range parameters are passed directly to the decorator.
+
+```python highlight="3"
+from squirrels import parameters as p
+
+@p.NumberRangeParameter.create_simple(
+    name="score_range", 
+    label="Score Range",
+    min_value=0,
+    max_value=100,
+    increment=10,
+    default_lower_value=0,
+    default_upper_value=100,
+    description="Select score range"
+)
+def score_range_default():
+    pass
+```
+
+### Number range with decimal precision
+
+This example uses decimal values for precise range selection. Regardless of whether `Decimal`, float, or string values are used, the exact precision will always be maintained (without floating point errors).
+
+```python highlight="7-11"
+from squirrels import parameters as p
+from decimal import Decimal
+
+@p.NumberRangeParameter.create_simple(
+    name="rating_range", 
+    label="Rating Range",
+    min_value="0.2",
+    max_value="5.0",
+    increment=0.2,
+    default_lower_value=Decimal("2.4"),
+    default_upper_value=Decimal("5.0"),
+    description="Select rating range (0.2-5.0)"
+)
+def rating_range_default():
+    pass
+```
+
+### Cascading number range parameters
+
+This example shows how numeric range constraints can vary based on a parent parameter selection.
+
+```python highlight="20,30,38"
+from squirrels import parameters as p, parameter_options as po
+
+# Parent parameter
+@p.SingleSelectParameter.create_with_options(
+    name="product_category", 
+    label="Product Category",
+    description="Select product category"
+)
+def product_category_options():
+    return [
+        po.SelectParameterOption(id="budget", label="Budget Items"),
+        po.SelectParameterOption(id="premium", label="Premium Items"),
+    ]
+
+# Child number range parameter with varying constraints
+@p.NumberRangeParameter.create_with_options(
+    name="price_filter", 
+    label="Price Filter",
+    description="Select price range for the category",
+    parent_name="product_category"
+)
+def price_filter_options():
+    return [
+        po.NumberRangeParameterOption(
+            default_lower_value=10,
+            default_upper_value=50,
+            min_value=0,
+            max_value=100,
+            increment=5,
+            parent_option_ids="budget"
+        ),
+        po.NumberRangeParameterOption(
+            default_lower_value=100,
+            default_upper_value=500,
+            min_value=50,
+            max_value=1000,
+            increment=50,
+            parent_option_ids="premium"
+        ),
+    ]
+```
+
+### User-specific number range constraints
+
+This example provides different numeric range constraints based on user access levels.
+
+```python highlight="7,17,25"
+from squirrels import parameters as p, parameter_options as po
+
+@p.NumberRangeParameter.create_with_options(
+    name="discount_range", 
+    label="Discount Range",
+    description="Select discount range based on your permissions",
+    user_attribute="access_level"
+)
+def discount_range_options():
+    return [
+        po.NumberRangeParameterOption(
+            default_lower_value=0,
+            default_upper_value=10,
+            min_value=0,
+            max_value=10,
+            increment=1,
+            user_groups=["member", "guest"]
+        ),
+        po.NumberRangeParameterOption(
+            default_lower_value=0,
+            default_upper_value=25,
+            min_value=0,
+            max_value=50,
+            increment=5,
+            user_groups=["admin"]
+        ),
+    ]
+```
+
+### Number range from database source
+
+This example populates numeric range constraints from a database query.
+
+```python highlight="3,8"
+from squirrels import parameters as p, data_sources as ds
+
+@p.NumberRangeParameter.create_from_source(
+    name="stock_price_range", 
+    label="Stock Price Range",
+    description="Select price range based on historical data"
+)
+def stock_price_range_source() -> ds.NumberRangeDataSource:
+    return ds.NumberRangeDataSource(
+        table_or_query="""
+            SELECT 
+                MIN(price) AS min_value,
+                MAX(price) AS max_value,
+                PERCENTILE_CONT(0.25) WITHIN GROUP (ORDER BY price) AS default_lower,
+                PERCENTILE_CONT(0.75) WITHIN GROUP (ORDER BY price) AS default_upper,
+                1 AS increment
+            FROM stock_prices
+            WHERE date >= CURRENT_DATE - INTERVAL '1 year'
+        """,
+        default_lower_value_col="default_lower",
+        default_upper_value_col="default_upper",
+        min_value_col="min_value",
+        max_value_col="max_value",
+        increment_col="increment"
+    )
+```
+
+### Cascading number range from database
+
+This example shows a number range parameter whose constraints come from a database and depend on a parent parameter.
+
+```python highlight="20,40"
+from squirrels import parameters as p, data_sources as ds
+
+# Parent parameter for departments
+@p.SingleSelectParameter.create_from_source(
+    name="department", 
+    label="Department",
+    description="Select a department"
+)
+def department_source():
+    return ds.SelectDataSource(
+        table_or_query="departments",
+        id_col="department_id",
+        options_col="department_name"
+    )
+
+@p.NumberRangeParameter.create_from_source(
+    name="salary_range", 
+    label="Salary Range",
+    description="Select salary range for the department",
+    parent_name="department"
+)
+def salary_range_source():
+    return ds.NumberRangeDataSource(
+        table_or_query="""
+            SELECT 
+                department_id,
+                MIN(salary) AS min_value,
+                MAX(salary) AS max_value,
+                AVG(salary) - STDDEV(salary) AS default_lower,
+                AVG(salary) + STDDEV(salary) AS default_upper,
+                1000 AS increment
+            FROM employees
+            GROUP BY department_id
+        """,
+        default_lower_value_col="default_lower",
+        default_upper_value_col="default_upper",
+        min_value_col="min_value",
+        max_value_col="max_value",
+        increment_col="increment",
+        parent_id_col="department_id"
+    )
+```
+
+## Examples for instance methods
+
+Once parameters are configured, you can use instance methods in your models to access the selected values. The parameter instances are available through the context object (e.g., `sqrl.prms`).
+
+### Basic usage in context.py
+
+```python highlight="7-8"
+from squirrels import ContextArgs
+
+def main(ctx: dict[str, Any], sqrl: ContextArgs) -> None:
+    if sqrl.param_exists("price_filter"):
+        price_param = sqrl.prms["price_filter"]
+        assert isinstance(price_param, p.NumberRangeParameter)
+        ctx["min_price"] = price_param.get_selected_lower_value()
+        ctx["max_price"] = price_param.get_selected_upper_value()
+```
+
+### Basic usage in Jinja SQL models
+
+The following example works but is not recommended. See tip below for why.
+
+```sql highlight="4,5"
+-- models/federates/filtered_products.sql
+SELECT *
+FROM products
+WHERE price >= {{ prms["price_filter"].get_selected_lower_value() }}
+  AND price <= {{ prms["price_filter"].get_selected_upper_value() }}
+```
+
+<Tip>
+  It is generally better to only use the instance methods in `context.py` to transform parameter selections into context variables. Using the instance methods directly in the data models is not recommended.
+  
+  IDEs can provide code suggestions for the available instance methods in Python instead of having to memorize which method (such as `get_selected_lower_value`) is available to use for `NumberRangeParameter` objects.
+</Tip>
+
+### Using range values in calculations
+
+```python highlight="7-10"
+# In context.py
+def main(ctx: dict[str, Any], sqrl: ContextArgs) -> None:
+    if sqrl.param_exists("score_range"):
+        score_param = sqrl.prms["score_range"]
+        assert isinstance(score_param, p.NumberRangeParameter)
+        
+        ctx["min_score"] = score_param.get_selected_lower_value()
+        ctx["max_score"] = score_param.get_selected_upper_value()
+        ctx["score_range_width"] = ctx["max_score"] - ctx["min_score"]
+        ctx["score_midpoint"] = (ctx["min_score"] + ctx["max_score"]) / 2
+```

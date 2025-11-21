@@ -4,82 +4,440 @@ tag: "class"
 description: "Date range picker parameter"
 ---
 
-Class for date range picker parameter widgets.
+Class for creating date range picker parameter widgets that allow users to select a start date and an end date.
 
-## Class Methods
+This class can be imported from the `squirrels.parameters` or the `squirrels` module.
 
-### CreateWithOptions
+## Factory methods
 
-Method for creating a parameter that may include user attribute or parent.
+Factory methods are class methods that create and configure parameter instances. These methods are typically used in the `pyconfigs/parameters.py` file to create the parameter configurations (which describes the "shape" of the parameter but does not include the realtime user selections).
 
-**Arguments:**
-- `name` (str): The name of the parameter
-- `label` (str): The display label for the parameter
-- `all_options` (Sequence[DateRangeParameterOption | dict]): All options for this parameter
-- `description` (str): Explains the meaning of the parameter (default: "")
-- `user_attribute` (str | None): User attribute that cascades options (default: None)
-- `parent_name` (str | None): Name of parent parameter (default: None)
+### create_simple()
 
-**Returns:** `DateRangeParameterConfig`
+Decorator for creating a simple date range parameter that doesn't involve user attributes or parent parameters.
 
-### create_with_options
+The body of the decorated function does not need to return anything (i.e., it can simply be `pass`).
 
-Decorator for creating a parameter with options from a function.
+```python
+@classmethod
+def create_simple(
+    cls, name: str, label: str, default_start_date: str | date, 
+    default_end_date: str | date, 
+    *, description: str = "", min_date: str | date | None = None, 
+    max_date: str | date | None = None, date_format: str = '%Y-%m-%d'
+) -> Callable:
+```
 
-**Arguments:**
-- `name` (str): The name of the parameter
-- `label` (str): The display label for the parameter
-- `description` (str): Explains the meaning of the parameter (default: "")
-- `user_attribute` (str | None): User attribute that cascades options (default: None)
-- `parent_name` (str | None): Name of parent parameter (default: None)
+<Expandable title="arguments" defaultOpen>
+  <ResponseField name="name" type="str" required>
+    The unique identifier for this parameter. Used to reference the parameter at query time (such as in `context.py` or when specifying parameter selections in the APIs).
+  </ResponseField>
 
-### CreateSimple
+  <ResponseField name="label" type="str" required>
+    The display label shown to users in the UI.
+  </ResponseField>
 
-Method for creating a parameter without user attributes or parent parameters.
+  <ResponseField name="default_start_date" type="str | date" required>
+    Default start date for this parameter. Must be a date less than or equal to `default_end_date`.
+  </ResponseField>
 
-**Arguments:**
-- `name` (str): The name of the parameter
-- `label` (str): The display label for the parameter
-- `default_start_date` (str | date): Default start date
-- `default_end_date` (str | date): Default end date
-- `min_date` (str | date | None): Minimum date constraint (default: None)
-- `max_date` (str | date | None): Maximum date constraint (default: None)
-- `date_format` (str): Format of date string (default: "%Y-%m-%d")
-- `description` (str): Explains the meaning of the parameter (default: "")
+  <ResponseField name="default_end_date" type="str | date" required>
+    Default end date for this parameter. Must be a date greater than or equal to `default_start_date`.
+  </ResponseField>
 
-**Returns:** `DateRangeParameterConfig`
+  <ResponseField name="description" type="str" default="">
+    An optional description explaining the purpose of this parameter.
+  </ResponseField>
 
-### create_simple
+  <ResponseField name="min_date" type="str | date | None" default="None">
+    Minimum selectable date. If None, no minimum date constraint applies. Otherwise, must be a date less than or equal to `default_start_date`.
+  </ResponseField>
 
-Decorator for creating a simple parameter from a function returning date constraints.
+  <ResponseField name="max_date" type="str | date | None" default="None">
+    Maximum selectable date. If None, no maximum date constraint applies. Otherwise, must be a date greater than or equal to `default_end_date`.
+  </ResponseField>
 
-**Arguments:**
-- `name` (str): The name of the parameter
-- `label` (str): The display label for the parameter
-- `description` (str): Explains the meaning of the parameter (default: "")
+  <ResponseField name="date_format" type="str" default="'%Y-%m-%d'">
+    Format of the default dates. Uses Python's `strftime` format codes (e.g., `%Y-%m-%d` for ISO format, `%m/%d/%Y` for US format).
+  </ResponseField>
+</Expandable>
 
-### CreateFromSource
+### create_with_options()
 
-Method for creating a parameter from a DataSource.
+Decorator for creating a parameter with options that can vary based on user attributes or parent parameter selections.
 
-**Arguments:**
-- `name` (str): The name of the parameter
-- `label` (str): The display label for the parameter
-- `data_source` (DateRangeDataSource | dict): The lookup table to use
-- `description` (str): Explains the meaning of the parameter (default: "")
-- `user_attribute` (str | None): User attribute that cascades options (default: None)
-- `parent_name` (str | None): Name of parent parameter (default: None)
+The decorated function must return a list of [DateRangeParameterOption](/references/python/parameter_options/daterangeparameteroption) objects. This is functionally equivalent to `create_simple` but with additional arguments available for `user_attribute` and `parent_name`.
 
-**Returns:** `DataSourceParameterConfig`
+```python
+@classmethod
+def create_with_options(
+    cls, name: str, label: str, 
+    *, description: str = "", user_attribute: str | None = None, 
+    parent_name: str | None = None
+) -> Callable:
+```
 
-### create_from_source
+<Expandable title="arguments" defaultOpen>
+  <ResponseField name="name" type="str" required>
+    The unique identifier for this parameter. Used to reference the parameter at query time (such as in `context.py` or when specifying parameter selections in the APIs).
+  </ResponseField>
 
-Decorator for creating a parameter from a DataSource function.
+  <ResponseField name="label" type="str" required>
+    The display label shown to users in the UI.
+  </ResponseField>
 
-**Arguments:**
-- `name` (str): The name of the parameter
-- `label` (str): The display label for the parameter
-- `description` (str): Explains the meaning of the parameter (default: "")
-- `user_attribute` (str | None): User attribute that cascades options (default: None)
-- `parent_name` (str | None): Name of parent parameter (default: None)
+  <ResponseField name="description" type="str" default="">
+    An optional description explaining the purpose of this parameter.
+  </ResponseField>
 
+  <ResponseField name="user_attribute" type="str | None" default="None">
+    A user attribute (like "access_level") that determines which options are visible to different users. The decorated function should return options with matching `user_groups` values.
+    
+    To use custom user fields defined in `pyconfigs/user.py`, prefix with `custom_fields.` (e.g., `"custom_fields.department"`).
+  </ResponseField>
+
+  <ResponseField name="parent_name" type="str | None" default="None">
+    The name of a parent parameter that controls which options are visible. The decorated function should return options with `parent_option_ids` matching the parent's selected value.
+  </ResponseField>
+</Expandable>
+
+### create_from_source()
+
+Decorator for creating a parameter populated from a database table or query using a [DateRangeDataSource](/references/python/data_sources/daterangedatasource).
+
+The decorated function must return a [DateRangeDataSource](/references/python/data_sources/daterangedatasource) object.
+
+```python
+@classmethod
+def create_from_source(
+    cls, name: str, label: str, 
+    *, description: str = "", user_attribute: str | None = None, 
+    parent_name: str | None = None
+) -> Callable:
+```
+
+<Expandable title="arguments" defaultOpen>
+  <ResponseField name="name" type="str" required>
+    The unique identifier for this parameter. Used to reference the parameter at query time (such as in `context.py` or when specifying parameter selections in the APIs).
+  </ResponseField>
+
+  <ResponseField name="label" type="str" required>
+    The display label shown to users in the UI.
+  </ResponseField>
+
+  <ResponseField name="description" type="str" default="">
+    An optional description explaining the purpose of this parameter.
+  </ResponseField>
+
+  <ResponseField name="user_attribute" type="str | None" default="None">
+    A user attribute that determines which options from the data source are visible to different users.
+    
+    To use custom user fields defined in `pyconfigs/user.py`, prefix with `custom_fields.`.
+  </ResponseField>
+
+  <ResponseField name="parent_name" type="str | None" default="None">
+    The name of a parent parameter that controls which options from the data source are visible.
+  </ResponseField>
+</Expandable>
+
+## Instance methods
+
+Instance methods are available on parameter instances at query time (in `context.py` or data models) to retrieve selected values.
+
+### get_selected_start_date()
+
+Gets the selected start date as a string.
+
+```python
+def get_selected_start_date(self, *, date_format: str | None = None) -> str:
+```
+
+<Expandable title="arguments" defaultOpen>
+  <ResponseField name="date_format" type="str | None" default="None">
+    The date format (see Python's datetime formats). If not specified, the date format from the parameter option is used.
+  </ResponseField>
+</Expandable>
+
+<ResponseField name="returns" type="str">
+  The selected start date formatted as a string.
+</ResponseField>
+
+### get_selected_end_date()
+
+Gets the selected end date as a string.
+
+```python
+def get_selected_end_date(self, *, date_format: str | None = None) -> str:
+```
+
+<Expandable title="arguments" defaultOpen>
+  <ResponseField name="date_format" type="str | None" default="None">
+    The date format (see Python's datetime formats). If not specified, the date format from the parameter option is used.
+  </ResponseField>
+</Expandable>
+
+<ResponseField name="returns" type="str">
+  The selected end date formatted as a string.
+</ResponseField>
+
+### is_enabled()
+
+Returns True if the parameter has a valid option after applying user attribute and parent parameter selections, False otherwise.
+
+```python
+def is_enabled(self) -> bool:
+```
+
+<ResponseField name="returns" type="bool">
+  True if the parameter has a valid option, False otherwise.
+</ResponseField>
+
+## Examples for factory methods
+
+All examples below are defined in the `pyconfigs/parameters.py` file.
+
+### Using create_simple for basic date range
+
+For parameters that only need a single set of constraints, use `create_simple`. The date range parameters are passed directly to the decorator.
+
+```python highlight="4"
+from squirrels import parameters as p
+from datetime import date, timedelta
+
+@p.DateRangeParameter.create_simple(
+    name="analysis_window", 
+    label="Analysis Window",
+    description="Select date range for analysis",
+    default_start_date=date.today() - timedelta(days=7),
+    default_end_date=date.today(),
+    min_date=date.today() - timedelta(days=90),
+    max_date=date.today()
+)
+def analysis_window_default():
+    pass
+```
+
+### Using create_simple with date_format
+
+```python highlight="8,9,10,12"
+from squirrels import parameters as p
+from datetime import date
+
+@p.DateRangeParameter.create_simple(
+    name="reporting_period", 
+    label="Reporting Period",
+    description="Select reporting period",
+    default_start_date="01/01/2024",
+    default_end_date="12/31/2024",
+    min_date="01/01/2020",
+    max_date=date.today(),
+    date_format="%m/%d/%Y"
+)
+def reporting_period_default():
+    pass
+```
+
+### Cascading date ranges
+
+This example shows how date range constraints can vary based on a parent parameter selection.
+
+```python highlight="21,30,37"
+from squirrels import parameters as p, parameter_options as po
+from datetime import date
+
+# Parent parameter
+@p.SingleSelectParameter.create_with_options(
+    name="fiscal_year", 
+    label="Fiscal Year",
+    description="Select fiscal year"
+)
+def fiscal_year_options():
+    return [
+        po.SelectParameterOption(id="fy2023", label="FY 2023"),
+        po.SelectParameterOption(id="fy2024", label="FY 2024", is_default=True),
+    ]
+
+# Child date range parameter with varying constraints
+@p.DateRangeParameter.create_with_options(
+    name="quarter_range", 
+    label="Quarter Range",
+    description="Select quarters within the fiscal year",
+    parent_name="fiscal_year"
+)
+def quarter_range_options():
+    return [
+        po.DateRangeParameterOption(
+            default_start_date=date(2023, 1, 1),
+            default_end_date=date(2023, 3, 31),
+            min_date=date(2023, 1, 1),
+            max_date=date(2023, 12, 31),
+            parent_option_ids="fy2023"
+        ),
+        po.DateRangeParameterOption(
+            default_start_date=date(2024, 1, 1),
+            default_end_date=date(2024, 3, 31),
+            min_date=date(2024, 1, 1),
+            max_date=date(2024, 12, 31),
+            parent_option_ids="fy2024"
+        ),
+    ]
+```
+
+### User-specific date range constraints
+
+This example provides different date range constraints based on user access levels.
+
+```python highlight="8,18,25"
+from squirrels import parameters as p, parameter_options as po
+from datetime import date, timedelta
+
+@p.DateRangeParameter.create_with_options(
+    name="data_access_range", 
+    label="Data Access Range",
+    description="Select date range to view",
+    user_attribute="access_level"
+)
+def data_access_range_options():
+    today = date.today()
+    return [
+        po.DateRangeParameterOption(
+            default_start_date=today - timedelta(days=7),
+            default_end_date=today,
+            min_date=today - timedelta(days=30),
+            max_date=today,
+            user_groups=["guest"]  # Guests limited to 30 days
+        ),
+        po.DateRangeParameterOption(
+            default_start_date=today - timedelta(days=30),
+            default_end_date=today,
+            min_date=date(2020, 1, 1),
+            max_date=today,
+            user_groups=["admin", "member"]  # Admins and members have full access
+        ),
+    ]
+```
+
+### Date range from database source
+
+This example populates date range constraints from a database query.
+
+```python highlight="3,8"
+from squirrels import parameters as p, data_sources as ds
+
+@p.DateRangeParameter.create_from_source(
+    name="available_data_range", 
+    label="Available Data Range",
+    description="Select date range from available data"
+)
+def available_data_range_source() -> ds.DateRangeDataSource:
+    return ds.DateRangeDataSource(
+        table_or_query="""
+            SELECT 
+                MIN(transaction_date) AS min_date,
+                MAX(transaction_date) AS max_date,
+                MAX(transaction_date) - INTERVAL '30 days' AS default_start,
+                MAX(transaction_date) AS default_end
+            FROM transactions
+        """,
+        default_start_date_col="default_start",
+        default_end_date_col="default_end",
+        min_date_col="min_date",
+        max_date_col="max_date"
+    )
+```
+
+### Cascading date range from database
+
+This example shows a date range parameter whose constraints come from a database and depend on a parent parameter.
+
+```python highlight="21,38"
+from squirrels import parameters as p, data_sources as ds
+
+# Parent parameter for projects
+@p.SingleSelectParameter.create_from_source(
+    name="project", 
+    label="Project",
+    description="Select a project"
+)
+def project_source():
+    return ds.SelectDataSource(
+        table_or_query="projects",
+        id_col="project_id",
+        options_col="project_name"
+    )
+
+# Child date range parameter with constraints from database
+@p.DateRangeParameter.create_from_source(
+    name="project_milestone_date", 
+    label="Milestone Date",
+    description="Select a milestone date for the project",
+    parent_name="project"
+)
+def project_milestone_date_source():
+    return ds.DateRangeDataSource(
+        table_or_query="""
+            SELECT 
+                project_id,
+                project_start_date AS min_date,
+                project_end_date AS max_date,
+                project_start_date AS default_start,
+                project_end_date AS default_end
+            FROM projects
+        """,
+        default_start_date_col="default_start",
+        default_end_date_col="default_end",
+        min_date_col="min_date",
+        max_date_col="max_date",
+        parent_id_col="project_id"
+    )
+```
+
+## Examples for instance methods
+
+Once parameters are configured, you can use instance methods in your models to access the selected values. The parameter instances are available through the context object (e.g., `sqrl.prms`).
+
+### Basic usage in context.py
+
+```python highlight="7,8"
+from squirrels import ContextArgs
+
+def main(ctx: dict[str, Any], sqrl: ContextArgs) -> None:
+    if sqrl.param_exists("analysis_window"):
+        date_range_param = sqrl.prms["analysis_window"]
+        assert isinstance(date_range_param, p.DateRangeParameter)
+        ctx["start_date"] = date_range_param.get_selected_start_date()
+        ctx["end_date"] = date_range_param.get_selected_end_date()
+```
+
+### Basic usage in Jinja SQL models
+
+The following example works but is not recommended. See tip below for why.
+
+```sql highlight="4"
+-- models/federates/daily_report.sql
+SELECT *
+FROM sales
+WHERE sale_date BETWEEN (
+    {{ prms["analysis_window"].get_selected_start_date() | quote }}
+    AND {{ prms["analysis_window"].get_selected_end_date() | quote }}
+)
+```
+
+<Tip>
+  It is generally better to only use the instance methods in `context.py` to transform parameter selections into context variables. Using the instance methods directly in the data models is not recommended.
+  
+  IDEs can provide code suggestions for the available instance methods in Python instead of having to memorize which method (such as `get_selected_start_date` and `get_selected_end_date`) is available to use for `DateRangeParameter` objects.
+</Tip>
+
+### Using custom date formats
+
+```python highlight="7,8"
+# In context.py
+def main(ctx: dict[str, Any], sqrl: ContextArgs) -> None:
+    if sqrl.param_exists("analysis_window"):
+        dr_param = sqrl.prms["analysis_window"]
+        assert isinstance(dr_param, p.DateRangeParameter)
+
+        ctx["formatted_start"] = dr_param.get_selected_start_date(date_format="%B %d, %Y")
+        ctx["formatted_end"] = dr_param.get_selected_end_date(date_format="%B %d, %Y")
+```

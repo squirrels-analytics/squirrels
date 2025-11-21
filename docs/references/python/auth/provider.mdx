@@ -10,6 +10,8 @@ The decorated function must:
 - accept an argument `sqrl` of type [AuthProviderArgs](/references/python/arguments/AuthProviderArgs) 
 - return a [ProviderConfigs](/references/python/auth/ProviderConfigs) object
 
+This function can be imported from the `squirrels.auth` or the `squirrels` module.
+
 ## Arguments
 
 <ResponseField name="name" type="str" required>
@@ -26,25 +28,26 @@ The decorated function must:
 
 ## Example
 
-```python
-from squirrels.auth import (
-  provider, ProviderConfigs, AuthProviderArgs, RegisteredUser
-)
+```python highlight={3-6}
+from squirrels import auth, arguments as args
 
-@provider(
+@auth.provider(
   name="google", label="Google", 
   icon="https://www.google.com/favicon.ico"
 )
-def google_provider(sqrl: AuthProviderArgs) -> ProviderConfigs:
-    def get_user(user_info: dict) -> RegisteredUser:
+def google_auth_provider(sqrl: args.AuthProviderArgs) -> auth.ProviderConfigs:
+    def get_user(user_info: dict) -> auth.RegisteredUser:
         # Convert OAuth user info to RegisteredUser
         pass
     
-    return ProviderConfigs(
+    provider_configs = auth.ProviderConfigs(
         client_id=sqrl.env_vars["GOOGLE_CLIENT_ID"],
         client_secret=sqrl.env_vars["GOOGLE_CLIENT_SECRET"],
         server_url="https://accounts.google.com",
-        get_user=get_user
+        client_kwargs={"scope": "openid email profile"},
+        get_user=get_sqrl_user
     )
+
+    return provider_configs
 ```
 

@@ -4,78 +4,526 @@ tag: "class"
 description: "Multi-select parameter"
 ---
 
-Class for multi-select parameter widgets allowing multiple selections.
+Class for creating multi-select parameter widgets that allow users to choose multiple options from a list.
 
-## Class Methods
+This class can be imported from the `squirrels.parameters` or the `squirrels` module.
 
-### CreateWithOptions
+## Factory methods
 
-Method for creating a parameter that may include user attribute or parent.
+Factory methods are class methods that create and configure parameter instances. These methods are typically used in the `pyconfigs/parameters.py` file to create the parameter configurations (which describes the "shape" of the parameter but does not include the realtime user selections).
 
-**Arguments:**
-- `name` (str): The name of the parameter
-- `label` (str): The display label for the parameter
-- `all_options` (Sequence[SelectParameterOption | dict]): All options for this parameter
-- `description` (str): Explains the meaning of the parameter (default: "")
-- `user_attribute` (str | None): User attribute that cascades options (default: None)
-- `parent_name` (str | None): Name of parent parameter (default: None)
+### create_simple()
 
-**Returns:** `MultiSelectParameterConfig`
+Decorator for creating a simple parameter from a function that returns select options.
 
-### create_with_options
+The decorated function must return a list of [SelectParameterOption](/references/python/parameter_options/selectparameteroption) objects.
 
-Decorator for creating a parameter with options from a function.
+```python
+@classmethod
+def create_simple(
+    cls, name: str, label: str, 
+    *, description: str = "", show_select_all: bool = True, 
+    order_matters: bool = False, none_is_all: bool = True
+) -> Callable:
+```
 
-**Arguments:**
-- `name` (str): The name of the parameter
-- `label` (str): The display label for the parameter
-- `description` (str): Explains the meaning of the parameter (default: "")
-- `user_attribute` (str | None): User attribute that cascades options (default: None)
-- `parent_name` (str | None): Name of parent parameter (default: None)
+<Expandable title="arguments" defaultOpen>
+  <ResponseField name="name" type="str" required>
+    The unique identifier for this parameter. Used to reference the parameter at query time (such as in `context.py` or when specifying parameter selections in the APIs).
+  </ResponseField>
 
-### CreateSimple
+  <ResponseField name="label" type="str" required>
+    The display label shown to users in the UI.
+  </ResponseField>
 
-Method for creating a parameter without user attributes or parent parameters.
+  <ResponseField name="description" type="str" default="">
+    An optional description explaining the purpose of this parameter.
+  </ResponseField>
 
-**Arguments:**
-- `name` (str): The name of the parameter
-- `label` (str): The display label for the parameter
-- `all_options` (Sequence[SelectParameterOption | dict]): All options for this parameter
-- `description` (str): Explains the meaning of the parameter (default: "")
+  <ResponseField name="show_select_all" type="bool" default="True">
+    Communicates to the API client for whether to include a "select all" option.
+  </ResponseField>
 
-**Returns:** `MultiSelectParameterConfig`
+  <ResponseField name="order_matters" type="bool" default="False">
+    Communicates to the API client for whether the order of the selections matter.
+  </ResponseField>
 
-### create_simple
+  <ResponseField name="none_is_all" type="bool" default="True">
+    Whether having no options selected is equivalent to all selectable options selected.
+  </ResponseField>
+</Expandable>
 
-Decorator for creating a simple parameter from a function.
+### create_with_options()
 
-**Arguments:**
-- `name` (str): The name of the parameter
-- `label` (str): The display label for the parameter
-- `description` (str): Explains the meaning of the parameter (default: "")
+Decorator for creating a parameter with options that can vary based on user attributes or parent parameter selections.
 
-### CreateFromSource
+The decorated function must return a list of [SelectParameterOption](/references/python/parameter_options/selectparameteroption) objects. This is functionally equivalent to `create_simple` but with additional arguments available for `user_attribute` and `parent_name`.
 
-Method for creating a parameter from a DataSource.
+```python
+@classmethod
+def create_with_options(
+    cls, name: str, label: str, 
+    *, description: str = "", show_select_all: bool = True, 
+    order_matters: bool = False, none_is_all: bool = True,
+    user_attribute: str | None = None, parent_name: str | None = None
+) -> Callable:
+```
 
-**Arguments:**
-- `name` (str): The name of the parameter
-- `label` (str): The display label for the parameter
-- `data_source` (SelectDataSource | dict): The lookup table to use
-- `description` (str): Explains the meaning of the parameter (default: "")
-- `user_attribute` (str | None): User attribute that cascades options (default: None)
-- `parent_name` (str | None): Name of parent parameter (default: None)
+<Expandable title="arguments" defaultOpen>
+  <ResponseField name="name" type="str" required>
+    The unique identifier for this parameter. Used to reference the parameter at query time (such as in `context.py` or when specifying parameter selections in the APIs).
+  </ResponseField>
 
-**Returns:** `DataSourceParameterConfig`
+  <ResponseField name="label" type="str" required>
+    The display label shown to users in the UI.
+  </ResponseField>
 
-### create_from_source
+  <ResponseField name="description" type="str" default="">
+    An optional description explaining the purpose of this parameter.
+  </ResponseField>
 
-Decorator for creating a parameter from a DataSource function.
+  <ResponseField name="show_select_all" type="bool" default="True">
+    Communicates to the API client for whether to include a "select all" option.
+  </ResponseField>
 
-**Arguments:**
-- `name` (str): The name of the parameter
-- `label` (str): The display label for the parameter
-- `description` (str): Explains the meaning of the parameter (default: "")
-- `user_attribute` (str | None): User attribute that cascades options (default: None)
-- `parent_name` (str | None): Name of parent parameter (default: None)
+  <ResponseField name="order_matters" type="bool" default="False">
+    Communicates to the API client for whether the order of the selections matter.
+  </ResponseField>
 
+  <ResponseField name="none_is_all" type="bool" default="True">
+    Whether having no options selected is equivalent to all selectable options selected.
+  </ResponseField>
+
+  <ResponseField name="user_attribute" type="str | None" default="None">
+    A user attribute (like "access_level") that determines which options are visible to different users. The decorated function should return options with matching `user_groups` values.
+    
+    To use custom user fields defined in `pyconfigs/user.py`, prefix with `custom_fields.` (e.g., `"custom_fields.department"`).
+  </ResponseField>
+
+  <ResponseField name="parent_name" type="str | None" default="None">
+    The name of a parent parameter that controls which options are visible. The decorated function should return options with `parent_option_ids` matching the parent's selected value.
+  </ResponseField>
+</Expandable>
+
+### create_from_source()
+
+Decorator for creating a parameter populated from a database table or query using a [SelectDataSource](/references/python/data_sources/selectdatasource).
+
+The decorated function must return a [SelectDataSource](/references/python/data_sources/selectdatasource) object.
+
+```python
+@classmethod
+def create_from_source(
+    cls, name: str, label: str, 
+    *, description: str = "", show_select_all: bool = True, 
+    order_matters: bool = False, none_is_all: bool = True,
+    user_attribute: str | None = None, parent_name: str | None = None
+) -> Callable:
+```
+
+<Expandable title="arguments" defaultOpen>
+  <ResponseField name="name" type="str" required>
+    The unique identifier for this parameter. Used to reference the parameter at query time (such as in `context.py` or when specifying parameter selections in the APIs).
+  </ResponseField>
+
+  <ResponseField name="label" type="str" required>
+    The display label shown to users in the UI.
+  </ResponseField>
+
+  <ResponseField name="description" type="str" default="">
+    An optional description explaining the purpose of this parameter.
+  </ResponseField>
+
+  <ResponseField name="show_select_all" type="bool" default="True">
+    Communicates to the API client for whether to include a "select all" option.
+  </ResponseField>
+
+  <ResponseField name="order_matters" type="bool" default="False">
+    Communicates to the API client for whether the order of the selections matter.
+  </ResponseField>
+
+  <ResponseField name="none_is_all" type="bool" default="True">
+    Whether having no options selected is equivalent to all selectable options selected.
+  </ResponseField>
+
+  <ResponseField name="user_attribute" type="str | None" default="None">
+    A user attribute that determines which options from the data source are visible to different users.
+    
+    To use custom user fields defined in `pyconfigs/user.py`, prefix with `custom_fields.`.
+  </ResponseField>
+
+  <ResponseField name="parent_name" type="str | None" default="None">
+    The name of a parent parameter that controls which options from the data source are visible.
+  </ResponseField>
+</Expandable>
+
+## Instance methods
+
+Instance methods are available on parameter instances at query time (in `context.py` or data models) to retrieve selected values.
+
+### get_selected_list() -> Sequence\[SelectParameterOption\]
+
+Gets the sequence of selected [SelectParameterOption] objects.
+
+```python
+def get_selected_list(self) -> Sequence[SelectParameterOption]:
+```
+
+<ResponseField name="returns" type="Sequence[SelectParameterOption]">
+  A sequence of selected [SelectParameterOption] objects.
+</ResponseField>
+
+### get_selected_list() -> Sequence[Any]
+
+Gets the sequence of selected custom fields.
+
+```python
+def get_selected_list(
+    self, field: str, 
+    *, default_field: str | None = None, default: Any | None = None
+) -> Sequence[Any]:
+```
+
+<Expandable title="arguments" defaultOpen>
+  <ResponseField name="field" type="str" required>
+    The custom field to retrieve from the selected options.
+  </ResponseField>
+
+  <ResponseField name="default_field" type="str | None" default="None">
+    If `field` does not exist for a selected option and `default_field` is not None, this method uses `default_field` instead.
+  </ResponseField>
+
+  <ResponseField name="default" type="Any" default="None">
+    If `field` does not exist for a selected option and `default_field` is None, returns this default value. Ignored if `default_field` is not None.
+  </ResponseField>
+</Expandable>
+
+<ResponseField name="returns" type="Sequence[Any]">
+  A sequence of custom field values, or an empty sequence if no options are selected (unless `none_is_all` is True, in which case all options are returned).
+</ResponseField>
+
+### get_selected_ids_as_list()
+
+Gets the sequence of ID(s) of the selected option(s).
+
+```python
+def get_selected_ids_as_list(self) -> Sequence[str]:
+```
+
+<ResponseField name="returns" type="Sequence[str]">
+  A sequence of ID strings of the selected options.
+</ResponseField>
+
+### has_non_empty_selection()
+
+Returns True if more than zero options were selected. False otherwise.
+
+Note that even when this returns False, all methods starting with "get_selected" would return the full list of options if `none_is_all` is set to True.
+
+```python
+def has_non_empty_selection(self) -> bool:
+```
+
+<ResponseField name="returns" type="bool">
+  True if at least one option is selected, False otherwise.
+</ResponseField>
+
+### is_enabled()
+
+Returns whether the parameter is enabled. A parameter is enabled if it has at least one selectable option.
+
+```python
+def is_enabled(self) -> bool:
+```
+
+<ResponseField name="returns" type="bool">
+  True if the parameter has at least one selectable option, False otherwise.
+</ResponseField>
+
+## Examples for factory methods
+
+All examples below are defined in the `pyconfigs/parameters.py` file.
+
+### Using create_simple for basic multi-select
+
+For parameters that don't need user-specific or parent-dependent options, you can use `create_simple`.
+
+```python highlight="3,8"
+from squirrels import parameters as p, parameter_options as po
+
+@p.MultiSelectParameter.create_simple(
+    name="status_filters", 
+    label="Order Status",
+    description="Filter orders by status"
+)
+def status_filters_options() -> list[po.SelectParameterOption]:
+    return [
+        po.SelectParameterOption(id="pending", label="Pending"),
+        po.SelectParameterOption(id="processing", label="Processing", is_default=True),
+        po.SelectParameterOption(id="shipped", label="Shipped", is_default=True),
+        po.SelectParameterOption(id="delivered", label="Delivered"),
+        po.SelectParameterOption(id="cancelled", label="Cancelled"),
+    ]
+```
+
+### Cascading multi-select with parent dependency
+
+This example shows how multi-select options can change based on a parent parameter selection.
+
+```python highlight="20,27,32"
+from squirrels import parameters as p, parameter_options as po
+
+# Parent parameter
+@p.SingleSelectParameter.create_with_options(
+    name="department", 
+    label="Department",
+    description="Select a department"
+)
+def department_options():
+    return [
+        po.SelectParameterOption(id="sales", label="Sales", is_default=True),
+        po.SelectParameterOption(id="engineering", label="Engineering"),
+    ]
+
+# Child multi-select with cascading options
+@p.MultiSelectParameter.create_with_options(
+    name="team_members", 
+    label="Team Members",
+    description="Select team members from the chosen department",
+    parent_name="department"
+)
+def team_members_options():
+    return [
+        po.SelectParameterOption(
+            id="alice", 
+            label="Alice Johnson",
+            parent_option_ids="sales"
+        ),
+        po.SelectParameterOption(
+            id="diana", 
+            label="Diana Chen",
+            parent_option_ids="engineering"
+        ),
+    ]
+```
+
+### User-specific multi-select options
+
+This example shows different options based on user access levels.
+
+```python highlight="7,15,20,25"
+from squirrels import parameters as p, parameter_options as po
+
+@p.MultiSelectParameter.create_with_options(
+    name="report_sections", 
+    label="Report Sections",
+    description="Select which sections to include in the report",
+    user_attribute="access_level"
+)
+def report_sections_options():
+    return [
+        po.SelectParameterOption(
+            id="summary", 
+            label="Executive Summary",
+            is_default=True,
+            user_groups=["admin", "member", "guest"]
+        ),
+        po.SelectParameterOption(
+            id="metrics", 
+            label="Key Metrics",
+            user_groups=["admin", "member", "guest"]
+        ),
+        po.SelectParameterOption(
+            id="financial", 
+            label="Financial Details",
+            user_groups=["admin", "member"]
+        ),
+    ]
+```
+
+If custom user fields are defined in `pyconfigs/user.py`, then they can be used to restrict visibility of parameter options as well. To do so, the `user_attribute` argument must be prefixed with `custom_fields.`.
+
+```python highlight="7,14,19"
+from squirrels import parameters as p, parameter_options as po
+
+@p.MultiSelectParameter.create_with_options(
+    name="report_sections", 
+    label="Report Sections",
+    description="Select which sections to include in the report",
+    user_attribute="custom_fields.role"
+)
+def report_sections_options():
+    return [
+        po.SelectParameterOption(
+            id="summary", 
+            label="Executive Summary",
+            user_groups=["manager", "staff"]
+        ),
+        po.SelectParameterOption(
+            id="financial", 
+            label="Financial Details",
+            user_groups=["manager"]
+        ),
+    ]
+```
+
+### Multi-select from database source
+
+This example populates multi-select options from a database table.
+
+```python highlight="3,8"
+from squirrels import parameters as p, data_sources as ds
+
+@p.MultiSelectParameter.create_from_source(
+    name="store_locations", 
+    label="Store Locations",
+    description="Select one or more store locations"
+)
+def store_locations_source() -> ds.SelectDataSource:
+    return ds.SelectDataSource(
+        table_or_query="""
+            SELECT 
+                store_id,
+                store_name,
+                is_flagship AS is_default
+            FROM stores
+            WHERE is_active = 1
+            ORDER BY store_name
+        """,
+        id_col="store_id",
+        options_col="store_name",
+        is_default_col="is_default"
+    )
+```
+
+### Cascading multi-select from database
+
+This example shows a multi-select that depends on a parent parameter, both populated from database sources.
+
+```python highlight="21,36"
+from squirrels import parameters as p, data_sources as ds
+
+# First define the parent parameter
+@p.SingleSelectParameter.create_from_source(
+    name="region", 
+    label="Region",
+    description="Select a region"
+)
+def region_source():
+    return ds.SelectDataSource(
+        table_or_query="regions",
+        id_col="region_id",
+        options_col="region_name"
+    )
+
+# Child multi-select that cascades based on region
+@p.MultiSelectParameter.create_from_source(
+    name="stores_in_region", 
+    label="Stores in Region",
+    description="Select stores within the chosen region",
+    parent_name="region"
+)
+def stores_in_region_source():
+    return ds.SelectDataSource(
+        table_or_query="""
+            SELECT 
+                store_id,
+                store_name,
+                region_id
+            FROM stores
+            WHERE is_active = 1
+            ORDER BY store_name
+        """,
+        id_col="store_id",
+        options_col="store_name",
+        parent_id_col="region_id"
+    )
+```
+
+## Examples for instance methods
+
+Once parameters are configured, you can use instance methods in your models to access the selected values. The parameter instances are available through the context object (e.g., `sqrl.prms`).
+
+### Basic usage in context.py
+
+```python highlight="7,8"
+from squirrels import ContextArgs
+
+def main(ctx: dict[str, Any], sqrl: ContextArgs) -> None:
+    if sqrl.param_exists("categories"):
+        categories_param = sqrl.prms["categories"]
+        assert isinstance(categories_param, p.MultiSelectParameter)
+        ctx["category_ids"] = categories_param.get_selected_ids_as_list()
+        ctx["category_filter"] = categories_param.get_selected_ids()
+```
+
+### Basic usage in Jinja SQL models
+
+The following example works but is not recommended. See tip below for why.
+
+```sql highlight="4"
+-- models/federates/filtered_products.sql
+SELECT *
+FROM products
+WHERE category_id IN ({{ prms["categories"].get_selected_ids() | quote_and_join }})
+```
+
+To omit the WHERE clause entirely when no options are selected, you can do so as follows:
+
+```sql highlight="4-6"
+-- models/federates/filtered_products.sql
+SELECT *
+FROM products
+{%- if prms["categories"].has_non_empty_selection() %}
+WHERE category_id IN ({{ prms["categories"].get_selected_ids() | quote_and_join }})
+{%- endif %}
+```
+
+<Tip>
+  It is generally better to only use the instance methods in `context.py` to transform parameter selections into context variables. Using the instance methods directly in the data models is not recommended.
+  
+  IDEs can provide code suggestions for the available instance methods in Python instead of having to memorize which method (such as `get_selected_ids_as_list`) is available to use for `MultiSelectParameter` objects.
+</Tip>
+
+### Accessing custom fields
+
+Suppose you define a multi-select parameter with custom fields as such:
+
+```python highlight="11-12,17-18"
+# In pyconfigs/parameters.py
+@p.MultiSelectParameter.create_with_options(
+    name="metric_filters", 
+    label="Metrics to Display"
+)
+def metric_filters_options():
+    return [
+        po.SelectParameterOption(
+            id="revenue", 
+            label="Revenue",
+            column_name="total_revenue",
+            aggregation="SUM"
+        ),
+        po.SelectParameterOption(
+            id="orders", 
+            label="Order Count",
+            column_name="order_count",
+            aggregation="COUNT"
+        ),
+    ]
+```
+
+Then you can access the custom fields in `context.py` as follows:
+
+```python highlight="7,8"
+# In context.py
+def main(ctx: dict[str, Any], sqrl: ContextArgs) -> None:
+    if sqrl.param_exists("metric_filters"):
+        metric_param = sqrl.prms["metric_filters"]
+        assert isinstance(metric_param, p.MultiSelectParameter)
+
+        columns = metric_param.get_selected_list("column_name")
+        ctx["metric_columns"] = columns
+```
+
+
+[SelectParameterOption]: /references/python/parameter_options/selectparameteroption

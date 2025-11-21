@@ -6,47 +6,194 @@ description: "Lookup table for select parameter options"
 
 Data source class for populating select parameter options from a database table or query.
 
+This class can be imported from the `squirrels.data_sources` or the `squirrels` module.
+
 ## Constructor
 
-### Arguments
+Creates a `SelectDataSource` object.
 
-<ResponseField name="table_or_query" type="str" required>
-  Either the name of the table to use, or a query to run
+```python
+def __init__(
+    self, table_or_query: str, id_col: str, options_col: str, 
+    *, order_by_col: str | None = None, is_default_col: str | None = None, 
+    custom_cols: dict[str, str] = {}, source: SourceEnum = SourceEnum.CONNECTION, 
+    user_group_col: str | None = None, parent_id_col: str | None = None, 
+    connection: str | None = None
+) -> None:
+```
+
+<Expandable title="arguments" defaultOpen>
+  <ResponseField name="table_or_query" type="str" required>
+  Either the name of the table to use, or a SQL query to run. If using a SQL query, it must start with "SELECT" (ignoring case and leading whitespaces) followed by a whitespace.
+
+  The available tables are based on the `source` argument. If the source is `SourceEnum.CONNECTION`, then the SQL syntax is based on the underlying database from the `connection` argument. Otherwise, the SQL syntax is DuckDB SQL.
 </ResponseField>
 
 <ResponseField name="id_col" type="str" required>
-  The column name of the id
+  The column name for the option ID. Each row represents a selectable option.
 </ResponseField>
 
 <ResponseField name="options_col" type="str" required>
-  The column name of the options
+  The column name for the display text of each option.
 </ResponseField>
 
 <ResponseField name="order_by_col" type="str | None" default="None">
-  The column name to order the options by. Orders by id_col if None
+  The column name to order the options by. If None, orders by `id_col`.
 </ResponseField>
 
 <ResponseField name="is_default_col" type="str | None" default="None">
-  The column name that indicates which options are the default
+  The column name that indicates which options are selected by default. Should contain 1 for default options and 0 otherwise. If None, no options are selected by default.
+
+  If more than one option has a value of 1 in this column, then the first option with a value of 1 will be selected.
 </ResponseField>
 
 <ResponseField name="custom_cols" type="dict[str, str]" default="{}">
-  Dictionary of attribute to column name for custom fields
+  Dictionary mapping custom field names to column names. Unlike the `custom_fields` argument in [SelectParameterOption](/references/python/parameter_options/selectparameteroption), the dictionary value is the column name storing the custom field values instead of the custom field values themselves.
 </ResponseField>
 
 <ResponseField name="source" type="SourceEnum" default="SourceEnum.CONNECTION">
-  The source to fetch data from
+  The source to fetch data from as a [SourceEnum](/references/python/data_sources/sourceenum) value.
 </ResponseField>
 
 <ResponseField name="user_group_col" type="str | None" default="None">
-  The column name of the user group for option visibility
+  The column name of the user group for option visibility. If None, all users will see all options.
 </ResponseField>
 
 <ResponseField name="parent_id_col" type="str | None" default="None">
-  The column name of the parent option id for cascading
+  The column name of the parent option id for cascading. 
+  
+  If None, then this parameter has no parent and its options will not be cascaded.
 </ResponseField>
 
 <ResponseField name="connection" type="str | None" default="None">
-  Name of the connection to use defined in connections.py
-</ResponseField>
+    Name of the connection to use. Only used if the source is `SourceEnum.CONNECTION`. Connection must be defined in `squirrels.yml` or the `connections.py` file.
 
+    If None, uses the default connection (specified by `SQRL_CONNECTIONS__DEFAULT_NAME_USED` environment variable or 'default').
+  </ResponseField>
+</Expandable>
+
+## Examples
+
+A `SelectDataSource` object is created in the `pyconfigs/parameters.py` file. It must be created in a function decorated with the `create_from_source` factory method from [SingleSelectParameter](/references/python/parameters/singleselectparameter) or [MultiSelectParameter](/references/python/parameters/multiselectparameter).
+
+### Usage example in parameters.py
+
+```python highlight="9-20"
+from squirrels import parameters as p, data_sources as ds
+
+@p.SingleSelectParameter.create_from_source(
+    name="product_category", 
+    label="Product Category",
+    description="Select a product category"
+)
+def product_category_source():
+    return ds.SelectDataSource(
+        table_or_query="""
+            SELECT 
+                category_id AS id,
+                category_name AS name,
+                sort_order
+            FROM product_categories
+        """,
+        id_col="id",
+        options_col="name",
+        order_by_col="sort_order"
+    )
+```
+
+In addition, the following are some additional examples for creating a `SelectDataSource` object.
+
+### Using a table from a specific connection
+
+This example uses a table called "departments" from the "hr_db" connection.
+
+```python highlight="2,5"
+ds.SelectDataSource(
+    table_or_query="departments",
+    id_col="dept_id",
+    options_col="dept_name",
+    connection="hr_db"
+)
+```
+
+The connection must either be defined in `squirrels.yml` or the `connections.py` file.
+
+### Using seeds as the data source
+
+This example uses a seed file called "status_codes".
+
+```python highlight="2,5"
+ds.SelectDataSource(
+    table_or_query="status_codes",
+    id_col="status_id",
+    options_col="status_label",
+    source=ds.SourceEnum.SEEDS
+)
+```
+
+### Setting default selected options
+
+This example marks certain options as selected by default using a column that contains 1 or 0.
+
+```python highlight="6,11"
+ds.SelectDataSource(
+    table_or_query="""
+        SELECT 
+            region_id,
+            region_name,
+            (CASE WHEN is_top_choice = 'y' THEN 1 ELSE 0 END) AS is_default
+        FROM regions
+    """,
+    id_col="region_id",
+    options_col="region_name",
+    is_default_col="is_default"
+)
+```
+
+### Adding custom fields to options
+
+This example creates the following custom fields on each parameter option:
+- `code` (from column `country_code`)
+- `population` (from column `population_count`)
+- `continent` (from column `continent_name`)
+
+```python highlight="5-9"
+ds.SelectDataSource(
+    table_or_query="countries",
+    id_col="country_id",
+    options_col="country_name",
+    custom_cols={
+        "code": "country_code",
+        "population": "population_count",
+        "continent": "continent_name"
+    }
+)
+```
+
+### Enabling cascading effects with a parent parameter
+
+In this example, the available product options are filtered based on the selected value of another parameter called "product_category".
+
+```python highlight="5,20"
+@p.SingleSelectParameter.create_from_source(
+    name="product", 
+    label="Product",
+    description="Select a product from the chosen category",
+    parent_name="product_category"
+)
+def product_source():
+    return ds.SelectDataSource(
+        table_or_query="""
+            SELECT 
+                product_id,
+                product_name,
+                category_id,
+                price
+            FROM products
+            ORDER BY product_name
+        """,
+        id_col="product_id",
+        options_col="product_name",
+        parent_id_col="category_id"  # Cascades based on category selection
+    )
+```
