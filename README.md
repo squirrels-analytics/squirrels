@@ -87,4 +87,19 @@ To understand what a specific Squirrels command is doing, start from the `_comma
 
 The library version is maintained in both the `pyproject.toml` and the `squirrels/_version.py` files.
 
-### 
+### Documentation
+
+The contents for the documentation can be found in the `docs` folder.
+
+To test the documentation, use npm to install the mintlify CLI:
+
+```bash
+npm i -g mint
+```
+
+Then, you will be able to generate a local preview of the documentation site after navigating to the `docs` directory.
+
+```bash
+cd docs
+mint dev
+```
