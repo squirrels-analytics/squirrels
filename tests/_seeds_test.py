@@ -77,7 +77,9 @@ def test_seeds_run_query():
         }
     )
     
-    result = seeds.run_query("SELECT seed1.id, seed1.value, seed2.other FROM seed1 JOIN seed2 ON seed1.id = seed2.id")
+    result = seeds.run_query(
+        "SELECT seed1.id, seed1.value, seed2.other FROM seed1 JOIN seed2 ON seed1.id = seed2.id"
+    )
     assert len(result) == 2
     assert all(col in result.columns for col in ["id", "value", "other"])
 
@@ -122,3 +124,45 @@ def test_seeds_io_load_files_without_config(temp_seed_dir: Path, sample_csv_cont
     assert len(df) == 2
     assert df["age"].dtype == pl.Int64
     assert df["created_at"].dtype == pl.Date
+
+def test_seed_cast_to_decimal():
+    # Test casting to plain Decimal (uses default precision and scale)
+    config = SeedConfig(
+        cast_column_types=True,
+        columns=[
+            ColumnConfig(name="id", type="integer"),
+            ColumnConfig(name="amount", type="decimal"),
+        ]
+    )
+    
+    df = pl.LazyFrame({
+        "id": ["1", "2"],
+        "amount": ["123.45", "678.90"],
+    })
+    
+    seed = Seed(config=config, df=df)
+    result = seed.df.collect()
+    
+    assert result["id"].dtype == pl.Int32
+    assert result["amount"].dtype == pl.Decimal(precision=18, scale=2)
+
+def test_seed_cast_to_decimal_with_precision_and_scale():
+    # Test casting to Decimal with precision and scale
+    config = SeedConfig(
+        cast_column_types=True,
+        columns=[
+            ColumnConfig(name="price", type="decimal(10, 2)"),
+            ColumnConfig(name="quantity", type="decimal( 5 , 3 )"),  # Test with spaces
+        ]
+    )
+    
+    df = pl.LazyFrame({
+        "price": ["123.45", "678.90"],
+        "quantity": ["1.234", "5.678"],
+    })
+    
+    seed = Seed(config=config, df=df)
+    result = seed.df.collect()
+    
+    assert result["price"].dtype == pl.Decimal(precision=10, scale=2)
+    assert result["quantity"].dtype == pl.Decimal(precision=5, scale=3)

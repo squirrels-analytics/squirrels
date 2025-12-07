@@ -10,7 +10,7 @@ from ._exceptions import ConfigurationError
 
 FilePath = Union[str, Path]
 
-# Polars
+# Polars <-> Squirrels dtypes mappings (except Decimal)
 polars_dtypes_to_sqrl_dtypes: dict[type[pl.DataType], list[str]] = {
     pl.String: ["string", "varchar", "char", "text"],
     pl.Int8: ["tinyint", "int1"],
@@ -18,7 +18,7 @@ polars_dtypes_to_sqrl_dtypes: dict[type[pl.DataType], list[str]] = {
     pl.Int32: ["integer", "int", "int4"],
     pl.Int64: ["bigint", "long", "int8"],
     pl.Float32: ["float", "float4", "real"],
-    pl.Float64: ["double", "float8", "decimal"], # Note: Polars Decimal type is considered unstable, so we use Float64 for "decimal"
+    pl.Float64: ["double", "float8"],
     pl.Boolean: ["boolean", "bool", "logical"],
     pl.Date: ["date"],
     pl.Time: ["time"],
@@ -27,7 +27,9 @@ polars_dtypes_to_sqrl_dtypes: dict[type[pl.DataType], list[str]] = {
     pl.Binary: ["blob", "binary", "varbinary"]
 }
 
-sqrl_dtypes_to_polars_dtypes: dict[str, type[pl.DataType]] = {sqrl_type: k for k, v in polars_dtypes_to_sqrl_dtypes.items() for sqrl_type in v}
+sqrl_dtypes_to_polars_dtypes: dict[str, type[pl.DataType]] = {
+    sqrl_type: k for k, v in polars_dtypes_to_sqrl_dtypes.items() for sqrl_type in v
+}
 
 
 ## Other utility classes
