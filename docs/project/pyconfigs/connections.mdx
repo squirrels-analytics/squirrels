@@ -1,0 +1,203 @@
+---
+title: Database connections (connections.py)
+description: "Configure database connections with Python"
+---
+
+The `pyconfigs/connections.py` file allows you to define database connections for your Squirrels project using Python. This provides greater flexibility than the YAML-based configuration in `squirrels.yml`, enabling dynamic connection strings, conditional logic, and access to resource files if needed.
+
+<Note>
+
+Connections can also be defined in the [squirrels.yml](/project/squirrels-yml#connections) file. Connections defined in `squirrels.yml` are loaded first, then `connections.py` runs (if exists) and can add or override connections.
+
+</Note>
+
+<Tip>
+
+Always define the default connection name for data models or data source parameters that do not specify a connection name explicitly.
+
+The default connection name is `default` unless set differently by the environment variable `SQRL_CONNECTIONS__DEFAULT_NAME_USED`.
+
+</Tip>
+
+## File structure
+
+The `connections.py` file must define a `main` function with the following signature:
+
+```python
+from typing import Any
+from squirrels import arguments as args, connections as cn
+
+
+def main(connections: dict[str, cn.ConnectionProperties | Any], sqrl: args.ConnectionsArgs) -> None:
+    """
+    Define database connections by adding them to the "connections" dictionary
+    """
+    pass
+```
+
+<Expandable title="arguments" defaultOpen>
+  <ResponseField name="connections" type="dict[str, ConnectionProperties | Any]" required>
+    A dictionary to populate with your database connections. The keys are connection names (strings) that you'll reference in your data models, and the values are [ConnectionProperties] objects or any other connection-like object.
+    
+    This dictionary is pre-populated with any connections defined in `squirrels.yml` before the `main` function is called.
+  </ResponseField>
+
+  <ResponseField name="sqrl" type="ConnectionsArgs" required>
+    A [ConnectionsArgs] object providing access to project configuration and environment variables.
+  </ResponseField>
+</Expandable>
+
+## The ConnectionsArgs object
+
+The `sqrl` argument is a [ConnectionsArgs] object that provides useful properties for building connection strings dynamically.
+
+| Property | Type | Description |
+|----------|------|-------------|
+| `project_path` | `str` | Absolute path to the Squirrels project directory |
+| `proj_vars` | `dict[str, Any]` | Project variables from `squirrels.yml` |
+| `env_vars` | `dict[str, str]` | Environment variables from `.env` files and system |
+
+## Creating connections
+
+Add connections by assigning [ConnectionProperties] objects to the `connections` dictionary:
+
+```python
+from typing import Any
+from squirrels import arguments as args, connections as cn
+
+
+def main(connections: dict[str, cn.ConnectionProperties | Any], sqrl: args.ConnectionsArgs) -> None:
+    # Get connection string from environment variable
+    conn_str = sqrl.env_vars["DATABASE_URL"]
+    
+    # Create a connection with a unique name
+    connections["default"] = cn.ConnectionProperties(
+        label="Main Database",
+        type=cn.ConnectionTypeEnum.SQLALCHEMY,
+        uri=conn_str
+    )
+```
+
+<Info>
+
+You can also store other values in the `connections` dictionary that are not [ConnectionProperties] objects, as long as the key is not used as the database connection name for data models or data source parameters.
+
+This can be useful for storing artifacts (such as ML models or API clients) in memory at server startup time. These can then be accessed in the [context.py](/project/pyconfigs/context) file or Python data models.
+
+</Info>
+
+### Connection types
+
+Squirrels supports four connection types via [ConnectionTypeEnum]:
+
+| Type | Description | Placeholder support |
+|------|-------------|-------------------|
+| `SQLALCHEMY` | Standard SQLAlchemy connections (default) | Yes (`:param_name`) |
+| `DUCKDB` | Native DuckDB connections | Yes (`$param_name`) |
+| `CONNECTORX` | High-performance bulk data loading | No |
+| `ADBC` | Arrow Database Connectivity | No |
+
+## Examples
+
+### SQLite connection
+
+```python
+def main(connections: dict[str, cn.ConnectionProperties | Any], sqrl: args.ConnectionsArgs) -> None:
+    connections["sqlite_db"] = cn.ConnectionProperties(
+        label="SQLite Database",
+        type=cn.ConnectionTypeEnum.SQLALCHEMY,
+        uri=f"sqlite:///{sqrl.project_path}/assets/database.db"
+    )
+```
+
+### PostgreSQL connection
+
+```python
+def main(connections: dict[str, cn.ConnectionProperties | Any], sqrl: args.ConnectionsArgs) -> None:
+    connections["postgres"] = cn.ConnectionProperties(
+        label="Production Database",
+        type=cn.ConnectionTypeEnum.SQLALCHEMY,
+        uri=sqrl.env_vars["POSTGRES_URL"],
+        sa_create_engine_args={
+            "pool_size": 10,
+            "pool_pre_ping": True
+        }
+    )
+```
+
+### DuckDB connection
+
+```python
+def main(connections: dict[str, cn.ConnectionProperties | Any], sqrl: args.ConnectionsArgs) -> None:
+    # Connect to a DuckDB file
+    connections["analytics"] = cn.ConnectionProperties(
+        label="Analytics DuckDB",
+        type=cn.ConnectionTypeEnum.DUCKDB,
+        uri=f"{sqrl.project_path}/assets/analytics.duckdb"
+    )
+    
+    # Connect to PostgreSQL through DuckDB
+    connections["pg_via_duckdb"] = cn.ConnectionProperties(
+        label="PostgreSQL via DuckDB",
+        type=cn.ConnectionTypeEnum.DUCKDB,
+        uri="postgres:dbname=mydb user=user password=pass host=localhost"
+    )
+```
+
+### Multiple connections with environment-based logic
+
+```python
+def main(connections: dict[str, cn.ConnectionProperties | Any], sqrl: args.ConnectionsArgs) -> None:
+    env = sqrl.env_vars.get("ENVIRONMENT", "development")
+    
+    if env == "production":
+        connections["main"] = cn.ConnectionProperties(
+            label="Production Database",
+            type=cn.ConnectionTypeEnum.SQLALCHEMY,
+            uri=sqrl.env_vars["PROD_DATABASE_URL"]
+        )
+    else:
+        connections["main"] = cn.ConnectionProperties(
+            label="Development Database",
+            type=cn.ConnectionTypeEnum.SQLALCHEMY,
+            uri=f"sqlite:///{sqrl.project_path}/assets/dev.db"
+        )
+```
+
+### High-performance connection with ConnectorX
+
+```python
+def main(connections: dict[str, cn.ConnectionProperties | Any], sqrl: args.ConnectionsArgs) -> None:
+    # ConnectorX for fast bulk data loading (no placeholder support)
+    connections["bulk_loader"] = cn.ConnectionProperties(
+        label="Bulk Data Loader",
+        type=cn.ConnectionTypeEnum.CONNECTORX,
+        uri="postgresql://user:pass@localhost:5432/warehouse"
+    )
+```
+
+### Custom connection objects
+
+You can also add custom connection objects (such as pre-configured database clients) to the dictionary:
+
+```python
+import joblib
+
+def main(connections: dict[str, cn.ConnectionProperties | Any], sqrl: args.ConnectionsArgs) -> None:
+    # Load a pre-trained scikit-learn model from file
+    model_path = f"{sqrl.project_path}/assets/ml_model.joblib"
+    model = joblib.load(model_path)
+    connections["ml_model"] = model
+```
+
+## Related pages
+
+- [ConnectionsArgs] - Properties available in the `sqrl` object argument
+- [ConnectionProperties] - Full reference for connection properties
+- [ConnectionTypeEnum] - Available connection types for [ConnectionProperties]
+- [squirrels.yml connections](/project/squirrels-yml#connections) - YAML-based connection configuration
+
+
+[ConnectionsArgs]: /references/python/arguments/connectionsargs
+[ConnectionProperties]: /references/python/connections/connectionproperties
+[ConnectionTypeEnum]: /references/python/connections/connectiontypeenum

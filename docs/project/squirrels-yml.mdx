@@ -1,0 +1,466 @@
+---
+title: "Project configs (squirrels.yml)"
+description: "Reference for the squirrels.yml manifest file"
+---
+
+The `squirrels.yml` file is the main manifest configuration file for a Squirrels project. It defines your project's metadata, database connections, datasets, and other settings. The file supports Jinja templating, allowing you to use environment variables and dynamic values.
+
+## File structure overview
+
+The manifest file contains the following top-level sections:
+
+| Section | Required | Description |
+|---------|----------|-------------|
+| `project_variables` | Yes | Core project metadata like name and version |
+| `packages` | No | External Squirrels packages to import |
+| `connections` | No | Database connection definitions |
+| `parameters` | No | Parameter widget definitions |
+| `configurables` | No | Project-level configurable placeholders |
+| `datasets` | No | Dataset endpoint configurations |
+| `selection_test_sets` | No | Test sets for parameter selections |
+
+{/* | `authentication` | No | Authentication settings for the project | */}
+
+### project_variables
+
+Defines the core metadata for your Squirrels project. This section is **required**.
+
+```yaml
+project_variables:
+  name: my_project
+  label: "My Analytics Project"
+  description: This is a sample Squirrels project
+  major_version: 1
+```
+
+<Expandable title="properties" defaultOpen>
+  <ResponseField name="name" type="string" required>
+    The unique identifier for your project. Must only contain alphanumeric characters, underscores, and dashes. This is used in API routes.
+  </ResponseField>
+  <ResponseField name="label" type="string" default="(derived from name)">
+    A human-readable label for the project displayed in the UI. If not specified, it is derived from the name using title case.
+  </ResponseField>
+  <ResponseField name="description" type="string" default="">
+    A description of the project.
+  </ResponseField>
+  <ResponseField name="major_version" type="integer" required>
+    The major version number of the project. Used in API versioning (e.g., `/project/my_project/v1/`).
+  </ResponseField>
+</Expandable>
+
+<Note>
+
+The `project_variables` section allows additional custom fields beyond the ones listed above. These extra fields can be accessed in your Python configurations and Jinja templates.
+
+</Note>
+
+{/* ### authentication
+
+Configures authentication settings for the project.
+
+```yaml
+authentication:
+  enforcement: optional
+  type: managed
+```
+
+<Expandable title="properties" defaultOpen>
+  <ResponseField name="enforcement" type="string" default="optional">
+    Controls how authentication is enforced. One of:
+    - `required`: All users must authenticate. Datasets cannot have a `public` scope.
+    - `optional`: Authentication is available but not required for public datasets.
+    - `disabled`: Authentication is completely disabled.
+  </ResponseField>
+  <ResponseField name="type" type="string" default="managed">
+    The authentication type. One of:
+    - `managed`: Squirrels manages user authentication internally.
+    - `external`: Authentication is handled by an external system (e.g., OAuth2 provider).
+  </ResponseField>
+</Expandable>
+
+<Warning>
+
+When `enforcement` is set to `required`, all datasets must have a scope of `protected` or `private`. Any dataset with a `public` scope will cause a validation error.
+
+</Warning> */}
+
+### packages
+
+Defines external Squirrels packages to import. Packages allow you to reuse models, macros, and other assets across projects.
+
+```yaml
+packages:
+  - git: https://github.com/org/shared-analytics.git
+    revision: v1.0.0
+    directory: shared_analytics
+```
+
+Each package is defined as a list item with the following properties:
+
+<Expandable title="properties" defaultOpen>
+  <ResponseField name="git" type="string" required>
+    The Git repository URL for the package.
+  </ResponseField>
+  <ResponseField name="revision" type="string" required>
+    The Git revision (tag, branch, or commit) to use.
+  </ResponseField>
+  <ResponseField name="directory" type="string" default="(derived from git URL)">
+    The local directory name to clone the package into. Defaults to the repository name from the Git URL.
+  </ResponseField>
+</Expandable>
+
+<Tip>
+
+Run `sqrl deps` to download and install all packages defined in this section.
+
+</Tip>
+
+### connections
+
+Defines database connections used by your models. Alternatively, connections can be defined with Python in `pyconfigs/connections.py`.
+
+```yaml
+connections:
+  - name: default
+    label: Main Database
+    type: sqlalchemy
+    uri: sqlite:///{project_path}/assets/database.db
+```
+
+Each connection is defined as a list item with the following properties:
+
+<Expandable title="properties" defaultOpen>
+  <ResponseField name="name" type="string" required>
+    A unique identifier for the connection. Use this name to reference the connection in your models.
+  </ResponseField>
+  <ResponseField name="label" type="string" default="null">
+    A human-readable label for the connection.
+  </ResponseField>
+  <ResponseField name="type" type="string" default="sqlalchemy">
+    The connection type. One of:
+    - `sqlalchemy`: Uses SQLAlchemy for database connections (most compatible).
+    - `connectorx`: Uses ConnectorX for high-performance data loading.
+    - `adbc`: Uses Arrow Database Connectivity.
+    - `duckdb`: Native DuckDB connection/attachment.
+  </ResponseField>
+  <ResponseField name="uri" type="string" required>
+    The connection URI. Format varies by database and connection type. The special placeholder `{project_path}` is replaced with the absolute path to your project directory.
+  </ResponseField>
+  <ResponseField name="sa_create_engine_args" type="object" default="{}">
+    Additional arguments passed to SQLAlchemy's `create_engine()` function used by Squirrels. Only applicable when `type` is `sqlalchemy`.
+  </ResponseField>
+</Expandable>
+
+#### URI formats
+
+The connections URI format varies depending on the connection type and database:
+
+<AccordionGroup>
+  <Accordion title="SQLAlchemy URIs">
+    Standard format: `dialect://username:password@host:port/database`
+
+    Examples:
+    - SQLite: `sqlite:///{project_path}/assets/database.db`
+    - PostgreSQL: `postgresql://user:pass@localhost:5432/mydb`
+    - MySQL: `mysql+pymysql://user:pass@localhost:3306/mydb`
+
+    See the [SQLAlchemy documentation](https://docs.sqlalchemy.org/en/latest/core/engines.html#database-urls) for more details.
+  </Accordion>
+
+  <Accordion title="ConnectorX / ADBC URIs">
+    Similar to SQLAlchemy but with subtle differences for some databases.
+
+    Examples:
+    - SQLite: `sqlite://{project_path}/assets/database.db` (note: two slashes, not three)
+    - PostgreSQL: `postgresql://user:pass@localhost:5432/mydb`
+
+    See the [ConnectorX documentation](https://sfu-db.github.io/connector-x/databases.html) for more details.
+
+    Note that ConnectorX and ADBC do not support placeholders in SQL queries.
+  </Accordion>
+
+  <Accordion title="DuckDB URIs">
+    For attaching external databases directly to DuckDB.
+
+    Examples:
+    - DuckDB: `{project_path}/assets/database.duckdb`
+    - SQLite: `sqlite:{project_path}/assets/database.db`
+    - PostgreSQL: `postgres:dbname=mydb user=user password=pass host=localhost port=5432`
+    - DuckLake: 
+      - DuckLake with DuckDB: `ducklake:{project_path}/assets/database.duckdb`
+      - DuckLake with PostgreSQL: `ducklake:postgres:dbname=mydb user=user password=pass host=localhost port=5432`
+  </Accordion>
+</AccordionGroup>
+
+<Tip>
+
+Use Jinja templating to substitute environment variables in your connection URIs:
+
+```yaml
+connections:
+  - name: production_db
+    uri: {{ env_vars.DATABASE_URL }}
+```
+
+</Tip>
+
+### parameters
+
+<Warning>
+
+Defining parameters here in yaml is not recommended. Defining parameters with Python in `pyconfigs/parameters.py` is preferred, especially when using an IDE that provides autocomplete and type checking for Python.
+
+</Warning>
+
+Defines parameter widgets for your datasets. Alternatively, parameters can be defined with Python in `pyconfigs/parameters.py`.
+
+```yaml
+parameters:
+  - type: SingleSelectParameter
+    factory: CreateWithOptions
+    arguments:
+      name: region
+      label: Region
+      all_options:
+        - id: na
+          label: North America
+          is_default: true
+        - id: eu
+          label: Europe
+```
+
+Each parameter is defined as a list item with the following properties:
+
+<Expandable title="properties" defaultOpen>
+  <ResponseField name="type" type="string" required>
+    The parameter type. One of:
+    - `SingleSelectParameter`: Dropdown selection of one option.
+    - `MultiSelectParameter`: Selection of multiple options.
+    - `DateParameter`: Single date picker.
+    - `DateRangeParameter`: Date range picker.
+    - `NumberParameter`: Single number input.
+    - `NumberRangeParameter`: Number range input (min/max).
+    - `TextParameter`: Free text input.
+  </ResponseField>
+  <ResponseField name="factory" type="string" required>
+    The factory method to create the parameter. One of:
+    - `CreateSimple`: Create with minimal configuration.
+    - `CreateWithOptions`: Create with explicit options defined inline.
+    - `CreateFromSource`: Create with options loaded from a data source.
+  </ResponseField>
+  <ResponseField name="arguments" type="object" required>
+    Arguments passed to the factory method. The available arguments depend on the `type` and `factory` combination. Common arguments include `name`, `label`, `description`, and type-specific options.
+  </ResponseField>
+</Expandable>
+
+<Info>
+
+For detailed information on parameter types and their options, see the [Python reference for parameters](/references/python/types/parameter).
+
+</Info>
+
+### configurables
+
+Defines project-level configurables that can be set at runtime via HTTP headers. Unlike parameters, these do not get exposed as arguments for MCP tools (i.e., AI agents cannot control them). The default values can also be overridden at the dataset level.
+
+```yaml
+configurables:
+  - name: schema_name
+    label: Database Schema
+    description: The schema to query from
+    default: public
+```
+
+Each configurable is defined as a list item with the following properties:
+
+<Expandable title="properties" defaultOpen>
+  <ResponseField name="name" type="string" required>
+    A unique identifier for the configurable.
+  </ResponseField>
+  <ResponseField name="label" type="string" default="">
+    A human-readable label for the configurable.
+  </ResponseField>
+  <ResponseField name="description" type="string" default="">
+    A description of what this configurable controls.
+  </ResponseField>
+  <ResponseField name="default" type="string" required>
+    The default value for the configurable.
+  </ResponseField>
+</Expandable>
+
+### datasets
+
+Defines the dataset endpoints exposed by your Squirrels API. Each dataset maps to a data model, and can specify parameters and access scopes.
+
+```yaml
+datasets:
+  - name: sales_report
+    label: Sales Report
+    description: Daily sales transactions
+    model: sales_model
+    scope: protected
+    parameters:
+      - date_range
+      - region
+    configurables:
+      - name: schema_name
+        default: sales
+```
+
+Each dataset is defined as a list item with the following properties:
+
+<Expandable title="properties" defaultOpen>
+  <ResponseField name="name" type="string" required>
+    A unique identifier for the dataset. Used in API routes (e.g., `/datasets/sales_report`).
+  </ResponseField>
+  <ResponseField name="label" type="string" default="(same as name)">
+    A human-readable label for the dataset displayed in the UI.
+  </ResponseField>
+  <ResponseField name="description" type="string" default="">
+    A description of the dataset.
+  </ResponseField>
+  <ResponseField name="model" type="string" default="(same as name)">
+    The name of the data model that produces this dataset. If not specified, defaults to the dataset name.
+  </ResponseField>
+  <ResponseField name="scope" type="string" default="public">
+    The access scope for the dataset. One of:
+    - `public`: Accessible without authentication.
+    - `protected`: Requires authentication to access.
+    - `private`: Only accessible by users with the `admin` access level.
+  </ResponseField>
+  <ResponseField name="parameters" type="list[string]" default="null">
+    List of parameter names used by this dataset. If not specified, all parameters are available to the dataset.
+  </ResponseField>
+  <ResponseField name="configurables" type="list[object]" default="[]">
+    Dataset-level overrides for project configurables. Each item specifies a `name` (which must be a valid name from the `configurables` section) and `default` (for a different default value for this dataset).
+  </ResponseField>
+</Expandable>
+
+{/* <Warning>
+
+If `authentication.enforcement` is set to `required`, datasets cannot have a `public` scope. They will automatically default to `protected` if no scope is specified.
+
+</Warning> */}
+
+### selection_test_sets
+
+Defines test sets for parameter selections. Test sets are useful for testing and compiling models with specific parameter values.
+
+```yaml
+selection_test_sets:
+  - name: q1_report
+    user:
+      access_level: admin
+      custom_fields:
+        department: sales
+    parameters:
+      date_range: ["2024-01-01", "2024-03-31"]
+      region: na
+    configurables:
+      schema_name: test
+```
+
+Each test set is defined as a list item with the following properties:
+
+<Expandable title="properties" defaultOpen>
+  <ResponseField name="name" type="string" required>
+    A unique identifier for the test set. Use this name with `sqrl compile --test-set`.
+  </ResponseField>
+  <ResponseField name="user" type="object" default="{}">
+    User context for the test set.
+    <Expandable title="user properties">
+      <ResponseField name="access_level" type="string" default="guest">
+        The user's access level. One of `admin`, `member`, or `guest`.
+      </ResponseField>
+      <ResponseField name="custom_fields" type="object" default="{}">
+        Custom user fields defined in your `user.py` configuration.
+      </ResponseField>
+    </Expandable>
+  </ResponseField>
+  <ResponseField name="parameters" type="object" default="{}">
+    Parameter name-value pairs to use for the test set. Values should match the expected format for each parameter type.
+  </ResponseField>
+  <ResponseField name="configurables" type="object" default="{}">
+    Configurable name-value pairs to use for the test set.
+  </ResponseField>
+</Expandable>
+
+<Tip>
+
+A test set named `default` is automatically used when no test set is specified during compilation. You can override the default behavior by defining a test set with this name.
+
+</Tip>
+
+## Using Jinja templating
+
+The `squirrels.yml` file supports Jinja templating, allowing you to:
+
+- Reference environment variables
+- Use conditional logic
+- Include dynamic content
+
+### Environment variables
+
+Access environment variables using the `env_vars` dictionary:
+
+```yaml
+connections:
+  - name: main_db
+    uri: {{ env_vars.DATABASE_URL }}
+```
+
+<Info>
+
+Environment variables are loaded from `.env` and `.env.local` files in your project directory, as well as from system environment variables.
+
+</Info>
+
+## Complete example
+
+Here's a complete example of a `squirrels.yml` file:
+
+```yaml
+project_variables:
+  name: expense_analytics
+  label: "Expense Analytics"
+  description: Analytics project for expense tracking
+  major_version: 1
+
+packages:
+  - git: https://github.com/org/shared-macros.git
+    revision: v1.0.0
+
+connections:
+  - name: default
+    label: Expenses Database
+    type: sqlalchemy
+    uri: {{ env_vars.SQLITE_URI }}
+
+datasets:
+  - name: expense_transactions
+    label: Expense Transactions
+    description: All expense transactions
+    model: expense_model
+    scope: protected
+    parameters:
+      - date_range
+      - category
+
+  - name: expense_summary
+    label: Expense Summary
+    description: Aggregated expense data
+    scope: public
+
+selection_test_sets:
+  - name: default
+    parameters:
+      date_range: [2024-01-01, 2024-12-31]
+
+  - name: admin_view
+    user:
+      access_level: admin
+    parameters:
+      date_range: [2024-01-01, 2024-12-31]
+      category: all
+```
+
