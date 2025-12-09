@@ -30,6 +30,38 @@
               "quickstart",
               "tutorial"
             ]
+          },
+          {
+            "group": "Project files",
+            "icon": "folder-tree",
+            "pages": [
+              "project/structure",
+              "project/squirrels-yml",
+              "project/env-vars",
+              {
+                "group": "Python configs (pyconfigs/)",
+                "expanded": true,
+                "pages": [
+                  "project/pyconfigs/connections",
+                  "project/pyconfigs/parameters",
+                  "project/pyconfigs/context",
+                  "project/pyconfigs/user"
+                ]
+              },
+              "project/seeds",
+              "project/macros",
+              {
+                "group": "Data models (models/)",
+                "expanded": true,
+                "pages": [
+                  "project/models/sources",
+                  "project/models/builds",
+                  "project/models/dbviews",
+                  "project/models/federates"
+                ]
+              },
+              "project/dashboards"
+            ]
           }
         ]
       },
@@ -212,15 +244,15 @@
   },
   "contextual": {
     "options": [
-     "copy",
-     "view",
-     "chatgpt",
-     "claude",
-     "perplexity",
-     "mcp",
-     "cursor",
-     "vscode"
-   ]
+      "copy",
+      "view",
+      "chatgpt",
+      "claude",
+      "perplexity",
+      "mcp",
+      "cursor",
+      "vscode"
+    ]
   },
   "footer": {
     "socials": {

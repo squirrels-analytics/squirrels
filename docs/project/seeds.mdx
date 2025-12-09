@@ -1,0 +1,251 @@
+---
+title: Seeds (seeds/)
+description: "Static CSV data files loaded into your Squirrels project"
+---
+
+Seeds are CSV files that contain static data to be loaded into your Squirrels project. They are useful for lookup tables, reference data, or small datasets that don't change frequently. Seeds are automatically loaded from the `seeds/` directory at the root of your Squirrels project.
+
+## File structure
+
+Seeds consist of two types of files:
+
+1. **CSV files** (`.csv`) - The data files containing your static data
+2. **YAML configuration files** (`.yml`) - Optional configuration files that define column types and metadata
+
+```
+seeds/
+├── seed_my_lookup.csv
+├── seed_my_lookup.yml         # optional
+└── subdirectory/              # seeds can be nested in subdirectories
+    ├── seed_another_lookup.csv
+    └── seed_another_lookup.yml
+```
+
+The YAML configuration file must have the same name as the CSV file (with a `.yml` extension) and be located in the same directory.
+
+<Note>
+
+Seeds are loaded recursively from the `seeds/` directory and its subdirectories. The seed name used in your models is the filename without the extension (e.g., `seed_my_lookup` for `seed_my_lookup.csv`).
+
+</Note>
+
+## CSV files
+
+Seed CSV files should follow standard CSV formatting:
+
+- The first row must contain column headers
+- Values can optionally be quoted with double quotes
+- Dates are automatically parsed when schema inference is enabled
+
+### Example
+
+```csv seeds/seed_categories.csv
+"category_id","category"
+"0","Food"
+"1","Bills"
+"2","Shopping"
+"3","Transportation"
+"4","Entertainment"
+```
+
+## YAML configuration
+
+The optional YAML configuration file allows you to define metadata and column types for your seed.
+
+### Configuration fields
+
+<ResponseField name="description" type="string" default="">
+  A description of the seed data. This is used for documentation purposes.
+</ResponseField>
+
+<ResponseField name="cast_column_types" type="boolean" default="false">
+  When set to `true`, columns are cast to the types specified in the `columns` configuration. This overrides the `SQRL_SEEDS__INFER_SCHEMA` environment variable for this specific seed.
+</ResponseField>
+
+<ResponseField name="columns" type="list[object]" default="[]">
+  Column metadata definitions as a list. Expand below for fields of each item.
+
+  <Expandable title="column metadata fields">
+    <ResponseField name="name" type="string" required>
+      The column name as it appears in the CSV header
+    </ResponseField>
+    
+    <ResponseField name="type" type="string" default="">
+      The data type of the column. If `cast_column_types` is `true`, this field must be set to a [supported type](#supported-types). If the column type is not recognized, an error is raised.
+    </ResponseField>
+    
+    <ResponseField name="description" type="string" default="">
+      A description of the column
+    </ResponseField>
+    
+    <ResponseField name="category" type="string" default="">
+      One of `dimension`, `measure`, or `misc` (for miscellaneous)
+    </ResponseField>
+  </Expandable>
+</ResponseField>
+
+### Example
+
+```yaml seeds/seed_categories.yml
+description: |
+  Lookup table for the category IDs and names of transactions.
+
+cast_column_types: true  # cast columns to the types specified below
+
+columns:
+  - name: category_id
+    type: string
+    description: The category ID
+    category: dimension
+  
+  - name: category
+    type: string
+    description: The human-readable category name
+    category: dimension
+```
+
+## Environment variables
+
+Two [environment variables][Environment variables] control how seeds are loaded:
+
+<ResponseField name="SQRL_SEEDS__INFER_SCHEMA" type="boolean" default="true">
+  Whether to automatically infer column types when loading CSV seed files. Set to `false` to treat all columns as strings by default.
+  
+  <Note>
+  This setting is ignored for individual seeds where `cast_column_types: true` is set in the YAML configuration.
+  </Note>
+</ResponseField>
+
+<ResponseField name="SQRL_SEEDS__NA_VALUES" type="string" default="[]">
+  A JSON array of strings to treat as null/NA values when parsing seed CSV files.
+  
+  Example: `["", "NA", "N/A", "null"]`
+</ResponseField>
+
+## Using seeds in models
+
+Seeds are available to use in your data models after they are loaded. You can reference seeds using the `ref()` function in both Jinja SQL templates and Python models.
+
+### In Jinja SQL templates
+
+Use the `ref()` function to reference a seed:
+
+```sql models/federates/fed_transactions.sql
+SELECT 
+    t.transaction_id,
+    t.amount,
+    c.category
+FROM {{ ref("build_transactions") }} t
+LEFT JOIN {{ ref("seed_categories") }} c
+    ON t.category_id = c.category_id
+```
+
+### In Python models
+
+Use the `sqrl.ref()` method to get a seed as a Polars LazyFrame:
+
+```python models/federates/fed_transactions.py
+from squirrels import arguments as args
+import polars as pl
+
+
+def main(sqrl: args.ModelArgs) -> pl.LazyFrame:
+    transactions = sqrl.ref("build_transactions")
+    categories = sqrl.ref("seed_categories")
+    
+    # Join transactions with category lookup
+    result = transactions.join(
+        categories,
+        on="category_id",
+        how="left"
+    )
+    
+    return result
+```
+
+## Schema inference vs. explicit types
+
+Squirrels provides two approaches for determining column types:
+
+### Schema inference (default)
+
+When `SQRL_SEEDS__INFER_SCHEMA` is `true` (the default), Squirrels automatically infers column types from the CSV data. This includes:
+
+- Numeric types for columns containing numbers
+- Date/datetime types for columns with date patterns
+- String types for everything else
+
+This is convenient but may sometimes infer types differently than expected.
+
+### Explicit type casting
+
+For more control, set `cast_column_types: true` in your YAML configuration and specify column types explicitly:
+
+```yaml
+cast_column_types: true
+
+columns:
+  - name: id
+    type: integer
+  - name: amount
+    type: decimal
+  - name: date
+    type: datetime
+  - name: is_active
+    type: boolean
+```
+
+#### Supported types
+
+The following table shows all supported Squirrels column types and their corresponding [Polars data types](https://docs.pola.rs/api/python/stable/reference/datatypes.html) when loading the seeds into memory:
+
+| Squirrels Type Aliases | Polars Type |
+|------------------------|-------------|
+| `string`, `varchar`, `char`, `text` | `pl.String` |
+| `tinyint`, `int1` | `pl.Int8` |
+| `smallint`, `short`, `int2` | `pl.Int16` |
+| `integer`, `int`, `int4` | `pl.Int32` |
+| `bigint`, `long`, `int8` | `pl.Int64` |
+| `float`, `float4`, `real` | `pl.Float32` |
+| `double`, `float8` | `pl.Float64` |
+| `decimal` | `pl.Decimal(precision=18, scale=2)` |
+| `decimal(x, y)` | `pl.Decimal(precision=x, scale=y)` |
+| `boolean`, `bool`, `logical` | `pl.Boolean` |
+| `date` | `pl.Date` |
+| `time` | `pl.Time` |
+| `timestamp`, `datetime` | `pl.Datetime` |
+| `interval` | `pl.Duration` |
+| `blob`, `binary`, `varbinary` | `pl.Binary` |
+
+Any column type not recognized raises an error.
+
+<Warning>
+
+When `cast_column_types: true` is set, the `SQRL_SEEDS__INFER_SCHEMA` environment variable is ignored for that seed, and all columns without an explicit type will be treated as strings.
+
+</Warning>
+
+## Best practices
+
+1. **Keep seeds small**: Seeds are loaded into memory. For large datasets (more than a few thousand rows), consider using [sources](/project/models/sources) or [build models](/project/models/builds) instead.
+
+2. **Use descriptive names**: Prefix your seed files with `seed_` to distinguish them from other model types in your project.
+
+3. **Document your columns**: Add descriptions to columns in the YAML configuration to help other developers and data consumers (such as AI agents) understand the data.
+
+4. **Version control your seeds**: Since seeds contain static data, they should be committed to version control so changes are tracked.
+
+5. **Use explicit types for critical data**: If column types are important for your business logic, define them explicitly in the YAML configuration rather than relying on inference.
+
+## Related pages
+
+- [Environment variables] - Seed-related environment variables
+- [Sources] - For connecting to existing database tables
+- [Build models] - For larger datasets that need to be materialized
+- [Federate models] - For larger datasets that need to be materialized
+
+
+[Environment variables]: /project/env-vars
+[Sources]: /project/models/sources
+[Build models]: /project/models/builds
+[Federate models]: /project/models/federates

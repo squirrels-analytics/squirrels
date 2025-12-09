@@ -1,0 +1,276 @@
+---
+title: Sources (sources.yml)
+description: "Configure source tables from external databases for your Squirrels project"
+---
+
+Sources define the metadata for database tables that exist in your external data sources. They are configured in the `models/sources.yml` file and can be loaded into the Virtual Data Lake (VDL) for use by other data models.
+
+## Configuration structure
+
+The `sources.yml` file contains a list of source definitions under the `sources` key:
+
+```yaml
+sources:
+  - name: src_customers
+    description: Customer data from the CRM system
+    connection: default
+    table: customers
+    load_to_vdl: true
+    columns:
+      - name: customer_id
+        type: integer
+        description: Unique customer identifier
+        category: dimension
+```
+
+## Configuration fields
+
+<ResponseField name="name" type="string" required>
+  A unique identifier for the source. This name is used to reference the source in your models using the `ref()` function.
+</ResponseField>
+
+<ResponseField name="description" type="string" default="">
+  A human-readable description of the source table. Used for documentation and data consumers (such as AI agents).
+</ResponseField>
+
+<ResponseField name="connection" type="string" default="default">
+  The name of the database connection to use, as defined in `squirrels.yml` or `pyconfigs/connections.py`. If not specified, uses the default connection defined by the `SQRL_CONNECTIONS__DEFAULT_NAME_USED` [environment variable][Environment variables], or "default" if that is not set.
+</ResponseField>
+
+<ResponseField name="table" type="string">
+  The name of the table in the external database. If not specified, defaults to the source `name`.
+</ResponseField>
+
+<ResponseField name="load_to_vdl" type="boolean" default="false">
+  Whether to load this source's data into the Virtual Data Lake (VDL) during the build process. When `true`, the source data is extracted from the external database and stored in the VDL, making it available for use by build and federate models. See [VDL loading behavior](#vdl-loading-behavior) for details on how columns are loaded.
+</ResponseField>
+
+<ResponseField name="primary_key" type="list[string]" default="[]">
+  A list of column names that form the primary key of the source table. Used for incremental loading and upsert operations.
+</ResponseField>
+
+<ResponseField name="update_hints" type="object">
+  Configuration for incremental data loading.
+  
+  <Expandable title="update hints fields" defaultOpen>
+    <ResponseField name="increasing_column" type="string">
+      The name of a column that contains increasing values (such as a timestamp or auto-incrementing ID). Used to determine which rows are new when performing incremental updates.
+    </ResponseField>
+
+    <ResponseField name="strictly_increasing" type="boolean" default="true">
+      If `true`, deletes the maximum value of the increasing column before loading new data. This handles cases where the latest batch of data may have been partially loaded. Ignored if `selective_overwrite_value` is set.
+    </ResponseField>
+
+    <ResponseField name="selective_overwrite_value" type="any">
+      If set, deletes all rows where the increasing column value is greater than or equal to this value before loading new data. Useful for reloading data from a specific point in time.
+    </ResponseField>
+  </Expandable>
+</ResponseField>
+
+<ResponseField name="columns" type="list[object]" default="[]">
+  A list of column configurations that define which columns to load and their metadata. 
+  
+  <Note>
+    If no columns are specified and load_to_vdl is set to true, all columns from the source table are loaded with types inferred by DuckDB.
+  </Note>
+
+  <Expandable title="column metadata fields" defaultOpen>
+    <ResponseField name="name" type="string" required>
+      The column name as it appears in the database table
+    </ResponseField>
+    
+    <ResponseField name="type" type="string" required>
+      The data type of the column (e.g., `string`, `integer`, `float`, `datetime`). Columns are cast to this type when loaded to the VDL if load_to_vdl is set to true.
+    </ResponseField>
+    
+    <ResponseField name="description" type="string" default="">
+      A description of what the column contains
+    </ResponseField>
+    
+    <ResponseField name="category" type="string" default="">
+      One of `dimension`, `measure`, or `misc` (for miscellaneous)
+    </ResponseField>
+  </Expandable>
+</ResponseField>
+
+<Warning>
+
+Unlike seeds, sources **require** column type specifications. Each column in the `columns` list must have a `type` field set. If a column is missing a type, an error will be raised.
+
+</Warning>
+
+## Example configurations
+
+```yaml
+sources:
+  # Basic example (with default connection)
+  - name: src_customers
+    description: Customer master data
+    table: customers
+    load_to_vdl: true
+    columns:
+      - name: customer_id
+        type: integer
+        description: Customer identifier
+        category: dimension
+      
+      - name: name
+        type: string
+        description: Customer name
+        category: dimension
+
+  # Source with incremental loading and using a custom connection
+  - name: src_transactions
+    description: Financial transactions with incremental loading
+    connection: finance_db
+    table: transactions
+    load_to_vdl: true
+    primary_key:
+      - transaction_id
+    update_hints:
+      increasing_column: created_at
+      strictly_increasing: true
+    columns:
+      - name: transaction_id
+        type: integer
+        description: Unique transaction identifier
+        category: dimension
+      
+      - name: created_at
+        type: datetime
+        description: Transaction timestamp
+        category: dimension
+      
+      - name: amount
+        type: decimal
+        description: Transaction amount
+        category: measure
+
+  # Using Jinja templating
+  - name: src_data
+    description: Data from {{ env_vars.DATA_SOURCE_NAME }}
+    table: {{ env_vars.TABLE_NAME }}
+    load_to_vdl: true
+    columns:
+      - name: id
+        type: integer
+```
+
+## VDL loading behavior
+
+When `load_to_vdl: true` is set, the source data is extracted from the external database and stored in the Virtual Data Lake during `sqrl build`. The behavior depends on whether columns are specified:
+
+| Columns specified? | Behavior |
+|-------------------|----------|
+| **Yes** | Only the specified columns are loaded, and each column is **cast to the specified type**. |
+| **No** | All columns from the source table are loaded with types **inferred by DuckDB**. |
+
+<Note>
+
+When specifying columns, make sure the column types match or are compatible with the actual database column types to avoid casting errors during the build process.
+
+</Note>
+
+## Using sources in models
+
+Sources can be referenced in your data models, but the method depends on the model type and whether `load_to_vdl` is enabled.
+
+### In build models (SQL)
+
+[Build models] written in SQL can reference sources using the `ref()` macro which provides the fully qualified name of the source model:
+
+```sql
+-- models/builds/customer_orders.sql
+SELECT 
+    c.customer_id,
+    c.name,
+    COUNT(o.order_id) AS order_count,
+    SUM(o.total_amount) AS total_spent
+FROM {{ ref("src_customers") }} c
+LEFT JOIN {{ ref("src_orders") }} o ON c.customer_id = o.customer_id
+GROUP BY c.customer_id, c.name
+```
+
+### In build models (Python)
+
+[Build models] written in Python can reference sources using the `sqrl.ref()` function which returns a LazyFrame:
+
+```python
+# models/builds/customer_orders.py
+from squirrels import arguments as args
+import polars as pl
+
+
+def main(sqrl: args.BuildModelArgs) -> pl.LazyFrame:
+    customers = sqrl.ref("src_customers")
+    orders = sqrl.ref("src_orders")
+    
+    result = customers.join(
+        orders.group_by("customer_id").agg([
+            pl.count("order_id").alias("order_count"),
+            pl.sum("total_amount").alias("total_spent")
+        ]),
+        on="customer_id",
+        how="left"
+    )
+    
+    return result
+```
+
+### In federate models
+
+Similar to build models, sources with `load_to_vdl: true` can be referenced directly in [federate models][Federate models] using the `ref()` macro for SQL models or the `sqrl.ref()` function for Python models.
+
+```sql
+-- models/federates/recent_orders.sql
+SELECT *
+FROM {{ ref("src_orders") }}
+WHERE order_date >= CURRENT_DATE - INTERVAL '30 days'
+```
+
+### In dbview models
+
+[Dbview models] reference sources using the `source()` function (though `ref()` is also supported as an alias). Unlike build and federate models, dbview models have specific rules for referencing sources:
+
+1. **Same connection required**: A dbview model can only reference sources that share the **same database connection**. This is because dbview queries run directly on the external database (or at least give the illusion of doing so).
+
+2. **translate_to_duckdb restriction**: If a dbview model has `translate_to_duckdb: true`, it can only reference sources with `load_to_vdl: true`. This is because the translated query actually runs on DuckDB using VDL data.
+
+```sql
+-- models/dbviews/customer_summary.sql
+-- This dbview must use the same connection as src_customers
+SELECT 
+    customer_id,
+    COUNT(*) AS order_count
+FROM {{ source("src_customers") }}
+GROUP BY customer_id
+```
+
+## Best practices
+
+1. **Use descriptive names**: Prefix your source names with `src_` to distinguish them from other model types.
+
+2. **Document columns**: Add descriptions to all columns to help other developers and data consumers (including AI agents) understand the data.
+
+3. **Specify column types**: Always provide explicit column types for sources to ensure data is loaded correctly.
+
+4. **Consider incremental loading**: For large or frequently updated tables, use `update_hints` to enable incremental loading and reduce build times.
+
+5. **Keep VDL loading selective**: Only set `load_to_vdl: true` for sources that need to be used by build or federate models. Sources used only by dbview models don't need VDL loading.
+
+## Related pages
+
+- [Project structure] - Overview of files in a Squirrels project
+- [Seeds] - For static CSV data files
+- [Environment variables] - Configuration through environment variables
+- [Build models] - Models that materialize data in the VDL
+- [Dbview models] - Models that run on external databases
+- [Federate models] - Dynamic models that run in memory of the API server at query time
+
+
+[Project structure]: /project/structure
+[Seeds]: /project/seeds
+[Environment variables]: /project/env-vars
+[Build models]: /project/models/builds
+[Dbview models]: /project/models/dbviews
+[Federate models]: /project/models/federates

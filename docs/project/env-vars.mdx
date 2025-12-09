@@ -1,0 +1,171 @@
+---
+title: Environment vars (.env files)
+description: "Configure your Squirrels project with environment variables"
+---
+
+Environment variables allow you to configure various aspects of your Squirrels project without modifying code. These variables can be set in a `.env` or `.env.local` file at the root of your project, or as system environment variables.
+
+It is also common practice to include a `.env.example` file in your project to contain example environment variables, especially if the `.env` file is not committed to version control.
+
+<Note>
+If the same variable is defined in both `.env.local` and `.env`, the value in `.env.local` takes precedence.
+</Note>
+
+## Secrets
+
+<Warning>
+  If your `.env.local` or `.env` file contains these secret environment variables that start with `SQRL_SECRET__`, do not commit it to version control!
+</Warning>
+
+<ResponseField name="SQRL_SECRET__KEY" type="string">
+  Secret key used for JWT token signing and session management. Required for authentication features like creating access tokens and API keys.
+
+  You can generate a secure key using the following command for instance:
+
+  ```bash
+  python -c "import secrets; print(secrets.token_hex(32))"
+  ```
+</ResponseField>
+
+<ResponseField name="SQRL_SECRET__ADMIN_PASSWORD" type="string">
+  Password for the admin user (i.e., the user with username `admin`). When set, the password of the admin user is created or updated on server startup.
+</ResponseField>
+
+## Authentication and permissions
+
+<ResponseField name="SQRL_AUTH__DB_FILE_PATH" type="string" default="{project_path}/target/auth.sqlite">
+  Path to the SQLite database file used for storing user accounts, API keys, and OAuth client data. Supports the `{project_path}` placeholder.
+</ResponseField>
+
+<ResponseField name="SQRL_AUTH__TOKEN_EXPIRE_MINUTES" type="integer" default="30">
+  Expiration time for JWT access tokens in minutes.
+</ResponseField>
+
+<ResponseField name="SQRL_AUTH__ALLOWED_ORIGINS_FOR_COOKIES" type="string" default="https://squirrels-analytics.github.io">
+  Comma-separated list of origins allowed to send credentials (cookies) with requests. These origins get `Access-Control-Allow-Credentials: true` in CORS responses.
+
+  By including `https://squirrels-analytics.github.io` in the list, you may also use the following Squirrels Studio site to log in to your Squirrels project with a "bring your own backend service" approach.
+
+  https://squirrels-analytics.github.io/squirrels-studio-v1
+</ResponseField>
+
+<ResponseField name="SQRL_PERMISSIONS__ELEVATED_ACCESS_LEVEL" type="string" default="admin">
+  The minimum access level required for elevated privileges (e.g., using configurables via headers). Valid values: `admin`, `member`, or `guest`.
+</ResponseField>
+
+## Parameters
+
+<ResponseField name="SQRL_PARAMETERS__DATASOURCE_REFRESH_MINUTES" type="integer" default="60">
+  Interval in minutes for automatically refreshing datasource parameter options in the background. Set to `0` or a negative number to disable automatic refresh.
+</ResponseField>
+
+<ResponseField name="SQRL_PARAMETERS__CACHE_SIZE" type="integer" default="1024">
+  Maximum number of entries in the parameters cache.
+</ResponseField>
+
+<ResponseField name="SQRL_PARAMETERS__CACHE_TTL_MINUTES" type="integer" default="60">
+  Time-to-live for cached parameter results in minutes.
+</ResponseField>
+
+## Datasets and dashboards
+
+<ResponseField name="SQRL_DATASETS__MAX_ROWS_FOR_AI" type="integer" default="100">
+  Maximum number of rows that AI can see through MCP (Model Context Protocol) tools. This is to prevent excessive context usage.
+</ResponseField>
+
+<ResponseField name="SQRL_DATASETS__CACHE_SIZE" type="integer" default="128">
+  Maximum number of entries in the dataset results cache.
+</ResponseField>
+
+<ResponseField name="SQRL_DATASETS__CACHE_TTL_MINUTES" type="integer" default="60">
+  Time-to-live for cached dataset results in minutes.
+</ResponseField>
+
+<ResponseField name="SQRL_DASHBOARDS__CACHE_SIZE" type="integer" default="128">
+  Maximum number of entries in the dashboards cache.
+</ResponseField>
+
+<ResponseField name="SQRL_DASHBOARDS__CACHE_TTL_MINUTES" type="integer" default="60">
+  Time-to-live for cached dashboard results in minutes.
+</ResponseField>
+
+## Seeds
+
+<ResponseField name="SQRL_SEEDS__INFER_SCHEMA" type="boolean" default="true">
+  Whether to automatically infer column types when loading CSV seed files. Set to `false` to treat all columns as strings.
+</ResponseField>
+
+<ResponseField name="SQRL_SEEDS__NA_VALUES" type="string" default="[]">
+  A JSON array of strings to treat as null/NA values when parsing seed CSV files. 
+  
+  Example: `["", "NA", "N/A", "null"]`.
+</ResponseField>
+
+## Connections
+
+<ResponseField name="SQRL_CONNECTIONS__DEFAULT_NAME_USED" type="string" default="default">
+  The default connection name to use when no connection is explicitly specified.
+</ResponseField>
+
+## Virtual Data Lake (VDL)
+
+<ResponseField name="SQRL_VDL__CATALOG_DB_PATH" type="string" default="see below (too long to fit here)">
+  Path to the [ducklake catalog database](https://ducklake.select/docs/stable/duckdb/usage/choosing_a_catalog_database) for the Virtual Data Lake. Supports the `{project_path}` placeholder.
+
+  Default value is `ducklake:{project_path}/target/vdl_catalog.duckdb`.
+</ResponseField>
+
+<ResponseField name="SQRL_VDL__DATA_PATH" type="string" default="{project_path}/target/vdl_data/">
+  Directory path of the [ducklake data files](https://ducklake.select/docs/stable/duckdb/usage/choosing_storage) for the Virtual Data Lake. Supports the `{project_path}` placeholder.
+</ResponseField>
+
+## Squirrels Studio
+
+<ResponseField name="SQRL_STUDIO__BASE_URL" type="string" default="see below (too long to fit here)">
+  URL for fetching the CSS and JavaScript files for the Squirrels Studio application built in to the Squirrels API server. Can be changed to point to a locally-hosted or self-hosted instance of Squirrels Studio.
+
+  Default value is `https://squirrels-analytics.github.io/squirrels-studio-v1`.
+</ResponseField>
+
+## Logging
+
+<ResponseField name="SQRL_LOGGING__LOG_LEVEL" type="string" default="INFO">
+  The logging level. Valid values: `DEBUG`, `INFO`, `WARNING`, `ERROR`, `CRITICAL`.
+</ResponseField>
+
+<ResponseField name="SQRL_LOGGING__LOG_FORMAT" type="string" default="text">
+  Format for log output. Valid values: `text` or `json`.
+</ResponseField>
+
+<ResponseField name="SQRL_LOGGING__LOG_TO_FILE" type="boolean" default="false">
+  Whether to write logs to a file in the `logs/` directory in addition to console output.
+</ResponseField>
+
+<ResponseField name="SQRL_LOGGING__LOG_FILE_SIZE_MB" type="integer" default="50">
+  Maximum size of each log file in megabytes before rotation occurs. Ignored if `SQRL_LOGGING__LOG_TO_FILE` is `false`.
+</ResponseField>
+
+<ResponseField name="SQRL_LOGGING__LOG_FILE_BACKUP_COUNT" type="integer" default="1">
+  Number of backup log files to keep after rotation. Ignored if `SQRL_LOGGING__LOG_TO_FILE` is `false`.
+</ResponseField>
+
+## Example `.env` file
+
+The following are examples of frequently used environment variables.
+
+```bash .env
+# Secrets
+SQRL_SECRET__KEY=your-secret-key-here
+SQRL_SECRET__ADMIN_PASSWORD=your-admin-password
+
+# Parameters
+SQRL_PARAMETERS__DATASOURCE_REFRESH_MINUTES=1440  # 1 day
+
+# Datasets
+SQRL_DATASETS__MAX_ROWS_FOR_AI=20
+
+# Logging
+SQRL_LOGGING__LOG_LEVEL=DEBUG
+SQRL_LOGGING__LOG_TO_FILE=true
+```
+

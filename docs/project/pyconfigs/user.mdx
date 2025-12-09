@@ -1,0 +1,260 @@
+---
+title: User fields & auth providers (user.py)
+description: "Define custom user fields and configure authentication providers"
+---
+
+The `pyconfigs/user.py` file allows you to define custom user attributes and configure OAuth authentication providers for your Squirrels project. This enables user-specific data filtering, access control, and integration with external authentication systems.
+
+<Note>
+
+The `user.py` file is optional. If it doesn't exist, then no custom user fields are defined and no authentication providers are configured.
+
+</Note>
+
+## File structure
+
+The `user.py` file typically contains:
+
+1. A `CustomUserFields` class that extends `auth.CustomUserFields` to define custom user attributes
+2. Optional authentication provider functions decorated with `@auth.provider`
+
+```python pyconfigs/user.py
+from typing import Literal
+from squirrels import auth, arguments as args
+
+
+class CustomUserFields(auth.CustomUserFields):
+    """
+    Extend the CustomUserFields class to add custom user attributes. 
+    - Only the following types are supported: [str, int, float, bool, typing.Literal]
+    - Add "| None" after the type to make it nullable. 
+    - Always set a default value for the field (use None if default is null).
+    """
+    role: Literal["manager", "staff", "customer"] = "staff"
+
+
+@auth.provider(name="google", label="Google", icon="https://www.google.com/favicon.ico")
+def google_auth_provider(sqrl: args.AuthProviderArgs) -> auth.ProviderConfigs:
+    """Provider configs for authenticating a user using Google credentials."""
+    def get_sqrl_user(claims: dict) -> auth.RegisteredUser:
+        custom_fields = CustomUserFields(role="customer")
+        return auth.RegisteredUser(
+            username=claims["email"],
+            access_level="member",
+            custom_fields=custom_fields
+        )
+
+    provider_configs = auth.ProviderConfigs(
+        client_id=sqrl.env_vars["GOOGLE_CLIENT_ID"],
+        client_secret=sqrl.env_vars["GOOGLE_CLIENT_SECRET"],
+        server_url="https://accounts.google.com",
+        client_kwargs={"scope": "openid email profile"},
+        get_user=get_sqrl_user
+    )
+
+    return provider_configs
+```
+
+## CustomUserFields class
+
+The `CustomUserFields` class allows you to define custom attributes that are associated with each authenticated user. These fields can be used for:
+
+- Filtering parameter options based on user attributes
+- Access control in data models
+- User-specific context variables
+- Customizing dataset results based on user permissions
+
+### Class definition
+
+Your `CustomUserFields` class must:
+
+- Extend `auth.CustomUserFields` (imported from `squirrels.auth` or `squirrels`)
+- Be named exactly `CustomUserFields`
+- Have a default value for all fields
+
+```python pyconfigs/user.py
+from typing import Literal
+from squirrels import auth
+
+
+class CustomUserFields(auth.CustomUserFields):
+    role: Literal["manager", "staff", "customer"] = "staff"
+    department: str = "general"
+    employee_id: int | None = None
+```
+
+### Supported field types
+
+Each custom field must be one of the following types:
+
+- `str` - String values
+- `int` - Integer values
+- `float` - Float values
+- `bool` - Boolean values
+- `typing.Literal` - Literal types (e.g., `Literal["option1", "option2"]`)
+
+Add `| None` after the type to make a field nullable.
+
+<Warning>
+
+Always set a default value for each custom field. Use `None` if the default is null. Failure to do so will result in a validation error.
+
+</Warning>
+
+## Authentication providers
+
+Authentication providers enable OAuth-based login for your Squirrels project. Users can authenticate using external providers like Google, Microsoft, GitHub, etc.
+
+### The AuthProviderArgs object
+
+Provider functions receive a `sqrl` argument of type [AuthProviderArgs] that provides:
+
+| Property | Type | Description |
+|----------|------|-------------|
+| `project_path` | `str` | Absolute path to the Squirrels project directory |
+| `proj_vars` | `dict[str, Any]` | Project variables from `squirrels.yml` |
+| `env_vars` | `dict[str, str]` | Environment variables from `.env` files and system |
+
+### Registering a provider
+
+Use the `@auth.provider` decorator to register an authentication provider:
+
+```python
+@auth.provider(
+    name="google", 
+    label="Google", 
+    icon="https://www.google.com/favicon.ico"
+)
+def google_auth_provider(sqrl: args.AuthProviderArgs) -> auth.ProviderConfigs:
+    # Provider configuration
+    pass
+```
+
+The decorated function must:
+
+- Accept an `sqrl` argument of type [AuthProviderArgs]
+- Return a [ProviderConfigs] object
+
+### ProviderConfigs
+
+The [ProviderConfigs] class requires:
+
+- `client_id`: OAuth client ID (typically from environment variables)
+- `client_secret`: OAuth client secret (typically from environment variables)
+- `server_url`: URL of the OAuth server
+- `get_user`: Function that converts OAuth claims to a [RegisteredUser] object
+- `server_metadata_path`: Optional path to OAuth server metadata (defaults to `/.well-known/openid-configuration`)
+- `client_kwargs`: Optional dictionary of additional OAuth client arguments
+
+## Using custom user fields examples
+
+### In context.py
+
+Access custom user fields to create user-specific context variables:
+
+```python pyconfigs/context.py
+from typing import Any, cast
+from squirrels import arguments as args
+
+from pyconfigs.user import CustomUserFields
+
+
+def main(ctx: dict[str, Any], sqrl: args.ContextArgs) -> None:
+    custom_fields = cast(CustomUserFields, sqrl.user.custom_fields)
+    
+    # Create a masking function based on user role
+    if custom_fields.role == "manager":
+        ctx["mask_column"] = lambda x: x
+    else:
+        ctx["mask_column"] = lambda x: "***MASKED***"
+    
+    # Set user-specific filters
+    ctx["user_department"] = custom_fields.department
+    ctx["user_organization"] = custom_fields.organization
+```
+
+### In parameter options
+
+Filter parameter options based on user attributes:
+
+```python pyconfigs/parameters.py
+from squirrels import parameters as p, parameter_options as po
+
+
+@p.MultiSelectParameter.create_with_options(
+    name="departments", 
+    label="Departments",
+    description="Select departments to include",
+    user_attribute="custom_fields.department"
+)
+def department_options():
+    return [
+        po.SelectParameterOption(
+            id="sales", 
+            label="Sales",
+            user_groups=["sales", "executive"]
+        ),
+        po.SelectParameterOption(
+            id="engineering", 
+            label="Engineering",
+            user_groups=["engineering", "executive"]
+        ),
+    ]
+```
+
+### In Python data models
+
+Use custom user fields for access control and filtering:
+
+```python models/federates/fed_sales.py
+from squirrels import arguments as args
+import polars as pl
+from typing import cast
+
+from pyconfigs.user import CustomUserFields
+
+
+def main(sqrl: args.ModelArgs) -> pl.LazyFrame | pl.DataFrame:
+    df = sqrl.ref("sales_data")
+    
+    custom_fields = cast(CustomUserFields, sqrl.user.custom_fields)
+    
+    # Filter by user's department
+    if custom_fields.department:
+        df = df.filter(pl.col("department") == custom_fields.department)
+    
+    # Apply role-based masking
+    if custom_fields.role != "manager":
+        df = df.with_columns(
+            pl.col("sensitive_data").map_elements(
+                lambda x: "***MASKED***", return_dtype=pl.String
+            )
+        )
+    
+    return df
+```
+
+## Best practices
+
+1. **Store secrets in environment variables**: Never hardcode OAuth client IDs and secrets. Use environment variables instead.
+
+2. **Type casting**: When accessing custom fields in `context.py` or data models, use `cast()` to get proper type hints and IDE autocomplete.
+
+## Related pages
+
+- [CustomUserFields] - Full reference for the base class
+- [provider] - Decorator function for registering authentication providers
+- [ProviderConfigs] - Configuration class for OAuth providers
+- [RegisteredUser] - Class representing authenticated users
+- [AuthProviderArgs] - Properties available in the `sqrl` object argument
+- [context.py] - How to use user fields in context variables
+- [parameters.py] - How to filter parameter options by user attributes
+
+
+[CustomUserFields]: /references/python/auth/customuserfields
+[provider]: /references/python/auth/provider
+[ProviderConfigs]: /references/python/auth/providerconfigs
+[RegisteredUser]: /references/python/auth/registereduser
+[AuthProviderArgs]: /references/python/arguments/authproviderargs
+[context.py]: /project/pyconfigs/context
+[parameters.py]: /project/pyconfigs/parameters

@@ -1,0 +1,130 @@
+---
+title: Dashboards (dashboards/)
+description: "Create custom visualizations and reports using Python"
+---
+
+Dashboards allow you to create custom visualizations or reports (in PNG or HTML format) that can be served via the API. They are useful for creating charts, graphs, or formatted text outputs based on your data. Unlike datasets, there is currently no support for serving dashboards to AI agents through MCP tools.
+
+Dashboards are defined in the `dashboards/` directory using Python.
+
+## File structure
+
+The logic of the dashboard is written in a Python file. Optionally, the metadata (such as description and dependencies) can be specified in a YAML file with the same name.
+
+```
+dashboards/
+├── my_dashboard.py      # Python dashboard logic
+└── my_dashboard.yml     # optional configuration
+```
+
+## Python dashboards
+
+A dashboard is defined by a `main` function in a Python file. This function is `async`, receives a [DashboardArgs] object, and returns a `Dashboard` object (specifically, a `PngDashboard` or `HtmlDashboard`).
+
+### Example: PNG Dashboard
+
+This example creates a simple plot using `matplotlib`. `PngDashboard` accepts a `matplotlib.figure.Figure`, `io.BytesIO`, or `bytes`.
+
+```python dashboards/my_plot.py
+from squirrels.arguments import DashboardArgs
+from squirrels.dashboards import PngDashboard
+import matplotlib.pyplot as plt
+
+async def main(sqrl: DashboardArgs) -> PngDashboard:
+    # Get data from a dataset
+    df = await sqrl.dataset("my_federate_model")
+    
+    # Create the plot
+    fig, ax = plt.subplots()
+    ax.plot(df["date"], df["amount"])
+    ax.set_title("Sales Over Time")
+    
+    # Return as PngDashboard
+    return PngDashboard(fig)
+```
+
+### Example: HTML Dashboard
+
+This example creates an HTML report. `HtmlDashboard` accepts a string or `io.StringIO` containing HTML.
+
+```python dashboards/my_report.py
+from squirrels.arguments import DashboardArgs
+from squirrels.dashboards import HtmlDashboard
+
+async def main(sqrl: DashboardArgs) -> HtmlDashboard:
+    # Get data
+    df = await sqrl.dataset("my_federate_model")
+    
+    # Convert to HTML table (using pandas for convenience)
+    html_content = f"<h1>Sales Report</h1>{df.to_pandas().to_html()}"
+    
+    return HtmlDashboard(html_content)
+```
+
+### Accessing datasets
+
+In your Python code, you access datasets using `sqrl.dataset()`. As dashboards are run asynchronously, you must use the `await` keyword.
+
+```python
+df = await sqrl.dataset("my_federate_model")
+```
+
+The `dataset` method returns a [Polars DataFrame][pl DataFrame]. You can pass `fixed_parameters` to filter or configure the dataset for this specific dashboard.
+
+```python
+df = await sqrl.dataset("my_federate_model", fixed_parameters={"category": "electronics"})
+```
+
+## YAML configuration
+
+An optional YAML file with the same name provides additional configuration for the dashboard.
+
+```yaml dashboards/my_plot.yml
+description: |
+  A plot showing sales over time.
+
+format: png   # png or html
+
+depends_on:
+  - name: my_sales_data
+    dataset: my_federate_model
+```
+
+### Configuration fields
+
+<ResponseField name="description" type="string" default="">
+  A description of the dashboard for documentation purposes.
+</ResponseField>
+
+<ResponseField name="format" type="string" default="png">
+  The format of the dashboard output. Options are `png` or `html`.
+</ResponseField>
+
+<ResponseField name="depends_on" type="list[object]" default="[]">
+  List of dataset dependencies. Defining these helps with documentation and lineage.
+
+  <Expandable title="dependency fields" defaultOpen>
+    <ResponseField name="name" type="string" default="">
+      A friendly name for this dependency reference.
+    </ResponseField>
+    
+    <ResponseField name="dataset" type="string" default="">
+      The name of the dataset (federate or dbview) to depend on.
+    </ResponseField>
+    
+    <ResponseField name="fixed_parameters" type="object" default="{}">
+      Optional key-value pairs of fixed parameters to apply to the dataset. The key is the parameter name and the value is the selected option.
+    </ResponseField>
+  </Expandable>
+</ResponseField>
+
+## Related pages
+
+- [Federate models] - Create datasets that can be used in dashboards
+- [DashboardArgs] - API reference for dashboard arguments
+- [Squirrels project structure]
+
+[Federate models]: /project/models/federates
+[DashboardArgs]: /references/python/arguments/dashboardargs
+[Squirrels project structure]: /project/structure
+[pl DataFrame]: https://pola.rs/py-polars/html/reference/dataframe/index.html

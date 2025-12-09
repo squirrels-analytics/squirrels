@@ -1,0 +1,356 @@
+---
+title: Widget parameters (parameters.py)
+description: "Configure parameter widgets with Python"
+---
+
+The `pyconfigs/parameters.py` file allows you to define parameter widgets for your Squirrels project using Python. Parameters are interactive widgets that let users (and AI) customize dataset results at query time.
+
+<Note>
+
+Parameters can also be defined in the [squirrels.yml](/project/squirrels-yml#parameters) file. However, defining parameters here in Python is **strongly recommended** because:
+- IDEs provide autocomplete and type checking for Python
+- You get better error messages during development
+- Python allows more complex logic and dynamic options
+
+</Note>
+
+## File structure
+
+The `parameters.py` file defines parameters using decorator functions. The decorator usually specifies the parameter configurations, and the decorated function returns the parameter options (if applicable).
+
+```python pyconfigs/parameters.py
+from squirrels import parameters as p, parameter_options as po, data_sources as ds
+
+
+@p.SingleSelectParameter.create_simple(
+    name="region", label="Region",
+    description="Filter by region"
+)
+def region_options(sqrl: args.ParametersArgs):  # sqrl argument is optional
+    return [
+        po.SelectParameterOption(id="na", label="North America", is_default=True),
+        po.SelectParameterOption(id="eu", label="Europe"),
+        po.SelectParameterOption(id="ap", label="Asia Pacific"),
+    ]
+```
+
+## The ParametersArgs object
+
+The decorated function for parameter options can optionally define a `sqrl` argument. The `sqrl` argument is a [ParametersArgs] object that provides useful properties for building parameters options dynamically.
+
+| Property | Type | Description |
+|----------|------|-------------|
+| `project_path` | `str` | Absolute path to the Squirrels project directory |
+| `proj_vars` | `dict[str, Any]` | Project variables from `squirrels.yml` |
+| `env_vars` | `dict[str, str]` | Environment variables from `.env` files and system |
+
+## Parameter types
+
+Squirrels supports seven parameter types, each with specific factory methods for creation:
+
+| Type | Description | Widget |
+|------|-------------|--------|
+| [SingleSelectParameter] | Single option from a dropdown | Dropdown |
+| [MultiSelectParameter] | Multiple options from a list | Multi-select |
+| [DateParameter] | Single date selection | Date picker |
+| [DateRangeParameter] | Start and end date range | Date range picker |
+| [NumberParameter] | Single numeric value | Number input/slider |
+| [NumberRangeParameter] | Lower and upper numeric bounds | Range slider |
+| [TextParameter] | Free-form text input | Text field |
+
+## Factory methods
+
+Each parameter type has factory methods (decorators) for creating parameters. The three common patterns are:
+
+| Factory Method | Description | Returns |
+|----------------|-------------|---------|
+| `create_simple()` | Static options for dropdown / multi-select, otherwise does nothing for other parameter types | List of parameter options or None |
+| `create_with_options()` | Parameter options with user attributes or parent cascading | List of parameter options |
+| `create_from_source()` | Parameter options populated from a database or seed | Data source object |
+
+<Tip>
+
+Use `create_simple()` when you don't need user-specific options or parent-child cascading. Use `create_with_options()` when you need either feature. Use `create_from_source()` when options should come from a database table or seed file.
+
+</Tip>
+
+## Parent-child relationships
+
+Parameters can be linked in parent-child relationships where the child parameter's available options depend on the parent parameter's selection. This is configured as follows based on the factory method used:
+
+- `create_with_options()`: Use the `parent_name` argument in the decorator and `parent_option_ids` in each parameter option
+- `create_from_source()`: Use the `parent_name` argument in the decorator and `parent_id_col` in the data source object
+
+### Rules for parent parameters
+
+- The parent parameter must be a select parameter ([SingleSelectParameter] or [MultiSelectParameter])
+- If the child parameter is **not** a select parameter (e.g., [DateParameter], [NumberParameter], etc.), then the parent must be a [SingleSelectParameter]
+
+### Rules for child parameter options
+
+When using `create_with_options()`, the rules for `parent_option_ids` depend on whether the child is a select parameter:
+
+| Child parameter type | Rule for `parent_option_ids` |
+|---------------------|------------------------------|
+| Select parameter | Each parent option id may appear in zero or more child options |
+| Non-select parameter | Each parent option id can appear in **at most one** child option |
+
+When using `create_from_source()`, these rules are enforced based on the `parent_id_col` values in the data source.
+
+<Note>
+
+The same rules apply to `user_groups` (for `create_with_options`) and `user_group_col` (for `create_from_source`) when using `user_attribute` to filter options by a user attribute.
+
+</Note>
+
+### Disabled parameters
+
+A parameter becomes **disabled** when it has no available options. This can happen when:
+
+- The parent parameter's selected value does not match any `parent_option_ids` in the child's options
+- The user's attribute value does not match any `user_groups` in the parameter's options
+
+When a parameter is disabled, `sqrl.param_exists("parameter_name")` returns `False` in `context.py` and data models.
+
+## Examples
+
+### Simple single-select parameter
+
+Create a dropdown where users select one option:
+
+```python pyconfigs/parameters.py
+from squirrels import parameters as p, parameter_options as po
+
+
+@p.SingleSelectParameter.create_simple(
+    name="time_period", label="Time Period",
+    description="Select the reporting time period"
+)
+def time_period_options():
+    return [
+        po.SelectParameterOption(id="day", label="Daily"),
+        po.SelectParameterOption(id="week", label="Weekly", is_default=True),
+        po.SelectParameterOption(id="month", label="Monthly"),
+    ]
+```
+
+### Multi-select parameter with user-specific options
+
+Create a multi-select that shows different options based on user access level:
+
+```python pyconfigs/parameters.py highlight="7,13,17"
+from squirrels import parameters as p, parameter_options as po
+
+
+@p.MultiSelectParameter.create_with_options(
+    name="departments", label="Departments",
+    description="Select departments to include",
+    user_attribute="access_level"
+)
+def department_options():
+    return [
+        po.SelectParameterOption(
+            id="sales", label="Sales",
+            user_groups=["admin", "member", "guest"]
+        ),
+        po.SelectParameterOption(
+            id="executive", label="Executive",
+            user_groups=["admin"]
+        ),
+    ]
+```
+
+You can also choose to use custom user fields defined in `pyconfigs/user.py` to restrict visibility of parameter options.
+
+```python pyconfigs/parameters.py highlight="7,13,17"
+from squirrels import parameters as p, parameter_options as po
+
+
+@p.MultiSelectParameter.create_with_options(
+    name="departments", label="Departments",
+    description="Select departments to include",
+    user_attribute="custom_fields.role"
+)
+def department_options():
+    return [
+        po.SelectParameterOption(
+            id="sales", label="Sales",
+            user_groups=["employee", "executive"]
+        ),
+        po.SelectParameterOption(
+            id="executive", label="Executive",
+            user_groups=["executive"]
+        ),
+    ]
+```
+
+### Single-select from database query
+
+Populate dropdown options from a database table:
+
+```python pyconfigs/parameters.py
+from squirrels import parameters as p, data_sources as ds
+
+
+@p.SingleSelectParameter.create_from_source(
+    name="product_category", label="Product Category",
+    description="Select a product category"
+)
+def product_category_source():
+    return ds.SelectDataSource(
+        table_or_query="""
+            SELECT category_id, category_name
+            FROM categories
+            WHERE is_active = 1
+        """,
+        id_col="category_id",
+        options_col="category_name"
+    )
+```
+
+### Simple date parameter
+
+Create a date parameter using the create_simple() decorator:
+
+```python pyconfigs/parameters.py
+from squirrels import parameters as p
+
+
+@p.DateParameter.create_simple(
+    name="end_date", label="End Date",
+    default_date="2024-01-01",
+    min_date="2024-01-01",
+    max_date="2024-12-31",
+    description="End date for filtering"
+)
+def end_date_options():
+    pass
+```
+
+With the exception of [SingleSelectParameter] and [MultiSelectParameter], functions decorated with the create_simple() decorator should not return anything (i.e., it can simply be `pass`).
+
+### Date parameter as child parameter
+
+Create a date parameter whose constraints change based on a parent parameter selection:
+
+```python pyconfigs/parameters.py highlight="20,28,34"
+from squirrels import parameters as p, parameter_options as po
+
+
+# Parent parameter for fiscal year
+@p.SingleSelectParameter.create_simple(
+    name="fiscal_year", label="Fiscal Year",
+    description="Select the fiscal year"
+)
+def fiscal_year_options():
+    return [
+        po.SelectParameterOption(id="fy2023", label="FY 2023"),
+        po.SelectParameterOption(id="fy2024", label="FY 2024", is_default=True),
+    ]
+
+
+# Child date parameter with ranges that vary by fiscal year
+@p.DateParameter.create_with_options(
+    name="report_date", label="Report Date",
+    description="Date within the selected fiscal year",
+    parent_name="fiscal_year"
+)
+def report_date_options():
+    return [
+        po.DateParameterOption(
+            default_date="2023-01-01",
+            min_date="2023-01-01",
+            max_date="2023-12-31",
+            parent_option_ids=["fy2023"]
+        ),
+        po.DateParameterOption(
+            default_date="2024-01-01",
+            min_date="2024-01-01",
+            max_date="2024-12-31",
+            parent_option_ids=["fy2024"]
+        ),
+    ]
+```
+
+When the user selects "FY 2023", the date picker will be constrained to dates in 2023. When "FY 2024" is selected, the constraints switch to 2024.
+
+### Single-select with custom fields
+
+Add custom fields to options for use in data models:
+
+```python pyconfigs/parameters.py highlight="12-13,17,21"
+from squirrels import parameters as p, parameter_options as po
+
+
+@p.SingleSelectParameter.create_with_options(
+    name="group_by", label="Group By",
+    description="Dimension(s) to aggregate by"
+)
+def group_by_options():
+    return [
+        po.SelectParameterOption(
+            id="day", label="Day",
+            columns=["date"],
+            aliases=["day"]
+        ),
+        po.SelectParameterOption(
+            id="month", label="Month",
+            columns=["month"]
+        ),
+        po.SelectParameterOption(
+            id="category", label="Category",
+            columns=["category"]
+        ),
+    ]
+```
+
+Custom fields like `columns` and `aliases` can be accessed in `context.py` or data models using the `get_selected()` method on the parameter instance.
+
+## Using parameters in models
+
+Once parameters are defined, they are available in your data models through the context. See the [context.py](/project/pyconfigs/context) documentation for details on accessing parameter selections.
+
+Example usage in `context.py`:
+
+```python pyconfigs/context.py
+from typing import Any
+from squirrels import parameters as p, arguments as args
+
+
+def main(ctx: dict[str, Any], sqrl: args.ContextArgs) -> None:
+    # Access a single-select parameter
+    if sqrl.param_exists("region"):
+        region_param = sqrl.prms["region"]
+        assert isinstance(region_param, p.SingleSelectParameter)
+        ctx["selected_region"] = region_param.get_selected_id()
+    
+    # Access a date range parameter
+    if sqrl.param_exists("date_range"):
+        date_range_param = sqrl.prms["date_range"]
+        assert isinstance(date_range_param, p.DateRangeParameter)
+        ctx["start_date"] = date_range_param.get_selected_start_date()
+        ctx["end_date"] = date_range_param.get_selected_end_date()
+```
+
+## Related pages
+
+- [ParametersArgs] - Properties available in the `sqrl` object argument
+- [SingleSelectParameter] - Single-select dropdown parameter
+- [MultiSelectParameter] - Multi-select parameter
+- [DateParameter] - Date picker parameter
+- [DateRangeParameter] - Date range parameter
+- [NumberParameter] - Number input parameter
+- [NumberRangeParameter] - Number range parameter
+- [TextParameter] - Text input parameter
+- [squirrels.yml parameters](/project/squirrels-yml#parameters) - YAML-based parameter configuration
+
+
+[ParametersArgs]: /references/python/arguments/parametersargs
+[SingleSelectParameter]: /references/python/parameters/singleselectparameter
+[MultiSelectParameter]: /references/python/parameters/multiselectparameter
+[DateParameter]: /references/python/parameters/dateparameter
+[DateRangeParameter]: /references/python/parameters/daterangeparameter
+[NumberParameter]: /references/python/parameters/numberparameter
+[NumberRangeParameter]: /references/python/parameters/numberrangeparameter
+[TextParameter]: /references/python/parameters/textparameter
+

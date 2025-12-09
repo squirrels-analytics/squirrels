@@ -1,0 +1,279 @@
+---
+title: Dbview models (dbviews/)
+description: "Create dynamic models that run on external databases at query time"
+---
+
+Dbview models are SQL queries that run directly on external databases at query time. Unlike build models which materialize data in the Virtual Data Lake (VDL), dbview models execute their queries on the original database connection, making them ideal for real-time data access.
+
+Dbview models are stored in the `models/dbviews/` directory and can only be written in SQL (using the dialect of the target database).
+
+## File structure
+
+```python
+models/
+└── dbviews/
+    ├── my_dbview.sql        # SQL dbview model (required)
+    └── my_dbview.yml        # configuration (optional but recommended)
+```
+
+## SQL dbview models
+
+Dbview models are written in the SQL dialect of the database connection they use (e.g., SQLite, PostgreSQL, MySQL).
+
+### Example dbview model
+
+```sql models/dbviews/dbv_transactions.sql
+{#- SQLite dialect (based on connection used) -#}
+
+SELECT 
+    date,
+    printf('%.2f', amount) as amount,
+    CASE 
+        WHEN '{{ user.custom_fields.role }}' = 'manager' THEN description
+        ELSE '***MASKED***'
+    END as description
+
+FROM {{ source("src_transactions") }}
+
+WHERE date >= date('now', '-30 days')
+
+ORDER BY date DESC
+```
+
+### Available Jinja variables
+
+The following variables are commonly used in dbview models:
+
+| Variable                     | Description                                                 |
+|------------------------------|-------------------------------------------------------------|
+| `ctx`                        | Dictionary of context variables from `context.py`           |
+| `source(source_name)`        | Macro that returns the table name for the referenced source |
+| `ref(source_name)`           | Alias for `source()`                                        |
+| `is_placeholder(name)`       | Check if a placeholder exists                               |
+
+The following variables are also available in dbview models, but are less commonly used given the availability of `ctx`:
+
+| Variable                     | Description                                       |
+|------------------------------|---------------------------------------------------|
+| `proj_vars`                  | Dictionary of project variables from `squirrels.yml` |
+| `env_vars`                   | Dictionary of environment variables               |
+| `user`                       | The authenticated user object with `username` and `custom_fields` |
+| `prms`                       | Dictionary of parameter objects                   |
+| `param_exists(param_name)`   | Check if a parameter exists and is enabled        |
+| `set_placeholder(name, value)` | Register a parameterized query placeholder      |
+
+### The `source()` macro
+
+The `source()` macro (also available as `ref()`) is used to reference source models:
+
+```sql
+-- Reference a source
+FROM {{ source("src_customers") }}
+
+-- Using ref() as an alias
+FROM {{ ref("src_customers") }}
+```
+
+<Warning>
+
+Dbview models can **only** reference sources - not seeds, build models, or other model types. Use federate models if you need to reference those.
+
+</Warning>
+
+## YAML configuration
+
+The YAML configuration file specifies the database connection and other options:
+
+```yaml models/dbviews/dbv_transactions.yml
+description: |
+  Shows recent transactions with masked descriptions for non-manager users.
+
+connection: default         # database connection to use
+
+translate_to_duckdb: false  # whether to translate and run on DuckDB instead
+
+depends_on:                 # optional - derived from source() macro
+  - src_transactions
+
+columns:
+  - name: date
+    depends_on:
+      - src_transactions.date
+    pass_through: true
+  
+  - name: amount
+    type: float
+    description: Transaction amount formatted to 2 decimal places
+    category: measure
+  
+  - name: description
+    type: string
+    description: Transaction description (masked for non-managers)
+    category: dimension
+```
+
+### Configuration fields
+
+<ResponseField name="description" type="string" default="">
+  A description of the model for documentation purposes.
+</ResponseField>
+
+<ResponseField name="connection" type="string" default="default">
+  The database connection to use. Must match a connection defined in `squirrels.yml` or `pyconfigs/connections.py`. If not specified, uses the default connection.
+</ResponseField>
+
+<ResponseField name="translate_to_duckdb" type="boolean" default="false">
+  If `true`, the SQL query is translated from the source database's dialect to DuckDB and executed on the VDL instead of the external database. See [Query translation](#query-translation) for details.
+</ResponseField>
+
+<ResponseField name="depends_on" type="list[string]" default="[]">
+  List of source names this dbview depends on. Optional but recommended. Squirrels can derive this from `source()` macro calls.
+</ResponseField>
+
+<ResponseField name="columns" type="list[object]" default="[]">
+  Column metadata definitions as a list. 
+
+  <Expandable title="column metadata fields" defaultOpen>
+    <ResponseField name="name" type="string" required>
+      Column name
+    </ResponseField>
+    
+    <ResponseField name="type" type="string" default="">
+      Data type (e.g., `string`, `integer`, `decimal`)
+    </ResponseField>
+    
+    <ResponseField name="description" type="string" default="">
+      Column description
+    </ResponseField>
+    
+    <ResponseField name="category" type="string" default="">
+      One of `dimension`, `measure`, or `misc` (for miscellaneous)
+    </ResponseField>
+    
+    <ResponseField name="condition" type="string" default="">
+      Description of when the column is included (for documentation)
+    </ResponseField>
+    
+    <ResponseField name="depends_on" type="list[string]" default="[]">
+      List of upstream column references if any (e.g., `src_transactions.amount`)
+    </ResponseField>
+    
+    <ResponseField name="pass_through" type="boolean" default="false">
+      If `true`, inherit metadata (`type`, `description`, `category`, `condition`) from the upstream column. Requires exactly **one** entry in `depends_on`. Fields that are explicitly set on the current column take precedence over inherited values.
+    </ResponseField>
+  </Expandable>
+</ResponseField>
+
+## Source referencing rules
+
+Dbview models have specific rules for referencing sources:
+
+### Same connection required
+
+A dbview model can only reference sources that share the **same database connection**. This is because dbview queries run directly on the external database.
+
+```yaml
+# This dbview uses connection "finance_db"
+connection: finance_db
+
+depends_on:
+  - src_transactions  # Must also use connection "finance_db"
+```
+
+### translate_to_duckdb restriction
+
+If `translate_to_duckdb: true`, the dbview can only reference sources with `load_to_vdl: true`. This is because the translated query runs on DuckDB using VDL data.
+
+## Query translation
+
+The `translate_to_duckdb` option enables automatic SQL dialect translation:
+
+```yaml
+connection: postgres_db
+translate_to_duckdb: true
+```
+
+When enabled:
+1. The SQL query is parsed using the source database's dialect
+2. The query is translated to DuckDB SQL dialect using [sqlglot](https://sqlglot.com/sqlglot.html)
+3. The query runs on the VDL instead of the external database
+4. Source references resolve to VDL table names
+
+The translation supports any SQL dialect that sqlglot supports, including PostgreSQL, MySQL, SQLite, Snowflake, BigQuery, Redshift, Spark, Trino, and [many more](https://sqlglot.com/sqlglot/dialects.html).
+
+This is useful when:
+- You want the performance of running analytical queries on DuckDB instead of a transactional database
+- You want to reduce load on the external database
+- You prefer working with the SQL dialect of your external database
+
+<Warning>
+
+`translate_to_duckdb` is **not allowed** when the dbview's connection type is DuckDB (as opposed to SQLAlchemy, ConnectorX, etc.). In this case, use a federate model instead.
+
+</Warning>
+
+## Dynamic queries with parameters
+
+Dbview models can use parameters and context variables to create dynamic queries:
+
+```sql models/dbviews/dbv_transactions.sql
+SELECT 
+    date,
+    amount,
+    category
+FROM {{ source("src_transactions") }}
+WHERE 1=1
+    AND date >= '{{ ctx.start_date }}'
+    AND category = '{{ ctx.selected_category }}'
+ORDER BY date DESC
+```
+
+## Using placeholders for SQL injection prevention
+
+For user-provided values, use placeholders to prevent SQL injection:
+
+```sql models/dbviews/dbv_transactions.sql
+SELECT *
+FROM {{ source("src_transactions") }}
+WHERE description LIKE :description
+```
+
+The `:placeholder_name` syntax when using a SQLAlchemy connection type (or `$placeholder_name` for DuckDB connection type) is used in the query for parameterized execution.
+
+The placeholder can be set using [context variables](/project/context) in `pyconfigs/context.py`. For instance:
+
+```python pyconfigs/context.py
+from typing import Any
+from squirrels import arguments as args, parameters as p
+
+
+def main(ctx: dict[str, Any], sqrl: args.ContextArgs) -> None:
+    if sqrl.param_exists("description"):
+        description_param = sqrl.prms["description"]
+        assert isinstance(description_param, p.TextParameter)
+        
+        description = description_param.get_entered_text()
+        
+        # Set a placeholder for use in SQL queries
+        sqrl.set_placeholder("description", description.apply_percent_wrap())
+```
+
+## Best practices
+
+1. **Use descriptive names**: Prefix dbview names with `dbv_` to distinguish them from other model types.
+2. **Be mindful of query performance**: Dbview queries run on the external database in real-time. If the external database is not optimized for large-scale analytical queries, consider using `translate_to_duckdb` to run the query on DuckDB instead.
+3. **Use translate_to_duckdb strategically**: Enable this option to reduce load on production databases, but be aware that you'll be querying potentially stale VDL data.
+4. **Document conditional columns**: If a specific column only exists based on parameter selections, use the `condition` field to document it.
+5. **Use placeholders for user input**: Always use placeholders (e.g. `:min_amount`) for values that come from user text input to prevent SQL injection.
+6. **Mask sensitive data**: Use conditional logic based on user fields to mask sensitive columns.
+
+## Related pages
+
+- [Sources] - Configure source tables from external databases
+- [Federate models] - Dynamic models that run on DuckDB
+- [Context variables] - Set context variables that transforms parameter selections into meaningful values at runtime
+
+
+[Sources]: /project/models/sources
+[Federate models]: /project/models/federates
+[Context variables]: /project/context

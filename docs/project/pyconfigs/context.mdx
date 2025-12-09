@@ -1,0 +1,414 @@
+---
+title: Context variables at runtime (context.py)
+description: "Define shared context variables for Jinja templates and Python models"
+---
+
+The `pyconfigs/context.py` file allows you to define context variables that are shared across all your data models. These variables are computed after parameter selections are made and are available to both Jinja SQL templates and Python data models.
+
+<Note>
+
+The `main` function in `context.py` runs **every time** an API request is made, after parameter selections are processed but before data models are executed. This makes it the ideal place to transform parameter selections into reusable context variables.
+
+</Note>
+
+## File structure
+
+The `context.py` file must define a `main` function with the following signature:
+
+```python pyconfigs/context.py
+from typing import Any
+from squirrels import arguments as args
+
+
+def main(ctx: dict[str, Any], sqrl: args.ContextArgs) -> None:
+    """
+    Define context variables by adding entries to the "ctx" dictionary.
+    These context variables can then be used in your data models.
+    """
+    pass
+```
+
+<Expandable title="arguments" defaultOpen>
+  <ResponseField name="ctx" type="dict[str, Any]" required>
+    A dictionary to populate with your context variables. The keys are variable names (strings) that you'll reference in your data models, and the values can be of any type (strings, numbers, lists, dictionaries, functions, etc.).
+    
+    Variables added to this dictionary are available in:
+    - Jinja SQL templates via `{{ ctx.variable_name }}`
+    - Python data models via `sqrl.ctx["variable_name"]`
+  </ResponseField>
+
+  <ResponseField name="sqrl" type="ContextArgs" required>
+    A [ContextArgs] object providing access to parameters, user information, project configuration, and environment variables.
+  </ResponseField>
+</Expandable>
+
+## The ContextArgs object
+
+The `sqrl` argument is a [ContextArgs] object that provides useful properties and methods for building context variables.
+
+| Property | Type | Description |
+|----------|------|-------------|
+| `project_path` | `str` | Absolute path to the Squirrels project directory |
+| `proj_vars` | `dict[str, Any]` | Project variables from `squirrels.yml` |
+| `env_vars` | `dict[str, str]` | Environment variables from `.env` files and system |
+| `user` | `AbstractUser` | The current authenticated user |
+| `prms` | `dict[str, Parameter]` | Dictionary of parameter names to parameter instances |
+| `configurables` | `dict[str, str]` | Dictionary of configurable name to value (set by application) |
+
+### Common methods
+
+#### param_exists()
+
+Checks whether a parameter exists and is enabled (has available options).
+
+```python
+def param_exists(self, param_name: str) -> bool
+```
+
+Returns `True` if the parameter exists and is enabled, `False` otherwise. A parameter becomes disabled when it has no available options (e.g., due to parent-child cascading or user attribute filtering).
+
+#### set_placeholder()
+
+Sets a placeholder value for use in SQL queries. This is useful for dynamic SQL generation where you want to use placeholders instead of direct string interpolation.
+
+```python
+def set_placeholder(self, placeholder: str, value: TextValue | Any) -> str
+```
+
+Returns an empty string (so it can be called from Jinja templates). See the [placeholders section](#placeholders) for more details.
+
+## Accessing parameters
+
+To access parameter selections in `context.py`, use `sqrl.param_exists()` to check if a parameter exists, then access it from `sqrl.prms`. Each parameter type has specific methods to get selected values:
+
+```python pyconfigs/context.py
+from typing import Any
+from squirrels import arguments as args, parameters as p
+
+
+def main(ctx: dict[str, Any], sqrl: args.ContextArgs) -> None:
+    # Check if parameter exists before accessing
+    if sqrl.param_exists("region"):
+        region_param = sqrl.prms["region"]
+        assert isinstance(region_param, p.SingleSelectParameter)
+        
+        # Get the selected option ID
+        ctx["region_id"] = region_param.get_selected_id()
+```
+
+<Tip>
+
+It's generally better to transform parameter selections into context variables in `context.py` rather than accessing parameters directly in data models. This provides:
+- Better IDE autocomplete and type checking
+- Centralized logic for parameter transformations
+- Easier maintenance and testing
+
+</Tip>
+
+## Examples
+
+### Single-select parameter
+
+Extract the selected ID from a single-select parameter:
+
+```python pyconfigs/context.py
+from typing import Any
+from squirrels import arguments as args, parameters as p
+
+
+def main(ctx: dict[str, Any], sqrl: args.ContextArgs) -> None:
+    if sqrl.param_exists("region"):
+        region_param = sqrl.prms["region"]
+        assert isinstance(region_param, p.SingleSelectParameter)
+        ctx["region_id"] = region_param.get_selected_id()
+```
+
+### Multi-select parameter
+
+Extract selected IDs as a list and check if any selections were made:
+
+```python pyconfigs/context.py
+from typing import Any
+from squirrels import arguments as args, parameters as p
+
+
+def main(ctx: dict[str, Any], sqrl: args.ContextArgs) -> None:
+    if sqrl.param_exists("categories"):
+        category_param = sqrl.prms["categories"]
+        assert isinstance(category_param, p.MultiSelectParameter)
+        
+        ctx["has_categories"] = category_param.has_non_empty_selection()
+        ctx["category_ids"] = category_param.get_selected_ids_as_list()
+```
+
+### Date parameters
+
+Extract date values from date and date range parameters:
+
+```python pyconfigs/context.py
+from typing import Any
+from squirrels import arguments as args, parameters as p
+
+
+def main(ctx: dict[str, Any], sqrl: args.ContextArgs) -> None:
+    # Single date parameter
+    if sqrl.param_exists("start_date"):
+        start_date_param = sqrl.prms["start_date"]
+        assert isinstance(start_date_param, p.DateParameter)
+        ctx["start_date"] = start_date_param.get_selected_date()
+    
+    # Date range parameter
+    if sqrl.param_exists("date_range"):
+        date_range_param = sqrl.prms["date_range"]
+        assert isinstance(date_range_param, p.DateRangeParameter)
+        ctx["start_date"] = date_range_param.get_selected_start_date()
+        ctx["end_date"] = date_range_param.get_selected_end_date()
+```
+
+### Number parameters
+
+Extract numeric values from number and number range parameters:
+
+```python pyconfigs/context.py
+from typing import Any
+from squirrels import arguments as args, parameters as p
+
+
+def main(ctx: dict[str, Any], sqrl: args.ContextArgs) -> None:
+    # Single number parameter
+    if sqrl.param_exists("min_amount"):
+        min_amount_param = sqrl.prms["min_amount"]
+        assert isinstance(min_amount_param, p.NumberParameter)
+        ctx["min_amount"] = min_amount_param.get_selected_value()
+    
+    # Number range parameter
+    if sqrl.param_exists("amount_range"):
+        amount_range_param = sqrl.prms["amount_range"]
+        assert isinstance(amount_range_param, p.NumberRangeParameter)
+        ctx["min_amount"] = amount_range_param.get_selected_lower_value()
+        ctx["max_amount"] = amount_range_param.get_selected_upper_value()
+```
+
+### Text parameter
+
+Set a placeholder for text input value (recommended for SQL injection prevention):
+
+```python pyconfigs/context.py
+from typing import Any
+from squirrels import arguments as args, parameters as p
+
+
+def main(ctx: dict[str, Any], sqrl: args.ContextArgs) -> None:
+    if sqrl.param_exists("search_term"):
+        search_term_param = sqrl.prms["search_term"]
+        assert isinstance(search_term_param, p.TextParameter)
+
+        search_term = search_term_param.get_entered_text()
+        sqrl.set_placeholder("search_term", search_term.apply_percent_wrap())
+```
+
+### Accessing custom fields from parameter options
+
+If your parameter options have custom fields, you can access them using `get_selected()`:
+
+```python pyconfigs/context.py
+from typing import Any
+from squirrels import arguments as args, parameters as p
+
+
+def main(ctx: dict[str, Any], sqrl: args.ContextArgs) -> None:
+    if sqrl.param_exists("group_by"):
+        group_by_param = sqrl.prms["group_by"]
+        assert isinstance(group_by_param, p.SingleSelectParameter)
+        
+        # Get custom fields from the selected option
+        columns = group_by_param.get_selected("columns")
+        aliases = group_by_param.get_selected("aliases", default_field="columns")
+        
+        # Create a mapping dictionary
+        ctx["column_to_alias_mapping"] = {
+            col: alias for col, alias in zip(columns, aliases) 
+            if not alias.startswith("_")
+        }
+```
+
+### User-based context variables
+
+Access user information to create user-specific context variables:
+
+```python pyconfigs/context.py
+from typing import Any, cast
+from squirrels import arguments as args, parameters as p
+
+from pyconfigs.user import CustomUserFields
+
+
+def main(ctx: dict[str, Any], sqrl: args.ContextArgs) -> None:
+    custom_fields = cast(CustomUserFields, sqrl.user.custom_fields)
+    
+    # Create a masking function based on user role
+    if custom_fields.role == "manager":
+        ctx["mask_column"] = lambda x: x
+    else:
+        ctx["mask_column"] = lambda x: "***MASKED***"
+    
+    # Or for SQL templates, return SQL string
+    if custom_fields.role == "manager":
+        ctx["mask_column_sql"] = lambda x: x
+    else:
+        ctx["mask_column_sql"] = lambda x: "'***MASKED***'"
+```
+
+## Using context variables in models
+
+### In Jinja SQL templates
+
+Access context variables using `{{ ctx.variable_name }}`:
+
+```sql models/federates/fed_sales_report.sql
+SELECT 
+    {{ ctx.select_dim_cols | join }},
+    CAST({{ ctx.aggregator }}(amount) AS DECIMAL(15, 2)) as total_amount
+FROM {{ ref("build_example") }}
+WHERE date >= '{{ ctx.start_date }}'
+    AND date <= '{{ ctx.end_date }}'
+{%- if ctx.has_categories %}
+    AND category_id IN ({{ ctx.category_ids | quote_and_join }})
+{%- endif %}
+{%- if ctx.group_by_cols %}
+GROUP BY {{ ctx.group_by_cols | join }}
+{%- endif %}
+ORDER BY {{ ctx.order_by_cols_desc | join }}
+```
+
+### In Python models
+
+Access context variables using `sqrl.ctx["variable_name"]`:
+
+```python models/federates/fed_sales_report.py
+from squirrels import arguments as args
+import polars as pl
+
+
+def main(sqrl: args.ModelArgs) -> pl.LazyFrame | pl.DataFrame:
+    df = sqrl.ref("build_example")
+    
+    # Filter by date range
+    df = df.filter(
+        (pl.col("date") >= sqrl.ctx["start_date"]) &
+        (pl.col("date") <= sqrl.ctx["end_date"])
+    )
+    
+    # Filter by categories if provided
+    if sqrl.ctx.get("has_categories"):
+        category_ids: list[str] = sqrl.ctx["category_ids"]
+        df = df.filter(pl.col("category_id").is_in(category_ids))
+    
+    # Apply column mappings
+    df = df.rename(sqrl.ctx.get("column_to_alias_mapping", {}))
+    
+    # Group by if specified
+    group_by_cols: list[str] | None = sqrl.ctx.get("group_by_cols")
+    if group_by_cols is not None:
+        df = df.group_by(group_by_cols).agg(
+            pl.sum("amount").alias("total_amount")
+        )
+    
+    return df
+```
+
+### Using functions from context
+
+You can store functions in the context dictionary and use them in Python models:
+
+```python pyconfigs/context.py
+def main(ctx: dict[str, Any], sqrl: args.ContextArgs) -> None:
+    # Store a function for masking sensitive data
+    ctx["mask_column_function"] = lambda x: x if sqrl.user.custom_fields.role == "manager" else "***MASKED***"
+```
+
+```python models/federates/fed_model.py
+def main(sqrl: args.ModelArgs) -> pl.LazyFrame:
+    df = sqrl.ref("source_table")
+    
+    # Apply masking function if it exists
+    mask_func = sqrl.ctx.get("mask_column_function")
+    if mask_func and "description" in df.columns:
+        df = df.with_columns(
+            pl.col("description").map_elements(mask_func, return_dtype=pl.String)
+        )
+    
+    return df
+```
+
+## Placeholders
+
+Placeholders are a way to set values that can be referenced in SQL queries using parameterized queries (which helps prevent SQL injection). Use `sqrl.set_placeholder()` to set placeholder values:
+
+```python pyconfigs/context.py
+from typing import Any
+from squirrels import arguments as args, parameters as p
+
+
+def main(ctx: dict[str, Any], sqrl: args.ContextArgs) -> None:
+    if sqrl.param_exists("region"):
+        region_param = sqrl.prms["region"]
+        assert isinstance(region_param, p.TextParameter)
+        
+        region = region_param.get_entered_text()
+        
+        # Set a placeholder for use in SQL queries
+        sqrl.set_placeholder("region", region.apply_percent_wrap())
+```
+
+In SQL templates, you can then reference placeholders using `:placeholder_name` (for SQLAlchemy) or `$placeholder_name` (for DuckDB):
+
+```sql models/federates/fed_model.sql
+-- For SQLAlchemy connections
+SELECT * FROM sales WHERE region LIKE :region
+
+-- For DuckDB connections
+SELECT * FROM sales WHERE region LIKE $region
+```
+
+<Warning>
+
+When using placeholders, ensure your connection type supports them. SQLAlchemy connections support `:param_name` syntax, while DuckDB connections support `$param_name` syntax. ConnectorX and ADBC connections do not support placeholders.
+
+</Warning>
+
+## Best practices
+
+1. **Check parameter existence**: Always use `sqrl.param_exists()` before accessing parameters to avoid errors when parameters are disabled or don't exist.
+
+2. **Type assertions**: Use `isinstance()` checks to ensure you're working with the correct parameter type before calling type-specific methods.
+
+3. **Centralize logic**: Put parameter transformation logic in `context.py` rather than accessing parameters directly in data models.
+
+4. **Use descriptive names**: Choose clear, descriptive names for context variables that indicate their purpose.
+
+5. **Handle missing values**: Use `.get()` with defaults when accessing context variables in Python models to handle cases where variables might not be set.
+
+## Related pages
+
+- [ContextArgs] - Full reference for the `sqrl` argument object
+- [parameters.py](/project/pyconfigs/parameters) - How to define parameters
+- [user.py](/project/pyconfigs/user) - How to define custom user fields
+- [SingleSelectParameter] - Single-select parameter reference
+- [MultiSelectParameter] - Multi-select parameter reference
+- [DateParameter] - Date parameter reference
+- [DateRangeParameter] - Date range parameter reference
+- [NumberParameter] - Number parameter reference
+- [NumberRangeParameter] - Number range parameter reference
+- [TextParameter] - Text parameter reference
+
+
+[ContextArgs]: /references/python/arguments/contextargs
+[SingleSelectParameter]: /references/python/parameters/singleselectparameter
+[MultiSelectParameter]: /references/python/parameters/multiselectparameter
+[DateParameter]: /references/python/parameters/dateparameter
+[DateRangeParameter]: /references/python/parameters/daterangeparameter
+[NumberParameter]: /references/python/parameters/numberparameter
+[NumberRangeParameter]: /references/python/parameters/numberrangeparameter
+[TextParameter]: /references/python/parameters/textparameter
+
