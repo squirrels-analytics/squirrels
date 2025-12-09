@@ -1,0 +1,307 @@
+---
+title: Federate models (federates/)
+description: "Create dynamic models that run on DuckDB at query time"
+---
+
+Federate models are data transformations that run at query time on the embedded DuckDB engine. They can reference sources, seeds, build models, dbview results, and other federate models, making them ideal for creating the final dataset layer that responds to user parameter selections.
+
+Federate models are stored in the `models/federates/` directory and can be written in SQL (DuckDB dialect) or Python.
+
+## File structure
+
+```python
+models/
+└── federates/
+    ├── my_federate.sql          # SQL federate model
+    ├── my_federate.yml          # configuration (optional for SQL, required for Python)
+    ├── my_python_federate.py    # Python federate model
+    └── my_python_federate.yml   # configuration (required for Python)
+```
+
+## SQL federate models
+
+SQL federate models use the DuckDB dialect and support full Jinja templating with access to parameters, context variables, and user information.
+
+### Example SQL model
+
+```sql models/federates/fed_transactions_summary.sql
+{#- DuckDB dialect -#}
+
+SELECT 
+    {{ ctx.group_by_column }} AS dimension,
+    CAST(SUM(amount) AS DECIMAL(15, 2)) AS total_amount,
+    COUNT(*) AS transaction_count
+
+FROM {{ ref("build_transactions") }}
+
+WHERE date >= '{{ ctx.start_date }}'
+    AND date <= '{{ ctx.end_date }}'
+{%- if ctx.has_category_filter %}
+    AND category_id IN ({{ ctx.selected_categories | quote_and_join }})
+{%- endif %}
+
+GROUP BY {{ ctx.group_by_column }}
+
+ORDER BY total_amount DESC
+```
+
+### Available Jinja variables
+
+The following variables are commonly used in federate models:
+
+| Variable                     | Description                                                 |
+|------------------------------|-------------------------------------------------------------|
+| `ctx`                        | Dictionary of context variables from `context.py`           |
+| `ref(model_name)`            | Macro that returns the table name for the referenced model  |
+| `is_placeholder(name)`       | Check if a placeholder exists                               |
+
+The following variables are also available in federate models, but are less commonly used given the availability of `ctx`:
+
+| Variable                     | Description                                       |
+|------------------------------|---------------------------------------------------|
+| `proj_vars`                  | Dictionary of project variables from `squirrels.yml` |
+| `env_vars`                   | Dictionary of environment variables               |
+| `user`                       | The authenticated user object with `username` and `custom_fields` |
+| `prms`                       | Dictionary of parameter objects                   |
+| `param_exists(param_name)`   | Check if a parameter exists and is enabled        |
+| `set_placeholder(name, value)` | Register a parameterized query placeholder      |
+| `configurables`              | Dictionary of configurable values set by the application |
+
+### The `ref()` macro
+
+The `ref()` macro is used to reference other models. Federate models can reference:
+
+- **Sources** (with `load_to_vdl: true` or DuckDB connection type)
+- **Seeds**
+- **Build models**
+- **Dbview models**
+- **Other federate models**
+
+```sql
+-- Reference a source (must have load_to_vdl: true or use DuckDB connection)
+FROM {{ ref("src_customers") }}
+
+-- Reference a seed
+FROM {{ ref("seed_categories") }}
+
+-- Reference a build model
+FROM {{ ref("build_transactions") }}
+
+-- Reference a dbview model
+FROM {{ ref("dbv_recent_sales") }}
+
+-- Reference another federate model
+FROM {{ ref("fed_base_metrics") }}
+```
+
+## Python federate models
+
+Python federate models define a `main()` function that receives a [ModelArgs] object and returns a Polars LazyFrame (or DataFrame).
+
+### Example Python model
+
+```python models/federates/fed_transactions_summary.py
+from squirrels import arguments as args
+import polars as pl
+
+
+def main(sqrl: args.ModelArgs) -> pl.LazyFrame:
+    """
+    Create a federate model that summarizes transactions based on parameter selections.
+    """
+    df = sqrl.ref("build_transactions")
+    
+    # Apply date filters from context
+    df = df.filter(
+        (pl.col("date") >= sqrl.ctx["start_date"]) &
+        (pl.col("date") <= sqrl.ctx["end_date"])
+    )
+    
+    # Apply category filter if selected
+    if sqrl.ctx.get("has_category_filter"):
+        categories = sqrl.ctx["selected_categories"]
+        df = df.filter(pl.col("category_id").is_in(categories))
+    
+    # Group by the selected dimension
+    group_col = sqrl.ctx["group_by_column"]
+    df = df.group_by(group_col).agg([
+        pl.sum("amount").cast(pl.Decimal(precision=15, scale=2)).alias("total_amount"),
+        pl.count().alias("transaction_count")
+    ])
+    
+    # Sort by total amount descending
+    df = df.sort("total_amount", descending=True)
+    
+    return df
+```
+
+## YAML configuration
+
+The YAML configuration file specifies dependencies and other options:
+
+```yaml models/federates/fed_transactions_summary.yml
+description: |
+  Summarizes transactions by a selected dimension with optional category filtering.
+
+depends_on:                # required for Python models, optional for SQL
+  - build_transactions
+
+eager: false               # whether to materialize as TABLE instead of VIEW
+
+columns:
+  - name: dimension
+    type: string
+    description: The selected dimension for grouping
+    category: dimension
+  
+  - name: total_amount
+    type: decimal
+    description: Sum of transaction amounts
+    category: measure
+    depends_on:
+      - build_transactions.amount
+  
+  - name: transaction_count
+    type: integer
+    description: Number of transactions
+    category: measure
+```
+
+### Configuration fields
+
+<ResponseField name="description" type="string" default="">
+  A description of the model for documentation purposes or for use by data consumers (such as AI agents).
+</ResponseField>
+
+<ResponseField name="depends_on" type="list[string]" default="[]">
+  List of model names this federate depends on. Optional for SQL models (derived from `ref()` calls), but **required for Python models**.
+</ResponseField>
+
+<ResponseField name="eager" type="boolean" default="false">
+  If `true`, the SQL model result is materialized as a TABLE in memory. If `false`, it's created as a VIEW. This only applies to SQL models. See [Eager vs lazy evaluation](#eager-vs-lazy-evaluation) for details.
+</ResponseField>
+
+<ResponseField name="columns" type="list[object]" default="[]">
+  Column metadata definitions as a list. 
+
+  <Expandable title="column metadata fields" defaultOpen>
+    <ResponseField name="name" type="string" required>
+      Column name
+    </ResponseField>
+    
+    <ResponseField name="type" type="string" default="">
+      Data type (e.g., `string`, `integer`, `decimal`)
+    </ResponseField>
+    
+    <ResponseField name="description" type="string" default="">
+      Column description
+    </ResponseField>
+    
+    <ResponseField name="category" type="string" default="">
+      One of `dimension`, `measure`, or `misc`
+    </ResponseField>
+    
+    <ResponseField name="condition" type="string" default="">
+      Description of when the column is included (for documentation)
+    </ResponseField>
+    
+    <ResponseField name="depends_on" type="list[string]" default="[]">
+      List of upstream column references if any (e.g., `build_transactions.amount`)
+    </ResponseField>
+    
+    <ResponseField name="pass_through" type="boolean" default="false">
+      If `true`, inherit metadata (`type`, `description`, `category`, `condition`) from the upstream column. Requires exactly **one** entry in `depends_on`. Fields that are explicitly set on the current column take precedence over inherited values.
+    </ResponseField>
+  </Expandable>
+</ResponseField>
+
+## Eager vs lazy evaluation
+
+The `eager` setting controls how SQL federate models are created in DuckDB:
+
+| Setting | DuckDB Object | Use Case |
+|---------|---------------|----------|
+| `eager: false` (default) | VIEW | Single-use results, saves memory |
+| `eager: true` | TABLE | Results referenced multiple times, complex calculations |
+
+When enabled:
+1. The federate model result is materialized as a TABLE in the temporary in-memory DuckDB database per request
+2. Subsequent references to this model read from the materialized table
+3. This prevents redundant computation when the same result is used multiple times
+
+<Note>
+
+The `eager` setting only applies to SQL federate models. Python federate models use polars LazyFrames or DataFrames (depending on what is returned by the model). However, they are registered with DuckDB when referenced by downstream SQL models, or collected as a DataFrame if used as the dataset response.
+
+</Note>
+
+## Using placeholders for SQL injection prevention
+
+For user-provided values, use placeholders to prevent SQL injection:
+
+```sql models/federates/fed_transactions.sql
+SELECT *
+FROM {{ ref("build_transactions") }}
+WHERE description LIKE $description
+```
+
+The `$placeholder_name` syntax (for DuckDB) is used in the query for parameterized execution.
+
+The placeholder can be set using [context variables](/project/context) in `pyconfigs/context.py`. For instance:
+
+```python pyconfigs/context.py
+from typing import Any
+from squirrels import arguments as args, parameters as p
+
+
+def main(ctx: dict[str, Any], sqrl: args.ContextArgs) -> None:
+    if sqrl.param_exists("description"):
+        description_param = sqrl.prms["description"]
+        assert isinstance(description_param, p.TextParameter)
+        
+        description = description_param.get_entered_text()
+        
+        # Set a placeholder for use in SQL queries
+        sqrl.set_placeholder("description", description.apply_percent_wrap())
+```
+
+## Connecting to datasets
+
+In `squirrels.yml`, you reference a data model as the `model` for a dataset. The target model can be any type of data model (source, seed, build, dbview, or federate):
+
+```yaml squirrels.yml
+datasets:
+  - name: transaction_analytics
+    label: Transaction Analytics
+    model: fed_transactions_summary  # can reference any model type
+    parameters:
+      - date_range
+      - category_filter
+      - group_by
+```
+
+## Best practices
+
+1. **Use descriptive names**: Prefix federate names with `fed_` to distinguish them from other model types.
+2. **Use context variables**: Define complex logic in `context.py` and use simple context variable references in your SQL/Python models.
+3. **Declare dependencies in YAML**: Unlike SQL models which auto-detect dependencies via `ref()`, Python models require explicit `depends_on` in the YAML configuration. It is also recommended to declare dependencies in YAML for SQL models.
+4. **Document conditional columns**: If a specific column only exists based on parameter selections, use the `condition` field to document it.
+5. **Use placeholders for user input**: Always use `set_placeholder()` for values that come from user text input to prevent SQL injection.
+6. **Mask sensitive data**: Use conditional logic based on user fields to mask sensitive columns.
+
+## Related pages
+
+- [Sources] - Configure source tables from external databases if loading to the VDL
+- [Seeds] - Static CSV data files
+- [Build models] - Materialized models in the VDL
+- [Dbview models] - Dynamic models that run on external databases
+- [Context variables] - Set context variables that transform parameter selections into meaningful values at runtime
+- [ModelArgs] - API reference for Python federate model arguments
+
+
+[Seeds]: /project/seeds
+[Build models]: /project/models/builds
+[Dbview models]: /project/models/dbviews
+[Sources]: /project/models/sources
+[Context variables]: /project/context
+[ModelArgs]: /references/python/arguments/modelargs

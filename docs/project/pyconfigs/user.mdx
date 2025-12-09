@@ -18,7 +18,7 @@ The `user.py` file typically contains:
 1. A `CustomUserFields` class that extends `auth.CustomUserFields` to define custom user attributes
 2. Optional authentication provider functions decorated with `@auth.provider`
 
-```python
+```python pyconfigs/user.py
 from typing import Literal
 from squirrels import auth, arguments as args
 
@@ -72,7 +72,7 @@ Your `CustomUserFields` class must:
 - Be named exactly `CustomUserFields`
 - Have a default value for all fields
 
-```python
+```python pyconfigs/user.py
 from typing import Literal
 from squirrels import auth
 
@@ -152,7 +152,7 @@ The [ProviderConfigs] class requires:
 
 Access custom user fields to create user-specific context variables:
 
-```python
+```python pyconfigs/context.py
 from typing import Any, cast
 from squirrels import arguments as args
 
@@ -177,7 +177,7 @@ def main(ctx: dict[str, Any], sqrl: args.ContextArgs) -> None:
 
 Filter parameter options based on user attributes:
 
-```python
+```python pyconfigs/parameters.py
 from squirrels import parameters as p, parameter_options as po
 
 
@@ -206,7 +206,7 @@ def department_options():
 
 Use custom user fields for access control and filtering:
 
-```python
+```python models/federates/fed_sales.py
 from squirrels import arguments as args
 import polars as pl
 from typing import cast
@@ -247,8 +247,8 @@ def main(sqrl: args.ModelArgs) -> pl.LazyFrame | pl.DataFrame:
 - [ProviderConfigs] - Configuration class for OAuth providers
 - [RegisteredUser] - Class representing authenticated users
 - [AuthProviderArgs] - Properties available in the `sqrl` object argument
-- [context.py](/project/pyconfigs/context) - How to use user fields in context variables
-- [parameters.py](/project/pyconfigs/parameters) - How to filter parameter options by user attributes
+- [context.py] - How to use user fields in context variables
+- [parameters.py] - How to filter parameter options by user attributes
 
 
 [CustomUserFields]: /references/python/auth/customuserfields
@@ -256,4 +256,5 @@ def main(sqrl: args.ModelArgs) -> pl.LazyFrame | pl.DataFrame:
 [ProviderConfigs]: /references/python/auth/providerconfigs
 [RegisteredUser]: /references/python/auth/registereduser
 [AuthProviderArgs]: /references/python/arguments/authproviderargs
-
+[context.py]: /project/pyconfigs/context
+[parameters.py]: /project/pyconfigs/parameters

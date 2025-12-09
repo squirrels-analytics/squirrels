@@ -39,7 +39,7 @@ Seed CSV files should follow standard CSV formatting:
 
 ### Example
 
-```csv seed_categories.csv
+```csv seeds/seed_categories.csv
 "category_id","category"
 "0","Food"
 "1","Bills"
@@ -52,30 +52,41 @@ Seed CSV files should follow standard CSV formatting:
 
 The optional YAML configuration file allows you to define metadata and column types for your seed.
 
-### Configuration options
+### Configuration fields
 
-<Expandable title="Seed configuration fields" defaultOpen>
-  <ResponseField name="description" type="string" default="">
-    A description of the seed data. This is used for documentation purposes.
-  </ResponseField>
+<ResponseField name="description" type="string" default="">
+  A description of the seed data. This is used for documentation purposes.
+</ResponseField>
 
-  <ResponseField name="cast_column_types" type="boolean" default="false">
-    When set to `true`, columns are cast to the types specified in the `columns` configuration. This overrides the `SQRL_SEEDS__INFER_SCHEMA` environment variable for this specific seed.
-  </ResponseField>
+<ResponseField name="cast_column_types" type="boolean" default="false">
+  When set to `true`, columns are cast to the types specified in the `columns` configuration. This overrides the `SQRL_SEEDS__INFER_SCHEMA` environment variable for this specific seed.
+</ResponseField>
 
-  <ResponseField name="columns" type="list" default="[]">
-    A list of column configurations. Each column can specify:
-    - `name` (required): The column name as it appears in the CSV header
-    - `type`: The data type of the column. 
-      - If `cast_column_types` is `true`, this field must be set to a [supported type](#supported-types). If the column type is not recognized, an error is raised.
-    - `description`: A description of the column
-    - `category`: The column category, either `dimension`, `measure`, or `misc`
-  </ResponseField>
-</Expandable>
+<ResponseField name="columns" type="list[object]" default="[]">
+  Column metadata definitions as a list. Expand below for fields of each item.
+
+  <Expandable title="column metadata fields">
+    <ResponseField name="name" type="string" required>
+      The column name as it appears in the CSV header
+    </ResponseField>
+    
+    <ResponseField name="type" type="string" default="">
+      The data type of the column. If `cast_column_types` is `true`, this field must be set to a [supported type](#supported-types). If the column type is not recognized, an error is raised.
+    </ResponseField>
+    
+    <ResponseField name="description" type="string" default="">
+      A description of the column
+    </ResponseField>
+    
+    <ResponseField name="category" type="string" default="">
+      One of `dimension`, `measure`, or `misc` (for miscellaneous)
+    </ResponseField>
+  </Expandable>
+</ResponseField>
 
 ### Example
 
-```yaml
+```yaml seeds/seed_categories.yml
 description: |
   Lookup table for the category IDs and names of transactions.
 
@@ -95,7 +106,7 @@ columns:
 
 ## Environment variables
 
-Two environment variables control how seeds are loaded:
+Two [environment variables][Environment variables] control how seeds are loaded:
 
 <ResponseField name="SQRL_SEEDS__INFER_SCHEMA" type="boolean" default="true">
   Whether to automatically infer column types when loading CSV seed files. Set to `false` to treat all columns as strings by default.
@@ -119,8 +130,7 @@ Seeds are available to use in your data models after they are loaded. You can re
 
 Use the `ref()` function to reference a seed:
 
-```sql
--- models/federates/enriched_transactions.sql
+```sql models/federates/fed_transactions.sql
 SELECT 
     t.transaction_id,
     t.amount,
@@ -134,8 +144,7 @@ LEFT JOIN {{ ref("seed_categories") }} c
 
 Use the `sqrl.ref()` method to get a seed as a Polars LazyFrame:
 
-```python
-# models/federates/enriched_transactions.py
+```python models/federates/fed_transactions.py
 from squirrels import arguments as args
 import polars as pl
 
@@ -200,7 +209,7 @@ The following table shows all supported Squirrels column types and their corresp
 | `float`, `float4`, `real` | `pl.Float32` |
 | `double`, `float8` | `pl.Float64` |
 | `decimal` | `pl.Decimal(precision=18, scale=2)` |
-| `decimal(my_precision, my_scale)` | `pl.Decimal(my_precision, my_scale)` |
+| `decimal(x, y)` | `pl.Decimal(precision=x, scale=y)` |
 | `boolean`, `bool`, `logical` | `pl.Boolean` |
 | `date` | `pl.Date` |
 | `time` | `pl.Time` |
@@ -230,7 +239,13 @@ When `cast_column_types: true` is set, the `SQRL_SEEDS__INFER_SCHEMA` environmen
 
 ## Related pages
 
-- [Project structure](/project/structure) - Overview of files in a Squirrels project
-- [Environment variables](/project/env-vars#seeds) - Seed-related environment variables
-- [Build models](/project/models/builds) - For larger datasets that need to be materialized
-- [Sources](/project/models/sources) - For connecting to existing database tables
+- [Environment variables] - Seed-related environment variables
+- [Sources] - For connecting to existing database tables
+- [Build models] - For larger datasets that need to be materialized
+- [Federate models] - For larger datasets that need to be materialized
+
+
+[Environment variables]: /project/env-vars
+[Sources]: /project/models/sources
+[Build models]: /project/models/builds
+[Federate models]: /project/models/federates

@@ -1,0 +1,225 @@
+---
+title: Build models (builds/)
+description: "Create materialized data models that run during the build process"
+---
+
+Build models are data transformations that run during the build process (such as the [sqrl build](/references/cli/build) CLI command) and materialize their results in the Virtual Data Lake (VDL). They are used to create reusable data layers that can be referenced by other models.
+
+Build models can be written in SQL (DuckDB dialect) or Python, and are stored in the `models/builds/` directory.
+
+## File structure
+
+The logic of the build model can be written in SQL or Python. Optionally, the metadata of the build model (such as column descriptions) can be specified in a YAML file with the same name.
+
+```python
+models/
+└── builds/
+    ├── my_build_model.sql   # SQL build model
+    ├── my_build_model.yml   # optional configuration
+    ├── my_python_model.py   # Python build model
+    └── my_python_model.yml  # optional configuration
+```
+
+## SQL build models
+
+SQL build models use the DuckDB SQL dialect and support Jinja templating.
+
+### Example SQL model
+
+```sql models/builds/build_transactions.sql
+{#- DuckDB dialect -#}
+
+SELECT
+    t.id,
+    t.date,
+    t.amount,
+    c.category_name
+FROM {{ ref("src_transactions") }} t
+LEFT JOIN {{ ref("seed_categories") }} c 
+    ON t.category_id = c.category_id
+```
+
+### Available Jinja variables
+
+The following variables are available in SQL build models:
+
+| Variable | Description |
+|----------|-------------|
+| `proj_vars` | Dictionary of project variables from `squirrels.yml` |
+| `env_vars` | Dictionary of environment variables |
+| `ref(model_name)` | Macro that returns the table name for the referenced model |
+
+### The `ref()` macro
+
+The `ref()` macro is used to reference other models. It can reference:
+
+- **Sources** (with `load_to_vdl: true` or DuckDB connection type)
+- **Seeds**
+- **Other build models**
+
+```sql
+-- Reference a source
+FROM {{ ref("src_customers") }}
+
+-- Reference a seed
+FROM {{ ref("seed_categories") }}
+
+-- Reference another build model
+FROM {{ ref("build_transactions") }}
+```
+
+## Python build models
+
+Python build models define a `main()` function that receives a [BuildModelArgs] object and returns a Polars LazyFrame (or DataFrame).
+
+### Example Python model
+
+```python models/builds/build_transactions.py
+from squirrels import arguments as args
+import polars as pl
+
+
+def main(sqrl: args.BuildModelArgs) -> pl.LazyFrame:
+    transactions = sqrl.ref("src_transactions")
+    categories = sqrl.ref("seed_categories")
+    
+    result = transactions.join(
+        categories, on="category_id", how="left"
+    ).select(["id", "date", "amount", "category_name"])
+    
+    return result
+```
+
+## YAML configuration
+
+An optional YAML file with the same name provides additional configuration for the model.
+
+```yaml models/builds/build_transactions.yml
+description: |
+  Enriched transaction data with category names joined.
+
+materialization: TABLE     # TABLE or VIEW - default is VIEW for SQL, ignored for Python (always TABLE)
+
+depends_on:                # required for Python models, optional for SQL models
+  - src_transactions
+  - seed_categories
+
+columns:
+  - name: id
+    depends_on:
+      - src_transactions.id
+    pass_through: true     # inherit metadata from upstream column
+  
+  - name: date
+    type: string
+    description: Transaction date
+    category: dimension
+  
+  - name: amount
+    type: decimal
+    description: Transaction amount
+    category: measure
+  
+  - name: category_name
+    type: string
+    description: Category name
+    category: dimension
+```
+
+### Configuration fields
+
+<ResponseField name="description" type="string" default="">
+  A description of the model for documentation purposes.
+</ResponseField>
+
+<ResponseField name="materialization" type="string" default="VIEW">
+  How the model is stored in the VDL. Options are `TABLE` or `VIEW`. 
+  
+  <Note>
+  Python models are always materialized as tables regardless of this setting.
+  </Note>
+</ResponseField>
+
+<ResponseField name="depends_on" type="list[string]" default="[]">
+  List of model names this build model depends on. Optional for SQL models (derived from `ref()` calls), but **required for Python models**.
+</ResponseField>
+
+<ResponseField name="columns" type="list[object]" default="[]">
+  Column metadata definitions as a list. 
+
+  <Expandable title="column metadata fields" defaultOpen>
+    <ResponseField name="name" type="string" default="">
+      Column name
+    </ResponseField>
+    
+    <ResponseField name="type" type="string" default="">
+      Data type (e.g., `string`, `integer`, `decimal`)
+    </ResponseField>
+    
+    <ResponseField name="description" type="string" default="">
+      Column description
+    </ResponseField>
+    
+    <ResponseField name="category" type="string" default="">
+      One of `dimension`, `measure`, or `misc` (for miscellaneous)
+    </ResponseField>
+    
+    <ResponseField name="depends_on" type="list[string]" default="[]">
+      List of upstream column references if any (e.g., `src_transactions.amount`)
+    </ResponseField>
+    
+    <ResponseField name="pass_through" type="boolean" default="false">
+      If `true`, inherit metadata (`type`, `description`, `category`, `condition`) from the upstream column. Requires exactly **one** entry in `depends_on`. Fields that are explicitly set on the current column take precedence over inherited values.
+    </ResponseField>
+  </Expandable>
+</ResponseField>
+
+## Materialization
+
+Build models can be materialized as either **tables** or **views** in the VDL:
+
+| Materialization | Description |
+|-----------------|-------------|
+| `TABLE` | Data is stored physically. Faster for repeated queries, but takes more storage. |
+| `VIEW` | Data is computed on-demand. Saves storage, but slower if queried multiple times. |
+
+```yaml
+# Materialize as a table
+materialization: TABLE
+
+# Materialize as a view (default)
+materialization: VIEW
+```
+
+<Note>
+
+Python build models are always materialized as tables, regardless of the `materialization` setting. This is because DuckDB only supports view definitions in SQL, not Python.
+
+</Note>
+
+## Best practices
+
+1. **Use descriptive names**: Prefix build model names with `build_` to distinguish them from other model types.
+
+2. **Declare dependencies explicitly**: Even though SQL models can auto-detect dependencies via `ref()`, explicitly listing them in YAML helps with documentation.
+
+3. **Use pass_through for inherited columns**: When a column passes through unchanged from an upstream model, use `pass_through: true` to automatically inherit its metadata.
+
+4. **Choose materialization wisely**: Use `TABLE` for models that are queried frequently or have expensive computations. Use `VIEW` for simple transformations or infrequently accessed models.
+
+## Related pages
+
+- [Sources] - Configure source tables from external databases
+- [Seeds] - Static CSV data files
+- [Federate models] - Dynamic models that run at query time
+- [Dbview models] - Models that run on external databases
+- [BuildModelArgs] - API reference for Python build model arguments
+- [sqrl build] - CLI reference for `sqrl build`
+
+
+[Sources]: /project/models/sources
+[Seeds]: /project/seeds
+[Federate models]: /project/models/federates
+[Dbview models]: /project/models/dbviews
+[BuildModelArgs]: /references/python/arguments/buildmodelargs
+[sqrl build]: /references/cli/build

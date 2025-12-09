@@ -23,7 +23,7 @@ The default connection name is `default` unless set differently by the environme
 
 The `connections.py` file must define a `main` function with the following signature:
 
-```python
+```python pyconfigs/connections.py
 from typing import Any
 from squirrels import arguments as args, connections as cn
 
@@ -61,7 +61,7 @@ The `sqrl` argument is a [ConnectionsArgs] object that provides useful propertie
 
 Add connections by assigning [ConnectionProperties] objects to the `connections` dictionary:
 
-```python
+```python pyconfigs/connections.py
 from typing import Any
 from squirrels import arguments as args, connections as cn
 
@@ -101,7 +101,7 @@ Squirrels supports four connection types via [ConnectionTypeEnum]:
 
 ### SQLite connection
 
-```python
+```python pyconfigs/connections.py
 def main(connections: dict[str, cn.ConnectionProperties | Any], sqrl: args.ConnectionsArgs) -> None:
     connections["sqlite_db"] = cn.ConnectionProperties(
         label="SQLite Database",
@@ -112,7 +112,7 @@ def main(connections: dict[str, cn.ConnectionProperties | Any], sqrl: args.Conne
 
 ### PostgreSQL connection
 
-```python
+```python pyconfigs/connections.py
 def main(connections: dict[str, cn.ConnectionProperties | Any], sqrl: args.ConnectionsArgs) -> None:
     connections["postgres"] = cn.ConnectionProperties(
         label="Production Database",
@@ -127,7 +127,7 @@ def main(connections: dict[str, cn.ConnectionProperties | Any], sqrl: args.Conne
 
 ### DuckDB connection
 
-```python
+```python pyconfigs/connections.py
 def main(connections: dict[str, cn.ConnectionProperties | Any], sqrl: args.ConnectionsArgs) -> None:
     # Connect to a DuckDB file
     connections["analytics"] = cn.ConnectionProperties(
@@ -146,7 +146,7 @@ def main(connections: dict[str, cn.ConnectionProperties | Any], sqrl: args.Conne
 
 ### Multiple connections with environment-based logic
 
-```python
+```python pyconfigs/connections.py
 def main(connections: dict[str, cn.ConnectionProperties | Any], sqrl: args.ConnectionsArgs) -> None:
     env = sqrl.env_vars.get("ENVIRONMENT", "development")
     
@@ -166,7 +166,7 @@ def main(connections: dict[str, cn.ConnectionProperties | Any], sqrl: args.Conne
 
 ### High-performance connection with ConnectorX
 
-```python
+```python pyconfigs/connections.py
 def main(connections: dict[str, cn.ConnectionProperties | Any], sqrl: args.ConnectionsArgs) -> None:
     # ConnectorX for fast bulk data loading (no placeholder support)
     connections["bulk_loader"] = cn.ConnectionProperties(
@@ -180,7 +180,7 @@ def main(connections: dict[str, cn.ConnectionProperties | Any], sqrl: args.Conne
 
 You can also add custom connection objects (such as pre-configured database clients) to the dictionary:
 
-```python
+```python pyconfigs/connections.py
 import joblib
 
 def main(connections: dict[str, cn.ConnectionProperties | Any], sqrl: args.ConnectionsArgs) -> None:

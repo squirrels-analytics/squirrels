@@ -1,0 +1,146 @@
+---
+title: Macros (macros/)
+description: "Reusable Jinja SQL snippets for your Squirrels project"
+---
+
+Macros are reusable Jinja templates that can be called from your SQL models. They help you DRY (Don't Repeat Yourself) your SQL code by encapsulating common patterns, calculations, or logic into reusable snippets.
+
+If you are new to Jinja, the following are some resources to get started:
+
+- [Jinja documentation](https://jinja.palletsprojects.com/)
+- [Primer on Jinja by Real Python](https://realpython.com/primer-on-jinja-templating/)
+
+## File structure
+
+Macros are stored in the `macros/` directory at the root of your Squirrels project:
+
+```
+macros/
+├── metrics.sql           # macro definitions
+└── subdirectory/         # macros can be nested in subdirectories
+    └── utils.sql
+```
+
+<Note>
+
+Macros are loaded recursively from the `macros/` directory and its subdirectories. All macros from all files are available globally across your SQL models.
+
+</Note>
+
+## Supported file extensions
+
+Squirrels loads macro files with any of the following extensions:
+
+- `.sql`
+- `.j2`
+- `.jinja`
+- `.jinja2`
+
+All files with these extensions in the `macros/` directory (and subdirectories) are automatically loaded when the project initializes.
+
+## Creating macros
+
+Macros use Jinja's `{% macro %}` syntax. Here's the basic structure:
+
+```sql macros/my_macros.sql
+{%- macro macro_name(arg1, arg2) -%}
+    -- SQL or Jinja code here
+    {{ arg1 }} = {{ arg2 }}
+{%- endmacro -%}
+```
+
+### Basic example
+
+Here's a simple macro that generates filter conditions:
+
+```sql macros/filters.sql
+{%- macro date_range_filter(column, start_date, end_date) -%}
+    {{ column }} >= {{ start_date | quote }}
+    AND {{ column }} <= {{ end_date | quote }}
+{%- endmacro -%}
+```
+
+## Using macros in models
+
+Macros can be used in any SQL model (builds, dbviews, or federates) by calling them with `{{ macro_name(args) }}`:
+
+```sql models/federates/fed_my_model.sql
+SELECT *
+FROM {{ ref("my_table") }}
+WHERE {{ date_range_filter("date", ctx.start_date, ctx.end_date) }}
+```
+
+### Using the `indent` filter
+
+When embedding multi-line macro output, use the `indent` filter to maintain proper SQL formatting:
+
+```sql
+SELECT
+    column1,
+    {{ my_macro() | indent(4) }}
+FROM table
+```
+
+The number passed to `indent` specifies the number of spaces to add to each line after the first.
+
+## Built-in Jinja filters
+
+Squirrels provides several useful Jinja filters for use in macros and models:
+
+<ResponseField name="quote" type="filter">
+  Wraps a value in quotes. Accepts optional parameters `q` (quote character, default: `'`) and `attribute` (attribute name if variable is an object, default: `None`).
+  
+  ```sql
+  {{ ctx.category | quote }}          -- 'Electronics'
+  {{ ctx.category | quote(q='"') }}   -- "Electronics"
+  {{ ctx.object | quote(q='"', attribute="name") }}
+  ```
+</ResponseField>
+
+<ResponseField name="join" type="filter">
+  Joins a list of values with a delimiter. Accepts optional parameters `d` (delimiter, default: `,`) and `attribute` (attribute name if items are objects, default: `None`).
+  
+  ```sql
+  {{ ctx.categories | join }}              -- Food, Bills, Shopping
+  {{ ctx.categories | join(d=' OR ') }}    -- Food OR Bills OR Shopping
+  {{ ctx.objects | join(attribute="name") }}
+  ```
+</ResponseField>
+
+<ResponseField name="quote_and_join" type="filter">
+  Quotes each value in a list and joins them with a delimiter. Accepts optional parameters `q` (quote character, default: `'`), `d` (delimiter, default: `,`), and `attribute` (attribute name if items are objects, default: `None`).
+  
+  ```sql
+  {{ ctx.categories | quote_and_join }}    -- 'Food', 'Bills', 'Shopping'
+  ```
+</ResponseField>
+
+## Macros from packages
+
+If you use Squirrels packages (defined in `squirrels.yml`), macros from those packages are also available. Package macros are loaded from their respective `macros/` directories before your project's macros.
+
+```yaml squirrels.yml
+packages:
+  - git: https://github.com/org/shared-analytics.git
+    revision: v1.0.0
+    directory: shared_analytics
+```
+
+Macros from `sqrl_packages/shared_analytics/macros/` will be available in your models.
+
+<Note>
+
+When package macros and project macros have the same name, the project macro takes precedence since project macros are loaded last.
+
+</Note>
+
+## Related pages
+
+- [Build models] - Static models that use macros
+- [Dbview models] - Dynamic SQL models that use macros
+- [Federate models] - Dynamic models that use macros
+
+
+[Build models]: /project/models/builds
+[Dbview models]: /project/models/dbviews
+[Federate models]: /project/models/federates

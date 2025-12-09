@@ -15,7 +15,7 @@ The `main` function in `context.py` runs **every time** an API request is made, 
 
 The `context.py` file must define a `main` function with the following signature:
 
-```python
+```python pyconfigs/context.py
 from typing import Any
 from squirrels import arguments as args
 
@@ -81,7 +81,7 @@ Returns an empty string (so it can be called from Jinja templates). See the [pla
 
 To access parameter selections in `context.py`, use `sqrl.param_exists()` to check if a parameter exists, then access it from `sqrl.prms`. Each parameter type has specific methods to get selected values:
 
-```python
+```python pyconfigs/context.py
 from typing import Any
 from squirrels import arguments as args, parameters as p
 
@@ -111,7 +111,7 @@ It's generally better to transform parameter selections into context variables i
 
 Extract the selected ID from a single-select parameter:
 
-```python
+```python pyconfigs/context.py
 from typing import Any
 from squirrels import arguments as args, parameters as p
 
@@ -127,7 +127,7 @@ def main(ctx: dict[str, Any], sqrl: args.ContextArgs) -> None:
 
 Extract selected IDs as a list and check if any selections were made:
 
-```python
+```python pyconfigs/context.py
 from typing import Any
 from squirrels import arguments as args, parameters as p
 
@@ -145,7 +145,7 @@ def main(ctx: dict[str, Any], sqrl: args.ContextArgs) -> None:
 
 Extract date values from date and date range parameters:
 
-```python
+```python pyconfigs/context.py
 from typing import Any
 from squirrels import arguments as args, parameters as p
 
@@ -169,7 +169,7 @@ def main(ctx: dict[str, Any], sqrl: args.ContextArgs) -> None:
 
 Extract numeric values from number and number range parameters:
 
-```python
+```python pyconfigs/context.py
 from typing import Any
 from squirrels import arguments as args, parameters as p
 
@@ -193,7 +193,7 @@ def main(ctx: dict[str, Any], sqrl: args.ContextArgs) -> None:
 
 Set a placeholder for text input value (recommended for SQL injection prevention):
 
-```python
+```python pyconfigs/context.py
 from typing import Any
 from squirrels import arguments as args, parameters as p
 
@@ -202,14 +202,16 @@ def main(ctx: dict[str, Any], sqrl: args.ContextArgs) -> None:
     if sqrl.param_exists("search_term"):
         search_term_param = sqrl.prms["search_term"]
         assert isinstance(search_term_param, p.TextParameter)
-        sqrl.set_placeholder("search_term", search_term_param.get_selected_value())
+
+        search_term = search_term_param.get_entered_text()
+        sqrl.set_placeholder("search_term", search_term.apply_percent_wrap())
 ```
 
 ### Accessing custom fields from parameter options
 
 If your parameter options have custom fields, you can access them using `get_selected()`:
 
-```python
+```python pyconfigs/context.py
 from typing import Any
 from squirrels import arguments as args, parameters as p
 
@@ -234,7 +236,7 @@ def main(ctx: dict[str, Any], sqrl: args.ContextArgs) -> None:
 
 Access user information to create user-specific context variables:
 
-```python
+```python pyconfigs/context.py
 from typing import Any, cast
 from squirrels import arguments as args, parameters as p
 
@@ -263,8 +265,7 @@ def main(ctx: dict[str, Any], sqrl: args.ContextArgs) -> None:
 
 Access context variables using `{{ ctx.variable_name }}`:
 
-```sql
--- models/federates/sales_report.sql
+```sql models/federates/fed_sales_report.sql
 SELECT 
     {{ ctx.select_dim_cols | join }},
     CAST({{ ctx.aggregator }}(amount) AS DECIMAL(15, 2)) as total_amount
@@ -284,8 +285,7 @@ ORDER BY {{ ctx.order_by_cols_desc | join }}
 
 Access context variables using `sqrl.ctx["variable_name"]`:
 
-```python
-# models/federates/sales_report.py
+```python models/federates/fed_sales_report.py
 from squirrels import arguments as args
 import polars as pl
 
@@ -321,15 +321,13 @@ def main(sqrl: args.ModelArgs) -> pl.LazyFrame | pl.DataFrame:
 
 You can store functions in the context dictionary and use them in Python models:
 
-```python
-# In context.py
+```python pyconfigs/context.py
 def main(ctx: dict[str, Any], sqrl: args.ContextArgs) -> None:
     # Store a function for masking sensitive data
     ctx["mask_column_function"] = lambda x: x if sqrl.user.custom_fields.role == "manager" else "***MASKED***"
 ```
 
-```python
-# In Python model
+```python models/federates/fed_model.py
 def main(sqrl: args.ModelArgs) -> pl.LazyFrame:
     df = sqrl.ref("source_table")
     
@@ -347,7 +345,7 @@ def main(sqrl: args.ModelArgs) -> pl.LazyFrame:
 
 Placeholders are a way to set values that can be referenced in SQL queries using parameterized queries (which helps prevent SQL injection). Use `sqrl.set_placeholder()` to set placeholder values:
 
-```python
+```python pyconfigs/context.py
 from typing import Any
 from squirrels import arguments as args, parameters as p
 
@@ -355,22 +353,22 @@ from squirrels import arguments as args, parameters as p
 def main(ctx: dict[str, Any], sqrl: args.ContextArgs) -> None:
     if sqrl.param_exists("region"):
         region_param = sqrl.prms["region"]
-        assert isinstance(region_param, p.SingleSelectParameter)
+        assert isinstance(region_param, p.TextParameter)
         
-        region_id = region_param.get_selected_id()
+        region = region_param.get_entered_text()
         
         # Set a placeholder for use in SQL queries
-        sqrl.set_placeholder("region_id", region_id)
+        sqrl.set_placeholder("region", region.apply_percent_wrap())
 ```
 
 In SQL templates, you can then reference placeholders using `:placeholder_name` (for SQLAlchemy) or `$placeholder_name` (for DuckDB):
 
-```sql
+```sql models/federates/fed_model.sql
 -- For SQLAlchemy connections
-SELECT * FROM sales WHERE region_id = :region_id
+SELECT * FROM sales WHERE region LIKE :region
 
 -- For DuckDB connections
-SELECT * FROM sales WHERE region_id = $region_id
+SELECT * FROM sales WHERE region LIKE $region
 ```
 
 <Warning>

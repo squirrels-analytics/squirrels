@@ -6,7 +6,7 @@ description: |
 
 connection: default         # optional - if not provided, will use default connection specified in the SQRL_CONNECTIONS__DEFAULT_NAME_USED setting
 
-translate_to_duckdb: false  # optional - default is false - if true, then the model will be translated to duckdb for supported dialects (SQLite, PostgreSQL, MySQL)
+translate_to_duckdb: false  # optional - default is false - if true, then the model will be translated to duckdb if dialect is supported by sqlglot
 
 depends_on:                 # optional - Squirrels is able to derive this from the "source" macro in the SQL file
   - src_transactions
