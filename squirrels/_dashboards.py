@@ -101,7 +101,7 @@ class DashboardFormat(Enum):
 class DashboardDependencies(BaseModel):
     name: str
     dataset: str
-    fixed_parameters: list[dict[str, str]] = Field(default_factory=list)
+    fixed_parameters: dict[str, str] = Field(default_factory=dict)
 
 class DashboardConfig(AnalyticsOutputConfig):
     format: DashboardFormat = Field(default=DashboardFormat.PNG)

@@ -368,7 +368,7 @@ Each test set is defined as a list item with the following properties:
   </ResponseField>
   <ResponseField name="user" type="object" default="{}">
     User context for the test set.
-    <Expandable title="user properties">
+    <Expandable title="user properties" defaultOpen>
       <ResponseField name="access_level" type="string" default="guest">
         The user's access level. One of `admin`, `member`, or `guest`.
       </ResponseField>
@@ -419,7 +419,7 @@ Environment variables are loaded from `.env` and `.env.local` files in your proj
 
 Here's a complete example of a `squirrels.yml` file:
 
-```yaml
+```yaml squirrels.yml
 project_variables:
   name: expense_analytics
   label: "Expense Analytics"

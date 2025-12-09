@@ -18,7 +18,7 @@ Parameters can also be defined in the [squirrels.yml](/project/squirrels-yml#par
 
 The `parameters.py` file defines parameters using decorator functions. The decorator usually specifies the parameter configurations, and the decorated function returns the parameter options (if applicable).
 
-```python
+```python pyconfigs/parameters.py
 from squirrels import parameters as p, parameter_options as po, data_sources as ds
 
 
@@ -118,7 +118,7 @@ When a parameter is disabled, `sqrl.param_exists("parameter_name")` returns `Fal
 
 Create a dropdown where users select one option:
 
-```python
+```python pyconfigs/parameters.py
 from squirrels import parameters as p, parameter_options as po
 
 
@@ -138,7 +138,7 @@ def time_period_options():
 
 Create a multi-select that shows different options based on user access level:
 
-```python highlight="7,13,17"
+```python pyconfigs/parameters.py highlight="7,13,17"
 from squirrels import parameters as p, parameter_options as po
 
 
@@ -162,7 +162,7 @@ def department_options():
 
 You can also choose to use custom user fields defined in `pyconfigs/user.py` to restrict visibility of parameter options.
 
-```python highlight="7,13,17"
+```python pyconfigs/parameters.py highlight="7,13,17"
 from squirrels import parameters as p, parameter_options as po
 
 
@@ -188,7 +188,7 @@ def department_options():
 
 Populate dropdown options from a database table:
 
-```python
+```python pyconfigs/parameters.py
 from squirrels import parameters as p, data_sources as ds
 
 
@@ -212,7 +212,7 @@ def product_category_source():
 
 Create a date parameter using the create_simple() decorator:
 
-```python
+```python pyconfigs/parameters.py
 from squirrels import parameters as p
 
 
@@ -233,7 +233,7 @@ With the exception of [SingleSelectParameter] and [MultiSelectParameter], functi
 
 Create a date parameter whose constraints change based on a parent parameter selection:
 
-```python highlight="20,28,34"
+```python pyconfigs/parameters.py highlight="20,28,34"
 from squirrels import parameters as p, parameter_options as po
 
 
@@ -278,7 +278,7 @@ When the user selects "FY 2023", the date picker will be constrained to dates in
 
 Add custom fields to options for use in data models:
 
-```python highlight="12-13,17,21"
+```python pyconfigs/parameters.py highlight="12-13,17,21"
 from squirrels import parameters as p, parameter_options as po
 
 
@@ -312,7 +312,7 @@ Once parameters are defined, they are available in your data models through the 
 
 Example usage in `context.py`:
 
-```python
+```python pyconfigs/context.py
 from typing import Any
 from squirrels import parameters as p, arguments as args
 
