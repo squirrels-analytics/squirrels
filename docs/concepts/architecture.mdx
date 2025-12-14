@@ -1,0 +1,252 @@
+---
+title: Architecture
+description: "Understanding the lifecycle phases and data flow in Squirrels projects"
+---
+
+Squirrels projects operate in three distinct phases: **buildtime**, **server startup**, and **runtime**. Understanding these phases helps you design efficient data pipelines and optimize your analytics APIs.
+
+## Overview
+
+The following diagram illustrates the complete lifecycle of a Squirrels project:
+
+```mermaid
+flowchart TB
+    subgraph buildtime["🔨 Buildtime (sqrl build)"]
+        direction LR
+        B1[Load seeds from CSV files]
+        B2[Load sources with load_to_vdl=true]
+        B3[Execute build models in dependency order]
+        B4[(Virtual Data Lake)]
+        B1 --> B4
+        B2 --> B4
+        B3 --> B4
+    end
+
+    subgraph startup["🚀 Startup-time (sqrl run)"]
+        direction TB
+        S1[Load environment variables]
+        S2[Parse squirrels.yml manifest]
+        S3[Initialize database connection pools]
+        S4[Load parameter definitions]
+        S5[Register API routes]
+        S1 --> S2 --> S3 --> S4 --> S5
+    end
+
+    subgraph runtime["⚡ Runtime (API request)"]
+        direction LR
+        R1[Authenticate user]
+        R2[Apply parameter selections]
+        R3[Generate context variables]
+        R4[Compile runtime models and resolve dependencies]
+        R5[Execute model DAG]
+        R6[Return dataset/dashboard]
+        R1 --> R2 --> R3 --> R4 --> R5 --> R6
+    end
+
+    B4 ~~~ S1
+    S5 --> runtime
+    B4 -.->|"Potentially referenced by federate models"| R5
+    B4 -.->|"Potentially used as target model for datasets"| R6
+```
+
+## Buildtime
+
+Buildtime occurs when you run [sqrl build]. During this phase, Squirrels prepares all static data that will be available for runtime queries.
+
+<Tip>
+  If there are no buildtime models (other than seeds) that are used by federate models or datasets, then this phase is optional!
+
+  Seeds can still be referenced by federate models and datasets, even without loading them to the VDL.
+</Tip>
+
+### What happens during buildtime
+
+1. **Load seeds**: CSV files from the `seeds/` directory are loaded into the [Virtual Data Lake (VDL)][VDL]
+2. **Load sources**: External database tables configured with `load_to_vdl: true` are extracted and stored in the VDL
+3. **Execute build models**: SQL and Python build models are compiled and executed in dependency order, with results materialized in the VDL
+
+### Build process flow
+
+```mermaid
+flowchart LR
+    subgraph inputs["Input Files"]
+        Seeds["seeds/*.csv"]
+        Sources["sources.yml"]
+        Builds["models/builds/*"]
+    end
+
+    subgraph processing["Build Processing"]
+        Compile["Compile models"]
+        DAG["Resolve dependencies"]
+        Execute["Execute in order"]
+    end
+
+    subgraph output["Output"]
+        VDL[(Virtual Data Lake)]
+    end
+
+    Seeds --> DAG
+    Sources --> DAG
+    Builds --> Compile
+    Compile --> DAG --> Execute --> VDL
+```
+
+## Server startup
+
+Server startup occurs when you run [sqrl run]. This phase initializes all components needed to serve API requests.
+
+### What happens during server startup
+
+1. **Load [environment variables]**: Read from `.env` and `.env.local` files
+2. **Parse manifest**: Load and validate `squirrels.yml` configuration
+3. **Initialize connections**: Establish database connection pools
+4. **Load parameter definitions**: Parse parameter configurations from `pyconfigs/parameters.py` or YAML
+5. **Configure authentication**: Set up auth providers from `pyconfigs/user.py`
+6. **Load model files**: Read all dbview and federate model definitions
+7. **Register routes**: Create FastAPI endpoints for datasets and dashboards
+8. **Start background tasks**: Initialize parameter refresh scheduler
+
+### Server initialization flow
+
+```mermaid
+flowchart TB
+    subgraph config["Configuration Loading"]
+        ENV[".env / .env.local"] ~~~ MF["squirrels.yml"] ~~~ PYCONF["pyconfigs/"] ~~~ MODELCONF["models/"]
+    end
+
+    subgraph init["Initialization"]
+        CONN["Connection Pool"] ~~~ PARAMS["Parameter Configs"] ~~~ AUTH["Authenticator"] ~~~ MODELS["Model Definitions"]
+    end
+
+    subgraph server["API Server"]
+        ROUTES["Dataset Routes"] ~~~ DASH["Dashboard Routes"] ~~~ META["Metadata Routes"] ~~~ MCP["MCP Server"]
+    end
+
+    config --> init
+
+    init --> server
+```
+
+## Runtime
+
+Runtime occurs when a client makes an API request for a dataset or dashboard. This is where dynamic data transformations happen.
+
+### What happens during runtime
+
+1. **Authenticate user**: Validate credentials and determine user permissions
+2. **Apply selections**: Process user parameter selections against parameter definitions
+3. **Generate context**: Create meaningful variables (i.e., context variables) from user attributes and parameter selections to use in runtime models
+4. **Compile models**: Render Jinja SQL templates from context variables
+5. **Build DAG**: Resolve model dependencies and create execution plan
+6. **Execute models**: Run dbview and federate models in dependency order
+7. **Return results**: Format and return the dataset or render the dashboard
+
+### Runtime execution flow
+
+```mermaid
+flowchart TB
+    subgraph request["API Request"]
+        REQ["GET /dataset/sales"]
+        PARAMS["?date=2024-01-01"]
+        HEADERS["Authorization token"]
+        REQ --> HEADERS
+        REQ --> PARAMS
+    end
+
+    subgraph auth["Authorization"]
+        USER["Load user attributes"]
+    end
+
+    subgraph processing["Query Processing"]
+        SEL["Apply selections"]
+        CTX["Generate context variables"]
+        COMPILE["Compile SQL models"]
+        CTX --> COMPILE
+    end
+
+    subgraph execution["Model Execution"]
+        EXEC["Execute dynamic data models"]
+        VDL[(VDL)]
+        DB[(Databases)]
+        VDL -.-> EXEC
+        DB -.-> EXEC
+    end
+
+    subgraph response["Response"]
+        direction LR
+        FORMAT["Format results"]
+        CACHE["Cache response"]
+        JSON["Return JSON"]
+        FORMAT --> CACHE --> JSON
+    end
+
+    HEADERS --> USER --> CTX
+    PARAMS --> SEL --> CTX
+
+    COMPILE --> EXEC
+
+    EXEC --> FORMAT
+    COMPILE ~~~ FORMAT
+```
+
+### Context variables
+
+Generate meaningful variables that can be used in runtime models in the `context.py` file. Below is an example.
+
+```python
+def main(ctx: dict, sqrl: ContextArgs) -> None:
+    # Access parameter selections
+    selected_date = sqrl.prms["date_param"].get_selected_date()
+    
+    # Access user information
+    user_region = sqrl.user.custom_fields.region
+    
+    # Set context variables for models
+    ctx["start_date"] = selected_date
+    ctx["user_filter"] = user_region
+```
+
+### Model execution order
+
+Runtime models execute in a specific order based on their dependencies:
+
+1. **Dbview models**: Execute SQL directly on external databases
+2. **Federate models**: Execute on DuckDB, can reference:
+   - Results from dbview models
+   - Tables in the VDL (seeds, sources, build models)
+   - Other federate models
+
+### Caching
+
+Squirrels provides built-in caching for dataset results:
+- Cache size and TTL are configurable via [environment variables]
+- Cache keys include dataset name, user, and parameter selections
+- Cache is invalidated automatically based on TTL
+
+## Summary
+
+| Phase | Trigger | Purpose | Key outputs |
+|-------|---------|---------|-------------|
+| **Buildtime** | `sqrl build` | Materialize static data | VDL tables |
+| **Startup** | `sqrl run` | Initialize server | API routes, connections |
+| **Runtime** | API request | Execute dynamic queries | Dataset/dashboard results |
+
+Understanding these phases helps you:
+- Decide which models should be build vs runtime
+- Optimize query performance with appropriate materialization
+- Debug issues by identifying which phase is problematic
+
+## Related pages
+
+- [Virtual Data Lake (VDL)][VDL] - Learn about the VDL storage system
+- [Data models] - Understanding model types and when to use them
+- [sqrl build] - CLI reference for building the VDL
+- [sqrl run] - CLI reference for running the API server
+- [Environment variables] - Configure server behavior
+
+[VDL]: /concepts/vdl
+[Data models]: /concepts/models
+[sqrl build]: /references/cli/build
+[sqrl run]: /references/cli/run
+[Environment variables]: /project/env-vars
+

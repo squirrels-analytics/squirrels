@@ -73,6 +73,10 @@ If the same variable is defined in both `.env.local` and `.env`, the value in `.
   Maximum number of rows that AI can see through MCP (Model Context Protocol) tools. This is to prevent excessive context usage.
 </ResponseField>
 
+<ResponseField name="SQRL_DATASETS__MAX_RESULT_ROWS" type="integer" default="100000">
+  Maximum number of rows allowed for dataset results and query results. If a dataset result, query result, or transformed result (via `x_sql_query`) exceeds this limit, an error is returned and the result is not cached. This helps prevent excessive memory usage and ensures results are reasonable to send over HTTP.
+</ResponseField>
+
 <ResponseField name="SQRL_DATASETS__CACHE_SIZE" type="integer" default="128">
   Maximum number of entries in the dataset results cache.
 </ResponseField>

@@ -32,6 +32,24 @@
             ]
           },
           {
+            "group": "Concepts",
+            "icon": "book",
+            "pages": [
+              "concepts/architecture",
+              "concepts/vdl",
+              "concepts/connections",
+              "concepts/models",
+              "concepts/datasets",
+              {
+                "group": "Advanced concepts",
+                "expanded": true,
+                "pages": [
+                  "concepts/parameters"
+                ]
+              }
+            ]
+          },
+          {
             "group": "Project files",
             "icon": "folder-tree",
             "pages": [

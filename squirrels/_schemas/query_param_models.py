@@ -40,7 +40,7 @@ def get_query_models_for_dataset(widget_parameters: list[str] | None, param_fiel
     predefined_params = [
         APIParamFieldInfo("x_verify_params", bool, default=False, description="DEPRECATED: Use x-verify-params header instead"),
         APIParamFieldInfo("x_orientation", str, default="records", description="DEPRECATED: Use x-orientation header instead"),
-        APIParamFieldInfo("x_sql_query", str, description="Optional DuckDB SQL to transform the final dataset. Use table name 'result' to reference the dataset."),
+        APIParamFieldInfo("x_sql_query", str, description="Optional Polars SQL to transform the final dataset. Use table name 'result' to reference the dataset."),
         APIParamFieldInfo("x_offset", int, default=0, description="The number of rows to skip before returning data (applied after data caching)"),
         APIParamFieldInfo("x_limit", int, default=1000, description="The maximum number of rows to return (applied after data caching and offset)"),
     ]

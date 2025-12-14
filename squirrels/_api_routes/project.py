@@ -5,11 +5,8 @@ from typing import Any
 from fastapi import FastAPI, Depends, Request
 from fastapi.responses import JSONResponse
 from fastapi.security import HTTPBearer
-from fastmcp import FastMCP
-from fastmcp.server.dependencies import get_http_headers
 from dataclasses import asdict
 from cachetools import TTLCache
-from textwrap import dedent
 import time
 
 from .. import _utils as u, _constants as c
@@ -68,7 +65,7 @@ class ProjectRoutes(RouteBase):
         )
         
     def setup_routes(
-        self, app: FastAPI, mcp: FastMCP, project_metadata_path: str, project_name_version_path: str, 
+        self, app: FastAPI, project_metadata_path: str, project_name_version_path: str, 
         project_name: str, project_version: str, project_label: str, param_fields: dict
     ):
         """Setup project metadata routes"""
@@ -195,32 +192,14 @@ class ProjectRoutes(RouteBase):
             self.logger.log_activity_time("GET REQUEST for DATA CATALOG", start)
             return data_catalog
         
-        async def get_data_catalog_for_mcp() -> rm.CatalogModelForMcp:
-            headers = get_http_headers()
+        async def get_data_catalog_for_mcp(headers: dict[str, str]) -> rm.CatalogModelForMcp:
+            """Get data catalog for MCP tools/resources. Takes headers dict for auth."""
             user = self.get_user_from_mcp_headers(headers)
             data_catalog = await get_data_catalog0(user)
             return rm.CatalogModelForMcp(parameters=data_catalog.parameters, datasets=data_catalog.datasets)
         
-        @mcp.tool(
-            name=f"get_data_catalog_from_{project_name}", 
-            title=f"Get Data Catalog (Project: {project_label})",
-            description=dedent(f"""
-            Use this tool to get the details of all datasets and parameters you can access in the Squirrels project '{project_name}'.
-            
-            Unless the data catalog for this project has already been provided, use this tool at the start of each conversation.
-            """).strip()
-        )
-        async def get_data_catalog_tool() -> rm.CatalogModelForMcp:
-            return await get_data_catalog_for_mcp()
-        
-        @mcp.resource(
-            "sqrl://data-catalog",
-            name=f"data_catalog_from_{project_name}", 
-            title=f"Data Catalog (Project: {project_label})",
-            description=f"Details of all datasets and parameters you can access in the Squirrels project '{project_name}'."
-        )
-        async def data_catalog_resource() -> rm.CatalogModelForMcp:
-            return await get_data_catalog_for_mcp()
+        # Store the MCP function as an instance attribute for access by McpServerBuilder
+        self._get_data_catalog_for_mcp = get_data_catalog_for_mcp
         
         # Project-level parameters endpoints
         project_level_parameters_path = project_metadata_path + '/parameters'

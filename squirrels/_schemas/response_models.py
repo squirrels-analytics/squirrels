@@ -1,4 +1,5 @@
 from typing import Annotated, Literal, Any
+from textwrap import dedent
 from pydantic import BaseModel, Field
 from datetime import date
 
@@ -20,14 +21,14 @@ class ProviderResponse(BaseModel):
 ## Parameters Response Models
 
 class ParameterOptionModel(BaseModel):
-    id: Annotated[str, Field(examples=["my_option_id"], description="The unique identifier for the option")]
-    label: Annotated[str, Field(examples=["My Option"], description="The human-friendly display name for the option")]
+    id: Annotated[str, Field(description="The unique identifier for the option")]
+    label: Annotated[str, Field(description="The human-friendly display name for the option")]
 
 class ParameterModelBase(BaseModel):
-    widget_type: Annotated[str, Field(examples=["disabled"], description="The parameter type")]
-    name: Annotated[str, Field(examples=["my_unique_param_name"], description="The name of the parameter. Use this as the key when providing the API request parameters")]
-    label: Annotated[str, Field(examples=["My Parameter"], description="The human-friendly display name for the parameter")]
-    description: Annotated[str, Field(examples=[""], description="The description of the parameter")]
+    widget_type: Annotated[str, Field(description="The parameter type")]
+    name: Annotated[str, Field(description="The name of the parameter. Use this as the key when providing the API request parameters")]
+    label: Annotated[str, Field(description="The human-friendly display name for the parameter")]
+    description: Annotated[str, Field(description="The description of the parameter")]
 
 class NoneParameterModel(ParameterModelBase):
     pass
@@ -37,47 +38,46 @@ class SelectParameterModel(ParameterModelBase):
     trigger_refresh: Annotated[bool, Field(description="A boolean that's set to true for parent parameters that require a new parameters API call when the selection changes")]
 
 class SingleSelectParameterModel(SelectParameterModel):
-    widget_type: Annotated[str, Field(examples=["single_select"], description="The parameter type (set to 'single_select' for this model)")]
-    selected_id: Annotated[str | None, Field(examples=["my_option_id"], description="The ID of the selected / default option")]
+    widget_type: Annotated[str, Field(description="The parameter type (set to 'single_select' for this model)")]
+    selected_id: Annotated[str | None, Field(description="The ID of the selected / default option")]
 
 class MultiSelectParameterModel(SelectParameterModel):
-    widget_type: Annotated[str, Field(examples=["multi_select"], description="The parameter type (set to 'multi_select' for this model)")]
+    widget_type: Annotated[str, Field(description="The parameter type (set to 'multi_select' for this model)")]
     show_select_all: Annotated[bool, Field(description="A boolean for whether there should be a toggle to select all options")]
     order_matters: Annotated[bool, Field(description="A boolean for whether the ordering of the input selections would affect the result of the dataset")]
-    selected_ids: Annotated[list[str], Field(examples=[["my_option_id"]], description="A list of ids of the selected / default options")]
+    selected_ids: Annotated[list[str], Field(description="A list of ids of the selected / default options")]
 
 class _DateTypeParameterModel(ParameterModelBase):
-    min_date: Annotated[date | None, Field(examples=["2023-01-01"], description='A string in "yyyy-MM-dd" format for the minimum date')]
-    max_date: Annotated[date | None, Field(examples=["2023-12-31"], description='A string in "yyyy-MM-dd" format for the maximum date')]
+    min_date: Annotated[date | None, Field(description='A string in "yyyy-MM-dd" format for the minimum date')]
+    max_date: Annotated[date | None, Field(description='A string in "yyyy-MM-dd" format for the maximum date')]
 
 class DateParameterModel(_DateTypeParameterModel):
-    widget_type: Annotated[str, Field(examples=["date"], description="The parameter type (set to 'date' for this model)")]
-    selected_date: Annotated[date, Field(examples=["2023-01-01"], description='A string in "yyyy-MM-dd" format for the selected / default date')]
+    widget_type: Annotated[str, Field(description="The parameter type (set to 'date' for this model)")]
+    selected_date: Annotated[date, Field(description='A string in "yyyy-MM-dd" format for the selected / default date')]
 
 class DateRangeParameterModel(_DateTypeParameterModel):
-    widget_type: Annotated[str, Field(examples=["date_range"], description="The parameter type (set to 'date_range' for this model)")]
-    selected_start_date: Annotated[date, Field(examples=["2023-01-01"], description='A string in "yyyy-MM-dd" format for the selected / default start date')]
-    selected_end_date: Annotated[date, Field(examples=["2023-12-31"], description='A string in "yyyy-MM-dd" format for the selected / default end date')]
+    widget_type: Annotated[str, Field(description="The parameter type (set to 'date_range' for this model)")]
+    selected_start_date: Annotated[date, Field(description='A string in "yyyy-MM-dd" format for the selected / default start date')]
+    selected_end_date: Annotated[date, Field(description='A string in "yyyy-MM-dd" format for the selected / default end date')]
 
 class _NumericParameterModel(ParameterModelBase):
-    min_value: Annotated[float, Field(examples=[0], description="A number for the lower bound of the selectable number")]
-    max_value: Annotated[float, Field(examples=[10], description="A number for the upper bound of the selectable number")]
-    increment: Annotated[float, Field(examples=[1], description="A number for the selectable increments between the lower bound and upper bound")]
+    min_value: Annotated[float, Field(description="A number for the lower bound of the selectable number")]
+    max_value: Annotated[float, Field(description="A number for the upper bound of the selectable number")]
+    increment: Annotated[float, Field(description="A number for the selectable increments between the lower bound and upper bound")]
 
 class NumberParameterModel(_NumericParameterModel):
-    widget_type: Annotated[str, Field(examples=["number"], description="The parameter type (set to 'number' for this model)")]
-    selected_value: Annotated[float, Field(examples=[2], description="A number for the selected / default number")]
+    widget_type: Annotated[str, Field(description="The parameter type (set to 'number' for this model)")]
+    selected_value: Annotated[float, Field(description="A number for the selected / default number")]
 
 class NumberRangeParameterModel(_NumericParameterModel):
-    widget_type: Annotated[str, Field(examples=["number_range"], description="The parameter type (set to 'number_range' for this model)")]
-    selected_lower_value: Annotated[float, Field(examples=[2], description="A number for the selected / default lower number")]
-    selected_upper_value: Annotated[float, Field(examples=[8], description="A number for the selected / default upper number")]
+    widget_type: Annotated[str, Field(description="The parameter type (set to 'number_range' for this model)")]
+    selected_lower_value: Annotated[float, Field(description="A number for the selected / default lower number")]
+    selected_upper_value: Annotated[float, Field(description="A number for the selected / default upper number")]
 
 class TextParameterModel(ParameterModelBase):
-    widget_type: Annotated[str, Field(examples=["text"], description="The parameter type (set to 'text' for this model)")]
-    entered_text: Annotated[str, Field(examples=["sushi"], description="A string for the default entered text")]
+    widget_type: Annotated[str, Field(description="The parameter type (set to 'text' for this model)")]
+    entered_text: Annotated[str, Field(description="A string for the default entered text")]
     input_type: Annotated[str, Field(
-        examples=["text", "textarea", "number", "date", "datetime-local", "month", "time", "color", "password"],
         description='A string for the input type (one of "text", "textarea", "number", "date", "datetime-local", "month", "time", "color", or "password")'
     )]
 
@@ -122,13 +122,15 @@ class SchemaModel(BaseModel):
 class SchemaWithConditionModel(BaseModel):
     fields: Annotated[list[ColumnWithConditionModel], Field(description="A list of JSON objects containing the 'name' and 'type' for each of the columns in the result")]
 
-class DatasetItemModel(BaseModel):
+class DatasetItemModelForMcp(BaseModel):
     name: Annotated[str, Field(examples=["mydataset"], description=name_description)]
     label: Annotated[str, Field(examples=["My Dataset"], description=label_description)]
     description: Annotated[str, Field(examples=[""], description=description_description)]
     configurables: Annotated[list[ConfigurableDefaultModel], Field(default_factory=list, description="The list of configurables with their default values")]
     parameters: Annotated[list[str], Field(examples=["myparam1", "myparam2"], description="The list of parameter names used by the dataset. If the list is empty, the dataset does not accept any parameters.")]
     data_schema: Annotated[SchemaWithConditionModel, Field(alias="schema", description="JSON object describing the schema of the dataset")]
+
+class DatasetItemModel(DatasetItemModelForMcp):
     parameters_path: Annotated[str, Field(examples=["/api/squirrels/v0/myproject/v1/dataset/mydataset/parameters"], description=parameters_path_description)]
     result_path: Annotated[str, Field(examples=["/api/squirrels/v0/myproject/v1/dataset/mydataset"], description=result_path_description)]
     
@@ -166,9 +168,10 @@ class LineageRelation(BaseModel):
 
 class CatalogModelForMcp(BaseModel):
     parameters: Annotated[ParametersListType, Field(description="The list of all parameters in the project. It is possible that not all parameters are used by a dataset.")]
-    datasets: Annotated[list[DatasetItemModel], Field(description="The list of accessible datasets")]
+    datasets: Annotated[list[DatasetItemModelForMcp], Field(description="The list of accessible datasets")]
     
 class CatalogModel(CatalogModelForMcp):
+    datasets: Annotated[list[DatasetItemModel], Field(description="The list of accessible datasets")]
     dashboards: Annotated[list[DashboardItemModel], Field(description="The list of accessible dashboards")]
     connections: Annotated[list[ConnectionItemModel], Field(description="The list of connections in the project (only provided for admin users)")]
     models: Annotated[list[DataModelItem], Field(description="The list of data models in the project (only provided for admin users)")]
@@ -179,23 +182,27 @@ class CatalogModel(CatalogModelForMcp):
 ## Dataset Results Response Models
 
 class DataDetailsModel(BaseModel):
-    num_rows: Annotated[int, Field(examples=[2], description="The number of rows in the data field")]
-    orientation: Annotated[Literal["records", "rows", "columns"], Field(examples=["records", "rows", "columns"], description="The orientation of the data field")]
+    num_rows: Annotated[int, Field(description="The number of rows in the data field")]
+    orientation: Annotated[Literal["records", "rows", "columns"], Field(description="The orientation of the data field")]
 
 class DatasetResultModel(BaseModel):
     data_schema: Annotated[SchemaModel, Field(alias="schema", description="JSON object describing the schema of the dataset")]
-    total_num_rows: Annotated[int, Field(examples=[2], description="The total number of rows for the dataset")]
+    total_num_rows: Annotated[int, Field(description="The total number of rows for the dataset")]
     data_details: Annotated[DataDetailsModel, Field(description="A JSON object containing the details of the data field")]
     data: Annotated[list[dict] | list[list] | dict[str, list], Field(
-        examples=[[{"mycol": "col_value1"}, {"mycol": "col_value2"}], [["col_value1"], ["col_value2"]], {"mycol": ["col_value1", "col_value2"]}],
-        description="A list of JSON objects where each object is a row of the tabular results. The keys and values of the object are column names (described in fields) and values of the row."
+        description=dedent("""
+        The data payload. 
+        - If `data_details.orientation` is 'records', this is a list of JSON objects. 
+        - If `data_details.orientation` is 'rows', this is a list of rows. Each row is a list of values in the same order as the columns in `data_schema`.
+        - If `data_details.orientation` is 'columns', this is a JSON object where keys are column names and values are columns. Each column is a list of values from the first to last row.
+        """).strip()
     )]
 
 
 ## Compiled Query Response Model
 
 class CompiledQueryModel(BaseModel):
-    language: Annotated[Literal["sql", "python"], Field(examples=["sql"], description="The language of the data model query: 'sql' or 'python'")]
+    language: Annotated[Literal["sql", "python"], Field(description="The language of the data model query: 'sql' or 'python'")]
     definition: Annotated[str, Field("", description="The compiled SQL or Python definition of the data model.")]
     placeholders: Annotated[dict[str, Any], Field({}, description="The placeholders for the data model.")]
 

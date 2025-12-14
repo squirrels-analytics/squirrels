@@ -9,7 +9,6 @@ from contextlib import asynccontextmanager
 from argparse import Namespace
 from pathlib import Path
 from starlette.middleware.sessions import SessionMiddleware
-from fastmcp import FastMCP
 import io, time, mimetypes, traceback, asyncio
 
 from . import _constants as c, _utils as u, _parameter_sets as ps
@@ -17,6 +16,7 @@ from ._exceptions import InvalidInputError, ConfigurationError, FileExecutionErr
 from ._version import __version__, sq_major_version
 from ._project import SquirrelsProject
 from ._request_context import set_request_id
+from ._mcp_server import McpServerBuilder
 
 # Import route modules
 from ._api_routes.auth import AuthRoutes
@@ -101,9 +101,6 @@ class ApiServer:
         self.context_func = project._context_func
         self.dashboards = project._dashboards
         
-        self.mcp = FastMCP(name="Squirrels")
-        self.mcp_app = self.mcp.http_app(path="/mcp", stateless_http=True)
-
         # Initialize route modules
         get_bearer_token = HTTPBearer(auto_error=False)
         # self.oauth2_routes = OAuth2Routes(get_bearer_token, project, no_cache)
@@ -162,16 +159,6 @@ class ApiServer:
                 self.logger.error(f"Error refreshing datasource parameter options: {e}", exc_info=True)
                 # Continue the loop even if there's an error
     
-
-    @asynccontextmanager
-    async def _run_background_tasks(self, app: FastAPI):
-        refresh_datasource_task = asyncio.create_task(self._refresh_datasource_params())
-        
-        async with self.mcp_app.lifespan(app):
-            yield
-        
-        refresh_datasource_task.cancel()
-
 
     def _get_tags_metadata(self) -> list[dict]:
         tags_metadata = [
@@ -235,10 +222,27 @@ class ApiServer:
         docs_url = project_name_version_path+"/docs"
         redoc_url = project_name_version_path+"/redoc"
 
+        # Container for MCP builder - will be populated after setup_routes
+        mcp_container: dict[str, McpServerBuilder] = {}
+        
+        @asynccontextmanager
+        async def app_lifespan(app: FastAPI):
+            """App lifespan that includes MCP server lifecycle and background tasks."""
+            mcp_builder = mcp_container.get("mcp_builder")
+            refresh_datasource_task = asyncio.create_task(self._refresh_datasource_params())
+            
+            if mcp_builder:
+                async with mcp_builder.lifespan():
+                    yield
+            else:
+                yield
+            
+            refresh_datasource_task.cancel()
+
         app = FastAPI(
             title=f"Squirrels APIs for '{project_label}'", openapi_tags=tags_metadata,
             description="For specifying parameter selections to dataset APIs, you can choose between using query parameters with the GET method or using request body with the POST method",
-            lifespan=self._run_background_tasks,
+            lifespan=app_lifespan,
             openapi_url=openapi_url,
             docs_url=docs_url,
             redoc_url=redoc_url
@@ -320,11 +324,24 @@ class ApiServer:
         # self.oauth2_routes.setup_routes(app, squirrels_version_path)
         self.auth_routes.setup_routes(app, squirrels_version_path)
         get_parameters_definition = self.project_routes.setup_routes(
-            app, self.mcp, project_metadata_path, project_name_version_path, project_name, project_version, project_label, param_fields
+            app, project_metadata_path, project_name_version_path, project_name, project_version, project_label, param_fields
         )
         self.data_management_routes.setup_routes(app, project_metadata_path, param_fields)
-        self.dataset_routes.setup_routes(app, self.mcp, project_metadata_path, project_name, project_label, param_fields, get_parameters_definition)
+        self.dataset_routes.setup_routes(app, project_metadata_path, project_name, project_label, param_fields, get_parameters_definition)
         self.dashboard_routes.setup_routes(app, project_metadata_path, param_fields, get_parameters_definition)
+
+        # Build the MCP server now that route methods are available
+        max_rows_for_ai = int(self.env_vars.get(c.SQRL_DATASETS_MAX_ROWS_FOR_AI, 100))
+        mcp_builder = McpServerBuilder(
+            project_name=project_name,
+            project_label=project_label,
+            max_rows_for_ai=max_rows_for_ai,
+            get_data_catalog_func=self.project_routes._get_data_catalog_for_mcp,
+            get_dataset_parameters_func=self.dataset_routes._get_dataset_parameters_for_mcp,
+            get_dataset_results_func=self.dataset_routes._get_dataset_results_for_mcp,
+        )
+        mcp_container["mcp_builder"] = mcp_builder
+        mcp_app = mcp_builder.get_asgi_app()
 
         # Mount static files from public directory if it exists
         # This allows users to serve static assets (images, CSS, JS, etc.) from {project_path}/public/
@@ -354,9 +371,8 @@ class ApiServer:
             return RedirectResponse(url=squirrels_studio_path)
 
         # Mount MCP server
-        app.mount(project_name_version_path, self.mcp_app)
-        app.mount("/", self.mcp_app)
-        app.mount(project_metadata_path, self.mcp_app) # For backwards compatibility
+        app.add_route(f"{project_name_version_path}/mcp", mcp_app, methods=["GET", "POST"])
+        app.add_route("/mcp", mcp_app, methods=["GET", "POST"])
     
         self.logger.log_activity_time("creating app server", start)
 
@@ -388,4 +404,4 @@ class ApiServer:
         print("─" * banner_width)
         print()
         
-        uvicorn.run(app, host=uvicorn_args.host, port=uvicorn_args.port, proxy_headers=True, forwarded_allow_ips="*", ws="websockets-sansio")
+        uvicorn.run(app, host=uvicorn_args.host, port=uvicorn_args.port, proxy_headers=True, forwarded_allow_ips="*")

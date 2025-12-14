@@ -103,6 +103,20 @@ class SquirrelsProject:
         return elevated_access_level
     
     @ft.cached_property
+    def _max_result_rows(self) -> int:
+        """Get the maximum number of rows allowed for dataset results"""
+        max_rows_str = self._env_vars.get(c.SQRL_DATASETS_MAX_RESULT_ROWS, "100000")
+        try:
+            max_rows = int(max_rows_str)
+            if max_rows <= 0:
+                raise ValueError("Must be positive")
+        except ValueError:
+            raise ConfigurationError(
+                f"Value for environment variable {c.SQRL_DATASETS_MAX_RESULT_ROWS} must be a positive integer, got: {max_rows_str}"
+            )
+        return max_rows
+    
+    @ft.cached_property
     def _datalake_db_path(self) -> str:
         datalake_db_path = self._env_vars.get(c.SQRL_VDL_CATALOG_DB_PATH, c.DEFAULT_VDL_CATALOG_DB_PATH)
         datalake_db_path = datalake_db_path.format(project_path=self._filepath)
@@ -591,6 +605,32 @@ class SquirrelsProject:
             target_model_config=dag.target_model.model_config
         )
     
+    def _enforce_max_result_rows(self, lazy_df: pl.LazyFrame, error_type: str) -> pl.DataFrame:
+        """
+        Collect at most max_rows + 1 rows from a LazyFrame to detect overflow.
+        Raises InvalidInputError if the result exceeds the maximum allowed rows.
+        
+        Arguments:
+            lazy_df: The LazyFrame to collect and check
+            error_type: Either "dataset" or "query" to customize the error message
+        
+        Returns:
+            A DataFrame with at most max_rows rows (or raises if exceeded)
+        """
+        max_rows = self._max_result_rows
+        # Collect max_rows + 1 to detect overflow without loading unbounded results
+        collected = lazy_df.limit(max_rows + 1).collect()
+        row_count = collected.select(pl.len()).item()
+        
+        if row_count > max_rows:
+            raise InvalidInputError(
+                413,
+                f"{error_type}_result_too_large",
+                f"The {error_type} result contains {row_count} rows, which exceeds the maximum allowed of {max_rows} rows."
+            )
+        
+        return collected
+    
     async def dataset(
         self, name: str, *, selections: dict[str, t.Any] = {}, user: AbstractUser | None = None, require_auth: bool = True,
         configurables: dict[str, str] = {}
@@ -619,9 +659,10 @@ class SquirrelsProject:
             self._param_args, self._param_cfg_set, self._context_func, user, dict(selections), configurables=configurables
         )
         assert isinstance(dag.target_model.result, pl.LazyFrame)
+        df = self._enforce_max_result_rows(dag.target_model.result, "dataset")
         return dr.DatasetResult(
             target_model_config=dag.target_model.model_config, 
-            df=dag.target_model.result.collect().with_row_index("_row_num", offset=1)
+            df=df.with_row_index("_row_num", offset=1)
         )
     
     async def dashboard(
@@ -669,9 +710,10 @@ class SquirrelsProject:
         dag = await self._get_compiled_dag(user=user, sql_query=sql_query, selections=selections, configurables=configurables)
         await dag._run_models()
         assert isinstance(dag.target_model.result, pl.LazyFrame)
+        df = self._enforce_max_result_rows(dag.target_model.result, "query")
         return dr.DatasetResult(
             target_model_config=dag.target_model.model_config, 
-            df=dag.target_model.result.collect().with_row_index("_row_num", offset=1)
+            df=df.with_row_index("_row_num", offset=1)
         )
 
     async def get_compiled_model_query(
