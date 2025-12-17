@@ -6,9 +6,11 @@ call_tool, and read_resource.
 """
 from mcp.types import CallToolResult
 from pydantic import AnyUrl
+import polars as pl
 import json
 import pytest
 
+from squirrels._dataset_types import DatasetResult, ModelConfig
 from squirrels._mcp_server import McpServerBuilder
 from squirrels._schemas import response_models as rm
 
@@ -31,12 +33,7 @@ def mock_parameters():
 @pytest.fixture
 def mock_dataset_result():
     """Create a mock dataset result response."""
-    return rm.DatasetResultModel(
-        schema=rm.SchemaModel(fields=[]),
-        total_num_rows=0,
-        data_details=rm.DataDetailsModel(num_rows=0, orientation="records"),
-        data=[]
-    )
+    return DatasetResult(target_model_config=ModelConfig(columns=[]), df=pl.DataFrame())
 
 
 @pytest.fixture
@@ -45,19 +42,20 @@ def mcp_builder(mock_data_catalog, mock_parameters, mock_dataset_result) -> McpS
     async def get_data_catalog(headers):
         return mock_data_catalog
     
-    async def get_dataset_parameters(dataset, param_name, selected_ids, headers):
+    async def get_dataset_parameters(dataset, parameter_name, selected_ids, user):
         return mock_parameters
     
-    async def get_dataset_results(dataset, params_json, sql_query, offset, limit, headers):
+    async def get_dataset_results(dataset, parameters, sql_query, user, headers):
         return mock_dataset_result
     
     return McpServerBuilder(
         project_name="test_project",
         project_label="Test Project",
         max_rows_for_ai=100,
-        get_data_catalog_func=get_data_catalog,
-        get_dataset_parameters_func=get_dataset_parameters,
-        get_dataset_results_func=get_dataset_results,
+        get_user_from_headers=lambda headers: None,
+        get_data_catalog_for_mcp=get_data_catalog,
+        get_dataset_parameters_for_mcp=get_dataset_parameters,
+        get_dataset_results_for_mcp=get_dataset_results,
     )
 
 
@@ -128,9 +126,9 @@ class TestCallTool:
             "get_data_catalog_from_test_project", {}
         )
         # Returns dict directly for structured output
-        assert isinstance(result, dict)
-        assert "parameters" in result
-        assert "datasets" in result
+        assert isinstance(result, CallToolResult)
+        assert "parameters" in result.structuredContent
+        assert "datasets" in result.structuredContent
     
     @pytest.mark.anyio
     async def test_call_results_tool_with_invalid_limit_returns_error(self, mcp_builder: McpServerBuilder):

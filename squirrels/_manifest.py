@@ -225,7 +225,6 @@ class ManifestConfig(BaseModel):
     selection_test_sets: dict[str, TestSetsConfig] = Field(default_factory=dict)
     datasets: dict[str, DatasetConfig] = Field(default_factory=dict)
     base_path: str = "."
-    env_vars: dict[str, str] = Field(default_factory=dict)
 
     @field_validator("packages")
     @classmethod
@@ -317,13 +316,12 @@ class ManifestConfig(BaseModel):
 
 
 class ManifestIO:
-
     @classmethod
-    def load_from_file(cls, logger: u.Logger, base_path: str, env_vars: dict[str, str]) -> ManifestConfig:
+    def load_from_file(cls, logger: u.Logger, project_path: str, envvars_unformatted: dict[str, str]) -> ManifestConfig:
         start = time.time()
 
-        raw_content = u.read_file(u.Path(base_path, c.MANIFEST_FILE))
-        content = u.render_string(raw_content, base_path=base_path, env_vars=env_vars)
+        raw_content = u.read_file(u.Path(project_path, c.MANIFEST_FILE))
+        content = u.render_string(raw_content, project_path=project_path, env_vars=envvars_unformatted)
         manifest_content: dict[str, Any] = yaml.safe_load(content)
 
         auth_cfg: dict[str, Any] = manifest_content.get("authentication", {})
@@ -338,7 +336,7 @@ class ManifestIO:
                     ds["scope"] = "protected"
         
         try:
-            manifest_cfg = ManifestConfig(base_path=base_path, **manifest_content)
+            manifest_cfg = ManifestConfig(base_path=project_path, **manifest_content)
         except ValidationError as e:
             raise u.ConfigurationError(f"Failed to process {c.MANIFEST_FILE} file. " + str(e)) from e
         

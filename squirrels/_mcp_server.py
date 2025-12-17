@@ -5,24 +5,25 @@ This module provides the MCP server for Squirrels projects, exposing:
 - Tools: get_data_catalog, get_dataset_parameters, get_dataset_results
 - Resources: sqrl://data-catalog
 """
-from __future__ import annotations
-
+from typing import Mapping
 from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
 from textwrap import dedent
 from typing import Any, Callable, Coroutine
-
 from pydantic import AnyUrl
 from starlette.applications import Starlette
 from starlette.routing import Mount
 from starlette.types import ASGIApp
-
-import mcp.types as types
 from mcp.server.lowlevel import Server
 from mcp.server.streamable_http_manager import StreamableHTTPSessionManager
+import mcp.types as types
+import json
 
+from ._schemas.auth_models import AbstractUser
 from ._exceptions import InvalidInputError
 from ._schemas import response_models as rm
+from ._dataset_types import DatasetResult, DatasetResultFormat
+from ._api_routes.base import RouteBase
 
 
 class McpServerBuilder:
@@ -41,9 +42,16 @@ class McpServerBuilder:
         project_name: str,
         project_label: str,
         max_rows_for_ai: int,
-        get_data_catalog_func: Callable[[dict[str, str]], Coroutine[Any, Any, rm.CatalogModelForMcp]],
-        get_dataset_parameters_func: Callable[[str, str, list[str], dict[str, str]], Coroutine[Any, Any, rm.ParametersModel]],
-        get_dataset_results_func: Callable[[str, str, str | None, int, int, dict[str, str]], Coroutine[Any, Any, rm.DatasetResultModel]],
+        get_user_from_headers: Callable[[Mapping[str, str]], AbstractUser],
+        get_data_catalog_for_mcp: Callable[[AbstractUser], Coroutine[Any, Any, rm.CatalogModelForMcp]],
+        get_dataset_parameters_for_mcp: Callable[
+            [str, str, str | list[str], AbstractUser], # dataset, parameter_name, selected_ids, user
+            Coroutine[Any, Any, rm.ParametersModel]
+        ],
+        get_dataset_results_for_mcp: Callable[
+            [str, str, str | None, AbstractUser, dict[str, str]], # dataset, parameters, sql_query, user, headers
+            Coroutine[Any, Any, DatasetResult]
+        ],
     ):
         """
         Initialize the MCP server builder.
@@ -52,16 +60,19 @@ class McpServerBuilder:
             project_name: The name of the Squirrels project
             project_label: The human-readable label of the project
             max_rows_for_ai: Maximum number of rows to return for AI tools
-            get_data_catalog_func: Async function to get the data catalog
-            get_dataset_parameters_func: Async function to get dataset parameters
-            get_dataset_results_func: Async function to get dataset results
+            get_data_catalog_for_mcp: Async function to get the data catalog
+            get_dataset_parameters_for_mcp: Async function to get dataset parameters
+            get_dataset_results_for_mcp: Async function to get dataset results
         """
         self.project_name = project_name
         self.project_label = project_label
         self.max_rows_for_ai = max_rows_for_ai
-        self._get_data_catalog_func = get_data_catalog_func
-        self._get_dataset_parameters_func = get_dataset_parameters_func
-        self._get_dataset_results_func = get_dataset_results_func
+        self.default_for_limit = min(self.max_rows_for_ai, 10)
+
+        self.get_user_from_headers = get_user_from_headers
+        self._get_data_catalog_for_mcp = get_data_catalog_for_mcp
+        self._get_dataset_parameters_for_mcp = get_dataset_parameters_for_mcp
+        self._get_dataset_results_for_mcp = get_dataset_results_for_mcp
         
         # Tool names
         self.catalog_tool_name = f"get_data_catalog_from_{project_name}"
@@ -106,14 +117,27 @@ class McpServerBuilder:
         except (AttributeError, LookupError):
             pass
         return {}
+
+    def _get_feature_flags(self, *, headers: dict[str, str] | None = None) -> set[str]:
+        """
+        Get the feature flags from the request headers.
+        """
+        headers = headers or self._get_request_headers()
+        return set(x.strip() for x in headers.get("x-feature-flags", "").split(","))
     
     async def _list_tools(self) -> list[types.Tool]:
         """Return the list of available MCP tools."""
-        default_for_limit = min(self.max_rows_for_ai, 10)
+        feature_flags = self._get_feature_flags()
+        full_result_flag = "mcp-full-dataset-v1" in feature_flags
+        
+        dataset_results_extended_description = dedent("""
+            The "offset" and "limit" arguments affect the "content" field, but not the "structuredContent" field, of this tool's result. Assume that you (the AI model) can only see the "content" field, but accessing this tool's result through code execution (if applicable) uses the "structuredContent" field. Note that the "sql_query" and "orientation" arguments still apply to both the "content" and "structuredContent" fields.
+        """).strip() if full_result_flag else ""
 
         return [
             types.Tool(
                 name=self.catalog_tool_name,
+                title=f"Getting Data Catalog For {self.project_label}",
                 description=dedent(f"""
                     Use this tool to get the details of all datasets and parameters you can access in the Squirrels project '{self.project_name}'.
                     
@@ -128,6 +152,7 @@ class McpServerBuilder:
             ),
             types.Tool(
                 name=self.parameters_tool_name,
+                title=f"Setting Dataset Parameters For {self.project_label}",
                 description=dedent(f"""
                     Use this tool to get updates for dataset parameters in the Squirrels project "{self.project_name}" when a selection is to be made on a parameter with `"trigger_refresh": true`.
 
@@ -142,26 +167,28 @@ class McpServerBuilder:
                             "type": "string",
                             "description": "The name of the dataset whose parameters the trigger parameter will update",
                         },
-                        "parameter_name": {
-                            "type": "string",
-                            "description": "The name of the parameter triggering the refresh",
-                        },
                         "selected_ids": {
-                            "type": "array",
-                            "items": {"type": "string"},
-                            "description": "The ID(s) of the selected option(s) for the parameter",
+                            "type": "string",
+                            "description": dedent("""
+                                A JSON object (as string) with one key-value pair. The key is the name of the parameter triggering the refresh, and the value is the ID(s) of the selected option(s) for the parameter.
+                                - If the parameter's widget_type is single_select, use a string for the ID of the selected option
+                                - If the parameter's widget_type is multi_select, use an array of strings for the IDs of the selected options
+
+                                An error is raised if this JSON object does not have exactly one key-value pair.
+                            """).strip(),
                         },
                     },
-                    "required": ["dataset", "parameter_name", "selected_ids"],
+                    "required": ["dataset", "selected_ids"],
                 },
                 # outputSchema=rm.ParametersModel.model_json_schema(),
             ),
             types.Tool(
                 name=self.results_tool_name,
+                title=f"Getting Dataset Results For {self.project_label}",
                 description=dedent(f"""
                     Use this tool to get the dataset results as a JSON object for a dataset in the Squirrels project "{self.project_name}".
-                    - Use the "offset" and "limit" arguments to limit the number of rows you require
-                    - The "limit" argument controls the number of rows returned. The maximum allowed value is {self.max_rows_for_ai}. If the 'total_num_rows' field in the response is greater than {self.max_rows_for_ai}, let the user know that only {self.max_rows_for_ai} rows are shown and clarify if they would like to see more.
+
+                    {dataset_results_extended_description}
                 """).strip(),
                 inputSchema={
                     "type": "object",
@@ -174,13 +201,13 @@ class McpServerBuilder:
                             "type": "string",
                             "description": dedent("""
                                 A JSON object (as string) containing key-value pairs for parameter name and selected value. The selected value to provide depends on the parameter widget type:
-                                - For single select, use a string for the ID of the selected value
-                                - For multi select, use an array of strings for the IDs of the selected values
-                                - For date, use a string like "YYYY-MM-DD"
-                                - For date ranges, use array of strings like ["YYYY-MM-DD","YYYY-MM-DD"]
-                                - For number, use a number like 1
-                                - For number ranges, use array of numbers like [1,100]
-                                - For text, use a string for the text value
+                                - If the parameter's widget_type is single_select, use a string for the ID of the selected option
+                                - If the parameter's widget_type is multi_select, use an array of strings for the IDs of the selected options
+                                - If the parameter's widget_type is date, use a string like "YYYY-MM-DD"
+                                - If the parameter's widget_type is date_range, use array of strings like ["YYYY-MM-DD","YYYY-MM-DD"]
+                                - If the parameter's widget_type is number, use a number like 1
+                                - If the parameter's widget_type is number_range, use array of numbers like [1,100]
+                                - If the parameter's widget_type is text, use a string for the text value
                                 - Complex objects are NOT supported
                             """).strip(),
                         },
@@ -192,16 +219,26 @@ class McpServerBuilder:
                                 - Use this to apply transformations to the dataset result if needed (such as filtering, sorting, or selecting columns).
                                 - If not provided, the dataset result is returned as is.
                             """).strip(),
+                            "default": None,
+                        },
+                        "orientation": {
+                            "type": "string",
+                            "enum": ["rows", "columns", "records"],
+                            "description": "The orientation of the dataset result. Options are 'rows', 'columns', and 'records'. Default is 'rows'.",
+                            "default": "rows",
                         },
                         "offset": {
                             "type": "integer",
-                            "description": "The number of rows to skip from first row. Applied after final SQL. Default is 0.",
+                            "description": "The number of rows to skip from first row. Applied after the sql_query. Default is 0.",
                             "default": 0,
                         },
                         "limit": {
                             "type": "integer",
-                            "description": f"The maximum number of rows to return. Applied after final SQL. Default is {default_for_limit}. Maximum allowed value is {self.max_rows_for_ai}.",
-                            "default": default_for_limit,
+                            "description": dedent(f"""
+                                The maximum number of rows to return. Applied after the sql_query. 
+                                Default is {self.default_for_limit}. Maximum allowed value is {self.max_rows_for_ai}.
+                            """).strip(),
+                            "default": self.default_for_limit,
                         },
                     },
                     "required": ["dataset", "parameters"],
@@ -210,40 +247,114 @@ class McpServerBuilder:
             ),
         ]
     
-    async def _call_tool(self, name: str, arguments: dict[str, Any] | None) -> dict[str, Any] | types.CallToolResult:
+    def _get_dataset_and_parameters(self, arguments: dict[str, Any], *, params_key: str = "parameters") -> tuple[str, dict[str, Any]]:
+        """Get dataset and parameters from arguments.
+
+        Args:
+            arguments: The arguments from the tool call
+            params_key: The key of the parameters in the arguments
+        
+        Returns:
+            A tuple of the dataset and parameters
+
+        Raises:
+            InvalidInputError: If the dataset or parameters are invalid
+        """
+        try:
+            dataset = str(arguments["dataset"])
+        except KeyError:
+            raise InvalidInputError(400, "invalid_dataset", "The 'dataset' argument is required.")
+
+        parameters_arg = str(arguments.get(params_key, "{}"))
+        
+        # validate parameters argument
+        try:
+            parameters = json.loads(parameters_arg)
+        except json.JSONDecodeError:
+            parameters = None  # error handled below
+        
+        if not isinstance(parameters, dict):
+            raise InvalidInputError(400, "invalid_parameters", f"The '{params_key}' argument must be a JSON object.")
+        
+        return dataset, parameters
+    
+    async def _call_tool(self, name: str, arguments: dict[str, Any] | None) -> types.CallToolResult:
         """Handle tool calls by dispatching to the appropriate function.
         
         Returns structured data (dict) directly for successful calls, which the MCP
         framework will serialize to JSON. For errors, returns CallToolResult with isError=True.
         """
         arguments = arguments or {}
-        headers = self._get_request_headers()
         
         try:
+            headers = self._get_request_headers()
+            user = self.get_user_from_headers(headers)
+            
+            feature_flags = self._get_feature_flags(headers=headers)
+            full_result_flag = "mcp-full-dataset-v1" in feature_flags
+
             if name == self.catalog_tool_name:
-                result = await self._get_data_catalog_func(headers)
-                return result.model_dump(mode="json")
+                result = await self._get_data_catalog_for_mcp(user)
+                return types.CallToolResult(
+                    content=[types.TextContent(type="text", text=result.model_dump_json(by_alias=True))],
+                    structuredContent=result.model_dump(mode="json", by_alias=True),
+                )
             
             elif name == self.parameters_tool_name:
-                dataset = arguments.get("dataset", "")
-                parameter_name = arguments.get("parameter_name", "")
-                selected_ids = arguments.get("selected_ids", [])
+                dataset, parameters = self._get_dataset_and_parameters(arguments, params_key="selected_ids")
+
+                # validate parameters is a single key-value pair
+                if len(parameters) != 1:
+                    raise InvalidInputError(
+                        400, "invalid_selected_ids", 
+                        "The 'selected_ids' argument must have exactly one key-value pair."
+                    )
                 
-                result = await self._get_dataset_parameters_func(dataset, parameter_name, selected_ids, headers)
-                return result.model_dump(mode="json")
+                # validate selected ids is a string or list of strings
+                parameter_name, selected_ids = next(iter(parameters.items()))
+                if not isinstance(selected_ids, (str, list)):
+                    raise InvalidInputError(
+                        400, "invalid_selected_ids", 
+                        f"The selected ids of the parameter '{parameter_name}' must be a string or list of strings."
+                    )
+                
+                # get dataset parameters
+                result = await self._get_dataset_parameters_for_mcp(dataset, parameter_name, selected_ids, user)
+                return types.CallToolResult(
+                    content=[types.TextContent(type="text", text=result.model_dump_json(by_alias=True))],
+                    structuredContent=result.model_dump(mode="json", by_alias=True),
+                )
             
             elif name == self.results_tool_name:
-                dataset = arguments.get("dataset", "")
-                parameters_json = arguments.get("parameters", "{}")
-                sql_query = arguments.get("sql_query")
-                offset = arguments.get("offset", 0)
-                limit = arguments.get("limit", self.max_rows_for_ai)
-                
+                dataset, parameters = self._get_dataset_and_parameters(arguments, params_key="parameters")
+            
+                # validate sql_query argument
+                sql_query_arg = arguments.get("sql_query")
+                sql_query = str(sql_query_arg) if sql_query_arg else None
+
+                # validate orientation argument
+                result_format = RouteBase.extract_orientation_offset_and_limit(arguments, key_prefix="", default_orientation="rows", default_limit=self.default_for_limit)
+                orientation, limit = result_format.orientation, result_format.limit
                 if limit > self.max_rows_for_ai:
-                    raise ValueError(f"The maximum number of rows to return is {self.max_rows_for_ai}.")
+                    raise InvalidInputError(400, "invalid_limit", f"The 'limit' argument must be less than or equal to {self.max_rows_for_ai}.")
                 
-                result = await self._get_dataset_results_func(dataset, parameters_json, sql_query, offset, limit, headers)
-                return result.model_dump(mode="json")
+                # get dataset result object
+                result_obj = await self._get_dataset_results_for_mcp(
+                    dataset, parameters, sql_query, user, headers
+                )
+
+                # format dataset result object
+                structured_result = result_obj.to_json(result_format)
+                result_model = rm.DatasetResultModel(**structured_result)
+                
+                if full_result_flag:
+                    full_result_format = DatasetResultFormat(orientation, 0, None)
+                    structured_result = result_obj.to_json(full_result_format)
+                
+                return types.CallToolResult(
+                    content=[types.TextContent(type="text", text=result_model.model_dump_json(by_alias=True))],
+                    structuredContent=structured_result,
+                )
             
             else:
                 return types.CallToolResult(
@@ -277,30 +388,14 @@ class McpServerBuilder:
         headers = self._get_request_headers()
         
         if str(uri) == self.catalog_resource_uri:
-            result = await self._get_data_catalog_func(headers)
-            return result.model_dump_json()
+            user = self.get_user_from_headers(headers)
+            result = await self._get_data_catalog_for_mcp(user)
+            return result.model_dump_json(by_alias=True)
         else:
             raise ValueError(f"Unknown resource URI: {uri}")
     
-    def get_asgi_app(self) -> ASGIApp:
-        """
-        Get the ASGI app for the MCP server.
-        """
-        @asynccontextmanager
-        async def lifespan(app: Starlette) -> AsyncIterator[None]:
-            async with self._session_manager.run():
-                yield
-        
-        app = Starlette(
-            routes=[
-                Mount("/", app=self._session_manager.handle_request),
-            ],
-            lifespan=lifespan,
-        )
-        return app
-    
     @asynccontextmanager
-    async def lifespan(self):
+    async def lifespan(self) -> AsyncIterator[None]:
         """
         Async context manager for the MCP session manager lifecycle.
         
@@ -308,3 +403,16 @@ class McpServerBuilder:
         """
         async with self._session_manager.run():
             yield
+
+    def get_asgi_app(self) -> ASGIApp:
+        """
+        Get the ASGI app for the MCP server.
+        """
+        app = Starlette(
+            routes=[
+                Mount("/", app=self._session_manager.handle_request),
+            ],
+            lifespan=self.lifespan,
+        )
+        return app
+    

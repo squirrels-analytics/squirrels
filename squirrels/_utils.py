@@ -93,7 +93,7 @@ class EnvironmentWithMacros(j2.Environment):
 
 ## Utility functions/variables
 
-def render_string(raw_str: str, *, base_path: str = ".", **kwargs) -> str:
+def render_string(raw_str: str, *, project_path: str = ".", **kwargs) -> str:
     """
     Given a template string, render it with the given keyword arguments
 
@@ -104,7 +104,7 @@ def render_string(raw_str: str, *, base_path: str = ".", **kwargs) -> str:
     Returns:
         The rendered string
     """
-    j2_env = j2.Environment(loader=j2.FileSystemLoader(base_path))
+    j2_env = j2.Environment(loader=j2.FileSystemLoader(project_path))
     template = j2_env.from_string(raw_str)
     return template.render(kwargs)
 

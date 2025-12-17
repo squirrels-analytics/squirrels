@@ -3,6 +3,7 @@ from sqlalchemy import create_engine
 from enum import Enum
 from passlib.context import CryptContext
 
+from squirrels._env_vars import SquirrelsEnvVars
 from squirrels._auth import Authenticator, AuthProviderArgs
 from squirrels._schemas.auth_models import CustomUserFields, ClientRegistrationRequest, ClientUpdateRequest, GuestUser
 from squirrels._manifest import PermissionScope
@@ -18,27 +19,28 @@ class RoleEnum(str, Enum):
     MODERATOR = "moderator"
     ADMIN = "admin"
 
-class TestCustomUserFields(CustomUserFields):
+class MockCustomUserFields(CustomUserFields):
     email: str = ""
     role: RoleEnum = RoleEnum.USER
     age: int = 18
 
 @pytest.fixture(scope="session")
-def env_vars():
-    return {
-        c.SQRL_SECRET_KEY: "test_secret_key",
-        c.SQRL_SECRET_ADMIN_PASSWORD: "admin_password"
-    }
+def envvars():
+    return SquirrelsEnvVars(
+        project_path=".",
+        SQRL_SECRET__KEY="test_secret_key",
+        SQRL_SECRET__ADMIN_PASSWORD="admin_password"
+    )
 
 @pytest.fixture(scope="function")
-def auth(env_vars, monkeypatch):
+def auth(envvars: SquirrelsEnvVars, monkeypatch):
     # Patch the password context to use faster hashing for tests
     monkeypatch.setattr("squirrels._auth.pwd_context", test_pwd_context)
     
     engine = create_engine("sqlite:///:memory:?check_same_thread=False")
     logger = u.Logger("")
-    auth_args = AuthProviderArgs(project_path=".", _proj_vars={}, _env_vars=env_vars)
-    auth_instance = Authenticator(logger, ".", auth_args, provider_functions=[], custom_user_fields_cls=TestCustomUserFields, sa_engine=engine)
+    auth_args = AuthProviderArgs(project_path=".", proj_vars={}, env_vars=envvars.model_dump())
+    auth_instance = Authenticator(logger, envvars, auth_args, provider_functions=[], custom_user_fields_cls=MockCustomUserFields, sa_engine=engine)
     yield auth_instance
     auth_instance.close()
 

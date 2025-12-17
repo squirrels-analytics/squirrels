@@ -4,19 +4,12 @@ import polars as pl
 
 from .. import _utils as u
 
+
 @dataclass
 class ConnectionsArgs:
     project_path: str
-    _proj_vars: dict[str, Any]
-    _env_vars: dict[str, str]
-
-    @property
-    def proj_vars(self) -> dict[str, Any]:
-        return self._proj_vars.copy()
-    
-    @property
-    def env_vars(self) -> dict[str, str]:
-        return self._env_vars.copy()
+    proj_vars: dict[str, Any]
+    env_vars: dict[str, str]
 
 
 @dataclass
@@ -30,39 +23,12 @@ class ParametersArgs(ConnectionsArgs):
 
 
 @dataclass
-class _WithConnectionDictArgs(ConnectionsArgs):
-    _connections: dict[str, Any]
+class BuildModelArgs(ConnectionsArgs):
+    connections: dict[str, Any]
+    dependencies: Iterable[str]
+    _ref_func: Callable[[str], pl.LazyFrame]
+    _run_external_sql_func: Callable[[str, str], pl.DataFrame]
 
-    @property
-    def connections(self) -> dict[str, Any]:
-        """
-        A dictionary of connection keys to SQLAlchemy Engines for database connections. 
-        
-        Can also be used to store other in-memory objects in advance such as ML models.
-        """
-        return self._connections.copy()
-
-
-class BuildModelArgs(_WithConnectionDictArgs):
-
-    def __init__(
-        self, conn_args: ConnectionsArgs, _connections: dict[str, Any], 
-        dependencies: Iterable[str], 
-        ref: Callable[[str], pl.LazyFrame], 
-        run_external_sql: Callable[[str, str], pl.DataFrame]
-    ):
-        super().__init__(conn_args.project_path, conn_args.proj_vars, conn_args.env_vars, _connections)
-        self._dependencies = dependencies
-        self._ref = ref
-        self._run_external_sql = run_external_sql
-
-    @property
-    def dependencies(self) -> set[str]:
-        """
-        The set of dependent data model names
-        """
-        return set(self._dependencies)
-    
     def ref(self, model: str) -> pl.LazyFrame:
         """
         Returns the result (as polars DataFrame) of a dependent model (predefined in "dependencies" function)
@@ -76,7 +42,7 @@ class BuildModelArgs(_WithConnectionDictArgs):
         Returns:
             A polars DataFrame
         """
-        return self._ref(model)
+        return self._ref_func(model)
 
     def run_external_sql(self, connection_name: str, sql_query: str, **kwargs) -> pl.DataFrame:
         """
@@ -89,20 +55,20 @@ class BuildModelArgs(_WithConnectionDictArgs):
         Returns:
             The query result as a polars DataFrame
         """
-        return self._run_external_sql(sql_query, connection_name)
+        return self._run_external_sql_func(sql_query, connection_name)
 
     def run_sql_on_dataframes(self, sql_query: str, *, dataframes: dict[str, pl.LazyFrame] | None = None, **kwargs) -> pl.DataFrame:
         """
         Uses a dictionary of dataframes to execute a SQL query in an embedded in-memory DuckDB database
 
         Arguments:
-            sql_query: The SQL query to run
+            sql_query: The SQL query to run (DuckDB dialect)
             dataframes: A dictionary of table names to their polars LazyFrame. If None, uses results of dependent models
         
         Returns:
             The result as a polars DataFrame from running the query
         """
         if dataframes is None:
-            dataframes = {x: self.ref(x) for x in self._dependencies}
+            dataframes = {x: self.ref(x) for x in self.dependencies}
 
         return u.run_sql_on_dataframes(sql_query, dataframes)

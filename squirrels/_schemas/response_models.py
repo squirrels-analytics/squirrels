@@ -38,11 +38,11 @@ class SelectParameterModel(ParameterModelBase):
     trigger_refresh: Annotated[bool, Field(description="A boolean that's set to true for parent parameters that require a new parameters API call when the selection changes")]
 
 class SingleSelectParameterModel(SelectParameterModel):
-    widget_type: Annotated[str, Field(description="The parameter type (set to 'single_select' for this model)")]
+    widget_type: Annotated[Literal["single_select"], Field(description="The parameter type")]
     selected_id: Annotated[str | None, Field(description="The ID of the selected / default option")]
 
 class MultiSelectParameterModel(SelectParameterModel):
-    widget_type: Annotated[str, Field(description="The parameter type (set to 'multi_select' for this model)")]
+    widget_type: Annotated[Literal["multi_select"], Field(description="The parameter type")]
     show_select_all: Annotated[bool, Field(description="A boolean for whether there should be a toggle to select all options")]
     order_matters: Annotated[bool, Field(description="A boolean for whether the ordering of the input selections would affect the result of the dataset")]
     selected_ids: Annotated[list[str], Field(description="A list of ids of the selected / default options")]
@@ -52,11 +52,11 @@ class _DateTypeParameterModel(ParameterModelBase):
     max_date: Annotated[date | None, Field(description='A string in "yyyy-MM-dd" format for the maximum date')]
 
 class DateParameterModel(_DateTypeParameterModel):
-    widget_type: Annotated[str, Field(description="The parameter type (set to 'date' for this model)")]
+    widget_type: Annotated[Literal["date"], Field(description="The parameter type")]
     selected_date: Annotated[date, Field(description='A string in "yyyy-MM-dd" format for the selected / default date')]
 
 class DateRangeParameterModel(_DateTypeParameterModel):
-    widget_type: Annotated[str, Field(description="The parameter type (set to 'date_range' for this model)")]
+    widget_type: Annotated[Literal["date_range"], Field(description="The parameter type")]
     selected_start_date: Annotated[date, Field(description='A string in "yyyy-MM-dd" format for the selected / default start date')]
     selected_end_date: Annotated[date, Field(description='A string in "yyyy-MM-dd" format for the selected / default end date')]
 
@@ -66,16 +66,16 @@ class _NumericParameterModel(ParameterModelBase):
     increment: Annotated[float, Field(description="A number for the selectable increments between the lower bound and upper bound")]
 
 class NumberParameterModel(_NumericParameterModel):
-    widget_type: Annotated[str, Field(description="The parameter type (set to 'number' for this model)")]
+    widget_type: Annotated[Literal["number"], Field(description="The parameter type")]
     selected_value: Annotated[float, Field(description="A number for the selected / default number")]
 
 class NumberRangeParameterModel(_NumericParameterModel):
-    widget_type: Annotated[str, Field(description="The parameter type (set to 'number_range' for this model)")]
+    widget_type: Annotated[Literal["number_range"], Field(description="The parameter type")]
     selected_lower_value: Annotated[float, Field(description="A number for the selected / default lower number")]
     selected_upper_value: Annotated[float, Field(description="A number for the selected / default upper number")]
 
 class TextParameterModel(ParameterModelBase):
-    widget_type: Annotated[str, Field(description="The parameter type (set to 'text' for this model)")]
+    widget_type: Annotated[Literal["text"], Field(description="The parameter type")]
     entered_text: Annotated[str, Field(description="A string for the default entered text")]
     input_type: Annotated[str, Field(
         description='A string for the input type (one of "text", "textarea", "number", "date", "datetime-local", "month", "time", "color", or "password")'
@@ -192,9 +192,9 @@ class DatasetResultModel(BaseModel):
     data: Annotated[list[dict] | list[list] | dict[str, list], Field(
         description=dedent("""
         The data payload. 
-        - If `data_details.orientation` is 'records', this is a list of JSON objects. 
-        - If `data_details.orientation` is 'rows', this is a list of rows. Each row is a list of values in the same order as the columns in `data_schema`.
-        - If `data_details.orientation` is 'columns', this is a JSON object where keys are column names and values are columns. Each column is a list of values from the first to last row.
+        - If orientation is 'records', this is a list of JSON objects. 
+        - If orientation is 'rows', this is a list of rows. Each row is a list of values in the same order as the columns in `schema`.
+        - If orientation is 'columns', this is a JSON object where keys are column names and values are columns. Each column is a list of values from the first to last row.
         """).strip()
     )]
 

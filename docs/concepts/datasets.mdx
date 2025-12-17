@@ -108,7 +108,7 @@ In practice:
 
 <Note>
 
-In addition to your project's widget parameter names, Squirrels defines a small set of `x_*` request fields. These are **not** widget parameters - they control request behavior (validation, output orientation, limits, etc). See the "Available request fields (per endpoint)" section below for more details.
+In addition to your project's widget parameter names, Squirrels defines a small set of `x_*` request fields. These are **not** widget parameters - they control request behavior (output orientation, offset, limit, etc). See the "Available request fields (per endpoint)" section below for more details.
 
 </Note>
 
@@ -149,11 +149,9 @@ Any widget parameter name defined for the dataset (from `squirrels.yml`), provid
 **Special `x_*` request fields**
 
 - `x_parent_param` (string) - The parent parameter name used for parameter updates
-- `x_verify_params` (bool, **deprecated**) - Use the `x-verify-params` header instead
 
 **Headers**
 
-- `x-verify-params: true|false` - Validates that all provided query/body fields are accepted by the endpoint
 - `Authorization` / `x-api-key` - Authentication
 
 <Note>
@@ -177,16 +175,13 @@ Any widget parameter name defined for the dataset (from `squirrels.yml`), provid
 
 **Special `x_*` request fields**
 
-- `x_limit` (int, default `1000`) - Max rows to return
-- `x_offset` (int, default `0`) - Number of rows to skip before returning data
 - `x_sql_query` (string, optional) - Optional Polars SQL to transform the final dataset (use table name `result`)
-- `x_orientation` (string, **deprecated**) - Use the `x-orientation` header instead
-- `x_verify_params` (bool, **deprecated**) - Use the `x-verify-params` header instead
+- `x_orientation` (string, default `records`) - Controls result orientation. Options are `records` (default), `rows`, and `columns`.
+- `x_offset` (int, default `0`) - Number of rows to skip before returning data
+- `x_limit` (int, default `1000`) - Max rows to return
 
 **Headers**
 
-- `x-orientation: records|rows|columns` - Controls result orientation
-- `x-verify-params: true|false` - Validates that all provided query/body fields are accepted by the endpoint
 - `Authorization` / `x-api-key` - Authentication
 - `x-config-{name}: <value>` - Configurable overrides (only applied for users with elevated privileges, and only for configurables defined in the project)
 

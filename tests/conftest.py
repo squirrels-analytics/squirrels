@@ -18,7 +18,7 @@ def simple_env_vars():
 
 @pytest.fixture(scope="session")
 def simple_conn_args():
-    return ConnectionsArgs(".", {}, {})
+    return ConnectionsArgs(project_path=".", proj_vars={}, env_vars={})
 
 @pytest.fixture(scope="session")
 def simple_conn_set():

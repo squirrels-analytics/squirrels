@@ -3,11 +3,11 @@ import pytest
 from squirrels import _parameter_configs as pc, _parameter_options as po, _parameters as p
 from squirrels._schemas.auth_models import CustomUserFields, GuestUser
 
-class TestCustomUserFields(CustomUserFields):
+class MockCustomUserFields(CustomUserFields):
     organization: str = ""
 
 def create_test_user(organization: str = ""):
-    custom_fields = TestCustomUserFields(organization=organization)
+    custom_fields = MockCustomUserFields(organization=organization)
     return GuestUser(username="test", custom_fields=custom_fields)
 
 

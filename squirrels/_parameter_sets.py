@@ -11,6 +11,7 @@ from ._manifest import ParametersConfig, ManifestConfig
 from ._connection_set import ConnectionSet
 from ._seeds import Seeds
 from ._schemas.auth_models import AbstractUser
+from ._env_vars import SquirrelsEnvVars
 
 
 @dataclass
@@ -176,8 +177,8 @@ class ParameterConfigsSetIO:
     
     @classmethod
     def load_from_file(
-        cls, logger: u.Logger, base_path: str, manifest_cfg: ManifestConfig, seeds: Seeds, conn_set: ConnectionSet, param_args: ParametersArgs, 
-        datalake_db_path: str
+        cls, logger: u.Logger, envvars: SquirrelsEnvVars, manifest_cfg: ManifestConfig, seeds: Seeds, conn_set: ConnectionSet, 
+        param_args: ParametersArgs
     ) -> ParameterConfigsSet:
         start = time.time()
         param_configs_set = ParameterConfigsSet()
@@ -185,7 +186,8 @@ class ParameterConfigsSetIO:
         for param_as_dict in manifest_cfg.parameters:
             cls._add_from_dict(param_configs_set, param_as_dict)
         
-        main_result = pm.run_pyconfig_main(base_path, c.PARAMETERS_FILE, {"sqrl": param_args})  # adds to cls.param_factories as side effect
+        # adds to cls.param_factories as side effect
+        main_result = pm.run_pyconfig_main(envvars.project_path, c.PARAMETERS_FILE, {"sqrl": param_args})  
         param_factories = cls.param_factories
         cls.param_factories = []
 
@@ -196,7 +198,8 @@ class ParameterConfigsSetIO:
             for param_config in main_result:
                 param_configs_set.add(param_config)
         
-        default_conn_name = manifest_cfg.env_vars.get(c.SQRL_CONNECTIONS_DEFAULT_NAME_USED, "default")
+        default_conn_name = envvars.connections_default_name_used
+        datalake_db_path = envvars.vdl_catalog_db_path
         df_dict = cls._get_df_dict_from_data_sources(param_configs_set, default_conn_name, seeds, conn_set, datalake_db_path)
         param_configs_set._post_process_params(df_dict)
         

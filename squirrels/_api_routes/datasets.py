@@ -8,7 +8,7 @@ from fastapi.security import HTTPBearer
 from dataclasses import asdict
 from cachetools import TTLCache
 
-import time, json
+import time
 import polars as pl
 
 from .. import _constants as c, _utils as u
@@ -17,7 +17,7 @@ from .._exceptions import ConfigurationError, InvalidInputError
 from .._dataset_types import DatasetResult
 from .._schemas.query_param_models import get_query_models_for_parameters, get_query_models_for_dataset
 from .._schemas.auth_models import AbstractUser
-from .base import RouteBase, XApiKeyHeader, XVerifyParamsHeader, XOrientationHeader
+from .base import RouteBase, XApiKeyHeader
 
 
 class DatasetRoutes(RouteBase):
@@ -27,15 +27,16 @@ class DatasetRoutes(RouteBase):
         super().__init__(get_bearer_token, project, no_cache)
         
         # Setup caches
-        dataset_results_cache_size = int(self.env_vars.get(c.SQRL_DATASETS_CACHE_SIZE, 128))
-        dataset_results_cache_ttl = int(self.env_vars.get(c.SQRL_DATASETS_CACHE_TTL_MINUTES, 60))
-        self.dataset_results_cache = TTLCache(maxsize=dataset_results_cache_size, ttl=dataset_results_cache_ttl*60)
+        self.dataset_results_cache = TTLCache(
+            maxsize=self.envvars.datasets_cache_size, 
+            ttl=self.envvars.datasets_cache_ttl_minutes*60
+        )
         
         # Setup max rows
-        self.max_result_rows = int(self.env_vars.get(c.SQRL_DATASETS_MAX_RESULT_ROWS, 100000))
+        self.max_result_rows = self.envvars.datasets_max_rows_output
         
         # Setup SQL query timeout
-        self.sql_timeout_seconds = float(self.env_vars.get(c.SQRL_DATASETS_SQL_TIMEOUT_SECONDS, 2))
+        self.sql_timeout_seconds = self.envvars.datasets_sql_timeout_seconds
         
     async def _get_dataset_results_helper(
         self, dataset: str, user: AbstractUser, selections: tuple[tuple[str, Any], ...], configurables: tuple[tuple[str, str], ...]
@@ -49,19 +50,21 @@ class DatasetRoutes(RouteBase):
         self, dataset: str, user: AbstractUser, selections: tuple[tuple[str, Any], ...], configurables: tuple[tuple[str, str], ...]
     ) -> DatasetResult:
         """Cachable version of dataset results helper"""
-        return await self.do_cachable_action(self.dataset_results_cache, self._get_dataset_results_helper, dataset, user, selections, configurables)
+        return await self.do_cachable_action(
+            self.dataset_results_cache, self._get_dataset_results_helper, dataset, user, selections, configurables
+        )
     
-    async def _get_dataset_results_definition(
-        self, dataset_name: str, user: AbstractUser, all_request_params: dict, params: dict, headers: dict[str, str]
-    ) -> rm.DatasetResultModel:
-        """Get dataset results definition"""
-        self._validate_request_params(all_request_params, params, headers)
+    async def _get_dataset_result_object(
+        self, dataset_name: str, user: AbstractUser, params: dict, headers: dict[str, str]
+    ) -> DatasetResult:
+        """Get dataset result object"""
+        # self._validate_request_params(all_request_params, params, headers)
 
         get_dataset_function = self._get_dataset_results_helper if self.no_cache else self._get_dataset_results_cachable
-        uncached_keys = {"x_verify_params", "x_orientation", "x_sql_query", "x_limit", "x_offset"}
+        uncached_keys = {"x_sql_query", "x_orientation", "x_offset", "x_limit"}
         selections = self.get_selections_as_immutable(params, uncached_keys)
         
-        user_has_elevated_privileges = u.user_has_elevated_privileges(user.access_level, self.project._elevated_access_level)
+        user_has_elevated_privileges = u.user_has_elevated_privileges(user.access_level, self.envvars.elevated_access_level)
         configurables = self.get_configurables_from_headers(headers) if user_has_elevated_privileges else tuple()
         result = await get_dataset_function(dataset_name, user, selections, configurables)
         
@@ -87,15 +90,20 @@ class DatasetRoutes(RouteBase):
             transformed = transformed.drop("_row_num", strict=False).with_row_index("_row_num", offset=1)
             result = DatasetResult(target_model_config=result.target_model_config, df=transformed)
         
-        orientation_header = headers.get("x-orientation")
-        orientation = str(orientation_header).lower() if orientation_header is not None else params.get("x_orientation", "records")
-        limit = params.get("x_limit", 1000)
-        offset = params.get("x_offset", 0)
-        return rm.DatasetResultModel(**result.to_json(orientation, limit, offset)) 
+        return result
+
+    async def _get_dataset_results_definition(
+        self, dataset_name: str, user: AbstractUser, params: dict, headers: dict[str, str]
+    ) -> rm.DatasetResultModel:
+        """Get dataset results definition"""
+        result = await self._get_dataset_result_object(dataset_name, user, params, headers)
+
+        result_format = self.extract_orientation_offset_and_limit(params)
+        return rm.DatasetResultModel(**result.to_json(result_format)) 
     
     def setup_routes(
-        self, app: FastAPI, project_metadata_path: str, project_name: str, project_label: str, 
-        param_fields: dict, get_parameters_definition: Callable[..., Coroutine[Any, Any, rm.ParametersModel]]
+        self, app: FastAPI, project_metadata_path: str, param_fields: dict, 
+        get_parameters_definition: Callable[..., Coroutine[Any, Any, rm.ParametersModel]]
     ) -> None:
         """Setup dataset routes"""
         
@@ -113,11 +121,11 @@ class DatasetRoutes(RouteBase):
                         f"\n  {all_params}"
                     )
         
-        async def get_dataset_parameters_updates(dataset_name: str, user: AbstractUser, all_request_params: dict, params: dict, headers: dict[str, str]):
+        async def get_dataset_parameters_updates(dataset_name: str, user: AbstractUser, params: dict):
             parameters_list = self.manifest_cfg.datasets[dataset_name].parameters
             scope = self.manifest_cfg.datasets[dataset_name].scope
             result = await get_parameters_definition(
-                parameters_list, "dataset", dataset_name, scope, user, all_request_params, params, headers=headers
+                parameters_list, "dataset", dataset_name, scope, user, params
             )
             return result
 
@@ -135,11 +143,11 @@ class DatasetRoutes(RouteBase):
             @app.get(curr_parameters_path, tags=[f"Dataset '{dataset_name}'"], description=self._parameters_description, response_class=JSONResponse)
             async def get_dataset_parameters(
                 request: Request, params: QueryModelForGetParams, user=Depends(self.get_current_user), # type: ignore
-                x_api_key: str | None = XApiKeyHeader, x_verify_params: str | None = XVerifyParamsHeader
+                x_api_key: str | None = XApiKeyHeader
             ) -> rm.ParametersModel:
                 start = time.time()
                 curr_dataset_name = self.get_name_from_path_section(request, -2)
-                result = await get_dataset_parameters_updates(curr_dataset_name, user, dict(request.query_params), asdict(params), dict(request.headers))
+                result = await get_dataset_parameters_updates(curr_dataset_name, user, asdict(params))
                 self.logger.log_activity_time(
                     "GET REQUEST for PARAMETERS", start, additional_data={"dataset_name": curr_dataset_name}
                 )
@@ -148,12 +156,12 @@ class DatasetRoutes(RouteBase):
             @app.post(curr_parameters_path, tags=[f"Dataset '{dataset_name}'"], description=self._parameters_description, response_class=JSONResponse)
             async def get_dataset_parameters_with_post(
                 request: Request, params: QueryModelForPostParams, user=Depends(self.get_current_user), # type: ignore
-                x_api_key: str | None = XApiKeyHeader, x_verify_params: str | None = XVerifyParamsHeader
+                x_api_key: str | None = XApiKeyHeader
             ) -> rm.ParametersModel:
                 start = time.time()
                 curr_dataset_name = self.get_name_from_path_section(request, -2)
-                payload: dict = await request.json()
-                result = await get_dataset_parameters_updates(curr_dataset_name, user, payload, params.model_dump(), dict(request.headers))
+                # payload: dict = await request.json()
+                result = await get_dataset_parameters_updates(curr_dataset_name, user, params.model_dump())
                 self.logger.log_activity_time(
                     "POST REQUEST for PARAMETERS", start, additional_data={"dataset_name": curr_dataset_name}
                 )
@@ -162,13 +170,12 @@ class DatasetRoutes(RouteBase):
             @app.get(curr_results_path, tags=[f"Dataset '{dataset_name}'"], description=dataset_config.description, response_class=JSONResponse)
             async def get_dataset_results(
                 request: Request, params: QueryModelForGetDataset, user=Depends(self.get_current_user), # type: ignore
-                x_api_key: str | None = XApiKeyHeader, x_verify_params: str | None = XVerifyParamsHeader, 
-                x_orientation: str | None = XOrientationHeader
+                x_api_key: str | None = XApiKeyHeader
             ) -> rm.DatasetResultModel:
                 start = time.time()
                 curr_dataset_name = self.get_name_from_path_section(request, -1)
                 result = await self._get_dataset_results_definition(
-                    curr_dataset_name, user, dict(request.query_params), asdict(params), headers=dict(request.headers)
+                    curr_dataset_name, user, asdict(params), headers=dict(request.headers)
                 )
                 self.logger.log_activity_time(
                     "GET REQUEST for DATASET RESULTS", start, additional_data={"dataset_name": curr_dataset_name}
@@ -178,14 +185,13 @@ class DatasetRoutes(RouteBase):
             @app.post(curr_results_path, tags=[f"Dataset '{dataset_name}'"], description=dataset_config.description, response_class=JSONResponse)
             async def get_dataset_results_with_post(
                 request: Request, params: QueryModelForPostDataset, user=Depends(self.get_current_user), # type: ignore
-                x_api_key: str | None = XApiKeyHeader, x_verify_params: str | None = XVerifyParamsHeader, 
-                x_orientation: str | None = XOrientationHeader
+                x_api_key: str | None = XApiKeyHeader
             ) -> rm.DatasetResultModel:
                 start = time.time()
                 curr_dataset_name = self.get_name_from_path_section(request, -1)
-                payload: dict = await request.json()
+                # payload: dict = await request.json()
                 result = await self._get_dataset_results_definition(
-                    curr_dataset_name, user, payload, params.model_dump(), headers=dict(request.headers)
+                    curr_dataset_name, user, params.model_dump(), headers=dict(request.headers)
                 )
                 self.logger.log_activity_time(
                     "POST REQUEST for DATASET RESULTS", start, additional_data={"dataset_name": curr_dataset_name}
@@ -195,45 +201,23 @@ class DatasetRoutes(RouteBase):
         # MCP-callable methods (exposed as instance attributes for McpServerBuilder)
         
         async def get_dataset_parameters_for_mcp(
-            dataset: str, parameter_name: str, selected_ids: list[str], headers: dict[str, str]
+            dataset: str, parameter_name: str, selected_ids: str | list[str], user: AbstractUser
         ) -> rm.ParametersModel:
-            """Get dataset parameter updates for MCP tools. Takes headers dict for auth."""
-            user = self.get_user_from_mcp_headers(headers)
+            """Get dataset parameter updates for MCP tools. Takes user and headers."""
             dataset_name = u.normalize_name(dataset)
-            payload = {
+            parameters = {
                 "x_parent_param": parameter_name,
                 parameter_name: selected_ids
             }
-            return await get_dataset_parameters_updates(dataset_name, user, payload, payload, headers)
+            return await get_dataset_parameters_updates(dataset_name, user, parameters)
         
         async def get_dataset_results_for_mcp(
-            dataset: str, parameters_json: str, sql_query: str | None, offset: int, limit: int, headers: dict[str, str]
-        ) -> rm.DatasetResultModel:
-            """Get dataset results for MCP tools. Takes headers dict for auth."""
-            user = self.get_user_from_mcp_headers(headers)
+            dataset: str, parameters: dict[str, Any], sql_query: str | None, user: AbstractUser, headers: dict[str, str]
+        ) -> DatasetResult:
+            """Get dataset results for MCP tools. Takes user and headers."""
             dataset_name = u.normalize_name(dataset)
-            
-            try:
-                params = json.loads(parameters_json)
-            except json.JSONDecodeError:
-                params = None  # error handled below
-            
-            if not isinstance(params, dict):
-                raise InvalidInputError(400, "invalid_parameters", "The 'parameters' argument must be a JSON object.")
-            
-            params.update({
-                "x_sql_query": sql_query,
-                "x_offset": offset,
-                "x_limit": limit
-            })
-
-            # Make a mutable copy of headers and set default orientation
-            headers_copy = dict(headers)
-            if "x-orientation" not in headers_copy:
-                headers_copy["x-orientation"] = "rows"
-            
-            result = await self._get_dataset_results_definition(dataset_name, user, params, params, headers_copy)
-            return result
+            parameters.update({ "x_sql_query": sql_query })
+            return await self._get_dataset_result_object(dataset_name, user, parameters, headers)
         
         # Store the MCP functions as instance attributes for access by McpServerBuilder
         self._get_dataset_parameters_for_mcp = get_dataset_parameters_for_mcp

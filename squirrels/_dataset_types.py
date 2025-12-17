@@ -32,27 +32,34 @@ class DatasetMetadata:
         return self._json_repr
 
 
+@dataclass(frozen=True)
+class DatasetResultFormat:
+    orientation: Literal["records", "rows", "columns"]
+    offset: int
+    limit: int | None
+
+
 @dataclass
 class DatasetResult(DatasetMetadata):
     df: pl.DataFrame
-    to_json: Callable[[str, int, int], dict] = field(init=False)
+    to_json: Callable[[DatasetResultFormat], dict] = field(init=False)
 
     def __post_init__(self):
         self.to_json = lru_cache()(self._to_json)
     
-    def _to_json(self, orientation: Literal["records", "rows", "columns"], limit: int, offset: int) -> dict:
+    def _to_json(self, result_format: DatasetResultFormat) -> dict:
         df = self.df.lazy()
-        if offset > 0:
-            df = df.filter(pl.col("_row_num") > offset)
-        if limit > 0:
-            df = df.limit(limit)
+        if result_format.offset > 0:
+            df = df.filter(pl.col("_row_num") > result_format.offset)
+        if result_format.limit is not None:
+            df = df.limit(result_format.limit)
         df = df.collect()
         
-        if orientation == "columns":
+        if result_format.orientation == "columns":
             data = df.to_dict(as_series=False)
         else:
             data = df.to_dicts()
-            if orientation == "rows":
+            if result_format.orientation == "rows":
                 data = [[row[col] for col in df.columns] for row in data]
 
         column_details_by_name = {col.name: col for col in self.target_model_config.columns}
@@ -78,7 +85,7 @@ class DatasetResult(DatasetMetadata):
             "total_num_rows": self.df.select(pl.len()).item(),
             "data_details": {
                 "num_rows": df.select(pl.len()).item(),
-                "orientation": orientation
+                "orientation": result_format.orientation
             },
             "data": data
         }

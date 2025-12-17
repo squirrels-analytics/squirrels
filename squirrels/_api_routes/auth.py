@@ -28,7 +28,7 @@ class AuthRoutes(RouteBase):
         user_management_router = APIRouter(prefix=auth_path + "/user-management")
         
         # Get expiry configuration
-        expiry_mins = self._get_access_token_expiry_minutes()
+        expiry_mins = self.envvars.auth_token_expire_minutes
         
         # Create user models
         class UpdateUserModel(self.authenticator.CustomUserFields):

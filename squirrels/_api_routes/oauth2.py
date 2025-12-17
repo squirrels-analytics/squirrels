@@ -206,7 +206,7 @@ class OAuth2Routes(RouteBase):
             auth_client_id = validate_oauth_client_credentials(client_id, client_secret)
             
             # Get token expiry configuration
-            expiry_mins = self._get_access_token_expiry_minutes()
+            expiry_mins = self.envvars.auth_token_expire_minutes
             
             if grant_type == "authorization_code":
                 # Validate required parameters for authorization code flow

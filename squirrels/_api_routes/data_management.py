@@ -15,7 +15,7 @@ from .._exceptions import InvalidInputError
 from .._schemas.auth_models import AbstractUser
 from .._dataset_types import DatasetResult
 from .._schemas.query_param_models import get_query_models_for_querying_models, get_query_models_for_compiled_models
-from .base import RouteBase, XApiKeyHeader, XVerifyParamsHeader, XOrientationHeader
+from .base import RouteBase, XApiKeyHeader
 
 
 class DataManagementRoutes(RouteBase):
@@ -24,10 +24,11 @@ class DataManagementRoutes(RouteBase):
     def __init__(self, get_bearer_token: HTTPBearer, project, no_cache: bool = False):
         super().__init__(get_bearer_token, project, no_cache)
         
-        # Setup cache (shared with dataset results cache)
-        dataset_results_cache_size = int(self.env_vars.get(c.SQRL_DATASETS_CACHE_SIZE, 128))
-        dataset_results_cache_ttl = int(self.env_vars.get(c.SQRL_DATASETS_CACHE_TTL_MINUTES, 60))
-        self.query_models_cache = TTLCache(maxsize=dataset_results_cache_size, ttl=dataset_results_cache_ttl*60)
+        # Setup cache (same settings as dataset results cache)
+        self.query_models_cache = TTLCache(
+            maxsize=self.envvars.datasets_cache_size, 
+            ttl=self.envvars.datasets_cache_ttl_minutes*60
+        )
         
     async def _query_models_helper(
         self, sql_query: str, user: AbstractUser, selections: tuple[tuple[str, Any], ...], configurables: tuple[tuple[str, str], ...]
@@ -43,12 +44,10 @@ class DataManagementRoutes(RouteBase):
         return await self.do_cachable_action(self.query_models_cache, self._query_models_helper, sql_query, user, selections, configurables)
 
     async def _query_models_definition(
-        self, user: AbstractUser, all_request_params: dict, params: dict, *, headers: dict[str, str]
+        self, user: AbstractUser, params: dict, *, headers: dict[str, str]
     ) -> rm.DatasetResultModel:
         """Query models definition"""
-        self._validate_request_params(all_request_params, params, headers)
-
-        if not u.user_has_elevated_privileges(user.access_level, self.project._elevated_access_level):
+        if not u.user_has_elevated_privileges(user.access_level, self.envvars.elevated_access_level):
             raise InvalidInputError(403, "unauthorized_access_to_query_models", f"User '{user}' does not have permission to query data models")
         
         sql_query = params.get("x_sql_query")
@@ -56,29 +55,26 @@ class DataManagementRoutes(RouteBase):
             raise InvalidInputError(400, "sql_query_required", "SQL query must be provided")
         
         query_models_function = self._query_models_helper if self.no_cache else self._query_models_cachable
-        uncached_keys = {"x_verify_params", "x_sql_query", "x_orientation", "x_limit", "x_offset"}
+        uncached_keys = {"x_sql_query", "x_orientation", "x_offset", "x_limit"}
         selections = self.get_selections_as_immutable(params, uncached_keys)
         configurables = self.get_configurables_from_headers(headers)
         result = await query_models_function(sql_query, user, selections, configurables)
         
-        orientation_header = headers.get("x-orientation")
-        orientation = str(orientation_header).lower() if orientation_header is not None else params.get("x_orientation", "records")
-        limit = params.get("x_limit", 1000)
-        offset = params.get("x_offset", 0)
-        return rm.DatasetResultModel(**result.to_json(orientation, limit, offset)) 
+        result_format = self.extract_orientation_offset_and_limit(params)
+        return rm.DatasetResultModel(**result.to_json(result_format)) 
     
     async def _get_compiled_model_definition(
-        self, model_name: str, user: AbstractUser, all_request_params: dict, params: dict, *, headers: dict[str, str]
+        self, model_name: str, user: AbstractUser, params: dict, *, headers: dict[str, str]
     ) -> rm.CompiledQueryModel:
         """Get compiled model definition"""
         normalized_model_name = u.normalize_name(model_name)
-        self._validate_request_params(all_request_params, params, headers)
+        # self._validate_request_params(all_request_params, params, headers)
 
         # Internal users only
-        if not u.user_has_elevated_privileges(user.access_level, self.project._elevated_access_level):
+        if not u.user_has_elevated_privileges(user.access_level, self.envvars.elevated_access_level):
             raise InvalidInputError(403, "unauthorized_access_to_compile_model", f"User '{user}' does not have permission to fetch compiled SQL")
         
-        selections = self.get_selections_as_immutable(params, uncached_keys={"x_verify_params"})
+        selections = self.get_selections_as_immutable(params, uncached_keys=set())
         configurables = self.get_configurables_from_headers(headers)
         cfg_filtered = {k: v for k, v in dict(configurables).items() if k in self.manifest_cfg.configurables}
         return await self.project.get_compiled_model_query(normalized_model_name, user=user, selections=dict(selections), configurables=cfg_filtered)
@@ -94,7 +90,7 @@ class DataManagementRoutes(RouteBase):
             user=Depends(self.get_current_user), # type: ignore
             x_api_key: str | None = XApiKeyHeader
         ):
-            if not u.user_has_elevated_privileges(user.access_level, self.project._elevated_access_level):
+            if not u.user_has_elevated_privileges(user.access_level, self.envvars.elevated_access_level):
                 raise InvalidInputError(403, "unauthorized_access_to_build_model", f"User '{user}' does not have permission to build the virtual data lake (VDL)")
             await self.project.build()
             return Response(status_code=status.HTTP_200_OK)
@@ -106,23 +102,21 @@ class DataManagementRoutes(RouteBase):
         @app.get(query_models_path, tags=["Data Management"], response_class=JSONResponse)
         async def query_models(
             request: Request, params: QueryModelForQueryModels, user=Depends(self.get_current_user), # type: ignore
-            x_api_key: str | None = XApiKeyHeader, x_verify_params: str | None = XVerifyParamsHeader, 
-            x_orientation: str | None = XOrientationHeader
+            x_api_key: str | None = XApiKeyHeader
         ) -> rm.DatasetResultModel:
             start = time.time()
-            result = await self._query_models_definition(user, dict(request.query_params), asdict(params), headers=dict(request.headers))
+            result = await self._query_models_definition(user, asdict(params), headers=dict(request.headers))
             self.logger.log_activity_time("GET REQUEST for QUERY MODELS", start)
             return result
         
         @app.post(query_models_path, tags=["Data Management"], response_class=JSONResponse)
         async def query_models_with_post(
             request: Request, params: QueryModelForPostQueryModels, user=Depends(self.get_current_user), # type: ignore
-            x_api_key: str | None = XApiKeyHeader, x_verify_params: str | None = XVerifyParamsHeader, 
-            x_orientation: str | None = XOrientationHeader
+            x_api_key: str | None = XApiKeyHeader
         ) -> rm.DatasetResultModel:
             start = time.time()
-            payload: dict = await request.json()
-            result = await self._query_models_definition(user, payload, params.model_dump(), headers=dict(request.headers))
+            # payload: dict = await request.json()
+            result = await self._query_models_definition(user, params.model_dump(), headers=dict(request.headers))
             self.logger.log_activity_time("POST REQUEST for QUERY MODELS", start)
             return result
 
@@ -133,10 +127,10 @@ class DataManagementRoutes(RouteBase):
         @app.get(compiled_models_path, tags=["Data Management"], response_class=JSONResponse, summary="Get compiled definition for a model")
         async def get_compiled_model(
             request: Request, model_name: str, params: QueryModelForGetCompiled, user=Depends(self.get_current_user), # type: ignore
-            x_api_key: str | None = XApiKeyHeader, x_verify_params: str | None = XVerifyParamsHeader
+            x_api_key: str | None = XApiKeyHeader
         ) -> rm.CompiledQueryModel:
             start = time.time()
-            result = await self._get_compiled_model_definition(model_name, user, dict(request.query_params), asdict(params), headers=dict(request.headers))
+            result = await self._get_compiled_model_definition(model_name, user, asdict(params), headers=dict(request.headers))
             self.logger.log_activity_time(
                 "GET REQUEST for GET COMPILED MODEL", start, additional_data={"model_name": model_name}
             )
@@ -145,11 +139,11 @@ class DataManagementRoutes(RouteBase):
         @app.post(compiled_models_path, tags=["Data Management"], response_class=JSONResponse, summary="Get compiled definition for a model")
         async def get_compiled_model_with_post(
             request: Request, model_name: str, params: QueryModelForPostCompiled, user=Depends(self.get_current_user), # type: ignore
-            x_api_key: str | None = XApiKeyHeader, x_verify_params: str | None = XVerifyParamsHeader
+            x_api_key: str | None = XApiKeyHeader
         ) -> rm.CompiledQueryModel:
             start = time.time()
-            payload: dict = await request.json()
-            result = await self._get_compiled_model_definition(model_name, user, payload, params.model_dump(), headers=dict(request.headers))
+            # payload: dict = await request.json()
+            result = await self._get_compiled_model_definition(model_name, user, params.model_dump(), headers=dict(request.headers))
             self.logger.log_activity_time(
                 "POST REQUEST for GET COMPILED MODEL", start, additional_data={"model_name": model_name}
             )

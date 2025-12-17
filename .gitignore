@@ -3,6 +3,7 @@ playground*
 site/
 .venv/
 TODOS.md
+target/
 
 # pyenv files
 .python-version

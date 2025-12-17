@@ -5,6 +5,7 @@ from pathlib import Path
 from squirrels._seeds import Seed, Seeds, SeedsIO
 from squirrels._model_configs import SeedConfig, ColumnConfig
 from squirrels._utils import Logger
+from squirrels._env_vars import SquirrelsEnvVars
 
 @pytest.fixture
 def sample_csv_content():
@@ -96,7 +97,8 @@ def test_seeds_get_dataframes():
 
 def test_seeds_io_load_files(setup_seed_files: Path):
     logger = Logger("test")
-    seeds = SeedsIO.load_files(logger, str(setup_seed_files), env_vars={})
+    envvars = SquirrelsEnvVars(project_path=str(setup_seed_files))
+    seeds = SeedsIO.load_files(logger, envvars)
     
     assert "test_seed" in seeds._data
     seed = seeds._data["test_seed"]
@@ -112,7 +114,8 @@ def test_seeds_io_load_files_without_config(temp_seed_dir: Path, sample_csv_cont
     csv_path.write_text(sample_csv_content)
     
     logger = Logger("test")
-    seeds = SeedsIO.load_files(logger, str(temp_seed_dir.parent), env_vars={})
+    envvars = SquirrelsEnvVars(project_path=str(temp_seed_dir.parent))
+    seeds = SeedsIO.load_files(logger, envvars)
     
     assert "test_seed" in seeds._data
     seed = seeds._data["test_seed"]

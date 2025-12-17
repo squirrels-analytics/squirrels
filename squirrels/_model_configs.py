@@ -1,7 +1,7 @@
 from enum import Enum
 from pydantic import BaseModel, Field
 
-from . import _constants as c
+from ._env_vars import SquirrelsEnvVars
 
 
 class ColumnCategory(Enum):
@@ -32,9 +32,9 @@ class SeedConfig(ModelConfig):
 class ConnectionInterface(BaseModel):
     connection: str | None = Field(default=None, description="The connection name of the source model / database view")
 
-    def finalize_connection(self, env_vars: dict[str, str]):
+    def finalize_connection(self, *, default_conn_name: str = "default"):
         if self.connection is None:
-            self.connection = env_vars.get(c.SQRL_CONNECTIONS_DEFAULT_NAME_USED, "default")
+            self.connection = default_conn_name
         return self
 
     def get_connection(self) -> str:
