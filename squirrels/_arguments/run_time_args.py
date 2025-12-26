@@ -1,45 +1,27 @@
 from typing import Callable, Any, Coroutine
+from dataclasses import dataclass, field, KW_ONLY
 import polars as pl
 
-from .init_time_args import ParametersArgs, BuildModelArgs
+from .init_time_args import ConnectionsArgs, ParametersArgs, BuildModelArgs
 from .._schemas.auth_models import AbstractUser
 from .._parameters import Parameter, TextValue
 
 
+@dataclass
 class ContextArgs(ParametersArgs):
+    user: AbstractUser
+    prms: dict[str, Parameter]
+    configurables: dict[str, str]
+    _conn_args: ConnectionsArgs
+    _: KW_ONLY
+    _placeholders: dict[str, Any] = field(default_factory=dict)
 
-    def __init__(
-        self, param_args: ParametersArgs, 
-        user: AbstractUser, 
-        prms: dict[str, Parameter],
-        configurables: dict[str, str]
-    ):
-        super().__init__(param_args.project_path, param_args.proj_vars, param_args.env_vars)
-        self.user = user
-        self._prms = prms
-        self._configurables = configurables
-        self._placeholders = {}
-
-    @property
-    def prms(self) -> dict[str, Parameter]:
-        """
-        A dictionary of parameter names to parameter
-        """
-        return self._prms.copy()
-    
-    @property
-    def configurables(self) -> dict[str, str]:
-        """
-        A dictionary of configurable name to value (set by application)
-        """
-        return self._configurables.copy()
-
-    @property
-    def _placeholders_copy(self) -> dict[str, Any]:
-        """
-        A dictionary of placeholder name to placeholder value
-        """
-        return self._placeholders.copy()
+    def __post_init__(self) -> None:
+        super().__post_init__()
+        self.prms = self.prms.copy()
+        self.configurables = self.configurables.copy()
+        self._conn_args = ConnectionsArgs(**self._conn_args.__dict__)
+        self._placeholders = self._placeholders.copy()
 
     def set_placeholder(self, placeholder: str, value: TextValue | Any) -> str:
         """
@@ -68,32 +50,14 @@ class ContextArgs(ParametersArgs):
         return (param_name in self.prms and self.prms[param_name].is_enabled())
 
 
-class ModelArgs(BuildModelArgs, ContextArgs):
+@dataclass
+class ModelArgs(ContextArgs, BuildModelArgs):
+    ctx: dict[str, Any]
 
-    def __init__(
-        self, ctx_args: ContextArgs, build_model_args: BuildModelArgs, 
-        ctx: dict[str, Any]
-    ):
-        super(ContextArgs, self).__init__(ctx_args.project_path, ctx_args.proj_vars, ctx_args.env_vars)
-        self._project_path = ctx_args.project_path
-        self._proj_vars = ctx_args.proj_vars
-        self._env_vars = ctx_args.env_vars
-        self.user = ctx_args.user
-        self._prms = ctx_args.prms
-        self._configurables = ctx_args.configurables
-        self._placeholders = ctx_args._placeholders_copy
-        self._connections = build_model_args.connections
-        self._dependencies = build_model_args.dependencies
-        self._ref = build_model_args.ref
-        self._run_external_sql = build_model_args.run_external_sql
-        self._ctx = ctx
-
-    @property
-    def ctx(self) -> dict[str, Any]:
-        """
-        Dictionary of context variables
-        """
-        return self._ctx.copy()
+    def __post_init__(self) -> None:
+        ContextArgs.__post_init__(self)
+        BuildModelArgs.__post_init__(self)
+        self.ctx = self.ctx.copy()
     
     def is_placeholder(self, placeholder: str) -> bool:
         """
@@ -122,14 +86,9 @@ class ModelArgs(BuildModelArgs, ContextArgs):
         return self._placeholders.get(placeholder)
 
 
-class DashboardArgs(ParametersArgs):
-
-    def __init__(
-        self, param_args: ParametersArgs, 
-        get_dataset: Callable[[str, dict[str, Any]], Coroutine[Any, Any, pl.DataFrame]]
-    ):
-        super().__init__(param_args.project_path, param_args.proj_vars, param_args.env_vars)
-        self._get_dataset = get_dataset
+@dataclass
+class DashboardArgs(ConnectionsArgs):
+    _get_dataset: Callable[[str, dict[str, Any]], Coroutine[Any, Any, pl.DataFrame]]
 
     async def dataset(self, name: str, *, fixed_parameters: dict[str, Any] = {}) -> pl.DataFrame:
         """

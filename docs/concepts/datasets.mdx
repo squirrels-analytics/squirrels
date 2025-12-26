@@ -1,0 +1,231 @@
+---
+title: Datasets
+description: "Understanding how datasets expose data models as permissioned API endpoints"
+---
+
+Datasets are the primary way to expose your data models as REST API endpoints in a Squirrels project. Each dataset configuration maps a data model to a permissioned endpoint that can be queried with user-selected parameters.
+
+## Overview
+
+When you define a dataset in `squirrels.yml`, Squirrels automatically creates dedicated API endpoints for that dataset. These endpoints allow clients to:
+
+- Query parameter definitions and options
+- Retrieve dataset results based on parameter selections
+- Access data according to the dataset's permission scope
+
+Each dataset is independently configured with its own data model, parameters, and access permissions.
+
+## Configuration in squirrels.yml
+
+Datasets are configured in the `datasets` section of your `squirrels.yml` file:
+
+```yaml squirrels.yml
+datasets:
+  - name: sales_report
+    label: Sales Report
+    description: Daily sales transactions
+    model: sales_model
+    scope: protected
+    parameters:
+      - date_range
+      - region
+    configurables:
+      - name: schema_name
+        default: sales
+```
+
+See the datasets section of [squirrels.yml](/project/squirrels-yml#datasets) for more information.
+
+## API endpoints
+
+There is a **data catalog** endpoint to discover datasets. 
+
+Also, each configured dataset gets its own permissioned endpoints:
+
+- **Dataset parameters**: used to render widgets and handle cascades
+- **Dataset results**: used to retrieve the tabular result
+
+### API prefix
+
+Most dataset-related endpoints are rooted under a project-specific prefix constructed by the API server:
+
+```text
+/api/squirrels/v{sqrl_major_version}/project/{project_name}/{project_version}
+```
+
+- **`sqrl_major_version`**: The Squirrels framework major version (from the running server)
+- **`project_name`**: Your project name normalized for URLs
+- **`project_version`**: `v{major_version}` from `squirrels.yml` (`project_variables.major_version`)
+
+For conciseness below, we'll use `{api_prefix}` to refer to this full prefix.
+
+### Data catalog endpoint
+
+Before calling any dataset endpoints, a client can fetch the project's data catalog to discover:
+
+- Which **parameters** exist and what their current defaults/options are
+- Which **datasets** (and dashboards) are available to the current user, and the parameters they use
+- The exact `parameters_path` and `result_path` for each dataset
+
+```text
+GET {api_prefix}/data-catalog
+```
+
+The data catalog response includes the project-level `parameters` list. For **select parameters**, each parameter includes a `trigger_refresh` boolean that tells the client whether changing the selection should trigger a parameters refresh request.
+
+### Dataset parameters endpoint
+
+```text
+GET  {api_prefix}/dataset/{dataset_name}/parameters
+POST {api_prefix}/dataset/{dataset_name}/parameters
+```
+
+The parameters endpoint has two common modes:
+
+- **Full parameters**: If you provide no widget selections, it returns **all** dataset parameters.
+- **Refresh/update**: If you provide a selection for a parent parameter (typically one whose definition has `trigger_refresh: true`), the response will include **only** the parent parameter and its dependent parameter(s), with options updated based on the selection.
+
+### Dataset results endpoint
+
+```text
+GET  {api_prefix}/dataset/{dataset_name}
+POST {api_prefix}/dataset/{dataset_name}
+```
+
+These endpoints execute the dataset's underlying model using the provided selections and return the dataset result as JSON.
+
+### GET vs POST requests
+
+Dataset parameters/results endpoints support both GET and POST. They are semantically equivalent - the difference is **how you provide selections**:
+
+- **GET**: selections are sent as **URL query parameters**
+- **POST**: selections are sent as a **JSON request body**
+
+In practice:
+
+- Use **GET** for simple selections.
+- Prefer **POST** when selections are complex and the URL might become large.
+
+<Note>
+
+In addition to your project's widget parameter names, Squirrels defines a small set of `x_*` request fields. These are **not** widget parameters - they control request behavior (output orientation, offset, limit, etc). See the "Available request fields (per endpoint)" section below for more details.
+
+</Note>
+
+## Available request fields (per endpoint)
+
+This section lists the **supported request fields** (query/body) and the **relevant headers** for each endpoint.
+
+<AccordionGroup>
+
+<Accordion title="Get data catalog" icon="book">
+
+```text
+GET {api_prefix}/data-catalog
+```
+
+**Query/body fields**
+
+None
+
+**Headers**
+
+- `Authorization: Bearer <token>` - Required if auth is enabled
+- `x-api-key: <api_key>` - Alternative to `Authorization`
+
+</Accordion>
+
+<Accordion title="Get dataset parameters" icon="sliders">
+
+```text
+GET  {api_prefix}/dataset/{dataset_name}/parameters
+POST {api_prefix}/dataset/{dataset_name}/parameters
+```
+
+**Widget selections**
+
+Any widget parameter name defined for the dataset (from `squirrels.yml`), provided as query parameters (GET) or JSON body fields (POST).
+
+**Special `x_*` request fields**
+
+- `x_parent_param` (string) - The parent parameter name used for parameter updates. If provided, only selections for this parameter are used for cascading, and others are ignored.
+
+**Headers**
+
+- `Authorization` / `x-api-key` - Authentication
+
+<Note>
+
+The parameters endpoint behavior depends on the presence of `x_parent_param` and widget selections:
+
+- **If `x_parent_param` is provided**: Only the widget selection(s) matching the value of `x_parent_param` are used to identify the selections for cascading. All other widget selections are ignored. If no query parameters match the `x_parent_param` value, the selection is assumed to be an empty list.
+- **If `x_parent_param` is NOT provided**:
+  - If selections for **multiple** parameters are provided, an error is raised.
+  - If selection(s) for **one** parameter is provided, it is automatically treated as the parent parameter.
+  - If **no** widget selections are provided, all the dataset's parameters are returned.
+
+</Note>
+
+</Accordion>
+
+<Accordion title="Get dataset results" icon="table">
+
+```text
+GET  {api_prefix}/dataset/{dataset_name}
+POST {api_prefix}/dataset/{dataset_name}
+```
+
+**Widget selections**
+
+Any widget parameter name defined for the dataset (from `squirrels.yml`), provided as query parameters (GET) or JSON body fields (POST).
+
+**Special `x_*` request fields**
+
+- `x_sql_query` (string, optional) - Optional Polars SQL to transform the final dataset (use table name `result`)
+- `x_orientation` (string, default `records`) - Controls result orientation. Options are `records` (default), `rows`, and `columns`.
+- `x_offset` (int, default `0`) - Number of rows to skip before returning data
+- `x_limit` (int, default `1000`) - Max rows to return
+
+**Headers**
+
+- `Authorization` / `x-api-key` - Authentication
+- `x-config-{name}: <value>` - Configurable overrides (only applied for users with elevated privileges, and only for configurables defined in the project)
+
+<Info>
+
+The `x_sql_query` uses Polars SQL instead of DuckDB SQL (or other query engines like SQLite) for two main reasons:
+1. **Security**: Polars SQL is more secure than DuckDB SQL for custom SQL queries provided by the user. It lacks security vulnerabilities like file access and extensions. Additional guardrails are also set on the SQL query such as time limit and permitted clauses.
+2. **Performance**: Dataset results are loaded into Python memory as a Polars DataFrame before sending to the client. Using Polars SQL avoids the need to load the dataset result into DuckDB before querying it and loading the result back to Python memory.
+
+</Info>
+
+</Accordion>
+
+</AccordionGroup>
+
+For more information on these endpoints, you can find the swagger documentation of any running Squirrels server at the path `/project/{project_name}/v{project_version}/docs`.
+
+## Example client workflow
+
+A typical API client flow might look like this:
+
+1. **Get the data catalog** to discover datasets and parameters
+2. **Use the `trigger_refresh` field from the catalog's parameter definitions** to determine which parameter changes require refresh calls
+3. **Call the dataset parameters endpoint** (as needed) to refresh dependent parameters for any parent parameter where `trigger_refresh: true`
+3. **Call the dataset results endpoint** to retrieve the tabular dataset result for the selected values
+
+## Related pages
+
+- [Project configs (squirrels.yml)][squirrels-yml] - Complete reference for dataset configuration
+- [Data models][models] - Understanding the different types of data models
+- [Cascading parameter options][cascading-parameters] - How parameters filter based on selections
+- [Virtual Data Lake (VDL)][VDL] - Where build models are stored
+- [sqrl run] - CLI reference for running the API server
+
+
+[squirrels-yml]: /project/squirrels-yml
+[models]: /concepts/models
+[cascading-parameters]: /concepts/parameters
+[VDL]: /concepts/vdl
+[sqrl run]: /references/cli/run
+

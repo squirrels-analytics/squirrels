@@ -1,8 +1,9 @@
 from typing import Any
 from pydantic import BaseModel, Field, model_validator
-import time, sqlglot, yaml
+import time, yaml
 
 from . import _utils as u, _constants as c, _model_configs as mc
+from ._env_vars import SquirrelsEnvVars
 
 
 class UpdateHints(BaseModel):
@@ -79,22 +80,23 @@ class Sources(BaseModel):
                     raise u.ConfigurationError(f"Column '{col.name}' in source '{source_name}' must have a type specified")
         return self
     
-    def finalize_null_fields(self, env_vars: dict[str, str]):
+    def finalize_null_fields(self, env_vars: SquirrelsEnvVars):
+        default_conn_name = env_vars.connections_default_name_used
         for source_name, source in self.sources.items():
-            source.finalize_connection(env_vars)
+            source.finalize_connection(default_conn_name=default_conn_name)
             source.finalize_table(source_name)
         return self
 
 
 class SourcesIO:
     @classmethod
-    def load_file(cls, logger: u.Logger, base_path: str, env_vars: dict[str, str]) -> Sources:
+    def load_file(cls, logger: u.Logger, env_vars: SquirrelsEnvVars, env_vars_unformatted: dict[str, str]) -> Sources:
         start = time.time()
         
-        sources_path = u.Path(base_path, c.MODELS_FOLDER, c.SOURCES_FILE)
+        sources_path = u.Path(env_vars.project_path, c.MODELS_FOLDER, c.SOURCES_FILE)
         if sources_path.exists():
             raw_content = u.read_file(sources_path)
-            rendered = u.render_string(raw_content, base_path=base_path, env_vars=env_vars)
+            rendered = u.render_string(raw_content, project_path=env_vars.project_path, env_vars=env_vars_unformatted)
             sources_data = yaml.safe_load(rendered) or {}
         else:
             sources_data = {}

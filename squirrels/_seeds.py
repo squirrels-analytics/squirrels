@@ -9,6 +9,7 @@ import polars as pl
 
 from ._exceptions import ConfigurationError
 from . import _utils as u, _constants as c, _model_configs as mc
+from ._env_vars import SquirrelsEnvVars
 
 
 @dataclass
@@ -68,13 +69,14 @@ class Seeds:
 class SeedsIO:
 
     @classmethod
-    def load_files(cls, logger: u.Logger, base_path: str, env_vars: dict[str, str]) -> Seeds:
+    def load_files(cls, logger: u.Logger, env_vars: SquirrelsEnvVars) -> Seeds:
         start = time.time()
-        infer_schema_setting: bool = u.to_bool(env_vars.get(c.SQRL_SEEDS_INFER_SCHEMA, "true"))
-        na_values_setting: list[str] = json.loads(env_vars.get(c.SQRL_SEEDS_NA_VALUES, "[]"))
+        project_path = env_vars.project_path
+        infer_schema_setting: bool = env_vars.seeds_infer_schema
+        na_values_setting: list[str] = env_vars.seeds_na_values
 
         seeds_dict = {}
-        csv_files = glob.glob(os.path.join(base_path, c.SEEDS_FOLDER, '**/*.csv'), recursive=True)
+        csv_files = glob.glob(os.path.join(project_path, c.SEEDS_FOLDER, '**/*.csv'), recursive=True)
         for csv_file in csv_files:
             config_file = os.path.splitext(csv_file)[0] + '.yml'
             config_dict = u.load_yaml_config(config_file) if os.path.exists(config_file) else {}

@@ -5,22 +5,20 @@ from typing import Any
 from fastapi import FastAPI, Depends, Request
 from fastapi.responses import JSONResponse
 from fastapi.security import HTTPBearer
-from fastmcp import FastMCP
-from fastmcp.server.dependencies import get_http_headers
 from dataclasses import asdict
 from cachetools import TTLCache
-from textwrap import dedent
 import time
 
 from .. import _utils as u, _constants as c
 from .._schemas import response_models as rm
+from .._parameter_configs import APIParamFieldInfo
 from .._parameter_sets import ParameterSet
 from .._exceptions import ConfigurationError, InvalidInputError
-from .._manifest import PermissionScope, AuthenticationEnforcement
+from .._manifest import PermissionScope, AuthType
 from .._version import __version__
 from .._schemas.query_param_models import get_query_models_for_parameters
 from .._schemas.auth_models import AbstractUser
-from .base import RouteBase, XApiKeyHeader, XVerifyParamsHeader
+from .base import RouteBase, XApiKeyHeader
 
 
 class ProjectRoutes(RouteBase):
@@ -30,9 +28,10 @@ class ProjectRoutes(RouteBase):
         super().__init__(get_bearer_token, project, no_cache)
         
         # Setup caches
-        parameters_cache_size = int(self.env_vars.get(c.SQRL_PARAMETERS_CACHE_SIZE, 1024))
-        parameters_cache_ttl = int(self.env_vars.get(c.SQRL_PARAMETERS_CACHE_TTL_MINUTES, 60))
-        self.parameters_cache = TTLCache(maxsize=parameters_cache_size, ttl=parameters_cache_ttl*60)
+        self.parameters_cache = TTLCache(
+            maxsize=self.env_vars.parameters_cache_size, 
+            ttl=self.env_vars.parameters_cache_ttl_minutes*60
+        )
 
     async def _get_parameters_helper(
         self, parameters_tuple: tuple[str, ...] | None, entity_type: str, entity_name: str, entity_scope: PermissionScope,
@@ -49,7 +48,7 @@ class ProjectRoutes(RouteBase):
         
         parent_param = selections_dict.get("x_parent_param")
         if parent_param is not None and parent_param not in selections_dict:
-                # this condition is possible for multi-select parameters with empty selection
+            # this condition is possible for multi-select parameters with empty selection
             selections_dict[parent_param] = list()
         
         if not self.authenticator.can_user_access_scope(user, entity_scope):
@@ -68,12 +67,12 @@ class ProjectRoutes(RouteBase):
         )
         
     def setup_routes(
-        self, app: FastAPI, mcp: FastMCP, project_metadata_path: str, project_name_version_path: str, 
-        project_name: str, project_version: str, project_label: str, param_fields: dict
+        self, app: FastAPI, project_metadata_path: str, project_name_version_path: str, 
+        project_name: str, project_version: str, param_fields: dict[str, APIParamFieldInfo]
     ):
         """Setup project metadata routes"""
 
-        elevated_access_level = self.project._elevated_access_level
+        elevated_access_level = self.env_vars.elevated_access_level
         if elevated_access_level != "admin":
             self.logger.warning(f"{c.SQRL_PERMISSIONS_ELEVATED_ACCESS_LEVEL} has been set to a non-admin access level. For security reasons, DO NOT expose the APIs for this app publicly!")
         
@@ -188,39 +187,20 @@ class ProjectRoutes(RouteBase):
             start = time.time()
 
             # If authentication is required, require user to be authenticated to access catalog
-            if self.manifest_cfg.authentication.enforcement == AuthenticationEnforcement.REQUIRED and user.access_level == "guest":
+            if self.manifest_cfg.project_variables.auth_type == AuthType.REQUIRED and user.access_level == "guest":
                 raise InvalidInputError(401, "user_required", "Authentication is required to access the data catalog")
             data_catalog = await get_data_catalog0(user)
             
             self.logger.log_activity_time("GET REQUEST for DATA CATALOG", start)
             return data_catalog
         
-        async def get_data_catalog_for_mcp() -> rm.CatalogModelForMcp:
-            headers = get_http_headers()
-            user = self.get_user_from_mcp_headers(headers)
+        async def get_data_catalog_for_mcp(user: AbstractUser) -> rm.CatalogModelForMcp:
+            """Get data catalog for MCP tools/resources. Takes user object."""
             data_catalog = await get_data_catalog0(user)
             return rm.CatalogModelForMcp(parameters=data_catalog.parameters, datasets=data_catalog.datasets)
         
-        @mcp.tool(
-            name=f"get_data_catalog_from_{project_name}", 
-            title=f"Get Data Catalog (Project: {project_label})",
-            description=dedent(f"""
-            Use this tool to get the details of all datasets and parameters you can access in the Squirrels project '{project_name}'.
-            
-            Unless the data catalog for this project has already been provided, use this tool at the start of each conversation.
-            """).strip()
-        )
-        async def get_data_catalog_tool() -> rm.CatalogModelForMcp:
-            return await get_data_catalog_for_mcp()
-        
-        @mcp.resource(
-            "sqrl://data-catalog",
-            name=f"data_catalog_from_{project_name}", 
-            title=f"Data Catalog (Project: {project_label})",
-            description=f"Details of all datasets and parameters you can access in the Squirrels project '{project_name}'."
-        )
-        async def data_catalog_resource() -> rm.CatalogModelForMcp:
-            return await get_data_catalog_for_mcp()
+        # Store the MCP function as an instance attribute for access by McpServerBuilder
+        self._get_data_catalog_for_mcp = get_data_catalog_for_mcp
         
         # Project-level parameters endpoints
         project_level_parameters_path = project_metadata_path + '/parameters'
@@ -229,16 +209,16 @@ class ProjectRoutes(RouteBase):
                 "depend on the selected option 'country'. If a parameter has 'trigger_refresh' as true, provide the parameter " \
                 "selection to this endpoint whenever it changes to refresh the parameter options of children parameters."
 
-        QueryModelForGetProjectParams, QueryModelForPostProjectParams = get_query_models_for_parameters(None, param_fields)
+        QueryModelForGetProjectParams, QueryModelForPostProjectParams = get_query_models_for_parameters(param_fields)
 
         async def get_parameters_definition(
             parameters_list: list[str] | None, entity_type: str, entity_name: str, entity_scope: PermissionScope,
-            user: AbstractUser, all_request_params: dict, params: dict, *, headers: dict[str, str]
+            user: AbstractUser, params: dict
         ) -> rm.ParametersModel:
-            self._validate_request_params(all_request_params, params, headers)
+            # self._validate_request_params(all_request_params, params, headers)
 
             get_parameters_function = self._get_parameters_helper if self.no_cache else self._get_parameters_cachable
-            selections = self.get_selections_as_immutable(params, uncached_keys={"x_verify_params"})
+            selections = self.get_selections_as_immutable(params, uncached_keys=set())
             parameters_tuple = tuple(parameters_list) if parameters_list is not None else None
             result = await get_parameters_function(parameters_tuple, entity_type, entity_name, entity_scope, user, selections)
             return result.to_api_response_model0()
@@ -246,11 +226,11 @@ class ProjectRoutes(RouteBase):
         @app.get(project_level_parameters_path, tags=["Project Metadata"], description=parameters_description)
         async def get_project_parameters(
             request: Request, params: QueryModelForGetProjectParams, user=Depends(self.get_current_user), # type: ignore
-            x_api_key: str | None = XApiKeyHeader, x_verify_params: str | None = XVerifyParamsHeader
+            x_api_key: str | None = XApiKeyHeader
         ) -> rm.ParametersModel:
             start = time.time()
             result = await get_parameters_definition(
-                None, "project", "", PermissionScope.PUBLIC, user, dict(request.query_params), asdict(params), headers=dict(request.headers)
+                None, "project", "", PermissionScope.PUBLIC, user, asdict(params)
             )
             self.logger.log_activity_time("GET REQUEST for PROJECT PARAMETERS", start)
             return result
@@ -258,12 +238,11 @@ class ProjectRoutes(RouteBase):
         @app.post(project_level_parameters_path, tags=["Project Metadata"], description=parameters_description)
         async def get_project_parameters_with_post(
             request: Request, params: QueryModelForPostProjectParams, user=Depends(self.get_current_user), # type: ignore
-            x_api_key: str | None = XApiKeyHeader, x_verify_params: str | None = XVerifyParamsHeader
+            x_api_key: str | None = XApiKeyHeader
         ) -> rm.ParametersModel:
             start = time.time()
-            payload: dict = await request.json()
             result = await get_parameters_definition(
-                None, "project", "", PermissionScope.PUBLIC, user, payload, params.model_dump(), headers=dict(request.headers)
+                None, "project", "", PermissionScope.PUBLIC, user, params.model_dump()
             )
             self.logger.log_activity_time("POST REQUEST for PROJECT PARAMETERS", start)
             return result

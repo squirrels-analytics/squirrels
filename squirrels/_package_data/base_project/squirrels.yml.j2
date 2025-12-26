@@ -3,6 +3,7 @@ project_variables:
   label: "Sample Expenses"
   description: This is a sample squirrels project for analyzing expense transactions
   major_version: 1
+  auth_type: optional                     ## one of 'optional' (default) or 'required'
 
 
 packages: []
@@ -25,7 +26,7 @@ datasets:
     label: Expense Transactions - DBView Example
     description: All expense transactions
     model: dbview_example 
-    scope: private                        ## optional - one of 'public' (default), 'protected', or 'private'
+    scope: private                        ## optional - one of 'public', 'protected', or 'private'. Default is 'public' (if auth_type is 'optional') or 'protected' (if auth_type is 'required').
     parameters:                           ## optional - if not specified, then all parameters are used
       - start_date
       - end_date
@@ -35,8 +36,7 @@ datasets:
   - name: grouped_expenses
     label: Grouped Expenses - Federate Example
     description: Aggregated expense transactions by custom dimension using federate_example model
-    model: federate_example 
-    scope: public
+    model: federate_example
     parameters:
       - group_by
       - date_range

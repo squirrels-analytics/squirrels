@@ -7,6 +7,7 @@ from squirrels._models import SourceModel
 from squirrels._model_builder import ModelBuilder
 from squirrels._model_configs import ColumnConfig
 from squirrels._sources import Source, UpdateHints
+from squirrels._arguments.init_time_args import ConnectionsArgs
 
 
 @pytest.fixture(scope="module")
@@ -44,6 +45,18 @@ def sqlite_conn(sqlite_path):
 @pytest.fixture(scope="module")
 def connection_set(sqlite_path):
     return ConnectionSet({"test_conn": ConnectionProperties(type=ConnectionTypeEnum.CONNECTORX, uri=f"sqlite://{sqlite_path}")})
+
+
+@pytest.fixture(scope="module")
+def create_model_builder(connection_set):
+    def _create(static_models):
+        return ModelBuilder(
+            _datalake_db_path=':memory:',
+            _conn_set=connection_set,
+            _static_models=static_models,
+            _conn_args=ConnectionsArgs(project_path=".", proj_vars={}, env_vars={})
+        )
+    return _create
 
 
 @pytest.fixture(scope="module")
@@ -85,7 +98,7 @@ def expected_df3():
     (["id"], True, "expected_df2"),
     (["id"], False, "expected_df3"),
 ])
-def test_build_sources_with_increasing_column(request: pytest.FixtureRequest, primary_key: list[str], strictly_increasing: bool, expected_df_name: str):
+def test_build_sources_with_increasing_column(request: pytest.FixtureRequest, primary_key: list[str], strictly_increasing: bool, expected_df_name: str, create_model_builder):
     connection_set = request.getfixturevalue("connection_set")
     
     source_name = 'test_table'
@@ -102,11 +115,7 @@ def test_build_sources_with_increasing_column(request: pytest.FixtureRequest, pr
     ).finalize_table(source_name)
     
     source_model = SourceModel(source_name, source, conn_set=connection_set)
-    model_builder = ModelBuilder(
-        _datalake_db_path=':memory:',
-        _conn_set=connection_set,
-        _static_models={source_model.name: source_model}
-    )
+    model_builder = create_model_builder({source_model.name: source_model})
         
     duckdb_conn = duckdb.connect()
     try:
@@ -129,7 +138,7 @@ def test_build_sources_with_increasing_column(request: pytest.FixtureRequest, pr
     assert result.equals(expected_df)
 
 
-def test_build_sources(connection_set, expected_df3: pl.DataFrame):
+def test_build_sources(connection_set, expected_df3: pl.DataFrame, create_model_builder):
     source_name = 'test_table'
     source = Source(
         connection='test_conn',
@@ -142,11 +151,7 @@ def test_build_sources(connection_set, expected_df3: pl.DataFrame):
     ).finalize_table(source_name)
 
     source_model = SourceModel(source_name, source, conn_set=connection_set)
-    model_builder = ModelBuilder(
-        _datalake_db_path=':memory:',
-        _conn_set=connection_set,
-        _static_models={source_model.name: source_model}
-    )
+    model_builder = create_model_builder({source_model.name: source_model})
         
     duckdb_conn = duckdb.connect()
     try:

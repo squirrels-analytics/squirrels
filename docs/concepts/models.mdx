@@ -1,0 +1,196 @@
+---
+title: Data models
+description: "Understanding the different types of data models in Squirrels and when to use them"
+---
+
+Data models are the building blocks of your Squirrels project. They define how data flows from source systems through transformations to the final datasets exposed via your API. Squirrels supports five types of data models, each serving a specific purpose in the data pipeline.
+
+## Overview
+
+The five types of data models in Squirrels are seeds, sources, build models, dbview models, and federate models.
+
+### Seeds
+
+[Seeds] are static CSV files stored and version-controlled in your project. They're ideal for lookup tables, reference data, or small datasets that don't change frequently.
+
+**Key characteristics:**
+- Stored as CSV files in the `seeds/` directory
+- Loaded into the [Virtual Data Lake (VDL)][VDL] during [sqrl build]
+- Best for small, static datasets (typically < 10,000 rows)
+- Can be referenced by build models and federate models
+
+### Sources
+
+[Sources] define metadata for tables that exist in external databases.
+
+**Key characteristics:**
+- Configured in `models/sources.yml`
+- Can load data to [VDL] with `load_to_vdl: true`
+- Supports incremental loading for large tables
+- Can be referenced by dbview models that share the same database connection
+- Can be referenced by build models and federate models if loaded to [VDL]
+
+### Build models
+
+[Build models] are data transformations that run during the build process. They create reusable data layers that can be referenced by other models.
+
+**Key characteristics:**
+- Stored in `models/builds/` directory
+- Can be written in SQL (DuckDB dialect) or Python
+- Materialized as tables or views in the [VDL]
+- Executed during [sqrl build]
+- Can reference sources, seeds, and other build models
+- Can be referenced by other build models and federate models
+
+### Dbview models
+
+[Dbview models] are SQL queries that run directly on external databases at query time. They provide real-time access to data without materializing to storage.
+
+**Key characteristics:**
+- Stored in `models/dbviews/` directory
+- Written in SQL (using the target database's dialect)
+- Typically executes queries on external databases at runtime
+- Responds to user parameter selections dynamically
+- Supports query translation to DuckDB for performance optimization
+- Can reference sources that share the same database connection
+- Can be referenced by federate models
+
+<Note>
+
+If the connection type of the dbview model is DuckDB (as opposed to SQLAlchemy for example), then the SQL dialect would always be DuckDB even if the connection URI points to a non-DuckDB database.
+
+</Note>
+
+### Federate models
+
+[Federate models] are dynamic data transformations that run on DuckDB at query time. They can reference any other model type, making them ideal for creating the final dataset layer.
+
+**Key characteristics:**
+- Stored in `models/federates/` directory
+- Can be written in SQL (DuckDB dialect) or Python
+- Execute queries on DuckDB at runtime
+- Respond to user parameter selections dynamically
+- Can reference sources, seeds, build models, dbview results, and other federate models
+
+## Categorizing the model types
+
+In addition to describing data models by one of the five model types, we use additional terminology to categories these model types. These categories include "static models" vs "dynamic models", or whether the models are "query models".
+
+### Static vs dynamic models
+
+The five model types fall into two categories based on whether they are prepared ahead of time (static) or executed at request time (dynamic):
+
+**Static models**
+
+Static models are seeds, sources, and build models. These models are defined and configured during development, and their data or transformations are prepared ahead of time:
+
+- **Seeds**: CSV files stored in the Squirrels project. They are also loaded into the [VDL] during [sqrl build]
+- **Sources**: Metadata definitions for external database tables (may optionally load data to [VDL] with `load_to_vdl: true`)
+- **Build models**: Transformations executed and materialized in the [VDL] during [sqrl build]
+
+<Note>
+
+**Buildtime models** is a more specific term that refers to the tables / views that get loaded to the [VDL] during [sqrl build]. These models are created from seeds, sources with `load_to_vdl: true`, and build models, and do not include sources without `load_to_vdl: true`.
+
+</Note>
+
+**Dynamic models**
+
+Dynamic models (also called runtime models) are dbview models and federate models. They execute queries at request time when a dataset is queried, and can change based on authenticated user and user parameter selections:
+
+- **Dbview models**: Run SQL queries directly on external databases
+- **Federate models**: Run transformations on DuckDB in the API server, and can reference the [VDL]
+
+### Query models
+
+Query models are data models defined with SQL or Python code that perform transformations. This category includes:
+
+- **Build models**: SQL or Python transformations materialized in the [VDL]
+- **Dbview models**: SQL queries executed on external databases
+- **Federate models**: SQL or Python transformations executed on the API server using DuckDB
+
+**SQL query models**
+
+SQL query models use Jinja templating to create dynamic SQL queries:
+
+```sql Basic example of a SQL federate model
+SELECT 
+    {{ ctx.group_by_column }} AS dimension,
+    SUM(amount) AS total_amount
+FROM {{ ref("build_transactions") }}
+WHERE date >= '{{ ctx.start_date }}'
+GROUP BY {{ ctx.group_by_column }}
+```
+
+Can be used to define:
+- Build models (DuckDB dialect - does not have access to context variables `ctx`)
+- Dbview models (target database dialect - has access to context variables `ctx`)
+- Federate models (DuckDB dialect - has access to context variables `ctx`)
+
+**Python query models**
+
+Python query models define a `main()` function that receives model arguments and returns a Polars LazyFrame or DataFrame (pandas DataFrame is also supported):
+
+```python Basic example of a Python federate model
+from squirrels import arguments as args
+import polars as pl
+
+def main(sqrl: args.ModelArgs) -> pl.LazyFrame:
+    df = sqrl.ref("build_transactions")
+    df = df.filter(pl.col("date") >= sqrl.ctx["start_date"])
+    return df.group_by(sqrl.ctx["group_by_column"]).agg([
+        pl.sum("amount").alias("total_amount")
+    ])
+```
+
+Can be used to define:
+- Build models (does not have access to context variables `sqrl.ctx`)
+- Federate models (has access to context variables `sqrl.ctx`)
+
+<Note>
+
+Dbview models can only be written in SQL, as they typically execute queries directly on external databases.
+
+</Note>
+
+## Model dependencies
+
+Models can reference other models based on their type:
+
+| Model Type | Can Reference |
+|------------|---------------|
+| **Seeds** | None (leaf nodes) |
+| **Sources** | None (leaf nodes) |
+| **Build models** | Sources (with `load_to_vdl: true`), seeds, other build models |
+| **Dbview models** | Sources only (same connection) |
+| **Federate models** | Sources (with `load_to_vdl: true`), seeds, build models, dbview models, other federate models |
+
+## Choosing the right model type
+
+Use this decision tree to choose the appropriate model type:
+
+1. **Is it static reference data with a small number of rows?** → Use [Seeds]
+2. **Is it a table in an external database?** → Use [Sources]
+3. **Does it need to run on an external database at query time?** → Use [Dbview models]
+4. **Does it need to be materialized ahead of time for reuse?** → Use [Build models]
+5. **Otherwise** → Use [Federate models]
+
+## Related pages
+
+- [Virtual Data Lake (VDL)][VDL] - Understanding where buildtime models are stored
+- [Seeds] - Static CSV data files
+- [Sources] - External database tables
+- [Build models] - Materialized transformations
+- [Dbview models] - Dynamic queries on external databases
+- [Federate models] - Dynamic transformations on DuckDB
+- [sqrl build] - CLI reference for building the VDL
+- [sqrl run] - CLI reference for running the API server
+
+[VDL]: /concepts/vdl
+[Seeds]: /project/seeds
+[Sources]: /project/models/sources
+[Build models]: /project/models/builds
+[Dbview models]: /project/models/dbviews
+[Federate models]: /project/models/federates
+[sqrl build]: /references/cli/build
+[sqrl run]: /references/cli/run

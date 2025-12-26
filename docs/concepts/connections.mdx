@@ -1,0 +1,94 @@
+---
+title: Database connections
+description: "Understanding how database connections work in Squirrels projects"
+---
+
+Database connections define how your Squirrels project connects to external databases and data sources. They are essential for accessing data from SQL databases, loading data into the Virtual Data Lake (VDL), and executing queries on external systems.
+
+## Connection types
+
+Squirrels supports multiple connection types and configuration methods to suit different use cases:
+
+- **SQLAlchemy**: Standard database connections compatible with most SQL databases (PostgreSQL, MySQL, SQLite, and [many more](https://docs.sqlalchemy.org/en/stable/dialects/)).
+- **ConnectorX**: High-performance bulk data loading. See the [ConnectorX documentation](https://sfu-db.github.io/connector-x/databases.html) for all supported databases.
+- **ADBC**: Uses "Arrow Database Connectivity" for efficient data transfer. Supports any database that follows the [Arrow Flight SQL](https://arrow.apache.org/docs/format/FlightSql.html) protocol (which includes SQLite, PostgreSQL, Snowflake, and more).
+- **DuckDB connections**: Uses DuckDB's native connector which is able to attach other database systems other than DuckDB itself (such as SQLite, PostgreSQL, and MySQL).
+
+### URI formats
+
+The connection URI format varies depending on the connection type and database.
+
+Expand any of the connection types below to see examples.
+
+<AccordionGroup>
+  <Accordion title="SQLAlchemy URIs">
+    Standard format: `dialect://username:password@host:port/database`
+
+    Examples:
+    - SQLite: `sqlite:///{project_path}/assets/database.db`
+    - PostgreSQL: `postgresql://user:pass@localhost:5432/mydb`
+    - MySQL: `mysql+pymysql://user:pass@localhost:3306/mydb`
+
+    See the [SQLAlchemy documentation](https://docs.sqlalchemy.org/en/latest/core/engines.html#database-urls) for more details.
+  </Accordion>
+
+  <Accordion title="ConnectorX / ADBC URIs">
+    ConnectorX and ADBC use the same URI format (as far as we know). It is similar to SQLAlchemy but with subtle differences for some databases.
+
+    Examples:
+    - SQLite: `sqlite://{project_path}/assets/database.db` (note: two slashes, not three)
+    - PostgreSQL: `postgresql://user:pass@localhost:5432/mydb`
+
+    See the [ConnectorX documentation](https://sfu-db.github.io/connector-x/databases.html) for more details.
+
+    Note that both ConnectorX and ADBC do not support placeholders in SQL queries.
+  </Accordion>
+
+  <Accordion title="DuckDB URIs">
+    Attaches external databases directly to DuckDB. Unlike other connection types, dbview models that use the DuckDB connection type must be written in the DuckDB SQL dialect.
+
+    Examples:
+    - DuckDB: `{project_path}/assets/database.duckdb`
+    - SQLite: `sqlite:{project_path}/assets/database.db`
+    - PostgreSQL: `postgres:host=localhost port=5432 dbname=mydb user=user password=pass`
+    - MySQL: `mysql:host=localhost user=root port=0 database=mydb`
+    - DuckLake: 
+      - DuckLake with DuckDB: `ducklake:{project_path}/assets/database.duckdb`
+      - DuckLake with PostgreSQL: `ducklake:postgres:dbname=mydb user=user password=pass host=localhost port=5432`
+  </Accordion>
+</AccordionGroup>
+
+## Configuration methods
+
+Database connections can be configured in two ways:
+
+1. [YAML configuration]: Define connections in `squirrels.yml` for simple, static connection strings
+2. [Python configuration]: Use `pyconfigs/connections.py` for dynamic connections, conditional logic, and environment-based configuration
+
+Connections defined in `squirrels.yml` are loaded first, then `connections.py` runs (if it exists) and can add or override connections.
+
+## Default connection
+
+Every Squirrels project should define a default connection. Data models and data source parameters that don't specify a connection name explicitly will use the default connection. The default connection name is `default` unless configured differently via the environment variable `SQRL_CONNECTIONS__DEFAULT_NAME_USED`.
+
+## Using connections
+
+Once configured, connections are referenced by name in:
+
+- [Sources]: External database tables defined in `models/sources.yml`
+- [Dbview models]: SQL queries that run directly on external databases
+- [Data source parameters]: Parameters that fetch options from database tables
+
+## Related pages
+
+- [YAML connections (squirrels.yml)][YAML configuration] - Configure connections using YAML
+- [Python connections (connections.py)][Python configuration] - Configure connections using Python
+- [Sources](/project/models/sources) - Define external database tables
+- [Dbview models](/project/models/dbviews) - Query external databases at runtime
+
+
+[YAML configuration]: /project/squirrels-yml#connections
+[Python configuration]: /project/pyconfigs/connections
+[Sources]: /project/models/sources
+[Dbview models]: /project/models/dbviews
+[Data source parameters]: /concepts/parameters

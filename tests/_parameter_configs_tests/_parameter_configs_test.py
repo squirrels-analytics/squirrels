@@ -5,10 +5,10 @@ import pytest, polars as pl
 
 from squirrels import _data_sources as ds, _parameter_configs as pc, _parameter_options as po, _parameters as p
 from squirrels import _model_configs as mc, _seeds as s
-from squirrels._schemas.auth_models import AbstractUser, GuestUser
-from squirrels._exceptions import InvalidInputError, ConfigurationError
+from squirrels._schemas.auth_models import AbstractUser
+from squirrels._exceptions import InvalidInputError
 
-from tests._parameter_configs_tests.conftest import TestCustomUserFields, create_test_user
+from tests._parameter_configs_tests.conftest import create_test_user
 
 @pytest.fixture(scope="module")
 def user() -> AbstractUser:

@@ -15,6 +15,7 @@ from ._auth import AbstractUser
 from ._connection_set import ConnectionsArgs, ConnectionSet, ConnectionProperties
 from ._manifest import DatasetConfig, ConnectionTypeEnum
 from ._parameter_sets import ParameterConfigsSet, ParametersArgs, ParameterSet
+from ._env_vars import SquirrelsEnvVars
 
 ContextFunc = Callable[[dict[str, Any], ContextArgs], None]
 
@@ -43,7 +44,6 @@ class DataModel(metaclass=ABCMeta):
 
     _: KW_ONLY
     logger: u.Logger = field(default_factory=lambda: u.Logger(""))
-    env_vars: dict[str, str] = field(default_factory=dict)
     conn_set: ConnectionSet = field(default_factory=ConnectionSet)
 
     @property
@@ -407,7 +407,7 @@ class QueryModel(DataModel):
     def _get_compile_sql_model_args_from_ctx_args(
         self, ctx: dict[str, Any], ctx_args: ContextArgs
     ) -> dict[str, Any]:
-        is_placeholder = lambda placeholder: placeholder in ctx_args._placeholders_copy
+        is_placeholder = lambda placeholder: placeholder in ctx_args._placeholders
         kwargs = {
             "proj_vars": ctx_args.proj_vars, "env_vars": ctx_args.env_vars, "user": ctx_args.user, "prms": ctx_args.prms, 
             "configurables": ctx_args.configurables, "ctx": ctx, "is_placeholder": is_placeholder, "set_placeholder": ctx_args.set_placeholder,
@@ -671,12 +671,21 @@ class FederateModel(QueryModel):
         dependencies = self.model_config.depends_on
         connections = self.conn_set.get_connections_as_dict()
         
-        def run_external_sql(connection_name: str, sql_query: str) -> pl.DataFrame:
-            return self._run_sql_query_on_connection(connection_name, sql_query, ctx_args._placeholders_copy)
+        def _run_external_sql(connection_name: str, sql_query: str) -> pl.DataFrame:
+            return self._run_sql_query_on_connection(connection_name, sql_query, ctx_args._placeholders)
         
-        conn_args = ConnectionsArgs(ctx_args.project_path, ctx_args.proj_vars, ctx_args.env_vars)
-        build_model_args = BuildModelArgs(conn_args, connections, dependencies, self._ref_for_python, run_external_sql)
-        return ModelArgs(ctx_args, build_model_args, ctx)
+        build_model_args = BuildModelArgs(
+            **ctx_args._conn_args.__dict__,
+            connections=connections, dependencies=dependencies, 
+            _ref_func=self._ref_for_python, _run_external_sql_func=_run_external_sql
+        )
+        
+        # Instantiate ModelArgs with flattened arguments
+        combined_args = {
+            **ctx_args.__dict__, **build_model_args.__dict__, "ctx": ctx,
+        }
+        model_args = ModelArgs(**combined_args)
+        return model_args
 
     def _compile_python_model(
         self, query_file: mq.PyQueryFile, ctx: dict[str, Any], ctx_args: ContextArgs
@@ -842,11 +851,13 @@ class BuildModel(StaticModel, QueryModel):
     
     def _get_compile_python_model_args(self, conn_args: ConnectionsArgs) -> BuildModelArgs:
         
-        def run_external_sql(connection_name: str, sql_query: str):
+        def _run_external_sql(connection_name: str, sql_query: str):
             return self._run_sql_query_on_connection(connection_name, sql_query)
         
         return BuildModelArgs(
-            conn_args, self.conn_set.get_connections_as_dict(), self.model_config.depends_on, self._ref_for_python, run_external_sql
+            **conn_args.__dict__,
+            connections=self.conn_set.get_connections_as_dict(), dependencies=self.model_config.depends_on, 
+            _ref_func=self._ref_for_python, _run_external_sql_func=_run_external_sql
         )
 
     def _compile_python_model(
@@ -1002,7 +1013,9 @@ class DAG:
         context = {}
         assert isinstance(self.parameter_set, ParameterSet)
         prms = self.parameter_set.get_parameters_as_dict()
-        args = ContextArgs(param_args, user, prms, configurables)
+        args = ContextArgs(
+            **param_args.__dict__, user=user, prms=prms, configurables=configurables, _conn_args=param_args
+        )
         msg_extension = self._get_msg_extension()
         
         try:
@@ -1066,7 +1079,7 @@ class DAG:
 
         self._compile_models(context, ctx_args, recurse)
         
-        self.placeholders = ctx_args._placeholders_copy
+        self.placeholders = dict(ctx_args._placeholders)
         if runquery:
             await self._run_models()
         
@@ -1101,12 +1114,13 @@ class DAG:
 class ModelsIO:
 
     @classmethod
-    def _load_model_config(cls, filepath: Path, model_type: ModelType, env_vars: dict[str, str]) -> mc.ModelConfig:
+    def _load_model_config(cls, filepath: Path, model_type: ModelType, env_vars: SquirrelsEnvVars) -> mc.ModelConfig:
         yaml_path = filepath.with_suffix('.yml')
         config_dict = u.load_yaml_config(yaml_path) if yaml_path.exists() else {}
         
         if model_type == ModelType.DBVIEW:
-            config = mc.DbviewModelConfig(**config_dict).finalize_connection(env_vars)
+            default_conn_name = env_vars.connections_default_name_used
+            config = mc.DbviewModelConfig(**config_dict).finalize_connection(default_conn_name=default_conn_name)
             return config
         elif model_type == ModelType.FEDERATE:
             return mc.FederateModelConfig(**config_dict)
@@ -1117,7 +1131,7 @@ class ModelsIO:
 
     @classmethod
     def _populate_from_file(
-        cls, raw_queries_by_model: dict[str, mq.QueryFileWithConfig], dp: str, file: str, model_type: ModelType, env_vars: dict[str, str]
+        cls, raw_queries_by_model: dict[str, mq.QueryFileWithConfig], dp: str, file: str, model_type: ModelType, env_vars: SquirrelsEnvVars
     ) -> None:
         filepath = Path(dp, file)
         file_stem, extension = os.path.splitext(file)
@@ -1141,7 +1155,7 @@ class ModelsIO:
 
     @classmethod
     def _populate_raw_queries_for_type(
-        cls, folder_path: Path, model_type: ModelType, *, env_vars: dict[str, str] = {}
+        cls, folder_path: Path, model_type: ModelType, env_vars: SquirrelsEnvVars
     ) -> dict[str, mq.QueryFileWithConfig]:
         raw_queries_by_model: dict[str, mq.QueryFileWithConfig] = {}
         for dp, _, filenames in os.walk(folder_path):
@@ -1150,26 +1164,26 @@ class ModelsIO:
         return raw_queries_by_model
 
     @classmethod
-    def load_build_files(cls, logger: u.Logger, base_path: str) -> dict[str, mq.QueryFileWithConfig]:
+    def load_build_files(cls, logger: u.Logger, env_vars: SquirrelsEnvVars) -> dict[str, mq.QueryFileWithConfig]:
         start = time.time()
-        builds_path = u.Path(base_path, c.MODELS_FOLDER, c.BUILDS_FOLDER)
-        raw_queries_by_model = cls._populate_raw_queries_for_type(builds_path, ModelType.BUILD)
+        builds_path = u.Path(env_vars.project_path, c.MODELS_FOLDER, c.BUILDS_FOLDER)
+        raw_queries_by_model = cls._populate_raw_queries_for_type(builds_path, ModelType.BUILD, env_vars=env_vars)
         logger.log_activity_time("loading build files", start)
         return raw_queries_by_model
 
     @classmethod
-    def load_dbview_files(cls, logger: u.Logger, base_path: str, env_vars: dict[str, str]) -> dict[str, mq.QueryFileWithConfig]:
+    def load_dbview_files(cls, logger: u.Logger, env_vars: SquirrelsEnvVars) -> dict[str, mq.QueryFileWithConfig]:
         start = time.time()
-        dbviews_path = u.Path(base_path, c.MODELS_FOLDER, c.DBVIEWS_FOLDER)
+        dbviews_path = u.Path(env_vars.project_path, c.MODELS_FOLDER, c.DBVIEWS_FOLDER)
         raw_queries_by_model = cls._populate_raw_queries_for_type(dbviews_path, ModelType.DBVIEW, env_vars=env_vars)
         logger.log_activity_time("loading dbview files", start)
         return raw_queries_by_model
 
     @classmethod
-    def load_federate_files(cls, logger: u.Logger, base_path: str) -> dict[str, mq.QueryFileWithConfig]:
+    def load_federate_files(cls, logger: u.Logger, env_vars: SquirrelsEnvVars) -> dict[str, mq.QueryFileWithConfig]:
         start = time.time()
-        federates_path = u.Path(base_path, c.MODELS_FOLDER, c.FEDERATES_FOLDER)
-        raw_queries_by_model = cls._populate_raw_queries_for_type(federates_path, ModelType.FEDERATE)
+        federates_path = u.Path(env_vars.project_path, c.MODELS_FOLDER, c.FEDERATES_FOLDER)
+        raw_queries_by_model = cls._populate_raw_queries_for_type(federates_path, ModelType.FEDERATE, env_vars=env_vars)
         logger.log_activity_time("loading federate files", start)
         return raw_queries_by_model
 

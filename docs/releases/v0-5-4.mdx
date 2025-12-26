@@ -1,6 +1,6 @@
 ---
 title: "Changes in v0.5.4"
-description: "TBA"
+description: "December 26th, 2025"
 ---
 
 import Intro from '/snippets/releases/intro1.mdx';
@@ -11,11 +11,26 @@ The following are fixes and new features for [v0.5.4].
 
 ## Fixes
 
-- The logic for identifying queries from the `table_or_query` argument for DataSource constructors was incorrect. It would only expect a space after "SELECT" instead of any whitespace character. This has been fixed.
+- The logic for identifying queries from the `table_or_query` argument for DataSource constructors was previously incorrect. It would only expect a space after "SELECT" instead of any whitespace character. This has been fixed.
+- For security purposes, the SQL dialect used by the `x_sql_query` argument for dataset results (and the `sql_query` argument for MCP tools) is changed from DuckDB SQL to Polars SQL. This is to ensure that the query is safe to execute and to prevent vulnerabilities like file access and extensions.
 
 ## New features
 
-None.
+**Environment variables for dataset results**
+
+- Added `SQRL_DATASETS__MAX_ROWS_OUTPUT` to limit the number of rows returned by dataset endpoints (including MCP tools and SQL query results).
+- Added `SQRL_DATASETS__SQL_TIMEOUT_SECONDS` to limit the execution time of SQL queries on dataset results.
+
+**MCP server improvements**
+
+- **Simplified tool arguments**: The `get_dataset_parameters` tool now uses a single `selected_ids` JSON object (as string) instead of separate `parameter_name` (string) and `selected_ids` (list of strings) fields. This change makes the arguments consistent with the `parameters` argument used in the `get_dataset_results` tool.
+- **Advanced result handling**: Added support for the `mcp-full-dataset-v1` feature flag. When enabled, clients can receive the full dataset in the `structuredContent` field while the AI agent receives a paginated preview in the `content` field.
+- **Tool annotations**: All MCP tools now include the tool annotations `readOnlyHint=true`, `idempotentHint=true`, `destructiveHint=false`, and `openWorldHint=false`. These labels help AI clients understand that the tools are safe to use and can be called multiple times without side effects.
+
+**Authentication type**
+
+- A new predefined project variable `auth_type` has been added to the `squirrels.yml` file. This variable controls the authentication enforcement for the project. It can be set to `optional` (default) or `required`.
+- When `auth_type` is set to `required`, datasets and dashboards default to `protected` scope (if not specified), and `public` scope is explicitly forbidden. The data catalog API also requires authentication.
 
 ## More info
 

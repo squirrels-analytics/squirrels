@@ -80,10 +80,13 @@ df = await sqrl.dataset("my_federate_model", fixed_parameters={"category": "elec
 An optional YAML file with the same name provides additional configuration for the dashboard.
 
 ```yaml dashboards/my_plot.yml
+label: Sales Over Time
 description: |
   A plot showing sales over time.
 
 format: png   # png or html
+
+scope: public  # public, protected, or private
 
 depends_on:
   - name: my_sales_data
@@ -92,12 +95,29 @@ depends_on:
 
 ### Configuration fields
 
+<ResponseField name="label" type="string" default="(same as filename)">
+  A human-readable label for the dashboard.
+</ResponseField>
+
 <ResponseField name="description" type="string" default="">
   A description of the dashboard for documentation purposes.
 </ResponseField>
 
 <ResponseField name="format" type="string" default="png">
   The format of the dashboard output. Options are `png` or `html`.
+</ResponseField>
+
+<ResponseField name="scope" type="string" default="(dynamic based on auth_type)">
+  The access scope for the dashboard. One of:
+  - `public`: Accessible without authentication.
+  - `protected`: Requires authentication to access.
+  - `private`: Only accessible by users with the `admin` access level.
+
+  The default value is `public` if [auth_type](/project/squirrels-yml#param-auth-type) is `optional`, and `protected` if it is `required`.
+</ResponseField>
+
+<ResponseField name="parameters" type="list[string]" default="null">
+  List of parameter names used by this dashboard. If not specified, all parameters are available.
 </ResponseField>
 
 <ResponseField name="depends_on" type="list[object]" default="[]">
