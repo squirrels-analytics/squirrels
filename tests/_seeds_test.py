@@ -97,8 +97,8 @@ def test_seeds_get_dataframes():
 
 def test_seeds_io_load_files(setup_seed_files: Path):
     logger = Logger("test")
-    envvars = SquirrelsEnvVars(project_path=str(setup_seed_files))
-    seeds = SeedsIO.load_files(logger, envvars)
+    env_vars = SquirrelsEnvVars(project_path=str(setup_seed_files))
+    seeds = SeedsIO.load_files(logger, env_vars)
     
     assert "test_seed" in seeds._data
     seed = seeds._data["test_seed"]
@@ -114,8 +114,8 @@ def test_seeds_io_load_files_without_config(temp_seed_dir: Path, sample_csv_cont
     csv_path.write_text(sample_csv_content)
     
     logger = Logger("test")
-    envvars = SquirrelsEnvVars(project_path=str(temp_seed_dir.parent))
-    seeds = SeedsIO.load_files(logger, envvars)
+    env_vars = SquirrelsEnvVars(project_path=str(temp_seed_dir.parent))
+    seeds = SeedsIO.load_files(logger, env_vars)
     
     assert "test_seed" in seeds._data
     seed = seeds._data["test_seed"]

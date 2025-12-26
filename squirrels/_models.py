@@ -855,7 +855,7 @@ class BuildModel(StaticModel, QueryModel):
             return self._run_sql_query_on_connection(connection_name, sql_query)
         
         return BuildModelArgs(
-            **conn_args.model_dump(),
+            **conn_args.__dict__,
             connections=self.conn_set.get_connections_as_dict(), dependencies=self.model_config.depends_on, 
             _ref_func=self._ref_for_python, _run_external_sql_func=_run_external_sql
         )
@@ -1114,12 +1114,12 @@ class DAG:
 class ModelsIO:
 
     @classmethod
-    def _load_model_config(cls, filepath: Path, model_type: ModelType, envvars: SquirrelsEnvVars) -> mc.ModelConfig:
+    def _load_model_config(cls, filepath: Path, model_type: ModelType, env_vars: SquirrelsEnvVars) -> mc.ModelConfig:
         yaml_path = filepath.with_suffix('.yml')
         config_dict = u.load_yaml_config(yaml_path) if yaml_path.exists() else {}
         
         if model_type == ModelType.DBVIEW:
-            default_conn_name = envvars.connections_default_name_used
+            default_conn_name = env_vars.connections_default_name_used
             config = mc.DbviewModelConfig(**config_dict).finalize_connection(default_conn_name=default_conn_name)
             return config
         elif model_type == ModelType.FEDERATE:
@@ -1131,7 +1131,7 @@ class ModelsIO:
 
     @classmethod
     def _populate_from_file(
-        cls, raw_queries_by_model: dict[str, mq.QueryFileWithConfig], dp: str, file: str, model_type: ModelType, envvars: SquirrelsEnvVars
+        cls, raw_queries_by_model: dict[str, mq.QueryFileWithConfig], dp: str, file: str, model_type: ModelType, env_vars: SquirrelsEnvVars
     ) -> None:
         filepath = Path(dp, file)
         file_stem, extension = os.path.splitext(file)
@@ -1150,40 +1150,40 @@ class ModelsIO:
             conflicts = [prior_query_file.filepath, query_file.filepath]
             raise u.ConfigurationError(f"Multiple models found for '{file_stem}': {conflicts}")
         
-        model_config = cls._load_model_config(filepath, model_type, envvars)
+        model_config = cls._load_model_config(filepath, model_type, env_vars)
         raw_queries_by_model[file_stem] = mq.QueryFileWithConfig(query_file, model_config)
 
     @classmethod
     def _populate_raw_queries_for_type(
-        cls, folder_path: Path, model_type: ModelType, envvars: SquirrelsEnvVars
+        cls, folder_path: Path, model_type: ModelType, env_vars: SquirrelsEnvVars
     ) -> dict[str, mq.QueryFileWithConfig]:
         raw_queries_by_model: dict[str, mq.QueryFileWithConfig] = {}
         for dp, _, filenames in os.walk(folder_path):
             for file in filenames:
-                cls._populate_from_file(raw_queries_by_model, dp, file, model_type, envvars)
+                cls._populate_from_file(raw_queries_by_model, dp, file, model_type, env_vars)
         return raw_queries_by_model
 
     @classmethod
-    def load_build_files(cls, logger: u.Logger, envvars: SquirrelsEnvVars) -> dict[str, mq.QueryFileWithConfig]:
+    def load_build_files(cls, logger: u.Logger, env_vars: SquirrelsEnvVars) -> dict[str, mq.QueryFileWithConfig]:
         start = time.time()
-        builds_path = u.Path(envvars.project_path, c.MODELS_FOLDER, c.BUILDS_FOLDER)
-        raw_queries_by_model = cls._populate_raw_queries_for_type(builds_path, ModelType.BUILD, envvars=envvars)
+        builds_path = u.Path(env_vars.project_path, c.MODELS_FOLDER, c.BUILDS_FOLDER)
+        raw_queries_by_model = cls._populate_raw_queries_for_type(builds_path, ModelType.BUILD, env_vars=env_vars)
         logger.log_activity_time("loading build files", start)
         return raw_queries_by_model
 
     @classmethod
-    def load_dbview_files(cls, logger: u.Logger, envvars: SquirrelsEnvVars) -> dict[str, mq.QueryFileWithConfig]:
+    def load_dbview_files(cls, logger: u.Logger, env_vars: SquirrelsEnvVars) -> dict[str, mq.QueryFileWithConfig]:
         start = time.time()
-        dbviews_path = u.Path(envvars.project_path, c.MODELS_FOLDER, c.DBVIEWS_FOLDER)
-        raw_queries_by_model = cls._populate_raw_queries_for_type(dbviews_path, ModelType.DBVIEW, envvars=envvars)
+        dbviews_path = u.Path(env_vars.project_path, c.MODELS_FOLDER, c.DBVIEWS_FOLDER)
+        raw_queries_by_model = cls._populate_raw_queries_for_type(dbviews_path, ModelType.DBVIEW, env_vars=env_vars)
         logger.log_activity_time("loading dbview files", start)
         return raw_queries_by_model
 
     @classmethod
-    def load_federate_files(cls, logger: u.Logger, envvars: SquirrelsEnvVars) -> dict[str, mq.QueryFileWithConfig]:
+    def load_federate_files(cls, logger: u.Logger, env_vars: SquirrelsEnvVars) -> dict[str, mq.QueryFileWithConfig]:
         start = time.time()
-        federates_path = u.Path(envvars.project_path, c.MODELS_FOLDER, c.FEDERATES_FOLDER)
-        raw_queries_by_model = cls._populate_raw_queries_for_type(federates_path, ModelType.FEDERATE, envvars=envvars)
+        federates_path = u.Path(env_vars.project_path, c.MODELS_FOLDER, c.FEDERATES_FOLDER)
+        raw_queries_by_model = cls._populate_raw_queries_for_type(federates_path, ModelType.FEDERATE, env_vars=env_vars)
         logger.log_activity_time("loading federate files", start)
         return raw_queries_by_model
 

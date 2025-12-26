@@ -40,13 +40,8 @@
               "concepts/connections",
               "concepts/models",
               "concepts/datasets",
-              {
-                "group": "Advanced concepts",
-                "expanded": true,
-                "pages": [
-                  "concepts/parameters"
-                ]
-              }
+              "concepts/parameters",
+              "concepts/mcp-server"
             ]
           },
           {

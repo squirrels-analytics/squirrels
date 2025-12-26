@@ -16,6 +16,13 @@ class ContextArgs(ParametersArgs):
     _: KW_ONLY
     _placeholders: dict[str, Any] = field(default_factory=dict)
 
+    def __post_init__(self) -> None:
+        super().__post_init__()
+        self.prms = self.prms.copy()
+        self.configurables = self.configurables.copy()
+        self._conn_args = ConnectionsArgs(**self._conn_args.__dict__)
+        self._placeholders = self._placeholders.copy()
+
     def set_placeholder(self, placeholder: str, value: TextValue | Any) -> str:
         """
         Method to set a placeholder value.
@@ -46,6 +53,11 @@ class ContextArgs(ParametersArgs):
 @dataclass
 class ModelArgs(ContextArgs, BuildModelArgs):
     ctx: dict[str, Any]
+
+    def __post_init__(self) -> None:
+        ContextArgs.__post_init__(self)
+        BuildModelArgs.__post_init__(self)
+        self.ctx = self.ctx.copy()
     
     def is_placeholder(self, placeholder: str) -> bool:
         """

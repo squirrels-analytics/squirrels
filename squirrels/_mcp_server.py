@@ -91,6 +91,19 @@ class McpServerBuilder:
             json_response=True,
         )
     
+    def _get_tool_annotations(
+        self, title: str, *, read_only: bool = True, destructive: bool = False,
+        idempotent: bool = True, open_world: bool = False
+    ) -> types.ToolAnnotations:
+        """Get the tool annotations for the given title."""
+        return types.ToolAnnotations(
+            title=title,
+            readOnlyHint=read_only,
+            destructiveHint=destructive,
+            idempotentHint=idempotent,
+            openWorldHint=open_world,
+        )
+    
     def _build_server(self) -> Server:
         """Build and configure the low-level MCP Server."""
         server = Server("Squirrels")
@@ -137,12 +150,13 @@ class McpServerBuilder:
         return [
             types.Tool(
                 name=self.catalog_tool_name,
-                title=f"Getting Data Catalog For {self.project_label}",
+                title=f"Data Catalog For {self.project_label}",
                 description=dedent(f"""
                     Use this tool to get the details of all datasets and parameters you can access in the Squirrels project '{self.project_name}'.
                     
                     Unless the data catalog for this project has already been provided, use this tool at the start of each conversation.
                 """).strip(),
+                annotations=self._get_tool_annotations(title=f"Data Catalog For {self.project_label}"),
                 inputSchema={
                     "type": "object",
                     "properties": {},
@@ -152,7 +166,7 @@ class McpServerBuilder:
             ),
             types.Tool(
                 name=self.parameters_tool_name,
-                title=f"Setting Dataset Parameters For {self.project_label}",
+                title=f"Parameters Updates For {self.project_label}",
                 description=dedent(f"""
                     Use this tool to get updates for dataset parameters in the Squirrels project "{self.project_name}" when a selection is to be made on a parameter with `"trigger_refresh": true`.
 
@@ -160,6 +174,7 @@ class McpServerBuilder:
 
                     Do not use this tool on parameters that do not have `"trigger_refresh": true`.
                 """).strip(),
+                annotations=self._get_tool_annotations(title=f"Parameters Updates For {self.project_label}"),
                 inputSchema={
                     "type": "object",
                     "properties": {
@@ -184,12 +199,13 @@ class McpServerBuilder:
             ),
             types.Tool(
                 name=self.results_tool_name,
-                title=f"Getting Dataset Results For {self.project_label}",
+                title=f"Dataset Results For {self.project_label}",
                 description=dedent(f"""
                     Use this tool to get the dataset results as a JSON object for a dataset in the Squirrels project "{self.project_name}".
 
                     {dataset_results_extended_description}
                 """).strip(),
+                annotations=self._get_tool_annotations(title=f"Dataset Results For {self.project_label}"),
                 inputSchema={
                     "type": "object",
                     "properties": {

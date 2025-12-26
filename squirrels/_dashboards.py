@@ -7,7 +7,7 @@ import os, time, io, abc, typing
 
 from ._arguments.run_time_args import DashboardArgs
 from ._py_module import PyModule
-from ._manifest import AnalyticsOutputConfig
+from ._manifest import AnalyticsOutputConfig, AuthType, PermissionScope
 from ._exceptions import InvalidInputError, ConfigurationError, FileExecutionError
 from . import _constants as c, _utils as u
 
@@ -139,8 +139,10 @@ class DashboardDefinition:
 class DashboardsIO:
 
     @classmethod
-    def load_files(cls, logger: u.Logger, base_path: str) -> dict[str, DashboardDefinition]:
+    def load_files(cls, logger: u.Logger, base_path: str, auth_type: AuthType = AuthType.OPTIONAL) -> dict[str, DashboardDefinition]:
         start = time.time()
+        
+        default_scope = PermissionScope.PROTECTED if auth_type == AuthType.REQUIRED else PermissionScope.PUBLIC
         
         dashboards_by_name = {}
         for dp, _, filenames in os.walk(u.Path(base_path, c.DASHBOARDS_FOLDER)):
@@ -154,6 +156,13 @@ class DashboardsIO:
                 yml_path = os.path.join(dp, file_stem + '.yml')
                 config_dict = u.load_yaml_config(yml_path) if os.path.exists(yml_path) else {}
                 config = DashboardConfig(name=file_stem, **config_dict)
+                
+                if config.scope is None:
+                    config.scope = default_scope
+                
+                if auth_type == AuthType.REQUIRED and config.scope == PermissionScope.PUBLIC:
+                    raise ConfigurationError(f'Authentication is required, so dashboard "{file_stem}" cannot be public. Update the scope in "{yml_path}"')
+                
                 dashboards_by_name[file_stem] = DashboardDefinition(file_stem, filepath, config)
                 
         logger.log_activity_time("loading files for dashboards", start)

@@ -11,6 +11,10 @@ class ConnectionsArgs:
     proj_vars: dict[str, Any]
     env_vars: dict[str, str]
 
+    def __post_init__(self) -> None:
+        self.proj_vars = self.proj_vars.copy()
+        self.env_vars = self.env_vars.copy()
+
 
 @dataclass
 class AuthProviderArgs(ConnectionsArgs):
@@ -28,6 +32,11 @@ class BuildModelArgs(ConnectionsArgs):
     dependencies: Iterable[str]
     _ref_func: Callable[[str], pl.LazyFrame]
     _run_external_sql_func: Callable[[str, str], pl.DataFrame]
+
+    def __post_init__(self) -> None:
+        super().__post_init__()
+        self.connections = self.connections.copy()
+        self.dependencies = set(self.dependencies)
 
     def ref(self, model: str) -> pl.LazyFrame:
         """

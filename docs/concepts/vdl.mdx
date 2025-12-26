@@ -3,7 +3,7 @@ title: Virtual Data Lake (VDL)
 description: "Understanding the Virtual Data Lake and how it stores your data models"
 ---
 
-The Virtual Data Lake (VDL) is the central storage system in Squirrels that holds all materialized data models, seeds, and source data. It is built using [DuckLake], a data lake format that provides a lakehouse architecture with time travel capabilities.
+The Virtual Data Lake (VDL) is the central storage system in Squirrels that holds all materialized data models, seeds, and source data. It is built using [DuckLake], a lakehouse architecture that provides the convenience of building your data lake locally while still allowing for scalability if needed by using cloud storage systems (like AWS S3).
 
 ## Overview
 
@@ -94,7 +94,7 @@ Build models and federate models in SQL can reference VDL tables using the `ref(
 -- Reference a seed
 SELECT * FROM {{ ref("seed_categories") }}
 
--- Reference a source loaded to VDL
+-- Reference a source (if loaded to VDL)
 SELECT * FROM {{ ref("src_customers") }}
 
 -- Reference another build model
@@ -108,7 +108,7 @@ def main(sqrl: args.BuildModelArgs) -> pl.LazyFrame:
     # Access a seed
     categories = sqrl.ref("seed_categories")
     
-    # Access a source loaded to VDL
+    # Access a source (if loaded to VDL)
     customers = sqrl.ref("src_customers")
     
     # Access another build model
@@ -122,10 +122,10 @@ def main(sqrl: args.BuildModelArgs) -> pl.LazyFrame:
 You can also query the VDL directly using DuckDB SQL. When using `sqrl duckdb` or `sqrl duckdb --ui`, the VDL is automatically attached as the `vdl` schema (in READ ONLY mode). This schema is in use by default such that you don't need to run `USE vdl;` to use it.
 
 ```sql
--- Query a seed
+-- Querying a seed from the VDL
 SELECT * FROM vdl.seed_categories;
 
--- Query without specifying the schema
+-- Can also query from the VDL without specifying the schema
 SELECT * FROM seed_categories;
 ```
 

@@ -26,8 +26,8 @@ class DataManagementRoutes(RouteBase):
         
         # Setup cache (same settings as dataset results cache)
         self.query_models_cache = TTLCache(
-            maxsize=self.envvars.datasets_cache_size, 
-            ttl=self.envvars.datasets_cache_ttl_minutes*60
+            maxsize=self.env_vars.datasets_cache_size, 
+            ttl=self.env_vars.datasets_cache_ttl_minutes*60
         )
         
     async def _query_models_helper(
@@ -47,7 +47,7 @@ class DataManagementRoutes(RouteBase):
         self, user: AbstractUser, params: dict, *, headers: dict[str, str]
     ) -> rm.DatasetResultModel:
         """Query models definition"""
-        if not u.user_has_elevated_privileges(user.access_level, self.envvars.elevated_access_level):
+        if not u.user_has_elevated_privileges(user.access_level, self.env_vars.elevated_access_level):
             raise InvalidInputError(403, "unauthorized_access_to_query_models", f"User '{user}' does not have permission to query data models")
         
         sql_query = params.get("x_sql_query")
@@ -71,7 +71,7 @@ class DataManagementRoutes(RouteBase):
         # self._validate_request_params(all_request_params, params, headers)
 
         # Internal users only
-        if not u.user_has_elevated_privileges(user.access_level, self.envvars.elevated_access_level):
+        if not u.user_has_elevated_privileges(user.access_level, self.env_vars.elevated_access_level):
             raise InvalidInputError(403, "unauthorized_access_to_compile_model", f"User '{user}' does not have permission to fetch compiled SQL")
         
         selections = self.get_selections_as_immutable(params, uncached_keys=set())
@@ -90,7 +90,7 @@ class DataManagementRoutes(RouteBase):
             user=Depends(self.get_current_user), # type: ignore
             x_api_key: str | None = XApiKeyHeader
         ):
-            if not u.user_has_elevated_privileges(user.access_level, self.envvars.elevated_access_level):
+            if not u.user_has_elevated_privileges(user.access_level, self.env_vars.elevated_access_level):
                 raise InvalidInputError(403, "unauthorized_access_to_build_model", f"User '{user}' does not have permission to build the virtual data lake (VDL)")
             await self.project.build()
             return Response(status_code=status.HTTP_200_OK)
@@ -115,7 +115,6 @@ class DataManagementRoutes(RouteBase):
             x_api_key: str | None = XApiKeyHeader
         ) -> rm.DatasetResultModel:
             start = time.time()
-            # payload: dict = await request.json()
             result = await self._query_models_definition(user, params.model_dump(), headers=dict(request.headers))
             self.logger.log_activity_time("POST REQUEST for QUERY MODELS", start)
             return result
@@ -142,7 +141,6 @@ class DataManagementRoutes(RouteBase):
             x_api_key: str | None = XApiKeyHeader
         ) -> rm.CompiledQueryModel:
             start = time.time()
-            # payload: dict = await request.json()
             result = await self._get_compiled_model_definition(model_name, user, params.model_dump(), headers=dict(request.headers))
             self.logger.log_activity_time(
                 "POST REQUEST for GET COMPILED MODEL", start, additional_data={"model_name": model_name}

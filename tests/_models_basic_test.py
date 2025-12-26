@@ -146,10 +146,10 @@ def test_load_files(tmp_path: Path):
     (federates_path / "model2.sql").write_text('SELECT * FROM {{ ref("model1") }}')
     
     logger = u.Logger("")
-    envvars = SquirrelsEnvVars(project_path=str(tmp_path))
-    build_model_files = m.ModelsIO.load_build_files(logger, envvars)
-    dbview_model_files = m.ModelsIO.load_dbview_files(logger, envvars)
-    federate_model_files = m.ModelsIO.load_federate_files(logger, envvars)
+    env_vars = SquirrelsEnvVars(project_path=str(tmp_path))
+    build_model_files = m.ModelsIO.load_build_files(logger, env_vars)
+    dbview_model_files = m.ModelsIO.load_dbview_files(logger, env_vars)
+    federate_model_files = m.ModelsIO.load_federate_files(logger, env_vars)
     
     assert set(build_model_files.keys()) == {"model0"}
     assert set(dbview_model_files.keys()) == {"model1"}

@@ -11,9 +11,10 @@ import time
 
 from .. import _utils as u, _constants as c
 from .._schemas import response_models as rm
+from .._parameter_configs import APIParamFieldInfo
 from .._parameter_sets import ParameterSet
 from .._exceptions import ConfigurationError, InvalidInputError
-from .._manifest import PermissionScope, AuthenticationEnforcement
+from .._manifest import PermissionScope, AuthType
 from .._version import __version__
 from .._schemas.query_param_models import get_query_models_for_parameters
 from .._schemas.auth_models import AbstractUser
@@ -28,8 +29,8 @@ class ProjectRoutes(RouteBase):
         
         # Setup caches
         self.parameters_cache = TTLCache(
-            maxsize=self.envvars.parameters_cache_size, 
-            ttl=self.envvars.parameters_cache_ttl_minutes*60
+            maxsize=self.env_vars.parameters_cache_size, 
+            ttl=self.env_vars.parameters_cache_ttl_minutes*60
         )
 
     async def _get_parameters_helper(
@@ -67,11 +68,11 @@ class ProjectRoutes(RouteBase):
         
     def setup_routes(
         self, app: FastAPI, project_metadata_path: str, project_name_version_path: str, 
-        project_name: str, project_version: str, param_fields: dict
+        project_name: str, project_version: str, param_fields: dict[str, APIParamFieldInfo]
     ):
         """Setup project metadata routes"""
 
-        elevated_access_level = self.envvars.elevated_access_level
+        elevated_access_level = self.env_vars.elevated_access_level
         if elevated_access_level != "admin":
             self.logger.warning(f"{c.SQRL_PERMISSIONS_ELEVATED_ACCESS_LEVEL} has been set to a non-admin access level. For security reasons, DO NOT expose the APIs for this app publicly!")
         
@@ -186,7 +187,7 @@ class ProjectRoutes(RouteBase):
             start = time.time()
 
             # If authentication is required, require user to be authenticated to access catalog
-            if self.manifest_cfg.authentication.enforcement == AuthenticationEnforcement.REQUIRED and user.access_level == "guest":
+            if self.manifest_cfg.project_variables.auth_type == AuthType.REQUIRED and user.access_level == "guest":
                 raise InvalidInputError(401, "user_required", "Authentication is required to access the data catalog")
             data_catalog = await get_data_catalog0(user)
             
@@ -208,7 +209,7 @@ class ProjectRoutes(RouteBase):
                 "depend on the selected option 'country'. If a parameter has 'trigger_refresh' as true, provide the parameter " \
                 "selection to this endpoint whenever it changes to refresh the parameter options of children parameters."
 
-        QueryModelForGetProjectParams, QueryModelForPostProjectParams = get_query_models_for_parameters(None, param_fields)
+        QueryModelForGetProjectParams, QueryModelForPostProjectParams = get_query_models_for_parameters(param_fields)
 
         async def get_parameters_definition(
             parameters_list: list[str] | None, entity_type: str, entity_name: str, entity_scope: PermissionScope,
@@ -240,7 +241,6 @@ class ProjectRoutes(RouteBase):
             x_api_key: str | None = XApiKeyHeader
         ) -> rm.ParametersModel:
             start = time.time()
-            # payload: dict = await request.json()
             result = await get_parameters_definition(
                 None, "project", "", PermissionScope.PUBLIC, user, params.model_dump()
             )

@@ -13,7 +13,7 @@ from squirrels import _constants as c
 @pytest.fixture
 def mock_project_with_max_rows():
     """Create a mock project with max_result_rows set"""
-    with patch('squirrels._project.SquirrelsProject._load_envvars', return_value={
+    with patch('squirrels._project.SquirrelsProject._load_env_vars', return_value={
         c.SQRL_DATASETS_MAX_ROWS_OUTPUT: "5"  # Small limit for testing
     }):
         project = SquirrelsProject()

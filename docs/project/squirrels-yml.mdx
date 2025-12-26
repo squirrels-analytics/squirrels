@@ -46,6 +46,11 @@ project_variables:
   <ResponseField name="major_version" type="integer" required>
     The major version number of the project. Used in API versioning (e.g., `/project/my_project/v1/`).
   </ResponseField>
+  <ResponseField name="auth_type" type="string" default="optional">
+    The authentication enforcement for the project. One of:
+    - `optional`: Authentication is optional (default). Datasets and dashboards default to `public` scope.
+    - `required`: Authentication is required. Datasets and dashboards default to `protected` scope, and `public` scope is explicitly forbidden.
+  </ResponseField>
 </Expandable>
 
 <Note>
@@ -53,36 +58,6 @@ project_variables:
 The `project_variables` section allows additional custom fields beyond the ones listed above. These extra fields can be accessed in your Python configurations and Jinja templates.
 
 </Note>
-
-{/* ### authentication
-
-Configures authentication settings for the project.
-
-```yaml
-authentication:
-  enforcement: optional
-  type: managed
-```
-
-<Expandable title="properties" defaultOpen>
-  <ResponseField name="enforcement" type="string" default="optional">
-    Controls how authentication is enforced. One of:
-    - `required`: All users must authenticate. Datasets cannot have a `public` scope.
-    - `optional`: Authentication is available but not required for public datasets.
-    - `disabled`: Authentication is completely disabled.
-  </ResponseField>
-  <ResponseField name="type" type="string" default="managed">
-    The authentication type. One of:
-    - `managed`: Squirrels manages user authentication internally.
-    - `external`: Authentication is handled by an external system (e.g., OAuth2 provider).
-  </ResponseField>
-</Expandable>
-
-<Warning>
-
-When `enforcement` is set to `required`, all datasets must have a scope of `protected` or `private`. Any dataset with a `public` scope will cause a validation error.
-
-</Warning> */}
 
 ### packages
 
@@ -283,11 +258,13 @@ Each dataset is defined as a list item with the following properties:
   <ResponseField name="model" type="string" default="(same as name)">
     The name of the data model that produces this dataset. If not specified, defaults to the dataset name.
   </ResponseField>
-  <ResponseField name="scope" type="string" default="public">
+  <ResponseField name="scope" type="string" default="(dynamic based on auth_type)">
     The access scope for the dataset. One of:
     - `public`: Accessible without authentication.
     - `protected`: Requires authentication to access.
     - `private`: Only accessible by users with the `admin` access level.
+    
+    The default value is `public` if `auth_type` is `optional`, and `protected` if `auth_type` is `required`.
   </ResponseField>
   <ResponseField name="parameters" type="list[string]" default="null">
     List of parameter names used by this dataset. If not specified, all parameters are available to the dataset.
@@ -298,12 +275,6 @@ Each dataset is defined as a list item with the following properties:
     See the [configurables](#configurables) section above for more information on project configurables.
   </ResponseField>
 </Expandable>
-
-{/* <Warning>
-
-If `authentication.enforcement` is set to `required`, datasets cannot have a `public` scope. They will automatically default to `protected` if no scope is specified.
-
-</Warning> */}
 
 ### selection_test_sets
 

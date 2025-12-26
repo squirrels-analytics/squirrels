@@ -177,7 +177,7 @@ class ParameterConfigsSetIO:
     
     @classmethod
     def load_from_file(
-        cls, logger: u.Logger, envvars: SquirrelsEnvVars, manifest_cfg: ManifestConfig, seeds: Seeds, conn_set: ConnectionSet, 
+        cls, logger: u.Logger, env_vars: SquirrelsEnvVars, manifest_cfg: ManifestConfig, seeds: Seeds, conn_set: ConnectionSet, 
         param_args: ParametersArgs
     ) -> ParameterConfigsSet:
         start = time.time()
@@ -187,7 +187,7 @@ class ParameterConfigsSetIO:
             cls._add_from_dict(param_configs_set, param_as_dict)
         
         # adds to cls.param_factories as side effect
-        main_result = pm.run_pyconfig_main(envvars.project_path, c.PARAMETERS_FILE, {"sqrl": param_args})  
+        main_result = pm.run_pyconfig_main(env_vars.project_path, c.PARAMETERS_FILE, {"sqrl": param_args})  
         param_factories = cls.param_factories
         cls.param_factories = []
 
@@ -198,8 +198,8 @@ class ParameterConfigsSetIO:
             for param_config in main_result:
                 param_configs_set.add(param_config)
         
-        default_conn_name = envvars.connections_default_name_used
-        datalake_db_path = envvars.vdl_catalog_db_path
+        default_conn_name = env_vars.connections_default_name_used
+        datalake_db_path = env_vars.vdl_catalog_db_path
         df_dict = cls._get_df_dict_from_data_sources(param_configs_set, default_conn_name, seeds, conn_set, datalake_db_path)
         param_configs_set._post_process_params(df_dict)
         

@@ -69,11 +69,11 @@ class Seeds:
 class SeedsIO:
 
     @classmethod
-    def load_files(cls, logger: u.Logger, envvars: SquirrelsEnvVars) -> Seeds:
+    def load_files(cls, logger: u.Logger, env_vars: SquirrelsEnvVars) -> Seeds:
         start = time.time()
-        project_path = envvars.project_path
-        infer_schema_setting: bool = envvars.seeds_infer_schema
-        na_values_setting: list[str] = envvars.seeds_na_values
+        project_path = env_vars.project_path
+        infer_schema_setting: bool = env_vars.seeds_infer_schema
+        na_values_setting: list[str] = env_vars.seeds_na_values
 
         seeds_dict = {}
         csv_files = glob.glob(os.path.join(project_path, c.SEEDS_FOLDER, '**/*.csv'), recursive=True)

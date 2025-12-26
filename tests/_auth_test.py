@@ -25,7 +25,14 @@ class MockCustomUserFields(CustomUserFields):
     age: int = 18
 
 @pytest.fixture(scope="session")
-def envvars():
+def env_vars_unformatted() -> dict[str, str]:
+    return {
+        c.SQRL_SECRET_KEY: "test_secret_key",
+        c.SQRL_SECRET_ADMIN_PASSWORD: "admin_password"
+    }
+
+@pytest.fixture(scope="session")
+def env_vars() -> SquirrelsEnvVars:
     return SquirrelsEnvVars(
         project_path=".",
         SQRL_SECRET__KEY="test_secret_key",
@@ -33,14 +40,16 @@ def envvars():
     )
 
 @pytest.fixture(scope="function")
-def auth(envvars: SquirrelsEnvVars, monkeypatch):
+def auth(env_vars_unformatted: dict[str, str], env_vars: SquirrelsEnvVars, monkeypatch):
     # Patch the password context to use faster hashing for tests
     monkeypatch.setattr("squirrels._auth.pwd_context", test_pwd_context)
     
     engine = create_engine("sqlite:///:memory:?check_same_thread=False")
     logger = u.Logger("")
-    auth_args = AuthProviderArgs(project_path=".", proj_vars={}, env_vars=envvars.model_dump())
-    auth_instance = Authenticator(logger, envvars, auth_args, provider_functions=[], custom_user_fields_cls=MockCustomUserFields, sa_engine=engine)
+    auth_args = AuthProviderArgs(project_path=".", proj_vars={}, env_vars=env_vars_unformatted)
+    auth_instance = Authenticator(
+        logger, env_vars, auth_args, provider_functions=[], custom_user_fields_cls=MockCustomUserFields, sa_engine=engine
+    )
     yield auth_instance
     auth_instance.close()
 

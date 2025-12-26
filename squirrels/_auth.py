@@ -28,12 +28,12 @@ class Authenticator:
     providers: list[ProviderFunctionType] = []  # static variable to stage providers
 
     def __init__(
-        self, logger: u.Logger, envvars: SquirrelsEnvVars, auth_args: AuthProviderArgs, provider_functions: list[ProviderFunctionType], 
+        self, logger: u.Logger, env_vars: SquirrelsEnvVars, auth_args: AuthProviderArgs, provider_functions: list[ProviderFunctionType], 
         custom_user_fields_cls: type[CustomUserFields], *, sa_engine: Engine | None = None, external_only: bool = False
     ):
         self.logger = logger
-        self.envvars = envvars
-        self.secret_key = envvars.secret_key
+        self.env_vars = env_vars
+        self.secret_key = env_vars.secret_key
         self.external_only = external_only
 
         # Create a new declarative base for this instance
@@ -130,8 +130,8 @@ class Authenticator:
         self.auth_providers = [provider_function(auth_args) for provider_function in provider_functions]
         
         if sa_engine is None:
-            raw_sqlite_path = self.envvars.auth_db_file_path
-            sqlite_path = u.Path(raw_sqlite_path.format(project_path=self.envvars.project_path))
+            raw_sqlite_path = self.env_vars.auth_db_file_path
+            sqlite_path = u.Path(raw_sqlite_path.format(project_path=self.env_vars.project_path))
             sqlite_path.parent.mkdir(parents=True, exist_ok=True)
             self.engine = create_engine(f"sqlite:///{str(sqlite_path)}")
         else:
@@ -198,7 +198,7 @@ class Authenticator:
                 session.commit()
 
             # Get admin password from environment variable if exists
-            admin_password = self.envvars.secret_admin_password
+            admin_password = self.env_vars.secret_admin_password
             
             if admin_password is not None:
                 self._validate_password_length(admin_password)

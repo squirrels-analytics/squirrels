@@ -38,15 +38,15 @@ class SquirrelsProject:
         """
         self._project_path = project_path
 
-        self._envvars_unformatted = self._load_envvars(project_path, load_dotenv_globally)
-        self._envvars = SquirrelsEnvVars(project_path=project_path, **self._envvars_unformatted)
-        self._vdl_catalog_db_path = self._envvars.vdl_catalog_db_path
+        self._env_vars_unformatted = self._load_env_vars(project_path, load_dotenv_globally)
+        self._env_vars = SquirrelsEnvVars(project_path=project_path, **self._env_vars_unformatted)
+        self._vdl_catalog_db_path = self._env_vars.vdl_catalog_db_path
         
-        self._logger = self._get_logger(project_path, self._envvars, log_to_file, log_level, log_format)
-        self._ensure_virtual_datalake_exists(project_path, self._vdl_catalog_db_path, self._envvars.vdl_data_path)
+        self._logger = self._get_logger(project_path, self._env_vars, log_to_file, log_level, log_format)
+        self._ensure_virtual_datalake_exists(project_path, self._vdl_catalog_db_path, self._env_vars.vdl_data_path)
     
     @staticmethod
-    def _load_envvars(project_path: str, load_dotenv_globally: bool) -> dict[str, str]:
+    def _load_env_vars(project_path: str, load_dotenv_globally: bool) -> dict[str, str]:
         dotenv_files = [c.DOTENV_FILE, c.DOTENV_LOCAL_FILE]
         dotenv_vars = {}
         for file in dotenv_files:
@@ -58,14 +58,14 @@ class SquirrelsProject:
 
     @staticmethod
     def _get_logger(
-        filepath: str, envvars: SquirrelsEnvVars, log_to_file: bool, log_level: str | None, log_format: str | None
+        filepath: str, env_vars: SquirrelsEnvVars, log_to_file: bool, log_level: str | None, log_format: str | None
     ) -> u.Logger:
         # CLI arguments take precedence over environment variables
-        log_level = log_level if log_level is not None else envvars.logging_log_level
-        log_format = log_format if log_format is not None else envvars.logging_log_format
-        log_to_file = log_to_file or u.to_bool(envvars.logging_log_to_file)
-        log_file_size_mb = int(envvars.logging_log_file_size_mb)
-        log_file_backup_count = int(envvars.logging_log_file_backup_count)
+        log_level = log_level if log_level is not None else env_vars.logging_log_level
+        log_format = log_format if log_format is not None else env_vars.logging_log_format
+        log_to_file = log_to_file or u.to_bool(env_vars.logging_log_to_file)
+        log_file_size_mb = int(env_vars.logging_log_file_size_mb)
+        log_file_backup_count = int(env_vars.logging_log_file_backup_count)
         return l.get_logger(filepath, log_to_file, log_level, log_format, log_file_size_mb, log_file_backup_count)
 
     @staticmethod
@@ -100,27 +100,27 @@ class SquirrelsProject:
     
     @ft.cached_property
     def _manifest_cfg(self) -> mf.ManifestConfig:
-        return mf.ManifestIO.load_from_file(self._logger, self._project_path, self._envvars_unformatted)
+        return mf.ManifestIO.load_from_file(self._logger, self._project_path, self._env_vars_unformatted)
     
     @ft.cached_property
     def _seeds(self) -> s.Seeds:
-        return s.SeedsIO.load_files(self._logger, self._envvars)
+        return s.SeedsIO.load_files(self._logger, self._env_vars)
     
     @ft.cached_property
     def _sources(self) -> so.Sources:
-        return so.SourcesIO.load_file(self._logger, self._envvars, self._envvars_unformatted)
+        return so.SourcesIO.load_file(self._logger, self._env_vars, self._env_vars_unformatted)
     
     @ft.cached_property
     def _build_model_files(self) -> dict[str, mq.QueryFileWithConfig]:
-        return m.ModelsIO.load_build_files(self._logger, self._envvars)
+        return m.ModelsIO.load_build_files(self._logger, self._env_vars)
     
     @ft.cached_property
     def _dbview_model_files(self) -> dict[str, mq.QueryFileWithConfig]:
-        return m.ModelsIO.load_dbview_files(self._logger, self._envvars)
+        return m.ModelsIO.load_dbview_files(self._logger, self._env_vars)
     
     @ft.cached_property
     def _federate_model_files(self) -> dict[str, mq.QueryFileWithConfig]:
-        return m.ModelsIO.load_federate_files(self._logger, self._envvars)
+        return m.ModelsIO.load_federate_files(self._logger, self._env_vars)
     
     @ft.cached_property
     def _context_func(self) -> m.ContextFunc:
@@ -128,12 +128,12 @@ class SquirrelsProject:
     
     @ft.cached_property
     def _dashboards(self) -> dict[str, d.DashboardDefinition]:
-        return d.DashboardsIO.load_files(self._logger, self._project_path)
+        return d.DashboardsIO.load_files(self._logger, self._project_path, self._manifest_cfg.project_variables.auth_type)
     
     @ft.cached_property
     def _conn_args(self) -> cs.ConnectionsArgs:
         proj_vars = self._manifest_cfg.project_variables.model_dump()
-        conn_args = cs.ConnectionsArgs(self._project_path, proj_vars, self._envvars_unformatted)
+        conn_args = cs.ConnectionsArgs(self._project_path, proj_vars, self._env_vars_unformatted)
         return conn_args
     
     @ft.cached_property
@@ -159,10 +159,10 @@ class SquirrelsProject:
     def _auth(self) -> Authenticator:
         auth_args = AuthProviderArgs(**self._conn_args.__dict__)
         CustomUserFieldsCls, provider_functions = self._custom_user_fields_cls_and_provider_functions
-        external_only = (self._manifest_cfg.authentication.type == mf.AuthenticationType.EXTERNAL)
+        # external_only = (self._manifest_cfg.authentication.type == mf.AuthenticationType.EXTERNAL)
         return Authenticator(
-            self._logger, self._envvars, auth_args, provider_functions, 
-            custom_user_fields_cls=CustomUserFieldsCls, external_only=external_only
+            self._logger, self._env_vars, auth_args, provider_functions, 
+            custom_user_fields_cls=CustomUserFieldsCls, # external_only=external_only
         )
     
     @ft.cached_property
@@ -183,7 +183,7 @@ class SquirrelsProject:
     @ft.cached_property
     def _param_cfg_set(self) -> ps.ParameterConfigsSet:
         return ps.ParameterConfigsSetIO.load_from_file(
-            self._logger, self._envvars, self._manifest_cfg, self._seeds, self._conn_set, self._param_args
+            self._logger, self._env_vars, self._manifest_cfg, self._seeds, self._conn_set, self._param_args
         )
     
     @ft.cached_property
@@ -594,7 +594,7 @@ class SquirrelsProject:
         Returns:
             A DataFrame with at most max_rows rows (or raises if exceeded)
         """
-        max_rows = self._envvars.datasets_max_rows_output
+        max_rows = self._env_vars.datasets_max_rows_output
         # Collect max_rows + 1 to detect overflow without loading unbounded results
         collected = lazy_df.limit(max_rows + 1).collect()
         row_count = collected.select(pl.len()).item()

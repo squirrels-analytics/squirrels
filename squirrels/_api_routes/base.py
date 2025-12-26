@@ -10,8 +10,8 @@ from cachetools import TTLCache
 from pathlib import Path
 from datetime import datetime, timezone
 
-from .. import _utils as u, _constants as c
-from .._exceptions import InvalidInputError, ConfigurationError
+from .. import _utils as u
+from .._exceptions import InvalidInputError
 from .._project import SquirrelsProject
 from .._schemas.auth_models import AbstractUser
 from .._dataset_types import DatasetResultFormat
@@ -29,7 +29,7 @@ class RouteBase:
         self.project = project
         self.no_cache = no_cache
         self.logger = project._logger
-        self.envvars = project._envvars
+        self.env_vars = project._env_vars
         self.manifest_cfg = project._manifest_cfg
         self.authenticator = project._auth
         self.param_cfg_set = project._param_cfg_set

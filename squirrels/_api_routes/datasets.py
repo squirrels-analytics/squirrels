@@ -28,15 +28,15 @@ class DatasetRoutes(RouteBase):
         
         # Setup caches
         self.dataset_results_cache = TTLCache(
-            maxsize=self.envvars.datasets_cache_size, 
-            ttl=self.envvars.datasets_cache_ttl_minutes*60
+            maxsize=self.env_vars.datasets_cache_size, 
+            ttl=self.env_vars.datasets_cache_ttl_minutes*60
         )
         
         # Setup max rows
-        self.max_result_rows = self.envvars.datasets_max_rows_output
+        self.max_result_rows = self.env_vars.datasets_max_rows_output
         
         # Setup SQL query timeout
-        self.sql_timeout_seconds = self.envvars.datasets_sql_timeout_seconds
+        self.sql_timeout_seconds = self.env_vars.datasets_sql_timeout_seconds
         
     async def _get_dataset_results_helper(
         self, dataset: str, user: AbstractUser, selections: tuple[tuple[str, Any], ...], configurables: tuple[tuple[str, str], ...]
@@ -64,7 +64,7 @@ class DatasetRoutes(RouteBase):
         uncached_keys = {"x_sql_query", "x_orientation", "x_offset", "x_limit"}
         selections = self.get_selections_as_immutable(params, uncached_keys)
         
-        user_has_elevated_privileges = u.user_has_elevated_privileges(user.access_level, self.envvars.elevated_access_level)
+        user_has_elevated_privileges = u.user_has_elevated_privileges(user.access_level, self.env_vars.elevated_access_level)
         configurables = self.get_configurables_from_headers(headers) if user_has_elevated_privileges else tuple()
         result = await get_dataset_function(dataset_name, user, selections, configurables)
         
@@ -137,8 +137,8 @@ class DatasetRoutes(RouteBase):
 
             validate_parameters_list(dataset_config.parameters, "Dataset", dataset_name)
 
-            QueryModelForGetParams, QueryModelForPostParams = get_query_models_for_parameters(dataset_config.parameters, param_fields)
-            QueryModelForGetDataset, QueryModelForPostDataset = get_query_models_for_dataset(dataset_config.parameters, param_fields)
+            QueryModelForGetParams, QueryModelForPostParams = get_query_models_for_parameters(param_fields, dataset_config.parameters)
+            QueryModelForGetDataset, QueryModelForPostDataset = get_query_models_for_dataset(param_fields, dataset_config.parameters)
 
             @app.get(curr_parameters_path, tags=[f"Dataset '{dataset_name}'"], description=self._parameters_description, response_class=JSONResponse)
             async def get_dataset_parameters(
@@ -160,7 +160,6 @@ class DatasetRoutes(RouteBase):
             ) -> rm.ParametersModel:
                 start = time.time()
                 curr_dataset_name = self.get_name_from_path_section(request, -2)
-                # payload: dict = await request.json()
                 result = await get_dataset_parameters_updates(curr_dataset_name, user, params.model_dump())
                 self.logger.log_activity_time(
                     "POST REQUEST for PARAMETERS", start, additional_data={"dataset_name": curr_dataset_name}
@@ -189,7 +188,6 @@ class DatasetRoutes(RouteBase):
             ) -> rm.DatasetResultModel:
                 start = time.time()
                 curr_dataset_name = self.get_name_from_path_section(request, -1)
-                # payload: dict = await request.json()
                 result = await self._get_dataset_results_definition(
                     curr_dataset_name, user, params.model_dump(), headers=dict(request.headers)
                 )

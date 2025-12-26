@@ -28,7 +28,7 @@ class AuthRoutes(RouteBase):
         user_management_router = APIRouter(prefix=auth_path + "/user-management")
         
         # Get expiry configuration
-        expiry_mins = self.envvars.auth_token_expire_minutes
+        expiry_mins = self.env_vars.auth_token_expire_minutes
         
         # Create user models
         class UpdateUserModel(self.authenticator.CustomUserFields):
@@ -76,8 +76,8 @@ class AuthRoutes(RouteBase):
             302: {"description": "Redirect if redirect URL parameter is specified"},
         })
         async def login(request: Request, username: Annotated[str, Form()], password: Annotated[str, Form()], redirect_url: str | None = None):
-            if self.manifest_cfg.authentication.type.value == "external":
-                raise InvalidInputError(403, "forbidden_login", "Username/password login is disabled when authentication.type is 'external'")
+            # if self.manifest_cfg.authentication.type.value == "external":
+            #     raise InvalidInputError(403, "forbidden_login", "Username/password login is disabled when authentication.type is 'external'")
             user = self.authenticator.get_user(username, password)
             return login_helper(request, user, redirect_url, redirect_status_code=status.HTTP_302_FOUND)
         
@@ -216,56 +216,59 @@ class AuthRoutes(RouteBase):
             self.authenticator.revoke_api_key(user.username, api_key_id)
             return Response(status_code=204)
 
-        # User management endpoints (disabled if external auth only)
-        if self.manifest_cfg.authentication.type.value == "managed":
-            user_fields_path = '/user-fields'
-
-            @user_management_router.get(user_fields_path, description="Get details of the user fields", tags=["User Management"])
-            async def get_user_fields():
-                return self.authenticator.user_fields
-            
-            add_user_path = '/users'
-
-            @user_management_router.post(add_user_path, description="Add a new user by providing details for username, password, and user fields", tags=["User Management"])
-            async def add_user(
-                new_user: AddUserModel, user: AbstractUser = Depends(self.get_current_user)
-            ) -> None:
-                if user.access_level != "admin":
-                    raise InvalidInputError(403, "unauthorized_to_add_user", "Current user cannot add new users")
-                self.authenticator.add_user(new_user.username, new_user.model_dump(mode='json', exclude={"username"}))
-
-            update_user_path = '/users/{username}'
-
-            @user_management_router.put(update_user_path, description="Update the user of the given username given the new user details", tags=["User Management"])
-            async def update_user(
-                username: str, updated_user: UpdateUserModel, user: AbstractUser = Depends(self.get_current_user)
-            ) -> None:
-                if user.access_level != "admin":
-                    raise InvalidInputError(403, "unauthorized_to_update_user", "Current user cannot update users")
-                self.authenticator.add_user(username, updated_user.model_dump(mode='json'), update_user=True)
-
-            list_users_path = '/users'
-
-            @user_management_router.get(list_users_path, tags=["User Management"])
-            async def list_all_users() -> list[UserInfoModel]:
-                registered_users = self.authenticator.get_all_users()
-                return [
-                    UserInfoModel(username=user.username, access_level=user.access_level, **user.custom_fields.model_dump(mode='json')) 
-                    for user in registered_users
-                ]
-            
-            delete_user_path = '/users/{username}'
-
-            @user_management_router.delete(delete_user_path, tags=["User Management"], responses={
-                204: { "description": "User deleted successfully" }
-            })
-            async def delete_user(username: str, user: AbstractUser = Depends(self.get_current_user)) -> Response:
-                if user.access_level != "admin":
-                    raise InvalidInputError(403, "unauthorized_to_delete_user", "Current user cannot delete users")
-                if username == user.username:
-                    raise InvalidInputError(403, "cannot_delete_own_user", "Cannot delete your own user")
-                self.authenticator.delete_user(username)
-                return Response(status_code=204)
-
         app.include_router(auth_router)
+
+        # # User management endpoints (disabled if external auth only)
+        # if self.manifest_cfg.project_variables.auth_strategy == AuthStrategy.EXTERNAL: 
+        #     return
+
+        user_fields_path = '/user-fields'
+
+        @user_management_router.get(user_fields_path, description="Get details of the user fields", tags=["User Management"])
+        async def get_user_fields():
+            return self.authenticator.user_fields
+        
+        add_user_path = '/users'
+
+        @user_management_router.post(add_user_path, description="Add a new user by providing details for username, password, and user fields", tags=["User Management"])
+        async def add_user(
+            new_user: AddUserModel, user: AbstractUser = Depends(self.get_current_user)
+        ) -> None:
+            if user.access_level != "admin":
+                raise InvalidInputError(403, "unauthorized_to_add_user", "Current user cannot add new users")
+            self.authenticator.add_user(new_user.username, new_user.model_dump(mode='json', exclude={"username"}))
+
+        update_user_path = '/users/{username}'
+
+        @user_management_router.put(update_user_path, description="Update the user of the given username given the new user details", tags=["User Management"])
+        async def update_user(
+            username: str, updated_user: UpdateUserModel, user: AbstractUser = Depends(self.get_current_user)
+        ) -> None:
+            if user.access_level != "admin":
+                raise InvalidInputError(403, "unauthorized_to_update_user", "Current user cannot update users")
+            self.authenticator.add_user(username, updated_user.model_dump(mode='json'), update_user=True)
+
+        list_users_path = '/users'
+
+        @user_management_router.get(list_users_path, tags=["User Management"])
+        async def list_all_users() -> list[UserInfoModel]:
+            registered_users = self.authenticator.get_all_users()
+            return [
+                UserInfoModel(username=user.username, access_level=user.access_level, **user.custom_fields.model_dump(mode='json')) 
+                for user in registered_users
+            ]
+        
+        delete_user_path = '/users/{username}'
+
+        @user_management_router.delete(delete_user_path, tags=["User Management"], responses={
+            204: { "description": "User deleted successfully" }
+        })
+        async def delete_user(username: str, user: AbstractUser = Depends(self.get_current_user)) -> Response:
+            if user.access_level != "admin":
+                raise InvalidInputError(403, "unauthorized_to_delete_user", "Current user cannot delete users")
+            if username == user.username:
+                raise InvalidInputError(403, "cannot_delete_own_user", "Cannot delete your own user")
+            self.authenticator.delete_user(username)
+            return Response(status_code=204)
+
         app.include_router(user_management_router)

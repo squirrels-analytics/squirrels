@@ -89,7 +89,7 @@ class ApiServer:
         self.no_cache = no_cache
         self.project = project
         self.logger = project._logger
-        self.envvars = project._envvars
+        self.env_vars = project._env_vars
         self.j2_env = project._j2_env
         self.manifest_cfg = project._manifest_cfg
         self.seeds = project._seeds
@@ -116,7 +116,7 @@ class ApiServer:
         Background task to periodically refresh datasource parameter options.
         Runs every N minutes as configured by SQRL_PARAMETERS__DATASOURCE_REFRESH_MINUTES (default: 60).
         """
-        refresh_minutes = self.envvars.parameters_datasource_refresh_minutes
+        refresh_minutes = self.env_vars.parameters_datasource_refresh_minutes
         if refresh_minutes <= 0:
             self.logger.info(f"The value of {c.SQRL_PARAMETERS_DATASOURCE_REFRESH_MINUTES} is: {refresh_minutes} minutes")
             self.logger.info(f"Datasource parameter refresh is disabled since the refresh interval is not positive.")
@@ -125,7 +125,7 @@ class ApiServer:
         refresh_seconds = refresh_minutes * 60
         self.logger.info(f"Starting datasource parameter refresh background task (every {refresh_minutes} minutes)")
         
-        default_conn_name = self.envvars.connections_default_name_used
+        default_conn_name = self.env_vars.connections_default_name_used
         while True:
             try:
                 await asyncio.sleep(refresh_seconds)
@@ -243,7 +243,7 @@ class ApiServer:
             redoc_url=redoc_url
         )
 
-        app.add_middleware(SessionMiddleware, secret_key=self.envvars.secret_key, max_age=None, same_site="none", https_only=True)
+        app.add_middleware(SessionMiddleware, secret_key=self.env_vars.secret_key, max_age=None, same_site="none", https_only=True)
 
         async def _log_request_run(request: Request) -> None:
             try:
@@ -304,7 +304,7 @@ class ApiServer:
 
         # Configure CORS with smart credential handling
         # Get allowed origins for credentials from environment variable
-        allowed_credential_origins = self.envvars.auth_credential_origins
+        allowed_credential_origins = self.env_vars.auth_credential_origins
         
         # Allow both underscore and dash versions of configurable headers
         configurables_as_headers = []
@@ -325,7 +325,7 @@ class ApiServer:
         self.dashboard_routes.setup_routes(app, project_metadata_path, param_fields, get_parameters_definition)
 
         # Build the MCP server now that route methods are available
-        max_rows_for_ai = self.envvars.datasets_max_rows_for_ai
+        max_rows_for_ai = self.env_vars.datasets_max_rows_for_ai
         mcp_builder = McpServerBuilder(
             project_name=project_name,
             project_label=project_label,
@@ -352,7 +352,7 @@ class ApiServer:
 
         @app.get(squirrels_studio_path, include_in_schema=False)
         async def squirrels_studio():
-            sqrl_studio_base_url = self.envvars.studio_base_url
+            sqrl_studio_base_url = self.env_vars.studio_base_url
             context = {
                 "sqrl_studio_base_url": sqrl_studio_base_url,
                 "project_name": project_name_for_api,

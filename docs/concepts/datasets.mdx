@@ -148,7 +148,7 @@ Any widget parameter name defined for the dataset (from `squirrels.yml`), provid
 
 **Special `x_*` request fields**
 
-- `x_parent_param` (string) - The parent parameter name used for parameter updates
+- `x_parent_param` (string) - The parent parameter name used for parameter updates. If provided, only selections for this parameter are used for cascading, and others are ignored.
 
 **Headers**
 
@@ -156,7 +156,13 @@ Any widget parameter name defined for the dataset (from `squirrels.yml`), provid
 
 <Note>
 
-Without `x_parent_param`, the parameters endpoint accepts **at most 1** widget selection (the server will treat that parameter as the parent). Use `x_parent_param` to be explicit, especially if you need to include additional selections for evaluation.
+The parameters endpoint behavior depends on the presence of `x_parent_param` and widget selections:
+
+- **If `x_parent_param` is provided**: Only the widget selection(s) matching the value of `x_parent_param` are used to identify the selections for cascading. All other widget selections are ignored. If no query parameters match the `x_parent_param` value, the selection is assumed to be an empty list.
+- **If `x_parent_param` is NOT provided**:
+  - If selections for **multiple** parameters are provided, an error is raised.
+  - If selection(s) for **one** parameter is provided, it is automatically treated as the parent parameter.
+  - If **no** widget selections are provided, all the dataset's parameters are returned.
 
 </Note>
 
@@ -196,6 +202,8 @@ The `x_sql_query` uses Polars SQL instead of DuckDB SQL (or other query engines 
 </Accordion>
 
 </AccordionGroup>
+
+For more information on these endpoints, you can find the swagger documentation of any running Squirrels server at the path `/project/{project_name}/v{project_version}/docs`.
 
 ## Example client workflow
 
