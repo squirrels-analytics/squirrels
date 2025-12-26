@@ -228,6 +228,7 @@
           {
             "group": "Versions 0.5.x",
             "pages": [
+              "releases/v0-5-4",
               "releases/v0-5-3",
               "releases/v0-5-2",
               "releases/v0-5-1",
