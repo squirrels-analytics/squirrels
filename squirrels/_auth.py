@@ -8,6 +8,7 @@ from sqlalchemy import create_engine, Engine, func, inspect, text, ForeignKey
 from sqlalchemy.orm import declarative_base, sessionmaker, Mapped, mapped_column
 import jwt, uuid, secrets, json
 
+from ._env_vars import SquirrelsEnvVars
 from ._manifest import PermissionScope
 from ._exceptions import InvalidInputError, ConfigurationError
 from ._arguments.init_time_args import AuthProviderArgs
@@ -27,12 +28,12 @@ class Authenticator:
     providers: list[ProviderFunctionType] = []  # static variable to stage providers
 
     def __init__(
-        self, logger: u.Logger, base_path: str, auth_args: AuthProviderArgs, provider_functions: list[ProviderFunctionType], 
+        self, logger: u.Logger, env_vars: SquirrelsEnvVars, auth_args: AuthProviderArgs, provider_functions: list[ProviderFunctionType], 
         custom_user_fields_cls: type[CustomUserFields], *, sa_engine: Engine | None = None, external_only: bool = False
     ):
         self.logger = logger
-        self.env_vars = auth_args.env_vars
-        self.secret_key = self.env_vars.get(c.SQRL_SECRET_KEY)
+        self.env_vars = env_vars
+        self.secret_key = env_vars.secret_key
         self.external_only = external_only
 
         # Create a new declarative base for this instance
@@ -129,8 +130,8 @@ class Authenticator:
         self.auth_providers = [provider_function(auth_args) for provider_function in provider_functions]
         
         if sa_engine is None:
-            raw_sqlite_path = self.env_vars.get(c.SQRL_AUTH_DB_FILE_PATH, f"{{project_path}}/{c.TARGET_FOLDER}/{c.DB_FILE}")
-            sqlite_path = u.Path(raw_sqlite_path.format(project_path=base_path))
+            raw_sqlite_path = self.env_vars.auth_db_file_path
+            sqlite_path = u.Path(raw_sqlite_path.format(project_path=self.env_vars.project_path))
             sqlite_path.parent.mkdir(parents=True, exist_ok=True)
             self.engine = create_engine(f"sqlite:///{str(sqlite_path)}")
         else:
@@ -165,7 +166,7 @@ class Authenticator:
         if len(password) > 72:
             raise InvalidInputError(400, "password_too_long", "Password cannot exceed 72 characters")
     
-    def _initialize_db(self): # TODO: Use logger instead of print
+    def _initialize_db(self):
         session = self.Session()
         try:
             # Get existing columns in the database
@@ -197,7 +198,7 @@ class Authenticator:
                 session.commit()
 
             # Get admin password from environment variable if exists
-            admin_password = self.env_vars.get(c.SQRL_SECRET_ADMIN_PASSWORD)
+            admin_password = self.env_vars.secret_admin_password
             
             if admin_password is not None:
                 self._validate_password_length(admin_password)

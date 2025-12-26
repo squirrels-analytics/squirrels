@@ -14,7 +14,7 @@ from ._compile_prompts import prompt_compile_options
 
 
 def _run_duckdb_cli(project: SquirrelsProject, ui: bool):
-    init_sql = u._read_duckdb_init_sql(datalake_db_path=project._datalake_db_path)
+    init_sql = u._read_duckdb_init_sql(datalake_db_path=project._vdl_catalog_db_path)
     
     target_init_path = None
     if init_sql:
@@ -152,7 +152,10 @@ def main():
     elif args.command is None:
         print(f'Command is missing. Enter "squirrels -h" for help.')
     else:
-        project = SquirrelsProject(load_dotenv_globally=True, log_level=args.log_level, log_format=args.log_format, log_to_file=args.log_to_file)
+        project = SquirrelsProject(
+            load_dotenv_globally=True, 
+            log_level=args.log_level, log_format=args.log_format, log_to_file=args.log_to_file
+        )
         try:
             if args.command == c.DEPS_CMD:
                 PackageLoaderIO.load_packages(project._logger, project._manifest_cfg, reload=True)

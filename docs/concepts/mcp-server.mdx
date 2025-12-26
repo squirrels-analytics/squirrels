@@ -1,0 +1,113 @@
+---
+title: "MCP server"
+description: "How to use the Model Context Protocol (MCP) to interact with your Squirrels project from AI agents"
+---
+
+The Model Context Protocol (MCP) is an open standard that enables AI agents to interact with external data sources and tools. Squirrels provides a built-in MCP server that allows AI agents to discover and query datasets in your project.
+
+## Overview
+
+When you run the Squirrels API server, it automatically starts an MCP server. This server exposes your datasets and parameters as tools and resources that an AI agent (like Claude or ChatGPT) can use to explore and analyze your data.
+
+## Resources
+
+Resources are data entities that the AI agent can read. The Squirrels MCP server exposes the following resource:
+
+### `sqrl://data-catalog`
+
+Provides the details of all datasets and parameters that the current user has access to. This is useful for the AI agent to understand the structure of the project at the beginning of a conversation.
+
+## Tools
+
+Tools are functions that the AI agent can call. Each tool name is prefixed with `get_` and suffixed with `_from_{project_name}`.
+
+The response structure of the tools is the same as the response structure of the corresponding REST APIs. When running a Squirrels API server, you can find the swagger documentation at the path `/project/{project_name}/v{project_version}/docs`.
+
+### `get_data_catalog`
+
+Used to retrieve the data catalog. This tool provides the same information as the `sqrl://data-catalog` resource but as a tool call.
+
+### `get_dataset_parameters`
+
+Used to get updates for dataset parameters when a selection is made on a parameter with `trigger_refresh: true`. This is used for cascading parameters.
+
+<Expandable title="arguments" defaultOpen>
+  <ResponseField name="dataset" type="string" required>
+    The name of the dataset whose parameters are being updated.
+  </ResponseField>
+  <ResponseField name="selected_ids" type="string" required>
+    A JSON string containing exactly one key-value pair, where the key is the parent parameter name and the value is the selected ID(s).
+  </ResponseField>
+</Expandable>
+
+### `get_dataset_results`
+
+Used to retrieve the results of a dataset based on parameter selections.
+
+<Expandable title="arguments" defaultOpen>
+  <ResponseField name="dataset" type="string" required>
+    The name of the dataset to query.
+  </ResponseField>
+  <ResponseField name="parameters" type="string" required>
+    A JSON string containing key-value pairs of parameter names and their selected values.
+  </ResponseField>
+  <ResponseField name="sql_query" type="string">
+    An optional Polars SQL query to execute on the dataset result (use table name <code>result</code>).
+  </ResponseField>
+  <ResponseField name="orientation" type="string" default="rows">
+    The orientation of the result: <code>rows</code>, <code>columns</code>, or <code>records</code>.
+
+    <Note>
+      The default value here is <code>rows</code>, which is different than the default value for the `x_orientation` request field of the dataset results API (<code>records</code>).
+
+      The <code>rows</code> orientation is the most token efficient without sacrificing LLM interpretability.
+    </Note>
+  </ResponseField>
+  <ResponseField name="offset" type="integer" default="0">
+    The number of rows to skip.
+  </ResponseField>
+  <ResponseField name="limit" type="integer">
+    The maximum number of rows to return in the <code>content</code> field. Must be less than or equal to the value of `SQRL_DATASETS__MAX_ROWS_FOR_AI`. Defaults to 10, or the value of `SQRL_DATASETS__MAX_ROWS_FOR_AI` if it is less than 10.
+  </ResponseField>
+</Expandable>
+
+## Dataset results behavior
+
+The `get_dataset_results` tool returns a result containing two main fields: `content` and `structuredContent`.
+
+### Content vs Structured content
+
+- **`content`**: This field contains a text representation of the dataset result. It **always** respects the `offset` and `limit` arguments. This is what the large language model (LLM) typically "sees" (as input tokens) and uses for its response.
+- **`structuredContent`**: This field contains the raw JSON data of the result. Can be used for further processing with code execution for instance. By default, it also respects `offset` and `limit`. However, its behavior can be modified by feature flags.
+
+### Feature flag: `mcp-full-dataset-v1`
+
+When the `mcp-full-dataset-v1` feature flag is sent in the request headers (e.g., by a client that supports it), the `structuredContent` field will contain the **full dataset result**, ignoring the `offset` and `limit` arguments. 
+
+The `content` field will still be paginated based on `offset` and `limit`, allowing the LLM to see a preview of the data while the client application can access the full dataset for further processing (like chart rendering or code execution).
+
+<Note>
+
+Even when using this feature flag, AI agents can still paginate the `structuredContent` result using the OFFSET and LIMIT clauses in the `sql_query` argument.
+
+</Note>
+
+## Environment variables
+
+### `SQRL_DATASETS__MAX_ROWS_FOR_AI`
+
+This environment variable controls the maximum number of rows that the MCP server will return for AI tools.
+
+- **Default value**: `100`
+- **Purpose**: Prevents the LLM from being overwhelmed by large datasets and protects against excessive token usage.
+- **Enforcement**: If a tool call specifies a `limit` greater than this value, an error is returned. The default `limit` for the tool is also derived from this value (capped at 10).
+
+### `SQRL_DATASETS__MAX_ROWS_OUTPUT`
+
+This environment variable controls the maximum number of rows that the MCP server can return in `structuredContent` for the `get_dataset_results` tool when the `mcp-full-dataset-v1` feature flag is enabled.
+
+- **Default value**: `100,000`
+- **Purpose**: Prevents excessive server memory usage and ensures results are reasonable to send over HTTP, even when the full dataset is requested by the client.
+- **Enforcement**: This limit is applied to the `structuredContent` field. If the result exceeds this limit, an error is returned.
+
+See the [Environment variables](/project/env-vars) page for more details on these environment variables.

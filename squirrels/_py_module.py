@@ -43,16 +43,16 @@ class PyModule:
         return func_or_class
 
 
-def run_pyconfig_main(base_path: str, filename: str, kwargs: dict[str, Any] = {}) -> Any | None:
+def run_pyconfig_main(project_path: str, filename: str, kwargs: dict[str, Any] = {}) -> Any | None:
     """
     Given a python file in the 'pyconfigs' folder, run its main function
     
     Arguments:
-        base_path: The base path of the project
+        project_path: The base path of the project
         filename: The name of the file to run main function
         kwargs: Dictionary of the main function arguments
     """
-    filepath = u.Path(base_path, c.PYCONFIGS_FOLDER, filename)
+    filepath = u.Path(project_path, c.PYCONFIGS_FOLDER, filename)
     module = PyModule(filepath)
     main_function = module.get_func_or_class(c.MAIN_FUNC, is_required=False)
     if main_function:

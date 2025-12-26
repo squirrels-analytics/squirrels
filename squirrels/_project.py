@@ -7,6 +7,7 @@ from ._auth import Authenticator, AuthProviderArgs, ProviderFunctionType
 from ._schemas.auth_models import CustomUserFields, AbstractUser, GuestUser, RegisteredUser
 from ._schemas import response_models as rm
 from ._model_builder import ModelBuilder
+from ._env_vars import SquirrelsEnvVars
 from ._exceptions import InvalidInputError, ConfigurationError
 from ._py_module import PyModule
 from . import _dashboards as d, _utils as u, _constants as c, _manifest as mf, _connection_set as cs
@@ -23,46 +24,61 @@ class SquirrelsProject:
     """
     
     def __init__(
-        self, *, filepath: str = ".", load_dotenv_globally: bool = False,
+        self, *, project_path: str = ".", load_dotenv_globally: bool = False,
         log_to_file: bool = False, log_level: str | None = None, log_format: str | None = None,
     ) -> None:
         """
         Constructor for SquirrelsProject class. Loads the file contents of the Squirrels project into memory as member fields.
 
         Arguments:
-            filepath: The path to the Squirrels project file. Defaults to the current working directory.
+            project_path: The path to the Squirrels project file. Defaults to the current working directory.
             log_level: The logging level to use. Options are "DEBUG", "INFO", and "WARNING". Default is from SQRL_LOGGING__LOG_LEVEL environment variable or "INFO".
             log_to_file: Whether to enable logging to file(s) in the "logs/" folder with rotation and retention policies. Default is False.
             log_format: The format of the log records. Options are "text" and "json". Default is from SQRL_LOGGING__LOG_FORMAT environment variable or "text".
         """
-        self._filepath = filepath
-        self._load_dotenv_globally = load_dotenv_globally
-        self._logger = self._get_logger(filepath, log_to_file, log_level, log_format)
-        self._ensure_virtual_datalake_exists(filepath)
+        self._project_path = project_path
+
+        self._env_vars_unformatted = self._load_env_vars(project_path, load_dotenv_globally)
+        self._env_vars = SquirrelsEnvVars(project_path=project_path, **self._env_vars_unformatted)
+        self._vdl_catalog_db_path = self._env_vars.vdl_catalog_db_path
+        
+        self._logger = self._get_logger(project_path, self._env_vars, log_to_file, log_level, log_format)
+        self._ensure_virtual_datalake_exists(project_path, self._vdl_catalog_db_path, self._env_vars.vdl_data_path)
     
-    def _get_logger(self, filepath: str, log_to_file: bool, log_level: str | None, log_format: str | None) -> u.Logger:
-        env_vars = self._env_vars
+    @staticmethod
+    def _load_env_vars(project_path: str, load_dotenv_globally: bool) -> dict[str, str]:
+        dotenv_files = [c.DOTENV_FILE, c.DOTENV_LOCAL_FILE]
+        dotenv_vars = {}
+        for file in dotenv_files:
+            full_path = u.Path(project_path, file)
+            if load_dotenv_globally:
+                load_dotenv(full_path)
+            dotenv_vars.update({k: v for k, v in dotenv_values(full_path).items() if v is not None})
+        return {**os.environ, **dotenv_vars}
+
+    @staticmethod
+    def _get_logger(
+        filepath: str, env_vars: SquirrelsEnvVars, log_to_file: bool, log_level: str | None, log_format: str | None
+    ) -> u.Logger:
         # CLI arguments take precedence over environment variables
-        log_level = log_level if log_level is not None else env_vars.get(c.SQRL_LOGGING_LOG_LEVEL, "INFO")
-        log_format = log_format if log_format is not None else env_vars.get(c.SQRL_LOGGING_LOG_FORMAT, "text")
-        log_to_file = log_to_file or u.to_bool(env_vars.get(c.SQRL_LOGGING_LOG_TO_FILE, "false"))
-        log_file_size_mb = int(env_vars.get(c.SQRL_LOGGING_LOG_FILE_SIZE_MB, 50))
-        log_file_backup_count = int(env_vars.get(c.SQRL_LOGGING_LOG_FILE_BACKUP_COUNT, 1))
+        log_level = log_level if log_level is not None else env_vars.logging_log_level
+        log_format = log_format if log_format is not None else env_vars.logging_log_format
+        log_to_file = log_to_file or u.to_bool(env_vars.logging_log_to_file)
+        log_file_size_mb = int(env_vars.logging_log_file_size_mb)
+        log_file_backup_count = int(env_vars.logging_log_file_backup_count)
         return l.get_logger(filepath, log_to_file, log_level, log_format, log_file_size_mb, log_file_backup_count)
 
-    def _ensure_virtual_datalake_exists(self, project_path: str) -> None:
+    @staticmethod
+    def _ensure_virtual_datalake_exists(project_path: str, vdl_catalog_db_path: str, vdl_data_path: str) -> None:
         target_path = u.Path(project_path, c.TARGET_FOLDER)
         target_path.mkdir(parents=True, exist_ok=True)
 
         # Attempt to set up the virtual data lake with DATA_PATH if possible
         try:
-            is_ducklake = self._datalake_db_path.startswith("ducklake:")
+            is_ducklake = vdl_catalog_db_path.startswith("ducklake:")
             
-            data_path = self._env_vars.get(c.SQRL_VDL_DATA_PATH, c.DEFAULT_VDL_DATA_PATH)
-            data_path = data_path.format(project_path=project_path)
-            
-            options = f"(DATA_PATH '{data_path}')" if is_ducklake else ""
-            attach_stmt = f"ATTACH '{self._datalake_db_path}' AS vdl {options}"
+            options = f"(DATA_PATH '{vdl_data_path}')" if is_ducklake else ""
+            attach_stmt = f"ATTACH '{vdl_catalog_db_path}' AS vdl {options}"
             with duckdb.connect() as conn:
                 conn.execute(attach_stmt)
                 # TODO: support incremental loads for build models and avoid cleaning up old files all the time
@@ -75,82 +91,58 @@ class SquirrelsProject:
                 note = "NOTE: Squirrels does not allow changing the data path for an existing Virtual Data Lake (VDL)"
                 raise u.ConfigurationError(f"{first_line}\n\n{note}")
             
-            if is_ducklake and not any(x in self._datalake_db_path for x in [":sqlite:", ":postgres:", ":mysql:"]):
-                extended_error = "\n  Note: if you're using DuckDB for the metadata database, only one process can connect to the VDL at a time."
+            if is_ducklake and not any(x in vdl_catalog_db_path for x in [":sqlite:", ":postgres:", ":mysql:"]):
+                extended_error = "\n- Note: if you're using DuckDB for the metadata database, only one process can connect to the VDL at a time."
             else:
                 extended_error = ""
             
             raise u.ConfigurationError(f"Failed to attach Virtual Data Lake (VDL).{extended_error}") from e
     
     @ft.cached_property
-    def _env_vars(self) -> dict[str, str]:
-        dotenv_files = [c.DOTENV_FILE, c.DOTENV_LOCAL_FILE]
-        dotenv_vars = {}
-        for file in dotenv_files:
-            full_path = u.Path(self._filepath, file)
-            if self._load_dotenv_globally:
-                load_dotenv(full_path)
-            dotenv_vars.update({k: v for k, v in dotenv_values(full_path).items() if v is not None})
-        return {**os.environ, **dotenv_vars}
-
-    @ft.cached_property
-    def _elevated_access_level(self) -> u.ACCESS_LEVEL:
-        elevated_access_level = self._env_vars.get(c.SQRL_PERMISSIONS_ELEVATED_ACCESS_LEVEL, "admin").lower()
-
-        if elevated_access_level not in ["admin", "member", "guest"]:
-            raise u.ConfigurationError(f"{c.SQRL_PERMISSIONS_ELEVATED_ACCESS_LEVEL} has been set to an invalid access level: {elevated_access_level}")
-        
-        return elevated_access_level
-    
-    @ft.cached_property
-    def _datalake_db_path(self) -> str:
-        datalake_db_path = self._env_vars.get(c.SQRL_VDL_CATALOG_DB_PATH, c.DEFAULT_VDL_CATALOG_DB_PATH)
-        datalake_db_path = datalake_db_path.format(project_path=self._filepath)
-        return datalake_db_path
-
-    @ft.cached_property
     def _manifest_cfg(self) -> mf.ManifestConfig:
-        return mf.ManifestIO.load_from_file(self._logger, self._filepath, self._env_vars)
+        return mf.ManifestIO.load_from_file(self._logger, self._project_path, self._env_vars_unformatted)
     
     @ft.cached_property
     def _seeds(self) -> s.Seeds:
-        return s.SeedsIO.load_files(self._logger, self._filepath, self._env_vars)
+        return s.SeedsIO.load_files(self._logger, self._env_vars)
     
     @ft.cached_property
     def _sources(self) -> so.Sources:
-        return so.SourcesIO.load_file(self._logger, self._filepath, self._env_vars)
+        return so.SourcesIO.load_file(self._logger, self._env_vars, self._env_vars_unformatted)
     
     @ft.cached_property
     def _build_model_files(self) -> dict[str, mq.QueryFileWithConfig]:
-        return m.ModelsIO.load_build_files(self._logger, self._filepath)
+        return m.ModelsIO.load_build_files(self._logger, self._env_vars)
     
     @ft.cached_property
     def _dbview_model_files(self) -> dict[str, mq.QueryFileWithConfig]:
-        return m.ModelsIO.load_dbview_files(self._logger, self._filepath, self._env_vars)
+        return m.ModelsIO.load_dbview_files(self._logger, self._env_vars)
     
     @ft.cached_property
     def _federate_model_files(self) -> dict[str, mq.QueryFileWithConfig]:
-        return m.ModelsIO.load_federate_files(self._logger, self._filepath)
+        return m.ModelsIO.load_federate_files(self._logger, self._env_vars)
     
     @ft.cached_property
     def _context_func(self) -> m.ContextFunc:
-        return m.ModelsIO.load_context_func(self._logger, self._filepath)
+        return m.ModelsIO.load_context_func(self._logger, self._project_path)
     
     @ft.cached_property
     def _dashboards(self) -> dict[str, d.DashboardDefinition]:
-        return d.DashboardsIO.load_files(self._logger, self._filepath)
+        return d.DashboardsIO.load_files(self._logger, self._project_path, self._manifest_cfg.project_variables.auth_type)
     
     @ft.cached_property
     def _conn_args(self) -> cs.ConnectionsArgs:
-        return cs.ConnectionSetIO.load_conn_py_args(self._logger, self._filepath, self._env_vars, self._manifest_cfg)
+        proj_vars = self._manifest_cfg.project_variables.model_dump()
+        conn_args = cs.ConnectionsArgs(self._project_path, proj_vars, self._env_vars_unformatted)
+        return conn_args
     
     @ft.cached_property
     def _conn_set(self) -> cs.ConnectionSet:
-        return cs.ConnectionSetIO.load_from_file(self._logger, self._filepath, self._manifest_cfg, self._conn_args)
+        return cs.ConnectionSetIO.load_from_file(self._logger, self._project_path, self._manifest_cfg, self._conn_args)
     
     @ft.cached_property
     def _custom_user_fields_cls_and_provider_functions(self) -> tuple[type[CustomUserFields], list[ProviderFunctionType]]:
-        user_module_path = u.Path(self._filepath, c.PYCONFIGS_FOLDER, c.USER_FILE)
+        user_module_path = u.Path(self._project_path, c.PYCONFIGS_FOLDER, c.USER_FILE)
         user_module = PyModule(user_module_path)
         
         # Load CustomUserFields class (adds to Authenticator.providers as side effect)
@@ -164,15 +156,14 @@ class SquirrelsProject:
         return CustomUserFieldsCls, provider_functions
     
     @ft.cached_property
-    def _auth_args(self) -> AuthProviderArgs:
-        conn_args = self._conn_args
-        return AuthProviderArgs(conn_args.project_path, conn_args.proj_vars, conn_args.env_vars)
-    
-    @ft.cached_property
     def _auth(self) -> Authenticator:
+        auth_args = AuthProviderArgs(**self._conn_args.__dict__)
         CustomUserFieldsCls, provider_functions = self._custom_user_fields_cls_and_provider_functions
-        external_only = (self._manifest_cfg.authentication.type == mf.AuthenticationType.EXTERNAL)
-        return Authenticator(self._logger, self._filepath, self._auth_args, provider_functions, custom_user_fields_cls=CustomUserFieldsCls, external_only=external_only)
+        # external_only = (self._manifest_cfg.authentication.type == mf.AuthenticationType.EXTERNAL)
+        return Authenticator(
+            self._logger, self._env_vars, auth_args, provider_functions, 
+            custom_user_fields_cls=CustomUserFieldsCls, # external_only=external_only
+        )
     
     @ft.cached_property
     def _guest_user(self) -> AbstractUser:
@@ -187,17 +178,17 @@ class SquirrelsProject:
     @ft.cached_property
     def _param_args(self) -> ps.ParametersArgs:
         conn_args = self._conn_args
-        return ps.ParametersArgs(conn_args.project_path, conn_args.proj_vars, conn_args.env_vars)
+        return ps.ParametersArgs(**conn_args.__dict__)
     
     @ft.cached_property
     def _param_cfg_set(self) -> ps.ParameterConfigsSet:
         return ps.ParameterConfigsSetIO.load_from_file(
-            self._logger, self._filepath, self._manifest_cfg, self._seeds, self._conn_set, self._param_args, self._datalake_db_path
+            self._logger, self._env_vars, self._manifest_cfg, self._seeds, self._conn_set, self._param_args
         )
     
     @ft.cached_property
     def _j2_env(self) -> u.EnvironmentWithMacros:
-        env = u.EnvironmentWithMacros(self._logger, loader=u.j2.FileSystemLoader(self._filepath))
+        env = u.EnvironmentWithMacros(self._logger, loader=u.j2.FileSystemLoader(self._project_path))
 
         def value_to_str(value: t.Any, attribute: str | None = None) -> str:
             if attribute is None:
@@ -241,13 +232,13 @@ class SquirrelsProject:
 
         seeds_dict = self._seeds.get_dataframes()
         for key, seed in seeds_dict.items():
-            self._add_model(models_dict, m.Seed(key, seed.config, seed.df, logger=self._logger, env_vars=self._env_vars, conn_set=self._conn_set))
+            self._add_model(models_dict, m.Seed(key, seed.config, seed.df, logger=self._logger, conn_set=self._conn_set))
 
         for source_name, source_config in self._sources.sources.items():
-            self._add_model(models_dict, m.SourceModel(source_name, source_config, logger=self._logger, env_vars=self._env_vars, conn_set=self._conn_set))
+            self._add_model(models_dict, m.SourceModel(source_name, source_config, logger=self._logger, conn_set=self._conn_set))
 
         for name, val in self._build_model_files.items():
-            model = m.BuildModel(name, val.config, val.query_file, logger=self._logger, env_vars=self._env_vars, conn_set=self._conn_set, j2_env=self._j2_env) 
+            model = m.BuildModel(name, val.config, val.query_file, logger=self._logger, conn_set=self._conn_set, j2_env=self._j2_env) 
             self._add_model(models_dict, model)
 
         return models_dict
@@ -262,7 +253,7 @@ class SquirrelsProject:
             select: The name of a specific model to build. If None, all models are built. Default is None.
         """
         models_dict: dict[str, m.StaticModel] = self._get_static_models()
-        builder = ModelBuilder(self._datalake_db_path, self._conn_set, models_dict, self._conn_args, self._logger)
+        builder = ModelBuilder(self._vdl_catalog_db_path, self._conn_set, models_dict, self._conn_args, self._logger)
         await builder.build(full_refresh, select)
 
     def _get_models_dict(self, always_python_df: bool) -> dict[str, m.DataModel]:
@@ -270,13 +261,13 @@ class SquirrelsProject:
         
         for name, val in self._dbview_model_files.items():
             self._add_model(models_dict, m.DbviewModel(
-                name, val.config, val.query_file, logger=self._logger, env_vars=self._env_vars, conn_set=self._conn_set, j2_env=self._j2_env
+                name, val.config, val.query_file, logger=self._logger, conn_set=self._conn_set, j2_env=self._j2_env
             ))
             models_dict[name].needs_python_df = always_python_df
         
         for name, val in self._federate_model_files.items():
             self._add_model(models_dict, m.FederateModel(
-                name, val.config, val.query_file, logger=self._logger, env_vars=self._env_vars, conn_set=self._conn_set, j2_env=self._j2_env
+                name, val.config, val.query_file, logger=self._logger, conn_set=self._conn_set, j2_env=self._j2_env
             ))
             models_dict[name].needs_python_df = always_python_df
         
@@ -288,7 +279,7 @@ class SquirrelsProject:
         dataset_config = self._manifest_cfg.datasets[dataset]
         target_model = models_dict[dataset_config.model]
         target_model.is_target = True
-        dag = m.DAG(dataset_config, target_model, models_dict, self._datalake_db_path, self._logger)
+        dag = m.DAG(dataset_config, target_model, models_dict, self._vdl_catalog_db_path, self._logger)
         
         return dag
     
@@ -325,10 +316,10 @@ class SquirrelsProject:
         model_config = mc.FederateModelConfig(depends_on=dependencies)
         query_file = mq.SqlQueryFile("", sql_query or "SELECT 1")
         fake_target_model = m.FederateModel(
-            "__fake_target", model_config, query_file, logger=self._logger, env_vars=self._env_vars, conn_set=self._conn_set, j2_env=self._j2_env
+            "__fake_target", model_config, query_file, logger=self._logger, conn_set=self._conn_set, j2_env=self._j2_env
         )
         fake_target_model.is_target = True
-        dag = m.DAG(None, fake_target_model, models_dict, self._datalake_db_path, self._logger)
+        dag = m.DAG(None, fake_target_model, models_dict, self._vdl_catalog_db_path, self._logger)
         return dag
     
     async def _get_compiled_dag(
@@ -419,7 +410,7 @@ class SquirrelsProject:
         border = "=" * 80
         underlines = "-" * len(border)
 
-        compile_root = Path(self._filepath, c.TARGET_FOLDER, c.COMPILE_FOLDER)
+        compile_root = Path(self._project_path, c.TARGET_FOLDER, c.COMPILE_FOLDER)
         if clear and compile_root.exists():
             shutil.rmtree(compile_root)
 
@@ -591,6 +582,31 @@ class SquirrelsProject:
             target_model_config=dag.target_model.model_config
         )
     
+    def _enforce_max_result_rows(self, lazy_df: pl.LazyFrame, error_type: str) -> pl.DataFrame:
+        """
+        Collect at most max_rows + 1 rows from a LazyFrame to detect overflow.
+        Raises InvalidInputError if the result exceeds the maximum allowed rows.
+        
+        Arguments:
+            lazy_df: The LazyFrame to collect and check
+            error_type: Either "dataset" or "query" to customize the error message
+        
+        Returns:
+            A DataFrame with at most max_rows rows (or raises if exceeded)
+        """
+        max_rows = self._env_vars.datasets_max_rows_output
+        # Collect max_rows + 1 to detect overflow without loading unbounded results
+        collected = lazy_df.limit(max_rows + 1).collect()
+        row_count = collected.select(pl.len()).item()
+        
+        if row_count > max_rows:
+            raise InvalidInputError(
+                413, f"{error_type}_result_too_large",
+                f"The {error_type} result contains {row_count} rows, which exceeds the maximum allowed of {max_rows} rows."
+            )
+        
+        return collected
+    
     async def dataset(
         self, name: str, *, selections: dict[str, t.Any] = {}, user: AbstractUser | None = None, require_auth: bool = True,
         configurables: dict[str, str] = {}
@@ -619,9 +635,10 @@ class SquirrelsProject:
             self._param_args, self._param_cfg_set, self._context_func, user, dict(selections), configurables=configurables
         )
         assert isinstance(dag.target_model.result, pl.LazyFrame)
+        df = self._enforce_max_result_rows(dag.target_model.result, "dataset")
         return dr.DatasetResult(
             target_model_config=dag.target_model.model_config, 
-            df=dag.target_model.result.collect().with_row_index("_row_num", offset=1)
+            df=df.with_row_index("_row_num", offset=1)
         )
     
     async def dashboard(
@@ -654,7 +671,7 @@ class SquirrelsProject:
             )
             return result.df
         
-        args = d.DashboardArgs(self._param_args, get_dataset_df)
+        args = d.DashboardArgs(**self._param_args.__dict__, _get_dataset=get_dataset_df)
         try:
             return await self._dashboards[name].get_dashboard(args, dashboard_type=dashboard_type)
         except KeyError:
@@ -669,9 +686,10 @@ class SquirrelsProject:
         dag = await self._get_compiled_dag(user=user, sql_query=sql_query, selections=selections, configurables=configurables)
         await dag._run_models()
         assert isinstance(dag.target_model.result, pl.LazyFrame)
+        df = self._enforce_max_result_rows(dag.target_model.result, "query")
         return dr.DatasetResult(
             target_model_config=dag.target_model.model_config, 
-            df=dag.target_model.result.collect().with_row_index("_row_num", offset=1)
+            df=df.with_row_index("_row_num", offset=1)
         )
 
     async def get_compiled_model_query(
@@ -695,7 +713,7 @@ class SquirrelsProject:
 
         # Build a DAG with this model as the target, without a dataset context
         model.is_target = True
-        dag = m.DAG(None, model, models_dict, self._datalake_db_path, self._logger)
+        dag = m.DAG(None, model, models_dict, self._vdl_catalog_db_path, self._logger)
 
         cfg = {**self._manifest_cfg.get_default_configurables(), **configurables}
         await dag.execute(

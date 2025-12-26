@@ -1,0 +1,148 @@
+---
+title: Virtual Data Lake (VDL)
+description: "Understanding the Virtual Data Lake and how it stores your data models"
+---
+
+The Virtual Data Lake (VDL) is the central storage system in Squirrels that holds all materialized data models, seeds, and source data. It is built using [DuckLake], a lakehouse architecture that provides the convenience of building your data lake locally while still allowing for scalability if needed by using cloud storage systems (like AWS S3).
+
+## Overview
+
+The VDL serves as the foundation for your Squirrels project's data layer. When you run [sqrl build], Squirrels:
+
+1. Loads seed data from CSV files
+2. Extracts and stores source data (when `load_to_vdl: true` is configured)
+3. Executes build models and materializes them as tables or views
+4. Stores all of this data in the VDL
+
+The VDL is then attached as a schema named `vdl` in DuckDB during realtime queries, making all your materialized models accessible for querying by federate models.
+
+## Architecture
+
+The VDL uses [DuckLake] which consists of two main components:
+
+### Catalog database
+
+The catalog database (`vdl_catalog.duckdb` by default) stores metadata about the VDL, including table schemas, view definitions, and other structural information. 
+
+The catalog database can be configured via the `SQRL_VDL__CATALOG_DB_PATH` environment variable (see the [Configuration section](#configuration) below for more details).
+
+### Data storage
+
+The data storage location (`target/vdl_data/` by default) contains the actual data files for the VDL. These files store the physical data for materialized tables. 
+
+The location can be configured via the `SQRL_VDL__DATA_PATH` environment variable (see the [Configuration section](#configuration) below for more details).
+
+## Configuration
+
+The catalog database and data location can be configured using environment variables in your `.env` or `.env.local` file:
+
+<ResponseField name="SQRL_VDL__CATALOG_DB_PATH" type="string" default="ducklake:{project_path}/target/vdl_catalog.duckdb">
+  Path to the DuckLake catalog database for the VDL. Supports the `{project_path}` placeholder. Using a Postgres database for the catalog database is possible.
+  
+  For more information, see the [DuckLake documentation on choosing a catalog database](https://ducklake.select/docs/stable/duckdb/usage/choosing_a_catalog_database).
+</ResponseField>
+
+<ResponseField name="SQRL_VDL__DATA_PATH" type="string" default="{project_path}/target/vdl_data/">
+  Storage path for the DuckLake data files for the VDL. Supports the `{project_path}` placeholder. Using a cloud storage system like AWS S3 is also possible.
+  
+  For more information, see the [DuckLake documentation on choosing storage](https://ducklake.select/docs/stable/duckdb/usage/choosing_storage).
+</ResponseField>
+
+<Note>
+
+Both the catalog database path and data storage path support the `{project_path}` placeholder, allowing you to use relative paths that resolve to your project directory.
+
+</Note>
+
+<Warning>
+
+Squirrels does not allow changing the data path for an existing Virtual Data Lake. If you need to change the data path, you must rebuild the VDL from scratch using `sqrl build --full-refresh` after updating the environment variable.
+
+</Warning>
+
+## Building the VDL
+
+The VDL is created and updated when you run [sqrl build]:
+
+```bash
+# Build all models
+sqrl build
+
+# Rebuild from scratch (drops all tables)
+sqrl build --full-refresh
+
+# Build a specific model and its dependencies
+sqrl build --select my_model
+```
+
+During the build process:
+
+1. Seeds are loaded from CSV files in the `seeds/` directory
+2. Sources with `load_to_vdl: true` are extracted and stored
+3. Build models are executed in dependency order and materialized
+4. All data is stored in the VDL
+
+## Accessing VDL data
+
+Once built, data in the VDL can be accessed in several ways:
+
+### In data models
+
+Build models and federate models in SQL can reference VDL tables using the `ref()` macro:
+
+```sql
+-- Reference a seed
+SELECT * FROM {{ ref("seed_categories") }}
+
+-- Reference a source (if loaded to VDL)
+SELECT * FROM {{ ref("src_customers") }}
+
+-- Reference another build model
+SELECT * FROM {{ ref("build_transactions") }}
+```
+
+Build models and federate models in Python can access VDL data through the `sqrl.ref()` method:
+
+```python
+def main(sqrl: args.BuildModelArgs) -> pl.LazyFrame:
+    # Access a seed
+    categories = sqrl.ref("seed_categories")
+    
+    # Access a source (if loaded to VDL)
+    customers = sqrl.ref("src_customers")
+    
+    # Access another build model
+    transactions = sqrl.ref("build_transactions")
+    
+    return transactions.join(customers, on="customer_id")
+```
+
+### Direct SQL queries
+
+You can also query the VDL directly using DuckDB SQL. When using `sqrl duckdb` or `sqrl duckdb --ui`, the VDL is automatically attached as the `vdl` schema (in READ ONLY mode). This schema is in use by default such that you don't need to run `USE vdl;` to use it.
+
+```sql
+-- Querying a seed from the VDL
+SELECT * FROM vdl.seed_categories;
+
+-- Can also query from the VDL without specifying the schema
+SELECT * FROM seed_categories;
+```
+
+## Related pages
+
+- [Build models] - Create materialized data models in the VDL
+- [Sources] - Configure source tables and load them to the VDL
+- [Seeds] - Load CSV data into the VDL
+- [Environment variables] - Configure VDL paths and settings
+- [sqrl build] - CLI reference for building the VDL
+- [sqrl duckdb] - CLI reference for running DuckDB SQL queries against the VDL
+
+
+[Seeds]: /project/seeds
+[Sources]: /project/models/sources
+[Build models]: /project/models/builds
+[Environment variables]: /project/env-vars
+[sqrl build]: /references/cli/build
+[sqrl duckdb]: /references/cli/duckdb
+[DuckLake]: https://ducklake.select/

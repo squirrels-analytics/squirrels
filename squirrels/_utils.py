@@ -93,7 +93,7 @@ class EnvironmentWithMacros(j2.Environment):
 
 ## Utility functions/variables
 
-def render_string(raw_str: str, *, base_path: str = ".", **kwargs) -> str:
+def render_string(raw_str: str, *, project_path: str = ".", **kwargs) -> str:
     """
     Given a template string, render it with the given keyword arguments
 
@@ -104,7 +104,7 @@ def render_string(raw_str: str, *, base_path: str = ".", **kwargs) -> str:
     Returns:
         The rendered string
     """
-    j2_env = j2.Environment(loader=j2.FileSystemLoader(base_path))
+    j2_env = j2.Environment(loader=j2.FileSystemLoader(project_path))
     template = j2_env.from_string(raw_str)
     return template.render(kwargs)
 
@@ -275,6 +275,114 @@ def run_sql_on_dataframes(sql_query: str, dataframes: dict[str, pl.LazyFrame]) -
         duckdb_conn.close()
     
     return result_df
+
+
+async def run_polars_sql_on_dataframes(
+    sql_query: str, dataframes: dict[str, pl.LazyFrame], *, timeout_seconds: float = 2.0, max_rows: int | None = None
+) -> pl.DataFrame:
+    """
+    Runs a SQL query against a collection of dataframes using Polars SQL (more secure than DuckDB for user input).
+    
+    Arguments:
+        sql_query: The SQL query to run (Polars SQL dialect)
+        dataframes: A dictionary of table names to their polars LazyFrame
+        timeout_seconds: Maximum execution time in seconds (default 2.0)
+        max_rows: Maximum number of rows to collect. Collects at most max_rows + 1 rows
+                  to allow overflow detection without loading unbounded results into memory.
+    
+    Returns:
+        The result as a polars DataFrame from running the query (limited to max_rows + 1)
+    
+    Raises:
+        ConfigurationError: If the query is invalid or insecure
+    """
+    # Validate the SQL query
+    _validate_sql_query_security(sql_query, dataframes)
+    
+    # Execute with timeout
+    try:
+        loop = asyncio.get_event_loop()
+        result = await asyncio.wait_for(
+            loop.run_in_executor(None, _run_polars_sql_sync, sql_query, dataframes, max_rows),
+            timeout=timeout_seconds
+        )
+        return result
+    except asyncio.TimeoutError as e:
+        raise ConfigurationError(f"SQL query execution exceeded timeout of {timeout_seconds} seconds") from e
+
+
+def _run_polars_sql_sync(sql_query: str, dataframes: dict[str, pl.LazyFrame], max_rows: int | None) -> pl.DataFrame:
+    """
+    Synchronous execution of Polars SQL.
+    
+    Arguments:
+        sql_query: The SQL query to run
+        dataframes: A dictionary of table names to their polars LazyFrame
+        max_rows: Maximum number of rows to collect.
+    """
+    ctx = pl.SQLContext(**dataframes)
+    result = ctx.execute(sql_query, eager=False)
+    if max_rows is not None:
+        result = result.limit(max_rows)
+    return result.collect()
+
+
+def _validate_sql_query_security(sql_query: str, dataframes: dict[str, pl.LazyFrame]) -> None:
+    """
+    Validates that a SQL query is safe to execute.
+    
+    Enforces:
+    - Single statement only
+    - Read-only operations (SELECT/WITH/UNION)
+    - Table references limited to registered frames (excluding CTE names)
+    
+    Arguments:
+        sql_query: The SQL query to validate
+        dataframes: Dictionary of allowed table names
+        
+    Raises:
+        ConfigurationError: If validation fails
+    """
+    try:
+        parsed = sqlglot.parse(sql_query)
+    except Exception as e:
+        raise ConfigurationError(f"Failed to parse SQL query: {str(e)}") from e
+    
+    # Enforce single statement
+    if len(parsed) != 1:
+        raise ConfigurationError(f"Only single SQL statements are allowed. Found {len(parsed)} statements.")
+    
+    statement = parsed[0]
+    
+    # Enforce read-only: allow SELECT, WITH (CTE), UNION, INTERSECT, EXCEPT
+    allowed_types = (
+        sqlglot.expressions.Select,
+        sqlglot.expressions.Union,
+        sqlglot.expressions.Intersect,
+        sqlglot.expressions.Except,
+    )
+    
+    if not isinstance(statement, allowed_types):
+        raise ConfigurationError(
+            f"Only read-only SQL statements (SELECT, WITH, UNION, INTERSECT, EXCEPT) are allowed. "
+            f"Found: {type(statement).__name__}"
+        )
+    
+    # Collect CTE names (these are temporary tables created by WITH clauses)
+    cte_names: set[str] = set()
+    for cte in statement.find_all(sqlglot.expressions.CTE):
+        if cte.alias:
+            cte_names.add(cte.alias)
+    
+    # Validate table references (excluding CTE names)
+    allowed_tables = set(dataframes.keys()) | cte_names
+    for table in statement.find_all(sqlglot.expressions.Table):
+        table_name = table.name
+        if table_name not in allowed_tables:
+            raise ConfigurationError(
+                f"Table reference '{table_name}' is not allowed. "
+                f"Only the following tables are available: {sorted(dataframes.keys())}"
+            )
 
 
 def load_yaml_config(filepath: FilePath) -> dict:

@@ -29,7 +29,9 @@ def __init__(
   </ResponseField>
 
   <ResponseField name="uri" type="str" required>
-    The URI for the connection.
+    The URI for the connection. The URI format varies by database and connection type. 
+    
+    For details on URI formats for each connection type, see [URI formats](/concepts/connections#uri-formats).
   </ResponseField>
 
   <ResponseField name="label" type="str | None" default="None">

@@ -32,6 +32,19 @@
             ]
           },
           {
+            "group": "Concepts",
+            "icon": "book",
+            "pages": [
+              "concepts/architecture",
+              "concepts/vdl",
+              "concepts/connections",
+              "concepts/models",
+              "concepts/datasets",
+              "concepts/parameters",
+              "concepts/mcp-server"
+            ]
+          },
+          {
             "group": "Project files",
             "icon": "folder-tree",
             "pages": [

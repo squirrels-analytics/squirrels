@@ -1,10 +1,13 @@
-import pytest, asyncio, polars as pl
+import pytest, polars as pl
 from pathlib import Path
 
 from squirrels import _models as m, _utils as u, _model_queries as mq
-from squirrels._arguments.run_time_args import ParametersArgs, ContextArgs
+from squirrels._arguments.init_time_args import ParametersArgs
+from squirrels._arguments.run_time_args import ContextArgs
+from squirrels._schemas.auth_models import GuestUser, CustomUserFields
 from squirrels._manifest import DatasetConfig
 from squirrels._model_configs import DbviewModelConfig, FederateModelConfig, SeedConfig
+from squirrels._env_vars import SquirrelsEnvVars
 
 
 # Model Type Tests
@@ -57,6 +60,13 @@ def test_federate_model(federate_model: m.FederateModel):
 
 # DAG Tests
 @pytest.fixture(scope="function")
+def ctx_args() -> ContextArgs:
+    param_args = ParametersArgs(project_path="", proj_vars={}, env_vars={})
+    user = GuestUser(username="test", custom_fields=CustomUserFields())
+    return ContextArgs(**param_args.__dict__, user=user, prms={}, configurables={}, _conn_args=param_args)
+
+
+@pytest.fixture(scope="function")
 def simple_dag() -> m.DAG:
     # Create a simple DAG: A -> B -> C
     model_c = m.Seed("C", SeedConfig(), pl.LazyFrame({"id": [1, 2, 3]}))
@@ -74,10 +84,8 @@ def simple_dag() -> m.DAG:
     models = {"A": model_a, "B": model_b, "C": model_c}
     return m.DAG(DatasetConfig(name="test"), model_a, models)
 
-def test_dag_compilation(simple_dag: m.DAG):
+def test_dag_compilation(simple_dag: m.DAG, ctx_args: ContextArgs):
     ctx = {}
-    param_args = ParametersArgs("", {}, {})
-    ctx_args = ContextArgs(param_args, None, {}, {})
     simple_dag._compile_models(ctx, ctx_args, True)
     
     model_a = simple_dag.models_dict["A"]
@@ -88,16 +96,14 @@ def test_dag_compilation(simple_dag: m.DAG):
     assert model_b.upstreams == {"C": model_c}
     assert model_c.upstreams == {}
 
-def test_dag_terminal_nodes(simple_dag: m.DAG):
+def test_dag_terminal_nodes(simple_dag: m.DAG, ctx_args: ContextArgs):
     ctx = {}
-    param_args = ParametersArgs("", {}, {})
-    ctx_args = ContextArgs(param_args, None, {}, {})
     simple_dag._compile_models(ctx, ctx_args, True)
     
     terminal_nodes = simple_dag._get_terminal_nodes()
     assert terminal_nodes == {"C"}
 
-def test_dag_cycle_detection():
+def test_dag_cycle_detection(ctx_args: ContextArgs):
     # Create a DAG with cycle: A -> B -> A
     config_b = FederateModelConfig()
     query_b = 'SELECT * FROM {{ ref("A") }}'
@@ -113,8 +119,6 @@ def test_dag_cycle_detection():
     dag = m.DAG(DatasetConfig(name="test"), model_a, models)
     
     ctx = {}
-    param_args = ParametersArgs("", {}, {})
-    ctx_args = ContextArgs(param_args, None, {}, {})
     dag._compile_models(ctx, ctx_args, True)
     
     with pytest.raises(u.ConfigurationError, match="Cycle found in model dependency graph"):
@@ -142,9 +146,10 @@ def test_load_files(tmp_path: Path):
     (federates_path / "model2.sql").write_text('SELECT * FROM {{ ref("model1") }}')
     
     logger = u.Logger("")
-    build_model_files = m.ModelsIO.load_build_files(logger, str(tmp_path))
-    dbview_model_files = m.ModelsIO.load_dbview_files(logger, str(tmp_path), env_vars={})
-    federate_model_files = m.ModelsIO.load_federate_files(logger, str(tmp_path))
+    env_vars = SquirrelsEnvVars(project_path=str(tmp_path))
+    build_model_files = m.ModelsIO.load_build_files(logger, env_vars)
+    dbview_model_files = m.ModelsIO.load_dbview_files(logger, env_vars)
+    federate_model_files = m.ModelsIO.load_federate_files(logger, env_vars)
     
     assert set(build_model_files.keys()) == {"model0"}
     assert set(dbview_model_files.keys()) == {"model1"}

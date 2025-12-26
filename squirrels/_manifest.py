@@ -10,11 +10,20 @@ import yaml, time, re
 from . import _constants as c, _utils as u
 
 
+class AuthType(Enum):
+    REQUIRED = "required"
+    OPTIONAL = "optional"
+
+# class AuthStrategy(Enum):
+#     MANAGED = "managed"
+#     EXTERNAL = "external"
+
 class ProjectVarsConfig(BaseModel, extra="allow"):
     name: str
+    major_version: int
     label: str = ""
     description: str = ""
-    major_version: int
+    auth_type: AuthType = AuthType.OPTIONAL
 
     @field_validator("name")
     @classmethod
@@ -154,24 +163,10 @@ class PermissionScope(Enum):
     PRIVATE = 2
 
 
-class AuthenticationEnforcement(Enum):
-    REQUIRED = "required"
-    OPTIONAL = "optional"
-    DISABLED = "disabled"
-
-class AuthenticationType(Enum):
-    MANAGED = "managed"
-    EXTERNAL = "external"
-
-class AuthenticationConfig(BaseModel):
-    enforcement: AuthenticationEnforcement = AuthenticationEnforcement.OPTIONAL
-    type: AuthenticationType = AuthenticationType.MANAGED
-
-
 class AnalyticsOutputConfig(_ConfigWithNameBaseModel):
     label: str = ""
     description: str = ""
-    scope: PermissionScope = PermissionScope.PUBLIC
+    scope: PermissionScope | None = None
     parameters: list[str] | None = Field(default=None, description="The list of parameter names used by the dataset/dashboard")
 
     @model_validator(mode="after")
@@ -182,7 +177,9 @@ class AnalyticsOutputConfig(_ConfigWithNameBaseModel):
 
     @field_validator("scope", mode="before")
     @classmethod
-    def validate_scope(cls, value: str, info: ValidationInfo) -> PermissionScope:
+    def validate_scope(cls, value: Any, info: ValidationInfo) -> PermissionScope | None:
+        if value is None:
+            return None
         try:
             return PermissionScope[str(value).upper()]
         except KeyError as e:
@@ -217,7 +214,6 @@ class TestSetsConfig(_ConfigWithNameBaseModel):
 
 class ManifestConfig(BaseModel):
     project_variables: ProjectVarsConfig
-    authentication: AuthenticationConfig = Field(default_factory=AuthenticationConfig)
     packages: list[PackageConfig] = Field(default_factory=list)
     connections: dict[str, DbConnConfig] = Field(default_factory=dict)
     parameters: list[ParametersConfig] = Field(default_factory=list)
@@ -225,7 +221,6 @@ class ManifestConfig(BaseModel):
     selection_test_sets: dict[str, TestSetsConfig] = Field(default_factory=dict)
     datasets: dict[str, DatasetConfig] = Field(default_factory=dict)
     base_path: str = "."
-    env_vars: dict[str, str] = Field(default_factory=dict)
 
     @field_validator("packages")
     @classmethod
@@ -261,14 +256,22 @@ class ManifestConfig(BaseModel):
     def validate_authentication_and_scopes(self) -> Self:
         """
         Enforce authentication rules:
-        - If authentication.is_required, no dataset may be PUBLIC.
+        - Set default scope based on auth_type if not specified.
+        - If auth_type is REQUIRED, no dataset may be PUBLIC.
         """
-        if self.authentication.enforcement == AuthenticationEnforcement.REQUIRED:
+        is_auth_required = self.project_variables.auth_type == AuthType.REQUIRED
+        default_scope = PermissionScope.PROTECTED if is_auth_required else PermissionScope.PUBLIC
+        
+        for ds in self.datasets.values():
+            if ds.scope is None:
+                ds.scope = default_scope
+
+        if is_auth_required:
             invalid = [name for name, ds in self.datasets.items() if ds.scope == PermissionScope.PUBLIC]
             if invalid:
                 raise ValueError(
-                    "Authentication is required, so datasets cannot be public. "
-                    f"Update the scope for datasets: {invalid}"
+                    "Authentication is required, so datasets cannot be public.\n  "
+                    f"Update the scope for the following datasets: {invalid}\n "
                 )
         return self
     
@@ -317,28 +320,16 @@ class ManifestConfig(BaseModel):
 
 
 class ManifestIO:
-
     @classmethod
-    def load_from_file(cls, logger: u.Logger, base_path: str, env_vars: dict[str, str]) -> ManifestConfig:
+    def load_from_file(cls, logger: u.Logger, project_path: str, env_vars_unformatted: dict[str, str]) -> ManifestConfig:
         start = time.time()
 
-        raw_content = u.read_file(u.Path(base_path, c.MANIFEST_FILE))
-        content = u.render_string(raw_content, base_path=base_path, env_vars=env_vars)
+        raw_content = u.read_file(u.Path(project_path, c.MANIFEST_FILE))
+        content = u.render_string(raw_content, project_path=project_path, env_vars=env_vars_unformatted)
         manifest_content: dict[str, Any] = yaml.safe_load(content)
 
-        auth_cfg: dict[str, Any] = manifest_content.get("authentication", {})
-        is_auth_required = bool(auth_cfg.get("is_required", False))
-
-        if is_auth_required:
-            # If authentication is required, assume PROTECTED when scope is not specified
-            # while explicitly forbidding PUBLIC (enforced in model validator)
-            datasets_raw = manifest_content.get("datasets", [])
-            for ds in datasets_raw:
-                if isinstance(ds, dict) and "scope" not in ds:
-                    ds["scope"] = "protected"
-        
         try:
-            manifest_cfg = ManifestConfig(base_path=base_path, **manifest_content)
+            manifest_cfg = ManifestConfig(base_path=project_path, **manifest_content)
         except ValidationError as e:
             raise u.ConfigurationError(f"Failed to process {c.MANIFEST_FILE} file. " + str(e)) from e
         

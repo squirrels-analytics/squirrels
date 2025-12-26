@@ -103,7 +103,7 @@ class TestDatasetConfig:
         assert dataset.model == expected
 
     @pytest.mark.parametrize("fixture,expected", [
-        ("dataset_config1", m.PermissionScope.PUBLIC),
+        ("dataset_config1", None),
         ("dataset_config2", m.PermissionScope.PROTECTED)
     ])
     def test_dataset_scope(self, fixture: str, expected: m.PermissionScope, request: pytest.FixtureRequest):

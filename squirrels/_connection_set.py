@@ -68,17 +68,9 @@ class ConnectionSet:
 class ConnectionSetIO:
 
     @classmethod
-    def load_conn_py_args(cls, logger: u.Logger, base_path: str, env_vars: dict[str, str], manifest_cfg: ManifestConfig) -> ConnectionsArgs:
-        start = time.time()
-        
-        proj_vars = manifest_cfg.project_variables.model_dump()
-        conn_args = ConnectionsArgs(base_path, proj_vars, env_vars)
-        
-        logger.log_activity_time("setting up arguments for connections.py", start)
-        return conn_args
-
-    @classmethod
-    def load_from_file(cls, logger: u.Logger, base_path: str, manifest_cfg: ManifestConfig, conn_args: ConnectionsArgs) -> ConnectionSet:
+    def load_from_file(
+        cls, logger: u.Logger, project_path: str, manifest_cfg: ManifestConfig, conn_args: ConnectionsArgs
+    ) -> ConnectionSet:
         """
         Takes the DB connection engines from both the squirrels.yml and connections.py files and merges them
         into a single ConnectionSet
@@ -94,7 +86,7 @@ class ConnectionSetIO:
                 label=config.label, type=config.type, uri=config.uri, sa_create_engine_args=config.sa_create_engine_args
             )
 
-        pm.run_pyconfig_main(base_path, c.CONNECTIONS_FILE, {"connections": connections, "sqrl": conn_args})
+        pm.run_pyconfig_main(project_path, c.CONNECTIONS_FILE, {"connections": connections, "sqrl": conn_args})
 
         conn_set = ConnectionSet(connections)
 

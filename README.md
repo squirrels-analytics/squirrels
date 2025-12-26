@@ -75,31 +75,32 @@ To confirm that the setup worked, run the following to show the help page for al
 sqrl -h
 ```
 
-### Testing
-
-Run `uv run pytest`. Or if you have the virtual environment activated, simply run `pytest`.
-
 ### Project Structure
 
 From the root of the git repo, the source code can be found in the `squirrels` folder and unit tests can be found in the `tests` folder.
+
+The documentation contents are in the `docs/` folder and are built with Mintlify.
 
 To understand what a specific Squirrels command is doing, start from the `_command_line.py` file as your entry point.
 
 The library version is maintained in both the `pyproject.toml` and the `squirrels/_version.py` files.
 
+### Testing
+
+Run `uv run pytest`. Or if you have the virtual environment activated, simply run `pytest`.
+
 ### Documentation
 
-The contents for the documentation can be found in the `docs` folder.
+Install the [Mintlify CLI](https://www.npmjs.com/package/mint) to preview your documentation changes locally. To install, use the following command:
 
-To test the documentation, use npm to install the mintlify CLI:
-
-```bash
+```
 npm i -g mint
 ```
 
-Then, you will be able to generate a local preview of the documentation site after navigating to the `docs` directory.
+Run the following command in the `docs/` folder, where the `docs.json` is located:
 
-```bash
-cd docs
+```
 mint dev
 ```
+
+View your local preview at `http://localhost:3000`.

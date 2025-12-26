@@ -9,7 +9,7 @@ class ModelBuilder:
     _datalake_db_path: str
     _conn_set: cs.ConnectionSet
     _static_models: dict[str, m.StaticModel]
-    _conn_args: cs.ConnectionsArgs = field(default_factory=lambda: cs.ConnectionsArgs(".", {}, {}))
+    _conn_args: cs.ConnectionsArgs
     _logger: u.Logger = field(default_factory=lambda: u.Logger(""))
     
     def _attach_connections(self, duckdb_conn: duckdb.DuckDBPyConnection) -> None:

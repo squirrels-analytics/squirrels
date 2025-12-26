@@ -9,7 +9,6 @@ from contextlib import asynccontextmanager
 from argparse import Namespace
 from pathlib import Path
 from starlette.middleware.sessions import SessionMiddleware
-from fastmcp import FastMCP
 import io, time, mimetypes, traceback, asyncio
 
 from . import _constants as c, _utils as u, _parameter_sets as ps
@@ -17,6 +16,7 @@ from ._exceptions import InvalidInputError, ConfigurationError, FileExecutionErr
 from ._version import __version__, sq_major_version
 from ._project import SquirrelsProject
 from ._request_context import set_request_id
+from ._mcp_server import McpServerBuilder
 
 # Import route modules
 from ._api_routes.auth import AuthRoutes
@@ -40,7 +40,7 @@ class SmartCORSMiddleware(BaseHTTPMiddleware):
     def __init__(self, app, allowed_credential_origins: list[str], configurables_as_headers: list[str]):
         super().__init__(app)
 
-        allowed_predefined_headers = ["Authorization", "Content-Type", "x-api-key", "x-orientation", "x-verify-params"]
+        allowed_predefined_headers = ["Authorization", "Content-Type", "x-api-key"]
         
         self.allowed_credential_origins = allowed_credential_origins
         self.allowed_request_headers = ",".join(allowed_predefined_headers + configurables_as_headers)
@@ -101,9 +101,6 @@ class ApiServer:
         self.context_func = project._context_func
         self.dashboards = project._dashboards
         
-        self.mcp = FastMCP(name="Squirrels")
-        self.mcp_app = self.mcp.http_app(path="/mcp", stateless_http=True)
-
         # Initialize route modules
         get_bearer_token = HTTPBearer(auto_error=False)
         # self.oauth2_routes = OAuth2Routes(get_bearer_token, project, no_cache)
@@ -119,20 +116,16 @@ class ApiServer:
         Background task to periodically refresh datasource parameter options.
         Runs every N minutes as configured by SQRL_PARAMETERS__DATASOURCE_REFRESH_MINUTES (default: 60).
         """
-        refresh_minutes_str = self.env_vars.get(c.SQRL_PARAMETERS_DATASOURCE_REFRESH_MINUTES, "60")
-        try:
-            refresh_minutes = int(refresh_minutes_str)
-            if refresh_minutes <= 0:
-                self.logger.info(f"The value of {c.SQRL_PARAMETERS_DATASOURCE_REFRESH_MINUTES} is: {refresh_minutes_str} minutes")
-                self.logger.info(f"Datasource parameter refresh is disabled since the refresh interval is not positive.")
-                return
-        except ValueError:
-            self.logger.warning(f"Invalid value for {c.SQRL_PARAMETERS_DATASOURCE_REFRESH_MINUTES}: {refresh_minutes_str}. Must be an integer. Disabling datasource parameter refresh.")
+        refresh_minutes = self.env_vars.parameters_datasource_refresh_minutes
+        if refresh_minutes <= 0:
+            self.logger.info(f"The value of {c.SQRL_PARAMETERS_DATASOURCE_REFRESH_MINUTES} is: {refresh_minutes} minutes")
+            self.logger.info(f"Datasource parameter refresh is disabled since the refresh interval is not positive.")
             return
         
         refresh_seconds = refresh_minutes * 60
         self.logger.info(f"Starting datasource parameter refresh background task (every {refresh_minutes} minutes)")
         
+        default_conn_name = self.env_vars.connections_default_name_used
         while True:
             try:
                 await asyncio.sleep(refresh_seconds)
@@ -140,7 +133,6 @@ class ApiServer:
                 
                 # Fetch fresh dataframes from datasources in a thread pool to avoid blocking
                 loop = asyncio.get_running_loop()
-                default_conn_name = self.manifest_cfg.env_vars.get(c.SQRL_CONNECTIONS_DEFAULT_NAME_USED, "default")
                 df_dict = await loop.run_in_executor(
                     None,
                     ps.ParameterConfigsSetIO._get_df_dict_from_data_sources,
@@ -148,7 +140,7 @@ class ApiServer:
                     default_conn_name,
                     self.seeds,
                     self.conn_set,
-                    self.project._datalake_db_path
+                    self.project._vdl_catalog_db_path
                 )
                 
                 # Re-convert datasource parameters with fresh data
@@ -162,16 +154,6 @@ class ApiServer:
                 self.logger.error(f"Error refreshing datasource parameter options: {e}", exc_info=True)
                 # Continue the loop even if there's an error
     
-
-    @asynccontextmanager
-    async def _run_background_tasks(self, app: FastAPI):
-        refresh_datasource_task = asyncio.create_task(self._refresh_datasource_params())
-        
-        async with self.mcp_app.lifespan(app):
-            yield
-        
-        refresh_datasource_task.cancel()
-
 
     def _get_tags_metadata(self) -> list[dict]:
         tags_metadata = [
@@ -235,16 +217,33 @@ class ApiServer:
         docs_url = project_name_version_path+"/docs"
         redoc_url = project_name_version_path+"/redoc"
 
+        # Container for MCP builder - will be populated after setup_routes
+        mcp_container: dict[str, McpServerBuilder] = {}
+        
+        @asynccontextmanager
+        async def app_lifespan(app: FastAPI):
+            """App lifespan that includes MCP server lifecycle and background tasks."""
+            mcp_builder = mcp_container.get("mcp_builder")
+            refresh_datasource_task = asyncio.create_task(self._refresh_datasource_params())
+            
+            if mcp_builder:
+                async with mcp_builder.lifespan():
+                    yield
+            else:
+                yield
+            
+            refresh_datasource_task.cancel()
+
         app = FastAPI(
             title=f"Squirrels APIs for '{project_label}'", openapi_tags=tags_metadata,
             description="For specifying parameter selections to dataset APIs, you can choose between using query parameters with the GET method or using request body with the POST method",
-            lifespan=self._run_background_tasks,
+            lifespan=app_lifespan,
             openapi_url=openapi_url,
             docs_url=docs_url,
             redoc_url=redoc_url
         )
 
-        app.add_middleware(SessionMiddleware, secret_key=self.env_vars.get(c.SQRL_SECRET_KEY, ""), max_age=None, same_site="none", https_only=True)
+        app.add_middleware(SessionMiddleware, secret_key=self.env_vars.secret_key, max_age=None, same_site="none", https_only=True)
 
         async def _log_request_run(request: Request) -> None:
             try:
@@ -305,8 +304,7 @@ class ApiServer:
 
         # Configure CORS with smart credential handling
         # Get allowed origins for credentials from environment variable
-        credential_origins_env = self.env_vars.get(c.SQRL_AUTH_CREDENTIAL_ORIGINS, "https://squirrels-analytics.github.io")
-        allowed_credential_origins = [origin.strip() for origin in credential_origins_env.split(",") if origin.strip()]
+        allowed_credential_origins = self.env_vars.auth_credential_origins
         
         # Allow both underscore and dash versions of configurable headers
         configurables_as_headers = []
@@ -320,15 +318,29 @@ class ApiServer:
         # self.oauth2_routes.setup_routes(app, squirrels_version_path)
         self.auth_routes.setup_routes(app, squirrels_version_path)
         get_parameters_definition = self.project_routes.setup_routes(
-            app, self.mcp, project_metadata_path, project_name_version_path, project_name, project_version, project_label, param_fields
+            app, project_metadata_path, project_name_version_path, project_name, project_version, param_fields
         )
         self.data_management_routes.setup_routes(app, project_metadata_path, param_fields)
-        self.dataset_routes.setup_routes(app, self.mcp, project_metadata_path, project_name, project_label, param_fields, get_parameters_definition)
+        self.dataset_routes.setup_routes(app, project_metadata_path, param_fields, get_parameters_definition)
         self.dashboard_routes.setup_routes(app, project_metadata_path, param_fields, get_parameters_definition)
+
+        # Build the MCP server now that route methods are available
+        max_rows_for_ai = self.env_vars.datasets_max_rows_for_ai
+        mcp_builder = McpServerBuilder(
+            project_name=project_name,
+            project_label=project_label,
+            max_rows_for_ai=max_rows_for_ai,
+            get_user_from_headers=self.project_routes.get_user_from_headers,
+            get_data_catalog_for_mcp=self.project_routes._get_data_catalog_for_mcp,
+            get_dataset_parameters_for_mcp=self.dataset_routes._get_dataset_parameters_for_mcp,
+            get_dataset_results_for_mcp=self.dataset_routes._get_dataset_results_for_mcp,
+        )
+        mcp_container["mcp_builder"] = mcp_builder
+        mcp_app = mcp_builder.get_asgi_app()
 
         # Mount static files from public directory if it exists
         # This allows users to serve static assets (images, CSS, JS, etc.) from {project_path}/public/
-        public_dir = Path(self.project._filepath) / c.PUBLIC_FOLDER
+        public_dir = Path(self.project._project_path) / c.PUBLIC_FOLDER
         if public_dir.exists() and public_dir.is_dir():
             app.mount("/public", StaticFiles(directory=str(public_dir)), name="public")
             self.logger.info(f"Mounted static files from: {public_dir}")
@@ -340,8 +352,7 @@ class ApiServer:
 
         @app.get(squirrels_studio_path, include_in_schema=False)
         async def squirrels_studio():
-            default_studio_path = "https://squirrels-analytics.github.io/squirrels-studio-v1"
-            sqrl_studio_base_url = self.env_vars.get(c.SQRL_STUDIO_BASE_URL, default_studio_path)
+            sqrl_studio_base_url = self.env_vars.studio_base_url
             context = {
                 "sqrl_studio_base_url": sqrl_studio_base_url,
                 "project_name": project_name_for_api,
@@ -354,9 +365,8 @@ class ApiServer:
             return RedirectResponse(url=squirrels_studio_path)
 
         # Mount MCP server
-        app.mount(project_name_version_path, self.mcp_app)
-        app.mount("/", self.mcp_app)
-        app.mount(project_metadata_path, self.mcp_app) # For backwards compatibility
+        app.add_route(f"{project_name_version_path}/mcp", mcp_app, methods=["GET", "POST"])
+        app.add_route("/mcp", mcp_app, methods=["GET", "POST"])
     
         self.logger.log_activity_time("creating app server", start)
 
@@ -372,7 +382,7 @@ class ApiServer:
         print()
         print(" 🖥️  Application UI")
         print(f"  └─ Squirrels Studio: {full_hostname}{squirrels_studio_path}")
-        print(f"     └─ (this redirects to studio: {full_hostname})")
+        print(f"     └─ (The following URL also redirects to studio: {full_hostname})")
         print()
         print(" 🔌 MCP Server URLs")
         print(f"  ├─ Option 1:         {full_hostname}{project_name_version_path}/mcp")
@@ -388,4 +398,4 @@ class ApiServer:
         print("─" * banner_width)
         print()
         
-        uvicorn.run(app, host=uvicorn_args.host, port=uvicorn_args.port, proxy_headers=True, forwarded_allow_ips="*", ws="websockets-sansio")
+        uvicorn.run(app, host=uvicorn_args.host, port=uvicorn_args.port, proxy_headers=True, forwarded_allow_ips="*")

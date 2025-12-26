@@ -3,19 +3,18 @@ import pytest
 from squirrels._sources import Source, Sources, UpdateHints
 from squirrels._model_configs import ColumnConfig
 from squirrels._utils import ConfigurationError
-from squirrels import _constants as c
 
 def test_source_get_connection():
     # Test with no connection specified
-    source = Source().finalize_connection({})
+    source = Source().finalize_connection()
     assert source.get_connection() == "default"
 
     # Test with explicit connection
-    source = Source(connection="test_connection").finalize_connection({})
+    source = Source(connection="test_connection").finalize_connection()
     assert source.get_connection() == "test_connection"
     
     # Test with default connection from settings
-    source = Source().finalize_connection({c.SQRL_CONNECTIONS_DEFAULT_NAME_USED: "default_connection"})
+    source = Source().finalize_connection(default_conn_name="default_connection")
     assert source.get_connection() == "default_connection"
 
 def test_source_get_table():
