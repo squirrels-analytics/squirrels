@@ -163,14 +163,6 @@ class PermissionScope(Enum):
     PRIVATE = 2
 
 
-# class AuthenticationType(Enum):
-#     MANAGED = "managed"
-#     EXTERNAL = "external"
-
-# class AuthenticationConfig(BaseModel):
-#     type: AuthenticationType = AuthenticationType.MANAGED
-
-
 class AnalyticsOutputConfig(_ConfigWithNameBaseModel):
     label: str = ""
     description: str = ""
@@ -222,7 +214,6 @@ class TestSetsConfig(_ConfigWithNameBaseModel):
 
 class ManifestConfig(BaseModel):
     project_variables: ProjectVarsConfig
-    # authentication: AuthenticationConfig = Field(default_factory=AuthenticationConfig)
     packages: list[PackageConfig] = Field(default_factory=list)
     connections: dict[str, DbConnConfig] = Field(default_factory=dict)
     parameters: list[ParametersConfig] = Field(default_factory=list)
