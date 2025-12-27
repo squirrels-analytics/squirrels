@@ -136,13 +136,13 @@ sqrl init --use-defaults
   sqrl init
   ```
 
-  This provides input prompts for you to answer before the project is set up. Command line options can also be used in place of prompts. See the `sqrl init` command reference for more details.
+  This provides input prompts for you to answer before the project is set up. Command line options can also be used in place of prompts. See the [sqrl init](/references/cli/init) command reference for more details.
 
 </Info>
 
 ## Run the project
 
-First, pre-build any static data models that the Squirrels project rely on by running `sqrl build`.
+First, pre-build any static data models that the Squirrels project rely on by running [sqrl build](/references/cli/build).
 
 ```bash
 sqrl build
@@ -152,7 +152,7 @@ This will create the static data models in a "local data lake" using [DuckLake](
 
 Next, open the `.env` file and set the `SQRL_SECRET__ADMIN_PASSWORD` environment variable to something of your choice. We will use this password to log in as the admin user later.
 
-Then, activate the API server by running `sqrl run`.
+Then, activate the API server by running [sqrl run](/references/cli/run).
 
 ```bash
 sqrl run
@@ -204,7 +204,7 @@ INFO:     Uvicorn running on http://127.0.0.1:4465 (Press CTRL+C to quit)
 
 <Tip>
 
-  You can also build the virtual data lake and run the API server in one command by running `sqrl run --build`.
+  You can also build the virtual data lake and run the API server in one command by running [sqrl run](/references/cli/run) with the `--build` option.
 
   Outside of deployment pipelines, avoid doing builds unnecessarily if there are no changes to the data models.
 
@@ -212,7 +212,7 @@ INFO:     Uvicorn running on http://127.0.0.1:4465 (Press CTRL+C to quit)
 
 <Tip>
 
-  If you [install the DuckDB CLI](https://duckdb.org/docs/installation/), you can run `sqrl duckdb` to open a query console to explore the virtual data lake and run SQL queries in the terminal.
+  If you [install the DuckDB CLI](https://duckdb.org/docs/installation/), you can run [sqrl duckdb](/references/cli/duckdb) to open a query console to explore the virtual data lake and run SQL queries in the terminal.
 
   ```bash
   sqrl duckdb
@@ -220,7 +220,7 @@ INFO:     Uvicorn running on http://127.0.0.1:4465 (Press CTRL+C to quit)
 
   In the query console, you can run `SHOW TABLES;` to see the tables in the database for instance.
 
-  If you have installed the DuckDB CLI but `sqrl duckdb` still complains that the DuckDB CLI cannot be found, try restarting your terminal or IDE before running the command again.
+  If you have installed the DuckDB CLI but [sqrl duckdb](/references/cli/duckdb) still complains that the DuckDB CLI cannot be found, try restarting your terminal or IDE before running the command again.
 
   In addition to the CLI interface, you can run the following to explore the virtual data lake in a web browser:
 

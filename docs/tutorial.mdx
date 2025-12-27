@@ -1,6 +1,6 @@
 ---
 title: "Tutorial"
-description: "Build your first Squirrels project step by step (~30 minutes)"
+description: "Build your first Squirrels project step by step"
 ---
 
 This step-by-step tutorial will walk you through creating your own Squirrels project! 
@@ -23,7 +23,7 @@ Now add the SQLite database we will use for the rest of the tutorial. Simply run
 sqrl get-file weather.db
 ```
 
-This adds a `weather.db` file in the `assets` folder. Feel free to delete the other files in the `assets` folder.
+This uses the [get-file](/references/cli/get-file) command to add a `weather.db` file in the `assets` folder. Feel free to delete the other files in the `assets` folder.
 
 <Info>
 
@@ -33,17 +33,15 @@ Note that this is mainly done for tutorial purposes. For most production use cas
 
 ## Step 3: Define project configurations
 
-Open the `squirrels.yml` file. This is the project configuration file that exists for all Squirrels projects, and it is used to configure many properties of the Squirrels project in [yaml](https://yaml.org/).
+Open the `squirrels.yml` file. This is the [project configuration file](/project/squirrels-yml) that exists for all Squirrels projects, and it is used to configure many properties of the Squirrels project in [yaml](https://yaml.org/).
 
 In this step, we will focus on the **project_variables**, **connections**, and **datasets** sections.
 
-<b>Setting the project variables</b>
+### Setting the project variables
 
-The project variables **name** and **major_version** are required. The **label** and **description** are optional. You are also free to add any of your own project variables here.
+The project variables **name** and **major_version** are required. All other project variables are optional. You are also free to add any of your own project variables here.
 
-In this tutorial, we will be making datasets for historical weather data. Change the **name** to `weather`, **label** to `Weather Analytics`, and provide a description. We will leave **major_version** as is.
-
-The **project_variables** section should now look like this:
+In this tutorial, we will be making datasets for historical weather data. Change the project_variables section to look like the following:
 
 ```yaml
 project_variables:
@@ -51,11 +49,12 @@ project_variables:
   label: Weather Analytics
   description: Analyze weather statistics from 2012 to 2015.
   major_version: 1
+  auth_type: optional
 ```
 
-<b>Setting the database connections</b>
+### Setting the database connections
 
-The **connections** section is where we set all the database connection details that we need. We provide a list of connection names here and refer to them in other files. The connection name `default` must be provided for models that don't specify a connection name explicitly.
+The **connections** section is where we set all the [database connection details](/concepts/connections) that we need. We provide a list of connection names here and refer to them in other files. The connection name `default` must be provided for models that don't specify a connection name explicitly.
 
 Under `default`, change the uri field to `sqlite:///{project_path}/assets/weather.db`. Change the label to "SQLite Weather Database".
 
@@ -79,9 +78,13 @@ connections:
     uri: sqlite:///{project_path}/assets/weather.db
 ```
 
-<b>Defining the datasets</b>
+The type `sqlalchemy` is the utility used to connect to any database that SQLAlchemy supports. For more information on the different connection types, see the [Connections](/concepts/connections) page.
 
-The **datasets** section is where we define the attributes for all datasets created by the Squirrels project. Every dataset defined will have their own "parameters API" and "dataset result API".
+To specify database connections with Python instead of YAML, see the [database connections file](/project/pyconfigs/connections) page.
+
+### Defining the datasets
+
+The **datasets** section is where we define the attributes for all [datasets](/concepts/datasets) created by the Squirrels project. Every dataset defined will have their own "parameters API" and "dataset result API".
 
 Currently, you may see two datasets configured. We will only have one dataset for this tutorial.
 
@@ -101,13 +104,11 @@ The model field is the name of the target data model that we will create later. 
 
 ## Step 4: Create the dataset parameters
 
-Go into the `pyconfigs/parameters.py` file. This file contains the definitions of all the widget parameters used in the dataset.
-
-<b>Define the parameters</b>
+Go into the `pyconfigs/parameters.py` file. This [python configuration file](/project/pyconfigs/parameters) contains the definitions of all the widget parameters used in the dataset.
 
 We will rewrite this file. Remove all the existing code in the file and replace it with the following:
 
-```python
+```python title="pyconfigs/parameters.py"
 from squirrels import parameters as p, parameter_options as po
 
 
@@ -118,24 +119,24 @@ from squirrels import parameters as p, parameter_options as po
 def group_by_options():
     return [
         po.SelectParameterOption(
-          id="year", label="Year", 
-          dim_col="year"
+            id="year", label="Year", 
+            dim_col="year"
         ),
         po.SelectParameterOption(
-          id="quarter", label="Quarter", 
-          dim_col="quarter"
+            id="quarter", label="Quarter", 
+            dim_col="quarter"
         ),
         po.SelectParameterOption(
-          id="month", label="Month", 
-          dim_col="month_name", order_by_col="month_order"
+            id="month", label="Month", 
+            dim_col="month_name", order_by_col="month_order"
         ),
         po.SelectParameterOption(
-          id="day", label="Day of Year", 
-          dim_col="day_of_year"
+            id="day", label="Day of Year", 
+            dim_col="day_of_year"
         ),
         po.SelectParameterOption(
-          id="cond", label="Condition", 
-          dim_col="condition"
+            id="cond", label="Condition", 
+            dim_col="condition"
         )
     ]
 ```
@@ -152,7 +153,7 @@ The **SelectParameterOption** class has an "is_default" attribute to specify the
 
 <Info>
 
-The possible widget parameter types supported today are **SingleSelectParameter**, **MultiSelectParameter**, **DateParameter**, **DateRangeParameter**, **NumberParameter**, **NumberRangeParameter**, and **TextParameter**. Each parameter type can be created with one of the following decorators: **create_simple**, **create_with_options**, or **create_from_source**. Every decorator takes "name" and "label" as required arguments.
+The possible [widget parameter types](/project/pyconfigs/parameters#parameter-types) supported today are **SingleSelectParameter**, **MultiSelectParameter**, **DateParameter**, **DateRangeParameter**, **NumberParameter**, **NumberRangeParameter**, and **TextParameter**. Each parameter type can be created with one of the following decorators: **create_simple**, **create_with_options**, or **create_from_source**. Every decorator takes "name" and "label" as required arguments.
 
 For **SingleSelectParameter**, the arguments for **create_simple** and **create_with_options** are similar. The difference is that **create_with_options** lets you specify a parent parameter for cascading the shown options. For non-select parameter types like **DateParameter**, there are more differences.
 
@@ -160,11 +161,11 @@ For **SingleSelectParameter**, the arguments for **create_simple** and **create_
 
 ## Step 5: Create the context file
 
-The context file is a Python file that runs in real-time to transform parameter selections and/or authenticated user attributes into meaningful values that can be used by dynamic data models.
+The [context file](/project/pyconfigs/context) is a Python file that runs in real-time to transform parameter selections and/or authenticated user attributes into meaningful values that can be used by dynamic data models.
 
 Change the `pyconfigs/context.py` file to look like the following:
 
-```python
+```python title="pyconfigs/context.py"
 from typing import cast, Any
 from squirrels import ContextArgs, parameters as p
 
@@ -190,7 +191,7 @@ def main(ctx: dict[str, Any], sqrl: ContextArgs) -> None:
     ctx["role"] = custom_user_fields.role
 ```
 
-In this example, we define context variables "dim_col" and "order_col" based on the "group_by_dim" parameter selection. We also define the "role" context variable based on the authenticated user's attribute(s), which is done for demonstration purposes (the "role" context variable is not used in the rest of this tutorial).
+In this example, we define context variables "dim_col" and "order_col" based on the "group_by_dim" parameter selection. We also define the "role" context variable based on the authenticated user's attribute(s), which is done for demonstration purposes (the "role" context variable will not actually be used in this tutorial).
 
 <Note>
 
@@ -202,11 +203,11 @@ By casting the parameter object to type **SingleSelectParameter**, this makes it
 
 ## Step 6: Create sources
 
-The `models/sources.yml` file lets us document the metadata of sources from our database tables.
+The `models/sources.yml` file lets us document the metadata of [sources](/project/models/sources) from our database tables.
 
 The `weather.db` SQLite database we retrieved earlier contains a table called "weather". Replace the `sources.yml` file with the following contents:
 
-```yaml
+```yaml title="models/sources.yml"
 sources:
   - name: src_weather
     description: Source table for weather metrics by day over time
@@ -248,11 +249,13 @@ sources:
 
 ## Step 7: Create seeds
 
-Seeds are CSV data files that can be used by other data models. For example, we can create a seed that maps month numbers to month names. 
+[Seeds](/project/seeds) are CSV data files that can be used by other data models. For example, we can create a seed that maps month numbers to month names. 
 
-Create a file named `seed_month_names.csv` in the `seeds/` folder with the following contents. Feel free to delete the other files in the `seeds/` folder.
+Currently, there are some seeds already defined in the `seeds/` folder. We will replace them with our own seeds. Feel free to delete the existing files in the `seeds/` folder.
 
-```csv
+Create a file named `seed_month_names.csv` in the `seeds/` folder with the following contents. 
+
+```csv title="seeds/seed_month_names.csv"
 month_order,month_name
 1,January
 2,February
@@ -270,7 +273,7 @@ month_order,month_name
 
 In addition, create a `seeds/seed_month_names.yml` file to add metadata for the seed.
 
-```yaml
+```yaml title="seeds/seed_month_names.yml"
 description: Month number to month name mapping
 
 columns:
@@ -285,18 +288,24 @@ columns:
     category: dimension
 ```
 
-Information in the yaml file may be useful for the Squirrels framework as well.
+Information in the yaml file may be useful for the Squirrels framework as well. Specifically, it can be used for:
+
+- **Explicit type casting**: By setting `cast_column_types: true` (not shown here), the framework will cast the columns to the specified types.
+- **Documentation**: It serves as a central place to document the purpose of the seed and its individual columns.
+- **Metadata for the API**: The `description` and `category` (dimension, measure, etc.) provide context for the data. If surfaced to a dataset, this metadata is exposed via API endpoints, allowing frontend applications to understand the purpose of each column.
 
 ## Step 8: Create data models from SQL queries
 
 For data models that are created by code, the Squirrels framework supports:
-- Creating build models (tables/views to be built offline) from SQL (DuckDB dialect) or Python files
-- Creating dbview models (queries that run on an external database in real-time) from SQL files (dialect of the database connection used)
-- Creating federate models (queries that run in the API server in real-time) from SQL (DuckDB dialect) or Python files
+- Creating [build models](/project/models/builds) (tables/views to be built offline) from SQL (DuckDB dialect) or Python files
+- Creating [dbview models](/project/models/dbviews) (queries that run on an external database in real-time) from SQL files (dialect of the database connection used)
+- Creating [federate models](/project/models/federates) (queries that run in the API server in real-time) from SQL (DuckDB dialect) or Python files
 
 Sources, seeds, and build models are known as "static data models". 
 
 Dbview models and federate models are known as "dynamic data models".
+
+For more information on the different model types, see the [Data Models](/concepts/models) page.
 
 We have already configured the "source" and "seed" models. For this tutorial, we will create a build model and a federate model with SQL, but will not create any dbview models.
 
@@ -304,11 +313,11 @@ Since we have replaced the source model in `sources.yml`, data models that are d
 
 **Delete the existing files in the `models/builds/`, `models/dbviews/`, and `models/federates/` folders.** Feel free to delete the existing files in the `macros/` folder as well.
 
-<b>Define a macro</b>
+### Define a macro
 
 First, create a `macros/metrics.sql` file with the following contents.
 
-```sql
+```sql title="macros/metrics.sql"
 {%- macro get_metrics() -%}
     CAST(SUM(precipitation) AS DECIMAL(6, 1)) AS precipitation,
     CAST(MAX(temp_max) AS DECIMAL(4, 1)) AS temp_max,
@@ -319,13 +328,13 @@ First, create a `macros/metrics.sql` file with the following contents.
 
 [Macros](/project/macros) allow us to reuse the same SQL text in multiple places, including across different data models.
 
-<b>Define the build model</b>
+### Define the build model
 
 "Build models" are defined in the `models/builds/` folder.
 
 Create a `models/builds/weather_by_date.sql` file with the following contents.
 
-```sql
+```sql title="models/builds/weather_by_date.sql"
 WITH
 weather_by_date AS (
 
@@ -374,7 +383,7 @@ Build models are able to call `ref` on sources (that have `load_to_vdl: true`), 
 
 Let's also add metadata for the build model in the `models/builds/weather_by_date.yml` file.
 
-```yaml
+```yaml title="models/builds/weather_by_date.yml"
 description: |
   This build model aggregates weather data by date and adds additional time-based attributes.
 
@@ -463,13 +472,13 @@ columns:
       - src_weather.wind
 ```
 
-<b>Define the federate model</b>
+### Define the federate model
 
 Federate models are defined in the `models/federates/` folder.
 
 Create a `models/federates/weather_by_period.sql` file with the following contents.
 
-```sql
+```sql title="models/federates/weather_by_period.sql"
 WITH
 cte_weather_grouped AS (
 
@@ -510,7 +519,7 @@ Federate models are able to call the `ref` macro on sources (that have `load_to_
 
 Also, create the `models/federates/weather_by_period.yml` file to add metadata for the federate model.
 
-```yaml
+```yaml title="models/federates/weather_by_period.yml"
 description: |
   This model aggregates weather data by time of year or condition to show weather statistics.
 
@@ -579,13 +588,13 @@ You can build the static data models by running:
 sqrl build
 ```
 
-Then, activate the API server by running:
+This runs the [build command](/references/cli/build) to materialize build models into the Virtual Data Lake. Then, activate the API server by running:
 
 ```bash
 sqrl run
 ```
 
-Take the time now to explore the project in Squirrels Studio before proceeding.
+This runs the [run command](/references/cli/run) to start the FastAPI server. Take the time now to explore the project in Squirrels Studio before proceeding.
 
 <Tip>
 
@@ -605,4 +614,13 @@ Check out our guide to [Connect MCP Clients](/guides/mcp-clients)! This allows y
 
 ## What's next?
 
-TBA
+Now that you've built your first Squirrels project, here are some suggested pages to explore next:
+
+- **[Architecture](/concepts/architecture)**: Learn more about the lifecycle of a Squirrels application and how data flows through the system.
+- **[Environment variables](/project/env-vars)**: See the available environment variables Squirrels can use to adjust certain settings.
+- **[MCP server](/concepts/mcp-server)**: Understand the available MCP tools and their behavior for use with AI agents.
+- **[Virtual Data Lake (VDL)](/concepts/vdl)**: Understand how the VDL works. Use it to materialize data models in advance if needed for faster real-time queries.
+- **[Dashboards](/project/dashboards)**: Learn how to create custom dashboards to visualize your datasets.
+- **[Authentication](/project/pyconfigs/user)**: Secure your APIs and implement user-based filtering (or other user-specific behaviours).
+- **[Cascading parameter options](/concepts/parameters)**: Enable parent-child relationships between parameters where a child parameter's options depend on a parent selection.
+- **[CLI reference](/references/cli)**: A complete guide to all Squirrels CLI commands.
