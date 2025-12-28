@@ -1,0 +1,30 @@
+---
+title: "Changes in v0.6.0"
+description: "January 6th, 2026"
+---
+
+import Intro from '/snippets/releases/intro1.mdx';
+
+<Intro/>
+
+The following are fixes and new features for [v0.6.0].
+
+## Fixes
+
+- [BREAKING CHANGE] Renamed the `SquirrelsProject.dataset` method to `SquirrelsProject.dataset_result` to avoid confusion with the `DashboardArgs.dataset` method. Although the two methods had the same name, they had different purposes and return different types.
+
+## New features
+
+**Dashboard context variables and configurables**
+
+- Dashboards now have access to context variables defined in `context.py`. This allows dashboards to use dynamic logic based on parameter selections and user attributes, similar to how datasets work.
+- The `sqrl` argument in the dashboard's `main` function now includes a `ctx` dictionary containing the context variables.
+- Dashboards can now override project-level configurables in their `.yml` configuration files using the `configurables` key.
+- These overrides are automatically merged with project-level defaults and are accessible via `sqrl.configurables` in the dashboard logic.
+
+## More info
+
+For more details, see the [GitHub release notes for v0.6.0][v0.6.0].
+
+
+[v0.6.0]: https://github.com/squirrels-analytics/squirrels/releases/tag/v0.6.0

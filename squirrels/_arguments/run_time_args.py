@@ -87,8 +87,13 @@ class ModelArgs(ContextArgs, BuildModelArgs):
 
 
 @dataclass
-class DashboardArgs(ConnectionsArgs):
+class DashboardArgs(ContextArgs):
+    ctx: dict[str, Any]
     _get_dataset: Callable[[str, dict[str, Any]], Coroutine[Any, Any, pl.DataFrame]]
+
+    def __post_init__(self) -> None:
+        super().__post_init__()
+        self.ctx = self.ctx.copy()
 
     async def dataset(self, name: str, *, fixed_parameters: dict[str, Any] = {}) -> pl.DataFrame:
         """

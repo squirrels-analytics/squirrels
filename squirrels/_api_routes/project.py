@@ -110,9 +110,9 @@ class ProjectRoutes(RouteBase):
                     
                     # Build dataset-specific configurables list
                     if user_has_elevated_privileges:
-                        dataset_configurables_defaults = self.manifest_cfg.get_default_configurables(name)
+                        dataset_configurables_defaults = self.manifest_cfg.get_default_configurables(overrides=config.configurables)
                         dataset_configurables_list = [
-                            rm.ConfigurableDefaultModel(name=name, default=default)
+                            rm.ConfigurableOverrideModel(name=name, default=default)
                             for name, default in dataset_configurables_defaults.items()
                         ]
                     else:
@@ -138,12 +138,22 @@ class ProjectRoutes(RouteBase):
                         dashboard_format = self.project._dashboards[name].get_dashboard_format()
                     except KeyError:
                         raise ConfigurationError(f"No dashboard file found for: {name}")
+
+                    if user_has_elevated_privileges:
+                        dashboard_configurables_defaults = self.manifest_cfg.get_default_configurables(overrides=config.configurables)
+                        dashboard_configurables_list = [
+                            rm.ConfigurableOverrideModel(name=name, default=default)
+                            for name, default in dashboard_configurables_defaults.items()
+                        ]
+                    else:
+                        dashboard_configurables_list = []
                     
                     parameters = config.parameters if config.parameters is not None else full_parameters_list
                     dashboard_items.append(rm.DashboardItemModel(
                         name=name, label=config.label, 
                         description=config.description, 
                         result_format=dashboard_format,
+                        configurables=dashboard_configurables_list,
                         parameters=parameters,
                         parameters_path=f"{project_metadata_path}/dashboard/{name_for_api}/parameters",
                         result_path=f"{project_metadata_path}/dashboard/{name_for_api}"

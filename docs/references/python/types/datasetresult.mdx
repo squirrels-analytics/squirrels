@@ -111,7 +111,7 @@ from squirrels import SquirrelsProject
 sqrl = SquirrelsProject()
 
 # Query a dataset
-result: DatasetResult = await sqrl.dataset(
+result: DatasetResult = await sqrl.dataset_result(
     "sales_data",
     selections={"year": "2024", "region": "north-america"}
 )
@@ -131,7 +131,7 @@ from squirrels import SquirrelsProject
 
 sqrl = SquirrelsProject()
 
-result: DatasetResult = await sqrl.dataset("sales_data")
+result: DatasetResult = await sqrl.dataset_result("sales_data")
 
 # Get first 10 rows as array of objects (records orientation)
 json_data = result.to_json("records", limit=10, offset=0)

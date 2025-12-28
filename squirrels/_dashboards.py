@@ -1,13 +1,14 @@
 from typing import Type, TypeVar, Callable, Coroutine, Any
+from typing_extensions import Self
 from enum import Enum
 from dataclasses import dataclass
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, model_validator, ValidationError
 import matplotlib.figure as figure
 import os, time, io, abc, typing
 
 from ._arguments.run_time_args import DashboardArgs
 from ._py_module import PyModule
-from ._manifest import AnalyticsOutputConfig, AuthType, PermissionScope
+from ._manifest import AnalyticsOutputConfig, AuthType, PermissionScope, ConfigurableOverride
 from ._exceptions import InvalidInputError, ConfigurationError, FileExecutionError
 from . import _constants as c, _utils as u
 
@@ -106,6 +107,18 @@ class DashboardDependencies(BaseModel):
 class DashboardConfig(AnalyticsOutputConfig):
     format: DashboardFormat = Field(default=DashboardFormat.PNG)
     depends_on: list[DashboardDependencies] = Field(default_factory=list)
+    configurables: list[ConfigurableOverride] = Field(default_factory=list)
+    project_configurables: dict[str, Any] = Field(default_factory=dict, exclude=True)
+
+    @model_validator(mode="after")
+    def validate_configurables(self) -> Self:
+        for cfg_override in self.configurables:
+            if cfg_override.name not in self.project_configurables:
+                raise ValueError(
+                    f'Dashboard "{self.name}" references configurable "{cfg_override.name}" which is not defined '
+                    f'in the project configurables'
+                )
+        return self
 
 
 @dataclass
@@ -139,7 +152,9 @@ class DashboardDefinition:
 class DashboardsIO:
 
     @classmethod
-    def load_files(cls, logger: u.Logger, base_path: str, auth_type: AuthType = AuthType.OPTIONAL) -> dict[str, DashboardDefinition]:
+    def load_files(
+        cls, logger: u.Logger, base_path: str, auth_type: AuthType = AuthType.OPTIONAL, project_configurables: dict[str, Any] = {}
+    ) -> dict[str, DashboardDefinition]:
         start = time.time()
         
         default_scope = PermissionScope.PROTECTED if auth_type == AuthType.REQUIRED else PermissionScope.PUBLIC
@@ -155,7 +170,10 @@ class DashboardsIO:
                 # Check for corresponding .yml file
                 yml_path = os.path.join(dp, file_stem + '.yml')
                 config_dict = u.load_yaml_config(yml_path) if os.path.exists(yml_path) else {}
-                config = DashboardConfig(name=file_stem, **config_dict)
+                try:
+                    config = DashboardConfig(name=file_stem, project_configurables=project_configurables, **config_dict)
+                except ValidationError as e:
+                    raise ConfigurationError(f'Failed to process dashboard config "{file_stem}". ' + str(e)) from e
                 
                 if config.scope is None:
                     config.scope = default_scope

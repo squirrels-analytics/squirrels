@@ -28,6 +28,8 @@ The class can be imported from the `squirrels.arguments` or `squirrels` module.
 
 Async method to get a dataset as a polars DataFrame given the dataset name.
 
+Unlike the `dataset_result` method of [SquirrelsProject] which requires parameter selections to be explicitly provided through code, this method automatically borrows selections applied to the dashboard.
+
 ```python
 async def dataset(
     self, name: str, *, fixed_parameters: dict[str, Any] = {}
@@ -44,3 +46,6 @@ async def dataset(
 </Expandable>
 
 <ResponseField name="returns" type="polars.DataFrame">A polars DataFrame of the dataset result.</ResponseField>
+
+
+[SquirrelsProject]: /references/python/squirrelsproject

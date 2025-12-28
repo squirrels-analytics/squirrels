@@ -141,12 +141,12 @@ class DbConnConfig(ConnectionProperties, _ConfigWithNameBaseModel):
         return self
 
 
-class DatasetConfigurablesConfig(BaseModel):
+class ConfigurableOverride(BaseModel):
     name: str
     default: str
 
 
-class ConfigurablesConfig(DatasetConfigurablesConfig):
+class ConfigurablesConfig(ConfigurableOverride):
     label: str = ""
     description: str = ""
 
@@ -190,7 +190,7 @@ class AnalyticsOutputConfig(_ConfigWithNameBaseModel):
 
 class DatasetConfig(AnalyticsOutputConfig):
     model: str = ""
-    configurables: list[DatasetConfigurablesConfig] = Field(default_factory=list)
+    configurables: list[ConfigurableOverride] = Field(default_factory=list)
     
     def __hash__(self) -> int:
         return hash("dataset_"+self.name)
@@ -297,24 +297,20 @@ class ManifestConfig(BaseModel):
         default_test_set = self.selection_test_sets.get(c.DEFAULT_TEST_SET_NAME, default_default_test_set)
         return default_test_set
     
-    def get_default_configurables(self, dataset_name: str | None = None) -> dict[str, str]:
+    def get_default_configurables(self, *, overrides: list[ConfigurableOverride] = []) -> dict[str, str]:
         """
         Return a dictionary of configurable name to its default value.
         
-        If dataset_name is provided, merges project-level defaults with dataset-specific overrides.
-
-        Supports both list- and dict-shaped internal storage for configurables.
+        Arguments:
+            overrides: A list of ConfigurableOverride objects to merge with the project-level defaults.
         """
         defaults: dict[str, str] = {}
         for name, cfg in self.configurables.items():
             defaults[name] = str(cfg.default)
         
-        # Apply dataset-specific overrides if dataset_name is provided
-        if dataset_name is not None:
-            dataset_cfg = self.datasets.get(dataset_name)
-            if dataset_cfg:
-                for cfg_override in dataset_cfg.configurables:
-                    defaults[cfg_override.name] = cfg_override.default
+        # Apply explicit overrides if provided
+        for cfg_override in overrides:
+            defaults[cfg_override.name] = cfg_override.default
         
         return defaults
 

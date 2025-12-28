@@ -44,7 +44,7 @@ class DatasetRoutes(RouteBase):
         """Helper to get dataset results"""
         # Only pass configurables that are defined in manifest
         cfg_filtered = {k: v for k, v in dict(configurables).items() if k in self.manifest_cfg.configurables}
-        return await self.project.dataset(dataset, user=user, selections=dict(selections), configurables=cfg_filtered)
+        return await self.project._dataset_result(dataset, user=user, selections=dict(selections), configurables=cfg_filtered)
 
     async def _get_dataset_results_cachable(
         self, dataset: str, user: AbstractUser, selections: tuple[tuple[str, Any], ...], configurables: tuple[tuple[str, str], ...]

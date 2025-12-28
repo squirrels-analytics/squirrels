@@ -226,6 +226,12 @@
         "tab": "Release Notes",
         "groups": [
           {
+            "group": "Versions 0.6.x",
+            "pages": [
+              "releases/v0-6-0"
+            ]
+          },
+          {
             "group": "Versions 0.5.x",
             "pages": [
               "releases/v0-5-4",

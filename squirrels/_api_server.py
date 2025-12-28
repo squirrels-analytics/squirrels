@@ -86,19 +86,13 @@ class ApiServer:
         Arguments:
             no_cache (bool): Whether to disable caching
         """
-        self.no_cache = no_cache
         self.project = project
         self.logger = project._logger
         self.env_vars = project._env_vars
-        self.j2_env = project._j2_env
         self.manifest_cfg = project._manifest_cfg
         self.seeds = project._seeds
-        self.conn_args = project._conn_args
         self.conn_set = project._conn_set
-        self.authenticator = project._auth
-        self.param_args = project._param_args
         self.param_cfg_set = project._param_cfg_set
-        self.context_func = project._context_func
         self.dashboards = project._dashboards
         
         # Initialize route modules

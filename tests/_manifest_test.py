@@ -252,11 +252,13 @@ class TestManifestConfigurables:
         assert defaults == {"config1": "default1", "config2": "default2"}
     
     def test_get_default_configurables_with_dataset_override(self, manifest_with_configurables: m.ManifestConfig):
-        defaults = manifest_with_configurables.get_default_configurables("dataset1")
+        overrides = manifest_with_configurables.datasets["dataset1"].configurables
+        defaults = manifest_with_configurables.get_default_configurables(overrides=overrides)
         assert defaults == {"config1": "dataset1_value", "config2": "default2"}
     
     def test_get_default_configurables_with_dataset_no_override(self, manifest_with_configurables: m.ManifestConfig):
-        defaults = manifest_with_configurables.get_default_configurables("dataset2")
+        overrides = manifest_with_configurables.datasets["dataset2"].configurables
+        defaults = manifest_with_configurables.get_default_configurables(overrides=overrides)
         assert defaults == {"config1": "default1", "config2": "default2"}
     
     def test_invalid_dataset_configurable(self):

@@ -128,7 +128,9 @@ class SquirrelsProject:
     
     @ft.cached_property
     def _dashboards(self) -> dict[str, d.DashboardDefinition]:
-        return d.DashboardsIO.load_files(self._logger, self._project_path, self._manifest_cfg.project_variables.auth_type)
+        return d.DashboardsIO.load_files(
+            self._logger, self._project_path, self._manifest_cfg.project_variables.auth_type, self._manifest_cfg.configurables
+        )
     
     @ft.cached_property
     def _conn_args(self) -> cs.ConnectionsArgs:
@@ -607,30 +609,21 @@ class SquirrelsProject:
         
         return collected
     
-    async def dataset(
-        self, name: str, *, selections: dict[str, t.Any] = {}, user: AbstractUser | None = None, require_auth: bool = True,
-        configurables: dict[str, str] = {}
+    async def _dataset_result(
+        self, name: str, *, selections: dict[str, t.Any] = {}, user: AbstractUser | None = None,
+        configurables: dict[str, str] = {}, check_user_access: bool = True
     ) -> dr.DatasetResult:
-        """
-        Async method to retrieve a dataset as a DatasetResult object (with metadata) given parameter selections.
-
-        Arguments:
-            name: The name of the dataset to retrieve.
-            selections: A dictionary of parameter selections to apply to the dataset. Optional, default is empty dictionary.
-            user: The user to use for authentication. If None, no user is used. Optional, default is None.
-        
-        Returns:
-            A DatasetResult object containing the dataset result (as a polars DataFrame), its description, and the column details.
-        """
         if user is None:
             user = self._guest_user
         
         scope = self._manifest_cfg.datasets[name].scope
-        if require_auth and not self._auth.can_user_access_scope(user, scope):
+        if check_user_access and not self._auth.can_user_access_scope(user, scope):
             raise self._permission_error(user, "dataset", name, scope.name)
         
+        dataset_config = self._manifest_cfg.datasets[name]
+        configurables = {**self._manifest_cfg.get_default_configurables(overrides=dataset_config.configurables), **configurables}
+        
         dag = self._generate_dag(name)
-        configurables = {**self._manifest_cfg.get_default_configurables(name), **configurables}
         await dag.execute(
             self._param_args, self._param_cfg_set, self._context_func, user, dict(selections), configurables=configurables
         )
@@ -641,6 +634,24 @@ class SquirrelsProject:
             df=df.with_row_index("_row_num", offset=1)
         )
     
+    async def dataset_result(
+        self, name: str, *, selections: dict[str, t.Any] = {}, user: AbstractUser | None = None, configurables: dict[str, str] = {}
+    ) -> dr.DatasetResult:
+        """
+        Async method to retrieve a dataset as a DatasetResult object (with metadata) given parameter selections.
+
+        Arguments:
+            name: The name of the dataset to retrieve.
+            selections: A dictionary of parameter selections to apply to the dataset. Optional, default is empty dictionary.
+            user: The user to use for authentication. If None, no user is used. Optional, default is None.
+            configurables: A dictionary of configurables to apply to the dataset. Optional, default is empty dictionary.
+        
+        Returns:
+            A DatasetResult object containing the dataset result (as a polars DataFrame), its description, and the column details.
+        """
+        result = await self._dataset_result(name, selections=selections, user=user, configurables=configurables, check_user_access=False)
+        return result
+
     async def dashboard(
         self, name: str, *, selections: dict[str, t.Any] = {}, user: AbstractUser | None = None, dashboard_type: t.Type[T] = d.PngDashboard,
         configurables: dict[str, str] = {}
@@ -666,12 +677,25 @@ class SquirrelsProject:
         
         async def get_dataset_df(dataset_name: str, fixed_params: dict[str, t.Any]) -> pl.DataFrame:
             final_selections = {**selections, **fixed_params}
-            result = await self.dataset(
-                dataset_name, selections=final_selections, user=user, require_auth=False, configurables=configurables
+            result = await self.dataset_result(
+                dataset_name, selections=final_selections, user=user, configurables=configurables
             )
             return result.df
         
-        args = d.DashboardArgs(**self._param_args.__dict__, _get_dataset=get_dataset_df)
+        dashboard_config = self._dashboards[name].config
+        parameter_set = self._param_cfg_set.apply_selections(dashboard_config.parameters, selections, user)
+        prms = parameter_set.get_parameters_as_dict()
+        
+        configurables = {**self._manifest_cfg.get_default_configurables(overrides=dashboard_config.configurables), **configurables}
+        context = {}
+        ctx_args = m.ContextArgs(
+            **self._param_args.__dict__, user=user, prms=prms, configurables=configurables, _conn_args=self._conn_args
+        )
+        self._context_func(context, ctx_args)
+        
+        args = d.DashboardArgs(
+            **ctx_args.__dict__, ctx=context, _get_dataset=get_dataset_df
+        )
         try:
             return await self._dashboards[name].get_dashboard(args, dashboard_type=dashboard_type)
         except KeyError:

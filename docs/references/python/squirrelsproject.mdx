@@ -203,15 +203,16 @@ def dataset_metadata(self, name: str) -> DatasetMetadata:
 
 <ResponseField name="returns" type="DatasetMetadata">A [DatasetMetadata] object.</ResponseField>
 
-### dataset()
+### dataset_result()
 
 Async method to retrieve the dataset result given parameter selections.
 
+Unlike the `dataset` method of [DashboardArgs], this method returns a [DatasetResult] object (which includes metadata) instead of a polars DataFrame. Furthermore, while the [DashboardArgs] method automatically borrows selections applied to the dashboard, this method requires selections to be explicitly provided through code.
+
 ```python
-async def dataset(
+async def dataset_result(
     self, name: str, *, selections: dict[str, Any] = {}, 
-    user: RegisteredUser | None = None, require_auth: bool = True, 
-    configurables: dict[str, str] = {}
+    user: RegisteredUser | None = None, configurables: dict[str, str] = {}
 ) -> DatasetResult:
 ```
 
@@ -224,9 +225,8 @@ async def dataset(
   </ResponseField>
   <ResponseField name="user" type="RegisteredUser | None" default="None">
     [RegisteredUser] object to use for authentication. If None, a guest user with default values for custom user fields is used.
-  </ResponseField>
-  <ResponseField name="require_auth" type="boolean" default={true}>
-    Whether to enforce authentication for the dataset. If True, the user object must be provided to access protected or private datasets.
+
+    Since this method fetches the dataset through code instead of the API, this user is not used to check access on the scope of the dataset. Instead, this argument is more applicable for applying user attributes to the dataset result.
   </ResponseField>
   <ResponseField name="configurables" type="dict[str, str]" default={{}}>
     Optional overrides for configurable placeholders defined in your project.
@@ -402,7 +402,7 @@ print(f"Description: {metadata.target_model_config.description}")
 print(f"Columns: {[col.name for col in metadata.target_model_config.columns]}")
 
 # Query a dataset with parameter selections
-result = await sqrl.dataset(
+result = await sqrl.dataset_result(
     "sales_data",
     selections={
         "date_range": ["2024-01-01", "2024-12-31"],
@@ -435,17 +435,16 @@ custom_fields = CustomUserFields()  # Use your extended class
 user = RegisteredUser(username="john_doe", custom_fields=custom_fields)
 
 # Query dataset as authenticated user
-result = await sqrl.dataset(
+result = await sqrl.dataset_result(
     "protected_data",
     selections={"year": "2024"},
     user=user
 )
 
 # Querying protected datasets with code also allows for bypassing authentication
-result = await sqrl.dataset(
+result = await sqrl.dataset_result(
     "protected_data",
-    selections={"year": "2024"},
-    require_auth=False
+    selections={"year": "2024"}
 )
 
 # Access the polars DataFrame
@@ -567,3 +566,4 @@ sqrl.close()
 [RegisteredUser]: /references/python/auth/registereduser
 [PngDashboard]: /references/python/dashboards/pngdashboard
 [HtmlDashboard]: /references/python/dashboards/htmldashboard
+[DashboardArgs]: /references/python/arguments/dashboardargs

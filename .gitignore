@@ -4,6 +4,7 @@ site/
 .venv/
 TODOS.md
 target/
+.cursor/
 
 # pyenv files
 .python-version

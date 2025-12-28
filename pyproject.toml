@@ -1,7 +1,7 @@
 [project]
 name = "squirrels"
-version = "0.6.0.dev3"
-description = "Squirrels - API Framework for Data Analytics"
+version = "0.6.0.dev0"
+description = "Squirrels - SDK for Data Analytics API & MCP Server"
 authors = [{ name = "Tim Huang", email = "timhuang95@gmail.com" }]
 requires-python = ">=3.10"
 readme = "README.md"
