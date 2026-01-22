@@ -167,6 +167,8 @@ class McpServerBuilder:
             A dictionary of the request metadata
         """
         request_metadata = self._server.request_context.meta
+        if request_metadata is None:
+            return {}
         return request_metadata.model_dump(mode="json")
 
     def _get_configurables(self, mcp_headers: McpRequestHeaders) -> tuple[tuple[str, str], ...]:

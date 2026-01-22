@@ -123,15 +123,17 @@ class SchemaModel(BaseModel):
 class SchemaWithConditionModel(BaseModel):
     fields: Annotated[list[ColumnWithConditionModel], Field(description="A list of JSON objects containing the 'name' and 'type' for each of the columns in the result")]
 
-class DatasetItemModel(BaseModel):
+class DatasetItemModelForMcp(BaseModel):
     name: Annotated[str, Field(examples=["my_dataset"], description=name_description)]
-    name_for_api: Annotated[str, Field(examples=["my-dataset"], description=name_for_api_description)]
     label: Annotated[str, Field(examples=["My Dataset"], description=label_description)]
     description: Annotated[str, Field(examples=[""], description=description_description)]
-    configurables: Annotated[list[ConfigurableOverrideModel], Field(default_factory=list, description="The list of configurables with their default values")]
     parameters: Annotated[list[str], Field(examples=[["myparam1", "myparam2"]], description="The list of parameter names used by the dataset. If the list is empty, the dataset does not accept any parameters.")]
     data_schema: Annotated[SchemaWithConditionModel, Field(alias="schema", description="JSON object describing the schema of the dataset")]
  
+class DatasetItemModel(DatasetItemModelForMcp):
+    name_for_api: Annotated[str, Field(examples=["my-dataset"], description=name_for_api_description)]
+    configurables: Annotated[list[ConfigurableOverrideModel], Field(default_factory=list, description="The list of configurables with their default values")]
+
 class DashboardItemModel(ParametersModel):
     name: Annotated[str, Field(examples=["mydashboard"], description=name_description)]
     name_for_api: Annotated[str, Field(examples=["my-dashboard"], description=name_for_api_description)]
@@ -166,7 +168,7 @@ class LineageRelation(BaseModel):
 
 class CatalogModelForMcp(BaseModel):
     parameters: Annotated[ParametersListType, Field(description="The list of all parameters in the project. It is possible that not all parameters are used by a dataset.")]
-    datasets: Annotated[list[DatasetItemModel], Field(description="The list of accessible datasets")]
+    datasets: Annotated[list[DatasetItemModelForMcp], Field(description="The list of accessible datasets")]
     
 class CatalogModel(CatalogModelForMcp):
     datasets: Annotated[list[DatasetItemModel], Field(description="The list of accessible datasets")]
